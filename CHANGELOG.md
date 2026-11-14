@@ -621,6 +621,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   ran `version`, a command of `builtin`, and failed with `the built binary
   does not start: ... unknown command version`. Such a binary is checked with
   `--help`, which mounts every command as `version` does.
+- `tt instance logrotate` no longer kills an instance that has only just
+  been started or restarted. The watchdog passed SIGHUP on to tarantool at
+  once, and a tarantool that had not set up its handler yet died of it,
+  `signal: hangup` in `tt.log`, and was not started again without
+  `restart: always`. On Linux the watchdog now sends the signal, SIGHUP or
+  the `logrotate_signal` of an external process, only to a process that
+  catches, ignores or blocks it, and logs that it did not otherwise; a
+  tarantool sets up its handler before it opens its log, so it misses no
+  rotation.
 - `tt package build` and `tt package fetch` install a registry dependency
   whose servers have no rock of the platform but a LuaRocks source rock, one
   of no `app.manifest.toml`, as before tt built tt packages from their source

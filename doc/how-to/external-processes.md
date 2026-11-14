@@ -106,7 +106,9 @@ no shared library, and the build checks that it got one; the programs of
   the process, `process.pid`, in the run directory.
 - `tt instance status` shows whether the process runs, and nothing more.
 - `tt instance logrotate` reopens `tt.log` and sends the process
-  `logrotate_signal`, if the record has one.
+  `logrotate_signal`, if the record has one. On Linux a process that does
+  not catch, ignore or block that signal does not get it, since it would
+  die of it; `tt.log` says so.
 - `tt instance clean` removes its log and its data directory.
 - `tt connect`, `tt play`, `tt instance kill --dump` and the cluster
   commands refuse an external process: it is not a Tarantool instance.

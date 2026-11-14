@@ -1077,7 +1077,9 @@ program it runs. Its output goes to `tt.log`; its watchdog keeps `tt.pid` and
 the pid of the process, `process.pid`, in the run directory.
 `tt instance status` shows whether the process runs and nothing more;
 `tt instance logrotate` reopens `tt.log` and sends the process
-`logrotate_signal`, if the record has one; `tt instance clean` removes the log
+`logrotate_signal`, if the record has one (on Linux, only if the process
+catches, ignores or blocks it, since it would die of it otherwise; `tt.log`
+says so); `tt instance clean` removes the log
 and the data directory. `tt connect`, `tt data play`, `tt instance kill --dump` and
 the cluster commands refuse an external process: it is not a Tarantool
 instance. The instances start in the order of `instances.yaml`, and none waits

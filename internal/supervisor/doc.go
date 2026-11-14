@@ -54,7 +54,12 @@
 //     not restart the timeout.
 //   - The reload signal (Options.ReloadSignal) runs Options.OnReload, and
 //     then sends the child Spec.ReloadSignal, or the received signal itself
-//     with Spec.ForwardReloadSignal, or nothing when neither is set.
+//     with Spec.ForwardReloadSignal, or nothing when neither is set. A child
+//     that neither catches, ignores nor blocks that signal does not get it,
+//     and the event reports ErrReloadNotHandled: a child that has only just
+//     been started dies of a signal it has not set up its handler for yet.
+//     Only Linux tells how another process handles a signal; elsewhere the
+//     signal is sent regardless.
 //   - An ignored signal (Options.IgnoreSignals) is reported and dropped, with
 //     a child or without.
 //   - Any other signal is forwarded to the child.

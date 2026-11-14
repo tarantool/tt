@@ -20,6 +20,10 @@ var (
 	// ErrCheckPanicked is wrapped by the error of a check that panicked; it
 	// counts as a failed check.
 	ErrCheckPanicked = errors.New("the check panicked")
+	// ErrReloadNotHandled is wrapped by the error of a reload signal the
+	// child did not get, since it does not handle the signal (yet) and would
+	// die of it.
+	ErrReloadNotHandled = errors.New("not sent to a child that does not handle it")
 	// errUnknownSignal is reported for a signal that is not a syscall.Signal.
 	errUnknownSignal = errors.New("not a system signal")
 )

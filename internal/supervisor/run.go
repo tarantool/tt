@@ -376,7 +376,9 @@ func (run *supervision) onSignal(received os.Signal) {
 
 // reload signals the child as its Spec says once the reload hook has run on
 // the reload signal sig: with sig itself, with Spec.ReloadSignal, or not at
-// all.
+// all. A child that does not handle the signal does not get it: one that has
+// only just been started and has not set up its handler yet would die of it,
+// and has nothing to reload so far.
 func (run *supervision) reload(sig syscall.Signal) error {
 	out := run.spec.ReloadSignal
 	if run.spec.ForwardReloadSignal {
@@ -385,6 +387,11 @@ func (run *supervision) reload(sig syscall.Signal) error {
 
 	if out == 0 {
 		return nil
+	}
+
+	if !run.proc.handlesSignal(out) {
+		return fmt.Errorf("%s %w: the process %d would die of it", out, ErrReloadNotHandled,
+			run.proc.pid)
 	}
 
 	return run.proc.signal(out)

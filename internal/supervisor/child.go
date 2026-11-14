@@ -39,6 +39,9 @@ type child struct {
 	done chan Exit
 	// send delivers a signal to the child, or to its process group.
 	send func(sig syscall.Signal) error
+	// handles tells whether the child survives a signal (handlesSignal);
+	// nil takes every signal as handled.
+	handles func(sig syscall.Signal) bool
 }
 
 func command(ctx context.Context, spec *Spec) *exec.Cmd {
@@ -102,10 +105,14 @@ func startChild(ctx context.Context, spec *Spec, start StartFunc) (*child, error
 		return nil, ErrNotStarted
 	}
 
+	pid := cmd.Process.Pid
 	proc := &child{
-		pid:  cmd.Process.Pid,
+		pid:  pid,
 		done: make(chan Exit, 1),
 		send: signaller(cmd.Process, spec.ProcessGroup),
+		// The leader of a process group stands for the group: the program
+		// the Spec runs.
+		handles: func(sig syscall.Signal) bool { return handlesSignal(pid, sig) },
 	}
 
 	go func() {
@@ -142,4 +149,10 @@ func signaller(process *os.Process, group bool) func(sig syscall.Signal) error {
 
 func (proc *child) signal(sig syscall.Signal) error {
 	return proc.send(sig)
+}
+
+// handlesSignal tells whether the child survives sig, as far as it can be
+// told.
+func (proc *child) handlesSignal(sig syscall.Signal) bool {
+	return proc.handles == nil || proc.handles(sig)
 }

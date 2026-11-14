@@ -39,7 +39,8 @@ type Spec struct {
 	StopTimeout time.Duration
 	// ReloadSignal is the signal the child gets after Options.OnReload has
 	// run on the reload signal, unless ForwardReloadSignal is set; zero
-	// sends the child nothing.
+	// sends the child nothing. A child that does not handle the signal does
+	// not get it (ErrReloadNotHandled).
 	ReloadSignal syscall.Signal
 	// ForwardReloadSignal sends the child the reload signal the supervisor
 	// received instead of ReloadSignal.

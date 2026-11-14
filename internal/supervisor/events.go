@@ -32,7 +32,7 @@ const (
 	// ActionStop stopped the child, or ended the restart delay.
 	ActionStop SignalAction = iota + 1
 	// ActionReload ran the reload hook and signalled the child as its Spec
-	// says (Spec.ReloadSignal), if there was one.
+	// says (Spec.ReloadSignal), if there was one and it handles the signal.
 	ActionReload
 	// ActionForward forwarded the signal to the child.
 	ActionForward

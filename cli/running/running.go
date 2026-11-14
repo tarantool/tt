@@ -703,7 +703,9 @@ func PIDFileStatus(path string) process_utils.ProcessState {
 
 // Logrotate rotates logs of a started instance: its watchdog reopens tt.log
 // on SIGHUP and passes SIGHUP on to tarantool, which reopens its own log, or
-// sends an external process its logrotate_signal, if it has one. Only the
+// sends an external process its logrotate_signal, if it has one. A process
+// that does not handle the signal yet, having only just been started, does
+// not get it, rather than dying of it (supervisor.ErrReloadNotHandled). Only the
 // watchdog that holds the pid file gets the signal: the pid in a file nobody
 // holds may name an unrelated process by now.
 func Logrotate(run *InstanceCtx) error {
