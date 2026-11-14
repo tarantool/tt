@@ -137,7 +137,8 @@ as every module of the core's repository is.
   newer core adds to the set, still build.
 - The lock names the standard modules the binary has, without the excluded
   ones and those `[dependencies]` replaces, and without `builtin`:
-  `standard = ['aeon']` in its `[core]`. `--locked` fails when the build
+  `standard = ['aeon', 'build', 'wasm']` in its `[core]` for the manifest
+  above. `--locked` fails when the build
   would take others.
 - The build reads the list from the source of the package `standard` and
   imports the constructor of each module it takes into the `main` it
@@ -184,7 +185,7 @@ The table has the fields:
 | `version` | the commit of the core for a module of the core's repository, `latest` for any other | a Go version query; not allowed with `path`, nor for a module of the core's repository, which follows the core |
 | `path` | | a local directory with the module, relative to the manifest's directory |
 | `package` | the root package of the module | the import path of the package with the constructor; a package of `module` |
-| `symbol` | `New` | the constructor, an exported identifier of type `func(sdk.Services) []sdk.Mount` |
+| `symbol` | `New` | the constructor, an exported identifier of type `func(sdk.Services) []sdk.Mount`, or `func(sdk.Services) sdk.Module` for a module that provides build backends or checks of the files of a package |
 | `kind` | `tt-module` | the only kind there is |
 | `source` | `path` with `path`, `registry` without | |
 

@@ -247,9 +247,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   checks of them and what it builds, and tt runs it in the same pipeline -
   the preflight before anything is built, the environment of the build, the
   layout, the stage, `incremental`, the modules, data files and programs it
-  makes - and lets a hook name one that says it runs hooks. The seven
-  backends of tt are written against the same contract, and are a module
-  too: `build` (`github.com/tarantool/tt/modules/build`), a standard module,
+  makes - and lets a hook name one that says it runs hooks. The backends of
+  tt are written against the same contract, and are a module too: `build` (`github.com/tarantool/tt/modules/build`), a standard module,
   which `tt version --modules` lists. The core has no backend of its own: a
   distribution that excludes `build` builds no component with a build block,
   `building component "<name>": no module of this tt provides backend
@@ -359,9 +358,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   it anyway, with exit code 2, `building component "<name>": kind =
   "executable", but the build made more than programs: <files>` and `kind
   = "module", but the build made programs: <files>`. A component of `go`
-  with no `kind` is no error, `backend "go" builds a program: set kind =
-  "executable" on the component`, and `bin` of `cargo` with no `kind` builds
-  the binary. An entry of `output` a backend does not make is refused,
+  with no `kind` is no error, where it was `backend "go" builds a program:
+  set kind = "executable" on the component`, and `bin` of `cargo` with no
+  `kind` builds the binary. An entry of `output` a backend does not make is refused,
   `components.<name>.build.output[<i>].to: backend "<backend>" makes no
   data files`, and so is a table of another `to`, `"etc" is not lib, share
   or bin`, or without `path`, `output[<i>].path: is required`.

@@ -109,7 +109,7 @@ their hooks, which run after. A constructor declares commands and their
 flags and nothing else: it reads no files and no environment.
 
 A module that provides build backends as well, for the `backend` of a
-component's build block, has an `sdk.ModuleConstructor` instead,
+component's build block, or checks of the files of a package, has an `sdk.ModuleConstructor` instead,
 `func(sdk.Services) sdk.Module`: the `sdk.Module` it returns holds its
 `Commands`, its `Backends` and the `FileChecks` of the files of a package,
 of `github.com/tarantool/tt/sdk/build`. tt calls it as it calls an

@@ -22,13 +22,14 @@ See [Projects and scopes](../concepts/projects-and-scopes.md) and
 | `TT_REGISTRIES` | the rock servers, comma-separated, instead of `[platform].registries` and the defaults; `--registry` wins over it |
 | `SOURCE_DATE_EPOCH` | the time stamped into `version.lua` and the archive; the time of the HEAD commit by default |
 
-A component build and a hook get `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
-`TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION`, `TT_PLATFORM_OS` and
-`TT_PLATFORM_ARCH`, and, when tt knows the Tarantool it builds for,
-`TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR`, the directory of its
-`module.h` and `lua.h`; see [app.manifest.toml](app-manifest.md#componentsnamebuild).
-`.tarantool/bin` of the project comes first on the `PATH` they get. A
-component build also gets `TT_BUILD_DIR`, `_build/component/<component>/`,
+A component build and a hook get `TT_PROJECT_ROOT`, `TT_PACKAGE`,
+`TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`, and, when tt knows
+the Tarantool it builds for, `TT_TARANTOOL_PREFIX` and
+`TT_TARANTOOL_INCLUDE_DIR`, the directory of its `module.h` and `lua.h`; see
+[app.manifest.toml](app-manifest.md#componentsnamebuild). `.tarantool/bin`
+of the project comes first on the `PATH` they get. A component build also
+gets `TT_OUTPUT_DIR`, where it puts the modules it makes,
+`TT_COMPONENT_NAME` and `TT_BUILD_DIR`, `_build/component/<component>/`,
 the directory of its own for what it makes on the way, out of the sources,
 and a `cargo` build `CARGO_TARGET_DIR`, `_build/cargo/`, unless
 `CARGO_TARGET_DIR` or `CARGO_BUILD_TARGET_DIR` is set.

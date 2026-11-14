@@ -53,8 +53,8 @@ Each directory is a separate Go module:
   memory. `tt binary install` downloads the prebuilt Tarantool and tt
   through it, `tt wasm` and `tt emmylua` their release assets.
 - `build` is the contract of a build backend, with the standard library
-  only: a `Backend` - its name, the kinds of components it builds, the
-  configuration its fields of a build block decode into and the `New` that
+  only: a `Backend` - its name, the types of what its builds make
+  (`Produces`: modules, data files, programs), the configuration its fields of a build block decode into and the `New` that
   checks them and returns the `Build`, and whether lifecycle hooks may name
   it - the `Context` a build or a hook runs in, with the directories, the
   target and the commands of the build, and a `FileCheck` of the files of
