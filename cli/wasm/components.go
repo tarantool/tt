@@ -185,22 +185,6 @@ func SDKMismatches(components []Component, version string) []string {
 	return mismatches
 }
 
-// SDKWarnings returns the SDK mismatches of the package in projectDir, for a
-// build to warn of; nothing when it declares no exact wasm version.
-func SDKWarnings(projectDir string) []string {
-	version, err := DeclaredVersion(projectDir)
-	if err != nil || version == "" {
-		return nil
-	}
-
-	components, err := FindComponents(projectDir)
-	if err != nil {
-		return nil
-	}
-
-	return SDKMismatches(components, version)
-}
-
 // restoreSDK has tarawasm install the SDK of component as its lock pins it,
 // into the component's .tarawasm, which a checkout does not carry.
 func (t Tarawasm) restoreSDK(ctx context.Context, program string, component Component) error {

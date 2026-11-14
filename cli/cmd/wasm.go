@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/deps"
 	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
@@ -491,13 +490,5 @@ func printWasmPrepared(projectDir string, report *wasm.Report) {
 
 	if report.Tarawasm != nil && len(report.Components) == 0 {
 		_, _ = fmt.Fprintf(os.Stdout, "next:\n  tt wasm new <name> --lang <language>\n")
-	}
-}
-
-// warnWasmSDK warns of the components of the package in projectDir whose SDK
-// is of another release than the wasm rock the package declares.
-func warnWasmSDK(projectDir string) {
-	for _, warning := range wasm.SDKWarnings(projectDir) {
-		log.Warn(warning)
 	}
 }

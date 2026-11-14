@@ -904,8 +904,6 @@ func runPackagePack() error {
 		return err
 	}
 
-	warnWasmSDK(projectDir)
-
 	out := ""
 	if packageOut != "" {
 		out, err = filepath.Abs(packageOut)
@@ -1083,8 +1081,6 @@ func buildPackageIn(ctx context.Context, projectDir string, run packageRun) erro
 	if err != nil {
 		return err
 	}
-
-	warnWasmSDK(projectDir)
 
 	return build.Run(ctx, build.Options{
 		ProjectDir: projectDir,
