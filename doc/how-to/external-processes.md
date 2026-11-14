@@ -37,12 +37,11 @@ not exist, before it starts anything. See the
 
 ## Build the program with the package
 
-A component of `kind = "executable"` builds a program into `.rocks/bin/`,
-so the package carries it, and the record names it by its name:
+A component whose build makes a program puts it into `.rocks/bin/`, so the
+package carries it, and the record names it by its name:
 
 ```toml
 [components.gateway]
-kind = "executable"
 path = "gateway"            # a Go module
 
 [components.gateway.build]
@@ -58,19 +57,36 @@ $ tt instance logs myapp:gateway
 myapp:gateway: gateway started, port [--port 8080]
 ```
 
-The backends of executable components:
+The backends that build programs:
 
 - `go`: `go build -trimpath` of `package` (`.` by default) into a program
   named `name`, the component's name by default; `tags`, `ldflags`, and
-  `cgo` (off by default).
-- `cargo`: `cargo build` of the binary `bin`, the component's name by
-  default, in the `release` profile unless `profile` says otherwise, in
-  `_build/cargo/`; `package`, `features`.
+  `cgo` (off by default). The Go sources are not laid out into the package:
+  only what `include` of the component names is.
+- `cargo`: `cargo build` of the binary `bin`, in the `release` profile
+  unless `profile` says otherwise, in `_build/cargo/`; `package`,
+  `features`. A block that names `module` too builds the module of the
+  library as well; see [Build a module in Rust](rust-modules.md).
 - `cmake`: the CMake project of `cwd`, built out of the source in
-  `_build/component/<component>/`, its programs listed in `output`,
-  relative to the build tree; `variables`, `targets`, `build_type`.
-- `make` and `shell`: a build of your own that writes the programs into
-  `TT_OUTPUT_DIR`, and what it makes on the way into `TT_BUILD_DIR`.
+  `_build/component/<component>/`, its programs listed in `output` with
+  `to = "bin"`, relative to the build tree; `variables`, `targets`,
+  `build_type`.
+- `make` and `shell`: a build of your own, its programs listed in `output`
+  with `to = "bin"`, relative to `cwd`, and what it makes on the way in
+  `TT_BUILD_DIR`.
+
+```toml
+[components.tools.build]
+backend = "make"
+make_target = "tools"
+output = [{ path = "build/gw-cli", to = "bin" }]
+```
+
+A component may make modules and programs at once: a string of `output`
+is a module, a file with `to = "share"` a data file. The deprecated
+`kind = "executable"` of `manifest_version = "0.1"` still works, with a
+warning: its build makes programs only, and a `make` or `shell` build of it
+writes them into `TT_OUTPUT_DIR`.
 
 `static = true` asks `go` and `cargo` for a program that needs no loader and
 no shared library, and the build checks that it got one; the programs of

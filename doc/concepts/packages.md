@@ -81,18 +81,28 @@ The dependencies come from rock servers; see [Rock servers](rock-servers.md).
 A component is a part of the package: a directory of files, with an
 optional build.
 
-- A **module** component, the default, lays its files out under
-  `.rocks/share/tarantool/<namespace>/`, `<namespace>` being the package name
-  unless the component says otherwise. Its files are the `*.lua` and `*.so`
-  of its `path` unless `include` lists others. A build backend - `c`,
-  `lua-c`, `cargo`, `cmake`, `make` or `shell` - makes a native module
-  first, or a WebAssembly component: see
-  [Run WebAssembly components](../how-to/wasm-components.md).
-  [Build a module in Rust](../how-to/rust-modules.md) describes `cargo`.
-- An **executable** component, `kind = "executable"`, builds a program into
-  `.rocks/bin/`, with the `go`, `cargo`, `cmake`, `make` or `shell` backend.
-  An [external process](../how-to/external-processes.md) of the application
+A component lays its files out under `.rocks/share/tarantool/<namespace>/`,
+`<namespace>` being the package name unless the component says otherwise.
+Its files are the `*.lua` and `*.so` of its `path` unless `include` lists
+others; a `go` component lays out only what `include` lists. A build
+backend makes what its block asks for, before the layout, and one
+component may make all of it:
+
+- a **module**, into `.rocks/lib/tarantool/<namespace>/`: a native module
+  of `c`, `lua-c`, `cargo` with `module`, or of `cmake`, `make` and
+  `shell` in `output`;
+- a **data file**, into `.rocks/share/tarantool/<namespace>/`: a
+  WebAssembly component, say, see
+  [Run WebAssembly components](../how-to/wasm-components.md), an entry of
+  `output` with `to = "share"`;
+- a **program**, into `.rocks/bin/`: of `go`, `cargo` with `bin`, or an
+  entry of `output` with `to = "bin"`. An
+  [external process](../how-to/external-processes.md) of the application
   runs it.
+
+[Build a module in Rust](../how-to/rust-modules.md) describes `cargo`. The
+`kind` of a component, `"module"` or `"executable"`, is deprecated: tt
+checks what it says against what the build makes.
 
 A native module is `<module>.so` in `.rocks/lib/tarantool/<namespace>/`, and
 `<module>.dylib` on macOS, where Tarantool looks for no other name: the `c`,
@@ -182,8 +192,8 @@ The code reads its version as `require('<name>.version').version`; set
 
 ### Incremental builds
 
-A `make` or `shell` build of a component, a module or an executable one,
-can be skipped when nothing it depends on changed since its last build:
+A `make` or `shell` build of a component, whatever it makes, can be
+skipped when nothing it depends on changed since its last build:
 
 ```toml
 [components.calc.build]
@@ -218,10 +228,10 @@ still there:
 
 - the files `output` lists;
 - the files of the component the layout took;
-- the files it wrote into `TT_OUTPUT_DIR`, at any depth: those it created or
-  changed, and those an earlier build wrote and it left alone, as a `make`
-  target that is up to date does. Of an executable component, these are its
-  programs.
+- the modules, the data files and the programs it made, by the record of
+  `_build/results.json`: the files it created or changed, at any depth, and
+  those an earlier build made and it left alone, as a `make` target that is
+  up to date does.
 
 A build whose files in `_build/rock/` were cleared since runs again; a
 cleared `.rocks/` gets the package's rock again from there. A skipped

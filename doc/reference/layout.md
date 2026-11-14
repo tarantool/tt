@@ -83,10 +83,11 @@ myapp/
 │       └── instances.yaml
 ├── .rocks/                    # dependencies and built components (generated)
 │   ├── share/tarantool/<name>/
-│   └── bin/                   # programs of executable components
+│   └── bin/                   # programs the components built
 ├── _build/pack/               # archives tt package pack makes (generated)
 ├── _build/rock/<product>/     # the components laid out, installed into .rocks/ (generated)
 ├── _build/rock/<product>.json # which component put each file there (generated)
+├── _build/results.json        # what each component built: modules, data files, programs (generated)
 ├── _build/cache/              # what the last incremental builds hashed and left (generated)
 ├── _build/component/<component>/ # TT_BUILD_DIR of each component: a cmake build tree (generated)
 ├── _build/cargo/              # the target directory of the cargo components (generated)
