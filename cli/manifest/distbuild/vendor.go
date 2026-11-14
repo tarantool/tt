@@ -352,7 +352,7 @@ func (b builder) checkBundle(ctx context.Context) error {
 		return fmt.Errorf("the bundle does not build offline: %w", err)
 	}
 
-	return smoke(ctx, binary, tmp, env)
+	return b.smoke(ctx, binary, tmp, env)
 }
 
 // shellQuote quotes value for a POSIX shell.

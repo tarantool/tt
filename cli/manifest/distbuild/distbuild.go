@@ -337,7 +337,7 @@ func (b builder) binary(ctx context.Context, env []string) (string, error) {
 
 	built := filepath.Join(b.work, b.dist.Name())
 
-	err = smoke(ctx, built, b.work, env)
+	err = b.smoke(ctx, built, b.work, env)
 	if err != nil {
 		return "", err
 	}
@@ -774,27 +774,40 @@ func workDir(dir string) (string, func(), error) {
 	return tmp, func() { _ = os.RemoveAll(tmp) }, nil
 }
 
-// smoke runs the built binary's version command: a module whose commands
-// cannot be mounted fails it, and should fail the build rather than its
-// first user.
-func smoke(ctx context.Context, binary, dir string, env []string) error {
+// smoke starts the built binary: a module whose commands cannot be mounted
+// fails it, and should fail the build rather than its first user. The core
+// builds the whole tree of commands before it runs any, so one command
+// checks them all: version, which tells what was built, or, in a binary
+// without tt's own commands, whose module builtin has version, --help.
+func (b builder) smoke(ctx context.Context, binary, dir string, env []string) error {
 	ctx, cancel := context.WithTimeout(ctx, smokeTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary, "version")
+	args := smokeArgs(b.dist.Distribution)
+	cmd := exec.CommandContext(ctx, binary, args...)
 
 	cmd.Dir = dir
 	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return sdk.Errorf(sdk.ExitFailure, "the built binary does not start: %s version: %w\n%s",
-			binary, err, bytes.TrimSpace(out))
+		return sdk.Errorf(sdk.ExitFailure, "the built binary does not start: %s %s: %w\n%s",
+			binary, strings.Join(args, " "), err, bytes.TrimSpace(out))
 	}
 
 	log.Debugf("%s", bytes.TrimSpace(out))
 
 	return nil
+}
+
+// smokeArgs are the arguments smoke runs the binary of a distribution with
+// opts with.
+func smokeArgs(opts manifest.DistributionOptions) []string {
+	if opts.BuiltinValue() {
+		return []string{"version"}
+	}
+
+	return []string{"--help"}
 }
 
 // install moves the binary from the work directory to output.

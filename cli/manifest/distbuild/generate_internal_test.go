@@ -238,6 +238,19 @@ func TestGenerateMainStandard(t *testing.T) {
 	assert.NotContains(t, string(got), "standard")
 }
 
+func TestSmokeArgs(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"version"}, smokeArgs(manifest.DistributionOptions{}))
+	// version is a command of builtin.
+	assert.Equal(t, []string{"--help"}, smokeArgs(manifest.DistributionOptions{
+		Builtin: new(false),
+	}))
+	assert.Equal(t, []string{"--help"}, smokeArgs(manifest.DistributionOptions{
+		Exclude: []string{"builtin"},
+	}))
+}
+
 func TestPlaceholderVersion(t *testing.T) {
 	t.Parallel()
 

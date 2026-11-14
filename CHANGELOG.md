@@ -548,6 +548,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   component that copied its file straight into it, `cp x.so
   "$TT_OUTPUT_DIR/"`, failed with `No such file or directory`, since only
   the other backends created it.
+- `tt binary build tt` builds a distribution without tt's own commands,
+  `builtin = false` or `exclude = ["builtin"]`: the check of the built binary
+  ran `version`, a command of `builtin`, and failed with `the built binary
+  does not start: ... unknown command version`. Such a binary is checked with
+  `--help`, which mounts every command as `version` does.
 - `tt package build` and `tt package fetch` install a registry dependency
   whose servers have no rock of the platform but a LuaRocks source rock, one
   of no `app.manifest.toml`, as before tt built tt packages from their source
