@@ -451,6 +451,16 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk/fetch"
+        # The contract of a build backend depends on the standard library
+        # only, and not on the module contract, which depends on it;
+        # testify is for the tests.
+        dir-sdk-build:
+          files:
+            - "**/sdk/build/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk/build"
         # The resolver of the application an instance command acts on: it
         # reads the manifest and loads the cluster config the way the rest
         # of tt does, and knows nothing of how instances are run.
