@@ -970,6 +970,9 @@ manifest_kind = "tt-distribution"
 [core]
 tt = "v3.0.0-alpha.2"
 
+[distribution]
+standard = false   # the core of v3.0.0-alpha.2 lists no standard modules
+
 [dependencies]
 probe = "../tt-probe"
 ```

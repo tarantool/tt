@@ -15,7 +15,7 @@ manifest_kind = "tt-distribution"
 name = "tt"
 
 [core]
-tt = "v3.0.0-alpha.2"
+tt = "v3.0.0-alpha.3"
 
 [distribution]
 title = "Tarantool CLI EE"
@@ -23,7 +23,6 @@ edition = "ee"
 integrity = "rsa"
 
 [dependencies]
-aeon = "github.com/tarantool/tt/modules/aeon"
 migrations = "./plugins/migrations"
 foo = "github.com/acme/tt-foo@v1.2.0"
 ```
@@ -36,9 +35,10 @@ version query for the core module - a version, a commit, `latest` - and
 reads `v3` as "the newest v3.x.y release", not as the branch `v3`, and while
 tt 3 has pre-releases only it matches nothing. `[distribution]` sets how the binary
 presents itself (`title`, `edition`), the integrity provider (`none` or
-`rsa`), whether it has tt's own commands (`builtin`) and external modules
-(`external_modules`), both on by default, and where `tt binary install`
-finds prebuilt products (`bundle_sources`: by default `customer-zone`, the
+`rsa`), whether it has the standard modules of the core (`standard`, see
+[Standard modules](#standard-modules)), tt's own commands (`builtin`) and
+external modules (`external_modules`), all on by default, and where
+`tt binary install` finds prebuilt products (`bundle_sources`: by default `customer-zone`, the
 customer zone of tarantool.io, for Tarantool Enterprise, the SDK, TCM and
 tt-ee, `rws`, the RPMs of rws.tarantool.org, for Tarantool Community, and
 `github`, the releases of tt on GitHub, for tt; `[]` for none, and then
@@ -53,7 +53,8 @@ table with `module`, `version`, `path`, `package` and `symbol`: the
 constructor is `New` in the root package of the module unless `package` and
 `symbol` say otherwise. A module of the core's repository, such as `aeon`,
 is built at the commit of the core; any other module without a version at
-its latest.
+its latest. The standard modules need no entry here: the distribution above
+has `aeon` and `emmylua` with its two modules of its own.
 
 ```sh
 tt binary build tt                  # build ./tt from ./tt.manifest.toml
@@ -101,7 +102,112 @@ Tarantool CLI EE version 3.0.0, linux/amd64. commit: 1a2b3c4
 Tarantool CLI core version 3.0.0. commit: 9031d7ad96d9 (v3.0.1-0.20261028190206-9031d7ad96d9)
   aeon        v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/aeon
   builtin     v3.0.1-0.20261028190206-9031d7ad96d9  github.com/tarantool/tt/v3
+  emmylua     v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/emmylua
+  foo         v1.2.0                                github.com/acme/tt-foo
   migrations  (devel)                               example.com/tt-ee/plugins/migrations
+```
+
+## Standard modules
+
+The standard modules are the modules of the core's repository that the
+official tt is built with, `aeon` and `emmylua` now. The core lists them in
+its package `standard`, and a distribution takes them all by default, at the
+commit of the core, so it gets the ones a newer core adds without an edit of
+its manifest. `[distribution].exclude` leaves some out, by name:
+
+```toml
+manifest_version = "0.1"
+manifest_kind = "tt-distribution"
+
+[package]
+name = "tt-lite"
+
+[core]
+path = "../tt"
+
+[distribution]
+exclude = ["emmylua"]
+```
+
+With a checkout of tt in `../tt`, the build takes `aeon` and not `emmylua`:
+
+```sh
+$ tt binary build tt
+   • Resolving the core github.com/tarantool/tt/v3
+   •   core github.com/tarantool/tt/v3 (path ../tt)
+   •   standard aeon (with the core)
+   • Building tt-lite
+   • Built /src/lite/tt-lite
+/src/lite/tt-lite
+$ ./tt-lite version --modules
+Tarantool CLI version 3.0.0, linux/amd64. commit: 1a2b3c4
+  aeon     (devel)  github.com/tarantool/tt/modules/aeon
+  builtin  (devel)  github.com/tarantool/tt/v3
+```
+
+The lock names the standard modules the binary has in its `[core]`, and
+`--locked` fails when a build would take others:
+
+```toml
+[core]
+module = 'github.com/tarantool/tt/v3'
+path = '../tt'
+content_hash = 'sha256:4367f681...'
+standard = ['aeon']
+```
+
+An excluded module has no commands in the binary, but its Go code is still
+compiled in: the package `standard` imports every module it lists. To leave
+the code out too, set `standard = false` and list the modules you want in
+`[dependencies]`.
+
+`builtin`, tt's own commands, counts as a standard module here:
+`exclude = ["builtin"]` is `builtin = false`. A name the core does not list
+is an error that names the ones it does:
+
+```sh
+$ tt binary build tt
+   • Resolving the core github.com/tarantool/tt/v3
+   •   core github.com/tarantool/tt/v3 (path ../tt)
+   ⨯ distribution.exclude: "tcm" is not a standard module of the core ../tt: they are aeon, emmylua, builtin
+```
+
+A module of `[dependencies]` with the name of a standard module takes its
+place - a fork of `aeon`, or a checkout of it in `./aeon`. Name it in
+`exclude` too, to say that you mean it; otherwise the build warns, and a
+manifest that lists `aeon` from the core's repository itself, as manifests
+did before, builds the same binary as one that does not:
+
+```sh
+$ tt binary build tt
+   • Resolving the core github.com/tarantool/tt/v3
+   •   core github.com/tarantool/tt/v3 (path ../tt)
+   ⚠ dependencies.aeon takes the place of the standard module aeon of the core: add "aeon" to distribution.exclude to say so, or drop the dependency to take the core's
+   •   standard emmylua (with the core)
+   •   aeon github.com/tarantool/tt/modules/aeon (with the core)
+   • Building tt-lite
+```
+
+A core before v3.0.0-alpha.3 has no package `standard`. A distribution
+built on it fails until it sets `standard = false` and lists its modules,
+and then its `main` is the one the build made before the standard modules:
+
+```sh
+$ tt binary build tt
+   • Resolving the core github.com/tarantool/tt/v3
+   •   core github.com/tarantool/tt/v3@v3.0.0-alpha.2
+   ⨯ distribution.standard: the core github.com/tarantool/tt/v3@v3.0.0-alpha.2 has no package github.com/tarantool/tt/v3/standard that lists the standard modules: standard needs core v3.0.0-alpha.3 or later; set standard = false and list the modules in [dependencies]
+```
+
+```toml
+[core]
+tt = "v3.0.0-alpha.2"
+
+[distribution]
+standard = false
+
+[dependencies]
+aeon = "github.com/tarantool/tt/modules/aeon"
 ```
 
 ## Replacing Go modules
