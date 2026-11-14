@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // cargoTool is the program the cargo backend runs.
@@ -41,7 +40,7 @@ type cargoBackend struct {
 // Run builds the binary of build in cwd as
 // cargo build --profile <profile> --bin <bin> and copies it to
 // $TT_OUTPUT_DIR/<bin>; for a module component, the library (see runModule).
-func (c cargoBackend) Run(ctx context.Context, build manifest.Build, cwd string, env Env) error {
+func (c cargoBackend) Run(ctx context.Context, build Spec, cwd string, env Env) error {
 	err := requireAbsPaths(cwd, env.OutputDir)
 	if err != nil {
 		return err
@@ -99,7 +98,7 @@ func (c cargoBackend) Run(ctx context.Context, build manifest.Build, cwd string,
 // dynamic_lookup, as those of a C module are, and the dependencies are built
 // as cargo builds them anyway.
 func (c cargoBackend) runModule(
-	ctx context.Context, build manifest.Build, cwd string, env Env,
+	ctx context.Context, build Spec, cwd string, env Env,
 ) error {
 	target, err := cargoTarget(build, env)
 	if err != nil {
@@ -168,7 +167,7 @@ func cargoEnviron(env Env) []string {
 
 // cargoArgs builds the cargo build argv. Diagnostics are rendered by cargo
 // to stderr as usual, and only the JSON messages go to stdout.
-func cargoArgs(build manifest.Build, bin, target string) []string {
+func cargoArgs(build Spec, bin, target string) []string {
 	return append([]string{
 		"build", "--profile", cargoProfile(build), "--bin", bin,
 		"--message-format=json-render-diagnostics",
@@ -177,7 +176,7 @@ func cargoArgs(build manifest.Build, bin, target string) []string {
 
 // cargoModuleArgs builds the cargo rustc argv of the library of a module
 // component, for goos.
-func cargoModuleArgs(build manifest.Build, target, goos string) []string {
+func cargoModuleArgs(build Spec, target, goos string) []string {
 	args := []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", cargoProfile(build),
 		"--message-format=json-render-diagnostics",
@@ -193,9 +192,9 @@ func cargoModuleArgs(build manifest.Build, target, goos string) []string {
 }
 
 // cargoProfile is the profile of build, release unless it names another.
-func cargoProfile(build manifest.Build) string {
+func cargoProfile(build Spec) string {
 	if build.Profile == "" {
-		return manifest.DefaultCargoProfile
+		return DefaultCargoProfile
 	}
 
 	return build.Profile
@@ -203,7 +202,7 @@ func cargoProfile(build manifest.Build) string {
 
 // cargoSelection is the part of a cargo argv that selects what to build: the
 // package, the features and the target.
-func cargoSelection(build manifest.Build, target string) []string {
+func cargoSelection(build Spec, target string) []string {
 	var args []string
 
 	if build.Package != "" {
@@ -231,7 +230,7 @@ func cargoSelection(build manifest.Build, target string) []string {
 // no --target otherwise, so that the project's own configuration of its host
 // builds applies; a build for another platform names the gnu or apple target
 // of that platform.
-func cargoTarget(build manifest.Build, env Env) (string, error) {
+func cargoTarget(build Spec, env Env) (string, error) {
 	goos, goarch := env.platformOS(), env.platformArch()
 
 	arch, ok := cargoArches[goarch]

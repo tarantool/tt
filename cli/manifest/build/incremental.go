@@ -13,8 +13,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
-
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/internal/srctree"
 )
@@ -56,9 +54,11 @@ type incrementalState struct {
 // git reads them. What a build generates and git does not keep is so left
 // out, and the hash stays the same from one build to the next.
 func componentInputs(projectDir, dir string, build manifest.Build) (string, error) {
-	block, err := toml.Marshal(build)
+	// The block in the canonical form of manifest_hash: the fields of its
+	// backend with those every block has, whatever the spelling of the file.
+	block, err := build.Canonical()
 	if err != nil {
-		return "", fmt.Errorf("hashing the build block: %w", err)
+		return "", err
 	}
 
 	rel, err := filepath.Rel(projectDir, dir)

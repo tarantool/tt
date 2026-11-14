@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // goTool is the program the go backend runs.
@@ -38,7 +36,7 @@ type goBackend struct {
 
 // Run builds the program of build in cwd as
 // go build -trimpath -o $TT_OUTPUT_DIR/<name> <package>.
-func (g goBackend) Run(ctx context.Context, build manifest.Build, cwd string, env Env) error {
+func (g goBackend) Run(ctx context.Context, build Spec, cwd string, env Env) error {
 	err := requireAbsPaths(cwd, env.OutputDir)
 	if err != nil {
 		return err
@@ -67,7 +65,7 @@ func (g goBackend) Run(ctx context.Context, build manifest.Build, cwd string, en
 // the env of the manifest does not build for another platform than the one
 // the build checks the program against; CC and the rest of it still reach
 // the compiler.
-func goEnviron(build manifest.Build, env Env) []string {
+func goEnviron(build Spec, env Env) []string {
 	cgo := "0"
 	if build.CgoValue() {
 		cgo = "1"
@@ -90,7 +88,7 @@ func goEnviron(build manifest.Build, env Env) []string {
 // A static cgo program gets its tags and linker flags first, so that the
 // manifest's own come after them and may override them; the build checks the
 // program it gets whatever the flags were.
-func goArgs(build manifest.Build, env Env) ([]string, error) {
+func goArgs(build Spec, env Env) ([]string, error) {
 	output := filepath.Join(env.OutputDir, build.Executables(env.Component)[0])
 	args := []string{"build", "-trimpath", "-o", output}
 

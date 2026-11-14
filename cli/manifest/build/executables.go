@@ -191,7 +191,7 @@ func changedFiles(before, after map[string]fileStamp) []string {
 // up to date changes nothing, so the programs the component was recorded
 // with stay its own while they are there.
 func buildExecutable(
-	ctx context.Context, executor backend.Backend, component manifest.Component,
+	ctx context.Context, executor componentBuild, component manifest.Component,
 	name, cwd string, env backend.Env, recorded []string,
 ) ([]string, error) {
 	before, err := stampDir(env.OutputDir)
@@ -206,7 +206,7 @@ func buildExecutable(
 		return nil, fmt.Errorf("creating %s: %w", env.OutputDir, err)
 	}
 
-	err = executor.Run(ctx, *component.Build, cwd, env)
+	err = executor.run(ctx, cwd, env)
 	if err != nil {
 		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 	}

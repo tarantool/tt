@@ -1,19 +1,19 @@
 package manifest
 
 import (
+	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 )
 
-// Build backends.
+// Build backends this package names: those hooks may run, and those whose
+// program Build.Executables knows from their fields.
 const (
 	backendMake  = "make"
 	backendShell = "shell"
-	backendC     = "c"
-	backendLuaC  = "lua-c"
 	backendGo    = "go"
 	backendCargo = "cargo"
-	backendCMake = "cmake"
 )
 
 // Component kinds ([components.<name>].kind).
@@ -43,49 +43,28 @@ func (c Component) IsExecutable() bool {
 	return c.Kind == KindExecutable
 }
 
-// Build describes the native build of a component ([components.<name>.build]).
-// The Hook type is an alias of Build; hooks reuse the same shape but allow only
-// the make/shell backends.
+// Build describes the native build of a component ([components.<name>.build])
+// or a hook ([hooks.<name>]).
+//
+// The fields of the struct are those of every build block, whatever its
+// backend. The fields of the backend are left in Rest as the TOML decoder
+// reads them, for the backend to decode and check: the backends are those
+// the core and the modules of a tt provide, which this package does not
+// know (Validate is given a BuildChecker that does).
 type Build struct {
-	Backend string            `toml:"backend"` // make|shell|c|lua-c|go|cargo|cmake - closed enum.
-	Cwd     string            `toml:"cwd,omitempty"`
-	Env     map[string]string `toml:"env,omitempty"`
-	Output  []string          `toml:"output,omitempty"`
-	// Incremental skips the build of a make or shell component when its
-	// inputs - the build block and the files of the component, but those its
-	// .gitignore files ignore - are the ones of its last build, and its
-	// outputs are there.
+	// Backend names the backend that builds the block.
+	Backend string `toml:"backend"`
+	// Cwd is the working directory of the build, relative to the project.
+	Cwd string `toml:"cwd,omitempty"`
+	// Env are the variables the build block adds to the environment.
+	Env map[string]string `toml:"env,omitempty"`
+	// Output are the files the build makes, for a backend that copies them.
+	Output []string `toml:"output,omitempty"`
+	// Incremental skips the build of a component when its inputs - the
+	// build block and the files of the component, but those its .gitignore
+	// files ignore - are the ones of its last build, and its outputs are
+	// there; for a backend that allows it.
 	Incremental *bool `toml:"incremental,omitempty"`
-
-	// make backend.
-	MakeTarget string   `toml:"make_target,omitempty"`
-	Entrypoint string   `toml:"entrypoint,omitempty"`
-	Flags      []string `toml:"flags,omitempty"`
-
-	// shell backend.
-	Command string   `toml:"command,omitempty"`
-	Args    []string `toml:"args,omitempty"`
-
-	// c / lua-c backends. Cflags are flags of the compiler, after tt's own
-	// and before those of CFLAGS of the environment, which win a conflict.
-	Module      string                  `toml:"module,omitempty"`
-	Sources     []string                `toml:"sources,omitempty"`
-	IncludeDirs []string                `toml:"include_dirs,omitempty"`
-	Libraries   []string                `toml:"libraries,omitempty"`
-	LibraryDirs []string                `toml:"library_dirs,omitempty"`
-	Defines     []string                `toml:"defines,omitempty"`
-	Cflags      []string                `toml:"cflags,omitempty"`
-	Platforms   map[string]BuildOverlay `toml:"platforms,omitempty"`
-
-	// go, c and lua-c backends. Ldflags are flags of the linker of the
-	// backend, one per entry: of go build's -ldflags, after tt's own; of the
-	// link of cc, before the sources, so that an option acts on the
-	// libraries that follow them, and before LDFLAGS of the environment.
-	Ldflags []string `toml:"ldflags,omitempty"`
-
-	// go and cargo backends. Package is the Go package to build (default
-	// ".") or the cargo package that holds the binary.
-	Package string `toml:"package,omitempty"`
 	// Static, of the build of any component, asks for what the build makes
 	// to need nothing of the machine it is installed on, and the build checks
 	// that it does. A program, of an executable component, needs no loader
@@ -95,31 +74,21 @@ type Build struct {
 	// which loads it, has loaded itself; its backend is asked for nothing.
 	Static *bool `toml:"static,omitempty"`
 
-	// go backend.
-	Name string   `toml:"name,omitempty"` // Default: the component name.
-	Tags []string `toml:"tags,omitempty"`
-	Cgo  *bool    `toml:"cgo,omitempty"` // Nil or false: CGO_ENABLED=0.
-
-	// cargo backend.
-	Bin      string   `toml:"bin,omitempty"` // Default: the component name.
-	Features []string `toml:"features,omitempty"`
-	Profile  string   `toml:"profile,omitempty"` // Default: release.
-
-	// cmake backend. The build tree is out of the source, in _build/ of the
-	// project, and output names files relative to it.
-	Variables map[string]string `toml:"variables,omitempty"`  // -D<name>=<value>.
-	Targets   []string          `toml:"targets,omitempty"`    // Default: all, as cmake --build.
-	BuildType string            `toml:"build_type,omitempty"` // Default: RelWithDebInfo.
+	// Rest are the other fields of the block, those of its backend, by key,
+	// as the TOML decoder reads them: tables are map[string]any, arrays
+	// []any, numbers int64 and float64. Nil when there are none.
+	Rest map[string]any `toml:"-"`
 }
 
-// DefaultCargoProfile is the cargo profile an executable is built with when
-// the build names none.
-const DefaultCargoProfile = "release"
+// commonBuildFields are the keys of the fields every build block has, those
+// of the Build struct: the rest of a block go to Build.Rest.
+var commonBuildFields = []string{"backend", "cwd", "env", "output", "incremental", "static"}
 
-// DefaultCMakeBuildType is the CMAKE_BUILD_TYPE a cmake build is configured
-// with when it names none: optimized, as a release is, with the debug
-// information a crash of Tarantool in the module is read with.
-const DefaultCMakeBuildType = "RelWithDebInfo"
+// CommonBuildFields returns the keys of the fields every build block has,
+// which no backend may have as its own.
+func CommonBuildFields() []string {
+	return slices.Clone(commonBuildFields)
+}
 
 // IncrementalValue reports whether the build is skipped when its inputs did
 // not change.
@@ -133,23 +102,18 @@ func (b Build) StaticValue() bool {
 	return b.Static != nil && *b.Static
 }
 
-// CgoValue reports whether a go build may use cgo.
-func (b Build) CgoValue() bool {
-	return b.Cgo != nil && *b.Cgo
-}
-
 // Executables lists the names of the programs the build of the executable
 // component named component puts into .rocks/bin/, as far as the manifest
 // tells them: the one a go or cargo build makes, named by name or bin or
-// else after the component, and, for make, shell and cmake, the files output
+// else after the component, and, for the other backends, the files output
 // lists. A make or shell build that writes into TT_OUTPUT_DIR itself names
 // none here: what it made is only known once it has run.
 func (b Build) Executables(component string) []string {
 	switch b.Backend {
 	case backendGo:
-		return []string{defaultName(b.Name, component)}
+		return []string{defaultName(b.restField("name"), component)}
 	case backendCargo:
-		return []string{defaultName(b.Bin, component)}
+		return []string{defaultName(b.restField("bin"), component)}
 	}
 
 	names := make([]string, 0, len(b.Output))
@@ -162,6 +126,69 @@ func (b Build) Executables(component string) []string {
 	}
 
 	return names
+}
+
+// Canonical returns the build block in the canonical form of manifest_hash
+// (HashTOML), its fields and those of Rest alike: the same block whatever
+// its spelling in the file, and another one for any change of a value.
+func (b Build) Canonical() ([]byte, error) {
+	form, err := canonicalForm(b.tree())
+	if err != nil {
+		return nil, fmt.Errorf("hashing the build block: %w", err)
+	}
+
+	return form, nil
+}
+
+// tree returns the build block as the TOML decoder reads one into a generic
+// tree: its fields, which an empty value leaves out as the struct does, and
+// those of Rest.
+func (b Build) tree() map[string]any {
+	tree := make(map[string]any, len(commonBuildFields)+len(b.Rest))
+
+	maps.Copy(tree, b.Rest)
+
+	tree["backend"] = b.Backend
+
+	if b.Cwd != "" {
+		tree["cwd"] = b.Cwd
+	}
+
+	if len(b.Env) > 0 {
+		env := make(map[string]any, len(b.Env))
+		for key, value := range b.Env {
+			env[key] = value
+		}
+
+		tree["env"] = env
+	}
+
+	if len(b.Output) > 0 {
+		output := make([]any, 0, len(b.Output))
+		for _, entry := range b.Output {
+			output = append(output, entry)
+		}
+
+		tree["output"] = output
+	}
+
+	if b.Incremental != nil {
+		tree["incremental"] = *b.Incremental
+	}
+
+	if b.Static != nil {
+		tree["static"] = *b.Static
+	}
+
+	return tree
+}
+
+// restField returns the string field key of Rest; empty when the block has
+// none, or one of another type, which the backend refuses.
+func (b Build) restField(key string) string {
+	value, _ := b.Rest[key].(string)
+
+	return value
 }
 
 // defaultName is name, or component when name is not set.
@@ -193,18 +220,6 @@ func (m *Manifest) ExecutableComponent(name string) (string, bool) {
 	}
 
 	return "", false
-}
-
-// BuildOverlay is the per-OS addition to a c/lua-c build
-// ([components.<name>.build.platforms.<os>]). It only adds to the base lists
-// for the current OS: each list goes after the one of the build.
-type BuildOverlay struct {
-	IncludeDirs []string `toml:"include_dirs,omitempty"`
-	Libraries   []string `toml:"libraries,omitempty"`
-	LibraryDirs []string `toml:"library_dirs,omitempty"`
-	Defines     []string `toml:"defines,omitempty"`
-	Cflags      []string `toml:"cflags,omitempty"`
-	Ldflags     []string `toml:"ldflags,omitempty"`
 }
 
 // Product is a named set of components built and packed as a unit
@@ -294,9 +309,9 @@ func (m *Manifest) DefaultProduct() (string, Product, bool) {
 	return "", Product{}, false
 }
 
-// Hook is a lifecycle hook ([hooks.pre_build]/[hooks.post_build]). It shares
-// the Build shape, but only the make/shell backends are valid and there is no
-// module/sources.
+// Hook is a lifecycle hook ([hooks.pre_build]/[hooks.post_build]). It is a
+// build block, but only the make and shell backends run one, it has no
+// component and static is refused.
 type Hook = Build
 
 // EffectiveNamespace returns the install namespace of the component given the

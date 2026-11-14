@@ -8,8 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 func TestShellWritesToOutputDir(t *testing.T) {
@@ -17,7 +15,7 @@ func TestShellWritesToOutputDir(t *testing.T) {
 
 	out := t.TempDir()
 
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendShell,
 		Command: "sh",
 		Args:    []string{"-c", `printf hi > "$TT_OUTPUT_DIR/artifact.txt"`},
@@ -38,7 +36,7 @@ func TestShellCopiesDeclaredOutputs(t *testing.T) {
 	cwd := t.TempDir()
 
 	// The command writes into cwd; the declared output is copied (flat) out.
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendShell,
 		Command: "sh",
 		Args:    []string{"-c", "printf x > artifact.so"},
@@ -53,7 +51,7 @@ func TestShellCopiesDeclaredOutputs(t *testing.T) {
 func TestShellNonZeroExitIsError(t *testing.T) {
 	t.Parallel()
 
-	b := manifest.Build{Backend: BackendShell, Command: "sh", Args: []string{"-c", "exit 1"}}
+	b := Spec{Backend: BackendShell, Command: "sh", Args: []string{"-c", "exit 1"}}
 
 	err := shellBackend{}.Run(context.Background(), b, t.TempDir(), Env{OutputDir: t.TempDir()})
 	require.Error(t, err)
@@ -63,7 +61,7 @@ func TestShellMissingDeclaredOutputIsError(t *testing.T) {
 	t.Parallel()
 
 	// The command succeeds but never produces the declared output.
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendShell,
 		Command: "sh",
 		Args:    []string{"-c", "true"},
@@ -77,7 +75,7 @@ func TestShellMissingDeclaredOutputIsError(t *testing.T) {
 func TestShellRejectsRelativeCwd(t *testing.T) {
 	t.Parallel()
 
-	b := manifest.Build{Backend: BackendShell, Command: "true"}
+	b := Spec{Backend: BackendShell, Command: "true"}
 
 	err := shellBackend{}.Run(context.Background(), b, "rel/dir", Env{OutputDir: t.TempDir()})
 	require.Error(t, err)

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
@@ -81,7 +80,7 @@ func TestGoBackendBuildsAStaticProgram(t *testing.T) {
 	cwd := goModule(t, false)
 	out := filepath.Join(t.TempDir(), ".rocks", "bin")
 
-	build := manifest.Build{Backend: BackendGo, Package: "./cmd/gw", Name: "gateway"}
+	build := Spec{Backend: BackendGo, Package: "./cmd/gw", Name: "gateway"}
 	env := Env{OutputDir: out, Component: "gw"}
 
 	require.NoError(t, goBackend{}.Run(context.Background(), build, cwd, env))
@@ -103,7 +102,7 @@ func TestGoBackendBuildsAStaticCgoProgram(t *testing.T) {
 	cwd := goModule(t, true)
 	out := t.TempDir()
 
-	build := manifest.Build{Backend: BackendGo, Package: "./cmd/gw", Cgo: on(), Static: on()}
+	build := Spec{Backend: BackendGo, Package: "./cmd/gw", Cgo: on(), Static: on()}
 	env := Env{OutputDir: out, Component: "gw"}
 
 	require.NoError(t, goBackend{}.Run(context.Background(), build, cwd, env))
@@ -148,7 +147,7 @@ func TestGoBackendCgoIsDynamicWithoutStatic(t *testing.T) {
 	cwd := goModule(t, true)
 	out := t.TempDir()
 
-	build := manifest.Build{Backend: BackendGo, Package: "./cmd/gw", Cgo: on()}
+	build := Spec{Backend: BackendGo, Package: "./cmd/gw", Cgo: on()}
 	env := Env{OutputDir: out, Component: "gw"}
 
 	require.NoError(t, goBackend{}.Run(context.Background(), build, cwd, env))
@@ -164,7 +163,7 @@ func TestGoBackendFailureIsAnError(t *testing.T) {
 	cwd := goModule(t, false)
 	writeFiles(t, cwd, map[string]string{"cmd/gw/broken.go": "package main\n\nfunc broken( {}\n"})
 
-	build := manifest.Build{Backend: BackendGo, Package: "./cmd/gw"}
+	build := Spec{Backend: BackendGo, Package: "./cmd/gw"}
 	env := Env{OutputDir: t.TempDir(), Component: "gw"}
 
 	require.Error(t, goBackend{}.Run(context.Background(), build, cwd, env))
@@ -221,7 +220,7 @@ func TestCargoBackendBuildsTheBinary(t *testing.T) {
 	cwd := cargoCrate(t)
 	out := t.TempDir()
 
-	build := manifest.Build{Backend: BackendCargo, Bin: "agent", Profile: "dev"}
+	build := Spec{Backend: BackendCargo, Bin: "agent", Profile: "dev"}
 	env := Env{OutputDir: out, Component: "agent-component"}
 
 	require.NoError(t, cargoBackend{}.Run(context.Background(), build, cwd, env))
@@ -292,7 +291,7 @@ func TestCargoBackendBuildsAModule(t *testing.T) {
 	env := Env{OutputDir: out, Component: "agent-component", Module: true}
 
 	// The module is named after the library cargo builds, agent_lib.
-	build := manifest.Build{Backend: BackendCargo, Profile: "dev"}
+	build := Spec{Backend: BackendCargo, Profile: "dev"}
 	require.NoError(t, cargoBackend{}.Run(context.Background(), build, cwd, env))
 
 	module := filepath.Join(out, "agent_lib"+ext)
@@ -324,7 +323,7 @@ func TestCargoBackendBuildsAStaticBinary(t *testing.T) {
 	cwd := cargoCrate(t)
 	out := t.TempDir()
 
-	build := manifest.Build{Backend: BackendCargo, Static: on()}
+	build := Spec{Backend: BackendCargo, Static: on()}
 	env := Env{OutputDir: out, Component: "agent"}
 
 	require.NoError(t, cargoBackend{}.Run(context.Background(), build, cwd, env))
@@ -386,19 +385,19 @@ func TestCargoBackendBuildsInTheTargetDir(t *testing.T) {
 
 	for _, crate := range []struct {
 		dir   string
-		build manifest.Build
+		build Spec
 		env   Env
 		file  string
 	}{
 		{
 			dir:   cargoCrate(t),
-			build: manifest.Build{Backend: BackendCargo, Bin: "agent", Profile: "dev"},
+			build: Spec{Backend: BackendCargo, Bin: "agent", Profile: "dev"},
 			env:   Env{Component: "agent", CargoTargetDir: targetDir},
 			file:  "agent",
 		},
 		{
 			dir:   cargoLibraryCrate(t),
-			build: manifest.Build{Backend: BackendCargo, Profile: "dev"},
+			build: Spec{Backend: BackendCargo, Profile: "dev"},
 			env:   Env{Component: "lib", Module: true, CargoTargetDir: targetDir},
 			file:  "agent_lib" + moduleExt(runtime.GOOS, linuxModuleExt),
 		},
@@ -419,7 +418,7 @@ func TestCargoBackendUnknownBinIsAnError(t *testing.T) {
 	t.Parallel()
 	requireCargo(t, "")
 
-	build := manifest.Build{Backend: BackendCargo, Profile: "dev"}
+	build := Spec{Backend: BackendCargo, Profile: "dev"}
 	env := Env{OutputDir: t.TempDir(), Component: "missing"}
 
 	require.Error(t, cargoBackend{}.Run(context.Background(), build, cargoCrate(t), env))

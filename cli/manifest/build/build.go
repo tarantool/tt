@@ -35,6 +35,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -42,11 +43,13 @@ import (
 	"slices"
 	"time"
 
+	lrbuild "github.com/tarantool/go-luarocks/build"
 	"github.com/tarantool/go-luarocks/client"
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
@@ -104,6 +107,11 @@ type Options struct {
 	// the run as it is. tt package pack refuses there what it cannot pack,
 	// which the build would otherwise take its whole time to get to.
 	Check func(man *manifest.Manifest, product string) error
+	// Backends are the build backends the manifests are validated with and
+	// the components are built by; nil is those of the process
+	// (buildreg.Process). A component of a backend none of them is fails the
+	// build before anything is built, naming the dependency it is of.
+	Backends *buildreg.Registry
 }
 
 // emit surfaces non-fatal diagnostics through the Warn sink, if any.
@@ -115,6 +123,15 @@ func (o Options) emit(warnings []string) {
 	for _, w := range warnings {
 		o.Warn(w)
 	}
+}
+
+// backends returns the build backends of the run.
+func (o Options) backends() *buildreg.Registry {
+	if o.Backends == nil {
+		return buildreg.Process()
+	}
+
+	return o.Backends
 }
 
 // builtAt returns the version.lua timestamp: Options.Now, or the wall clock when
@@ -311,7 +328,7 @@ func readManifest(projectDir string, opts Options) (*manifest.Manifest, error) {
 
 	opts.emit(warnings)
 
-	validationWarnings, err := man.Validate()
+	validationWarnings, err := man.Validate(opts.backends())
 	if err != nil {
 		return nil, fmt.Errorf("invalid manifest: %w", err)
 	}
@@ -371,7 +388,8 @@ func materializeLock(
 
 	servers, err := dependencyServers(man, opts.ProjectDir, adapter.Config().Servers)
 	if err == nil {
-		err = servers.addPathManifests(opts.ProjectDir, prod.Dependencies, lock.DevDependencies)
+		err = servers.addPathManifests(opts.ProjectDir, opts.backends(), prod.Dependencies,
+			lock.DevDependencies)
 	}
 
 	if err != nil {
@@ -406,7 +424,7 @@ func runBuild(
 
 	proj := packageProject(opts.ProjectDir, man, productName)
 
-	err = preflightBackends(proj, components, opts.Tarantool)
+	err = preflightBackends(opts.backends(), proj, components, opts.Tarantool)
 	if err != nil {
 		return nil, err
 	}
@@ -476,17 +494,20 @@ func runBuild(
 	}, nil
 }
 
-// preflightBackends checks what the go, cargo and cmake builds of the
-// selected components of proj need before any of them runs
-// (backend.Preflight), and that the c and lua-c ones have the headers of a
-// Tarantool, info, to compile against: a missing toolchain then fails the
-// build before it has resolved the closure and compiled the components ahead
-// of it.
+// preflightBackends checks that backends has the backend of each of the
+// selected components of proj, which Validate let through with a warning
+// otherwise, then what the go, cargo and cmake builds of them need before
+// any of them runs (backend.Preflight), and that the c and lua-c ones have
+// the headers of a Tarantool, info, to compile against: a missing backend or
+// toolchain then fails the build before it has resolved the closure and
+// compiled the components ahead of it.
 //
 // A toolchain is looked for where the build looks for it: in the PATH of the
 // component's [build].env, after .tarantool/bin of proj, the project being
 // built - the package, or a path dependency in its own directory.
-func preflightBackends(proj project, components []string, info rocks.TarantoolInfo) error {
+func preflightBackends(
+	backends *buildreg.Registry, proj project, components []string, info rocks.TarantoolInfo,
+) error {
 	target := native.Host()
 
 	for _, name := range components {
@@ -495,12 +516,21 @@ func preflightBackends(proj project, components []string, info rocks.TarantoolIn
 			continue
 		}
 
-		err := backend.Preflight(*component.Build, backend.Env{
-			ProjectRoot: proj.dir, OS: target.OS, Arch: target.Arch, Extra: component.Build.Env,
-			Module: !component.IsExecutable(),
-		})
+		err := preflightBackend(backends, component.Build.Backend)
+		if err != nil {
+			return sdk.Errorf(sdk.ExitFailure, "building component %q: %w", name, err)
+		}
+
+		spec, err := backend.Decode(*component.Build)
 		if err == nil {
-			err = preflightHeaders(*component.Build, info)
+			err = backend.Preflight(spec, backend.Env{
+				ProjectRoot: proj.dir, OS: target.OS, Arch: target.Arch,
+				Extra: component.Build.Env, Module: !component.IsExecutable(),
+			})
+		}
+
+		if err == nil {
+			err = preflightHeaders(spec, info)
 		}
 
 		if err != nil {
@@ -511,12 +541,36 @@ func preflightBackends(proj project, components []string, info rocks.TarantoolIn
 	return nil
 }
 
+var (
+	// errNoBackend reports a component of a backend no module of tt
+	// provides.
+	errNoBackend = errors.New("no module of this tt provides backend")
+	// errModuleBackend reports a component of a backend a module provides,
+	// which the build does not run yet: it runs the backends of the core.
+	errModuleBackend = errors.New("the build runs the backends of the core only")
+)
+
+// preflightBackend checks that backends has the backend name, of the
+// backends the build runs.
+func preflightBackend(backends *buildreg.Registry, name string) error {
+	_, module, ok := backends.Backend(name)
+
+	switch {
+	case !ok:
+		return fmt.Errorf("%w %q", errNoBackend, name)
+	case module != "":
+		return fmt.Errorf("backend %q is of module %q: %w", name, module, errModuleBackend)
+	}
+
+	return nil
+}
+
 // preflightHeaders checks that a c or lua-c build has a Tarantool to take
 // the headers from: a tt with no Tarantool builds what needs none, and the
 // cc driver would otherwise refuse it only once its turn came, saying
 // nothing of why. A make, shell or cmake build is not told where the headers
 // are then (TT_TARANTOOL_*), and fails on its own if it needs them.
-func preflightHeaders(build manifest.Build, info rocks.TarantoolInfo) error {
+func preflightHeaders(build backend.Spec, info rocks.TarantoolInfo) error {
 	switch build.Backend {
 	case backend.BackendC, backend.BackendLuaC:
 	default:
@@ -670,7 +724,7 @@ func runBackends(
 			continue
 		}
 
-		executor, err := backend.New(component.Build.Backend, flags, opts.ShowOutput)
+		executor, err := newComponentBuild(component, flags, opts.ShowOutput)
 		if err != nil {
 			return nil, nil, fmt.Errorf("component %q: %w", name, err)
 		}
@@ -780,14 +834,14 @@ func layoutComponents(
 // before the record is written: a module that fails the check is built
 // again.
 func runModuleBackend(
-	ctx context.Context, opts Options, proj project, executor backend.Backend, name string,
+	ctx context.Context, opts Options, proj project, executor componentBuild, name string,
 	component manifest.Component, cwd string, env backend.Env, recorded []string,
 ) ([]string, error) {
 	incremental := component.Build.IncrementalValue()
 	static := component.Build.StaticValue()
 
 	if !incremental && !static {
-		return runWritingBackend(ctx, executor, name, component, cwd, env, recorded)
+		return runWritingBackend(ctx, executor, name, cwd, env, recorded)
 	}
 
 	compAbsPath := resolveDir(proj.dir, component.Path)
@@ -810,7 +864,7 @@ func runModuleBackend(
 		}
 	}
 
-	written, err := runWritingBackend(ctx, executor, name, component, cwd, env,
+	written, err := runWritingBackend(ctx, executor, name, cwd, env,
 		append(slices.Clone(recorded), state.last.Written...))
 	if err != nil {
 		return nil, err
@@ -848,15 +902,15 @@ func runModuleBackend(
 // created or changed, and those of recorded, which an earlier build wrote,
 // that are still there - a make target that is up to date writes nothing.
 func runWritingBackend(
-	ctx context.Context, executor backend.Backend, name string, component manifest.Component,
-	cwd string, env backend.Env, recorded []string,
+	ctx context.Context, executor componentBuild, name, cwd string, env backend.Env,
+	recorded []string,
 ) ([]string, error) {
 	before, err := stampTree(env.OutputDir)
 	if err != nil {
 		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 	}
 
-	err = runComponentBackend(ctx, executor, name, component, cwd, env)
+	err = runComponentBackend(ctx, executor, name, cwd, env)
 	if err != nil {
 		return nil, err
 	}
@@ -874,7 +928,7 @@ func runWritingBackend(
 // component is, its programs being what it wrote into TT_OUTPUT_DIR, and
 // keeps the programs its last build recorded.
 func runExecutableBackend(
-	ctx context.Context, opts Options, proj project, executor backend.Backend, name string,
+	ctx context.Context, opts Options, proj project, executor componentBuild, name string,
 	component manifest.Component, cwd string, env backend.Env, recorded []string,
 ) ([]string, error) {
 	if !component.Build.IncrementalValue() {
@@ -911,15 +965,45 @@ func runExecutableBackend(
 
 // runComponentBackend runs the backend of the component name.
 func runComponentBackend(
-	ctx context.Context, executor backend.Backend, name string, component manifest.Component,
-	cwd string, env backend.Env,
+	ctx context.Context, executor componentBuild, name, cwd string, env backend.Env,
 ) error {
-	err := executor.Run(ctx, *component.Build, cwd, env)
+	err := executor.run(ctx, cwd, env)
 	if err != nil {
 		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 	}
 
 	return nil
+}
+
+// componentBuild is the executor of the backend of a component with the
+// build block of the component decoded for it (backend.Decode).
+type componentBuild struct {
+	executor backend.Backend
+	spec     backend.Spec
+}
+
+// newComponentBuild returns the build of component, which the backends of
+// the core build: Validate checked its block with them, and preflightBackends
+// refused a block of any other backend.
+func newComponentBuild(
+	component manifest.Component, flags lrbuild.Flags, showOutput bool,
+) (componentBuild, error) {
+	spec, err := backend.Decode(*component.Build)
+	if err != nil {
+		return componentBuild{}, err
+	}
+
+	executor, err := backend.New(spec.Backend, flags, showOutput)
+	if err != nil {
+		return componentBuild{}, err
+	}
+
+	return componentBuild{executor: executor, spec: spec}, nil
+}
+
+// run builds the component in cwd with the env contract.
+func (b componentBuild) run(ctx context.Context, cwd string, env backend.Env) error {
+	return b.executor.Run(ctx, b.spec, cwd, env)
 }
 
 // skipUnchanged hashes the inputs of an incremental component and reports

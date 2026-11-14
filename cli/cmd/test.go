@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
 )
 
@@ -117,6 +118,7 @@ func runTest(subPaths, luatestArgs []string) error {
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 		Check:      nil,
+		Backends:   buildreg.Process(),
 	}
 
 	// The build of tt test runs build tools as tt package build does, and

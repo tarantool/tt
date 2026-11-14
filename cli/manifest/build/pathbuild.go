@@ -12,6 +12,7 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -145,7 +146,7 @@ type manifestBuild struct {
 func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) error {
 	dep := build.dep
 
-	neighbour, err := resolve.LoadPathManifest(dep.Name, build.dir)
+	neighbour, err := resolve.LoadPathManifest(dep.Name, build.dir, p.opts.backends())
 	if err != nil {
 		return sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
@@ -161,7 +162,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 
 	proj := project{dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product}
 
-	err = preflightBackends(proj, components, p.opts.Tarantool)
+	err = preflightBackends(p.opts.backends(), proj, components, p.opts.Tarantool)
 	if err != nil {
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
@@ -248,9 +249,10 @@ func (p pathManifests) licenseDocs(build manifestBuild, entries []string, doc st
 // closures that hold a manifest name for their own dependencies
 // (resolve.PathManifest.Registries), so a rock the resolver found in such a
 // registry is installed from there too. A registry the consumer's manifest
-// names for a rock wins, as its declaration does in the resolver.
+// names for a rock wins, as its declaration does in the resolver. The
+// manifests are validated with backends.
 func (s rockServers) addPathManifests(
-	projectDir string, closures ...[]manifest.LockDependency,
+	projectDir string, backends *buildreg.Registry, closures ...[]manifest.LockDependency,
 ) error {
 	for _, closure := range closures {
 		for _, dep := range closure {
@@ -269,7 +271,7 @@ func (s rockServers) addPathManifests(
 				continue
 			}
 
-			neighbour, err := resolve.LoadPathManifest(dep.Name, dir)
+			neighbour, err := resolve.LoadPathManifest(dep.Name, dir, backends)
 			if err != nil {
 				return err
 			}

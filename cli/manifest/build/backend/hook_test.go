@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 )
 
@@ -19,7 +18,7 @@ func TestRunHook_shellReducedContract(t *testing.T) {
 	cwd := t.TempDir()
 	out := filepath.Join(cwd, "out.txt")
 
-	hook := manifest.Build{
+	hook := backend.Spec{
 		Backend: backend.BackendShell,
 		Command: "sh",
 		Args: []string{"-c",
@@ -48,7 +47,7 @@ func TestRunHook_shellExtraEnvExported(t *testing.T) {
 
 	cwd := t.TempDir()
 
-	hook := manifest.Build{
+	hook := backend.Spec{
 		Backend: backend.BackendShell,
 		Command: "sh",
 		Args:    []string{"-c", `printf '%s' "$FOO" > out.txt`},
@@ -69,7 +68,7 @@ func TestRunHook_nonZeroExitIsError(t *testing.T) {
 	t.Parallel()
 
 	cwd := t.TempDir()
-	hook := manifest.Build{
+	hook := backend.Spec{
 		Backend: backend.BackendShell, Command: "sh", Args: []string{"-c", "exit 3"},
 	}
 
@@ -81,7 +80,7 @@ func TestRunHook_rejectsNonHookBackend(t *testing.T) {
 	t.Parallel()
 
 	err := backend.RunHook(context.Background(),
-		manifest.Build{Backend: backend.BackendC}, t.TempDir(), backend.Env{}, false)
+		backend.Spec{Backend: backend.BackendC}, t.TempDir(), backend.Env{}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not runnable")
 }
@@ -90,7 +89,7 @@ func TestRunHook_requiresAbsCwd(t *testing.T) {
 	t.Parallel()
 
 	err := backend.RunHook(context.Background(),
-		manifest.Build{Backend: backend.BackendShell, Command: "true"}, "rel/dir",
+		backend.Spec{Backend: backend.BackendShell, Command: "true"}, "rel/dir",
 		backend.Env{}, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "absolute path")

@@ -15,6 +15,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 var (
@@ -252,7 +253,7 @@ incremental = true
 		return fmt.Errorf("the manifest with component %s does not parse: %w", name, err)
 	}
 
-	_, err = man.Validate()
+	_, err = man.Validate(buildreg.Process())
 	if err != nil {
 		return fmt.Errorf("the manifest with component %s is invalid: %w", name, err)
 	}

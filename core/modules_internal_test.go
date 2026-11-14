@@ -142,7 +142,7 @@ func TestConstruct(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "backends", entries[0].Module)
-	assert.Equal(t, []string{"demo"}, registry.Names())
+	assert.Equal(t, append(buildreg.Core().Names(), "demo"), registry.Names())
 	assert.Len(t, registry.FileChecks(), 1)
 
 	_, module, ok := registry.Backend("demo")
@@ -158,5 +158,15 @@ func TestConstruct(t *testing.T) {
 	require.ErrorIs(t, err, errConstructorType)
 	assert.Contains(t, err.Error(), `module "backends": invalid build backend "demo": `+
 		`module "again" provides one of the name too`)
-	assert.Equal(t, []string{"demo"}, registry.Names())
+	assert.Equal(t, append(buildreg.Core().Names(), "demo"), registry.Names())
+
+	// A module cannot take the name of a backend of the core.
+	_, _, err = construct(Modules{
+		"make": func(sdk.Services) sdk.Module {
+			return sdk.Module{Commands: nil, Backends: []sdkbuild.Backend{testBackend("make")},
+				FileChecks: nil}
+		},
+	}, ready, noVersion)
+	require.ErrorContains(t, err, `module "make": invalid build backend "make": `+
+		`the core provides one of the name too`)
 }

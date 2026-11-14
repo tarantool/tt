@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 // IsStale reports whether lock no longer reflects m, and why. A lock goes stale
@@ -122,7 +123,7 @@ func pathStale(projectDir string, dependency manifest.LockDependency) (string, e
 		return "", err
 	}
 
-	neighbour, err := LoadPathManifest(dependency.Name, dir)
+	neighbour, err := LoadPathManifest(dependency.Name, dir, buildreg.Process())
 	if err != nil {
 		return "", err
 	}

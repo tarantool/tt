@@ -58,7 +58,11 @@ func runHook(
 
 	cwd := resolveDir(opts.ProjectDir, hook.Cwd)
 
-	err := backend.RunHook(ctx, hook, cwd, env, opts.ShowOutput)
+	spec, err := backend.Decode(hook)
+	if err == nil {
+		err = backend.RunHook(ctx, spec, cwd, env, opts.ShowOutput)
+	}
+
 	if err != nil {
 		return fmt.Errorf("%s hook: %w", name, err)
 	}

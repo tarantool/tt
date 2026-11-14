@@ -9,14 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 func TestMakeArgs(t *testing.T) {
 	t.Parallel()
 
-	b := manifest.Build{Backend: BackendMake, MakeTarget: "all", Flags: []string{"-j4", "V=1"}}
+	b := Spec{Backend: BackendMake, MakeTarget: "all", Flags: []string{"-j4", "V=1"}}
 
 	got := makeArgs(b, "/proj")
 	want := []string{"-C", "/proj", "-f", "Makefile", "all", "-j4", "V=1"}
@@ -26,7 +24,7 @@ func TestMakeArgs(t *testing.T) {
 func TestMakeArgsCustomEntrypoint(t *testing.T) {
 	t.Parallel()
 
-	b := manifest.Build{Backend: BackendMake, MakeTarget: "build", Entrypoint: "Makefile.tt"}
+	b := Spec{Backend: BackendMake, MakeTarget: "build", Entrypoint: "Makefile.tt"}
 
 	got := makeArgs(b, "/proj")
 	assert.Equal(t, []string{"-C", "/proj", "-f", "Makefile.tt", "build"}, got)
@@ -46,7 +44,7 @@ func TestMakeRunsTargetIntoOutputDir(t *testing.T) {
 	makefile := "build:\n\tprintf x > $(TT_OUTPUT_DIR)/mod.so\n"
 	require.NoError(t, os.WriteFile(filepath.Join(cwd, "Makefile"), []byte(makefile), 0o600))
 
-	b := manifest.Build{Backend: BackendMake, MakeTarget: "build"}
+	b := Spec{Backend: BackendMake, MakeTarget: "build"}
 
 	err = makeBackend{}.Run(context.Background(), b, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
@@ -68,7 +66,7 @@ func TestMakeCopiesDeclaredOutputs(t *testing.T) {
 	makefile := "build:\n\tprintf x > libmod.so\n"
 	require.NoError(t, os.WriteFile(filepath.Join(cwd, "Makefile"), []byte(makefile), 0o600))
 
-	b := manifest.Build{Backend: BackendMake, MakeTarget: "build", Output: []string{"libmod.so"}}
+	b := Spec{Backend: BackendMake, MakeTarget: "build", Output: []string{"libmod.so"}}
 
 	err = makeBackend{}.Run(context.Background(), b, cwd, Env{OutputDir: out})
 	require.NoError(t, err)

@@ -22,6 +22,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/deps"
 	"github.com/tarantool/tt/v3/cli/manifest/install"
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
@@ -385,8 +386,9 @@ func runPackageDeps(format *output.FormatFlag) error {
 			WorkingDir: "",
 			ProjectDir: "",
 		},
-		Logger: nil,
-		Warn:   func(msg string) { log.Warn(msg) },
+		Logger:   nil,
+		Warn:     func(msg string) { log.Warn(msg) },
+		Backends: buildreg.Process(),
 	})
 	if err != nil {
 		return err
@@ -438,6 +440,7 @@ func dependencyOptionsIn(projectDir string, registries []string) (deps.Options, 
 		Registries: sources,
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
+		Backends:   buildreg.Process(),
 	}, nil
 }
 
@@ -938,6 +941,7 @@ func runPackagePack() error {
 			Logger:     luarocksLogger(),
 			Warn:       nil,
 			Check:      nil,
+			Backends:   buildreg.Process(),
 		},
 		Runtime: runtimeRequest(ctx, projectDir, tntInfo),
 		Warn:    func(msg string) { log.Warn(msg) },
@@ -1097,6 +1101,7 @@ func buildPackageIn(ctx context.Context, projectDir string, run packageRun) erro
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 		Check:      nil,
+		Backends:   buildreg.Process(),
 	})
 }
 

@@ -244,6 +244,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- A build block whose backend no module of tt provides is a warning when the
+  manifest is checked, `components.<name>.build: no module of this tt
+  provides backend "<backend>"; its fields are not checked`, where it was an
+  error, `backend "<backend>" is not supported in manifest_version "0.1"
+  (want make, shell, c, lua-c, go, cargo or cmake)`: a command that builds
+  nothing, `tt package add` say, works with the manifest. `tt package build`,
+  `pack` and `fetch`, once they are to build such a component, fail before
+  anything is built, naming the path dependency or source rock it is of:
+  `building component "<name>": no module of this tt provides backend
+  "<backend>"`. A hook still runs `make` or `shell` only.
+- The fields of a backend in a build block are checked when the manifest is
+  checked, with its other build checks, rather than when it is read: a field
+  no backend has is reported there, by the same rules of the format version,
+  and a value of a wrong type is reported with the path of the field,
+  `components.a.build.cflags: must be an array, not a string`, rather than
+  with the text of the TOML decoder.
+- An incremental component is built once more after the update, whatever
+  its last build recorded: the build block it is skipped by is hashed in
+  the canonical form of `manifest_hash` now, the fields of its backend with
+  the others.
 - `tt emmylua check PATH` and `tt emmylua doc PATH` narrow the run to the
   files under `PATH`, a directory or a file of the project, where `PATH`
   became EmmyLua's workspace: its modules were named from it, the relative
