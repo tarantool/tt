@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/v3/cli/exitcode"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // TestModuleExitStatus pins that an external module's exit status becomes

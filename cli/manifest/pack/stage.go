@@ -11,8 +11,8 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/tree"
 
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // Staging tree modes.

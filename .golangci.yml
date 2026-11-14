@@ -288,7 +288,9 @@ linters:
             # cli/manifest/pack compresses the .tt archive as tar+zstd.
             - "github.com/klauspost/compress/zstd"
             # cli/manifest/deps, install and registry carry their exit codes
-            # in the SDK's ExitError.
+            # in the SDK's ExitError; build, pack, install and distbuild write
+            # the programs they lay out with no fork in between
+            # (sdk/execfile).
             - "github.com/tarantool/tt/sdk"
             # cli/manifest/pack checks the instance descriptions of the
             # templates it packs with the parser tt instance reads them with,
@@ -308,9 +310,6 @@ linters:
             # cli/manifest/run starts the tarantool the instance commands
             # start, chosen by the one resolver.
             - "github.com/tarantool/tt/v3/cli/tarantool"
-            # Build, pack, install and distbuild write the programs they lay
-            # out with no fork in between.
-            - "github.com/tarantool/tt/v3/internal/execfile"
         manifest-test:
           files:
             - "**/cli/manifest/**/*_test.go"
@@ -350,8 +349,6 @@ linters:
             # what tt binary lists and what the tarantool resolver finds.
             - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/internal/binary"
-            # Tests write the scripts they run while parallel tests fork.
-            - "github.com/tarantool/tt/v3/internal/execfile"
         # One allow-list per top-level directory, tests included; their file
         # globs do not overlap, so each file is checked against exactly one
         # of them (plus the deny-only rules above). An import from another
@@ -427,7 +424,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/templates"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
-            - "github.com/tarantool/tt/v3/internal/execfile"
             - "github.com/ulikunitz/xz"
             - "golang.org/x/net/html"
             - "golang.org/x/sys"
@@ -910,7 +906,6 @@ linters:
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/util"
-            - "github.com/tarantool/tt/v3/internal/execfile"
             - "gopkg.in/yaml.v2"
         dir-cli-version:
           files:
@@ -951,21 +946,20 @@ linters:
             - "github.com/tarantool/tt/v3/internal/binary/customerzone"
             - "github.com/tarantool/tt/v3/internal/binary/ghrelease"
             - "github.com/tarantool/tt/v3/internal/binary/rws"
-            # Tests write the modules tt runs while parallel tests fork.
-            - "github.com/tarantool/tt/v3/internal/execfile"
             # The help golden and the command reference are of tt as its
             # main package builds it, from the standard modules.
             - "github.com/tarantool/tt/v3/standard"
             - "gopkg.in/yaml.v3"
         # The write of a file a process may run with no fork of the process in
-        # between: a leaf, under everything that writes programs.
-        dir-internal-execfile:
+        # between: a leaf, under everything that writes programs, the core
+        # and the modules alike.
+        dir-sdk-execfile:
           files:
-            - "**/internal/execfile/**"
+            - "**/sdk/execfile/**"
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/v3/internal/execfile"
+            - "github.com/tarantool/tt/sdk/execfile"
         # The pid-file protocol every writer and remover of a tt pid file
         # follows: a leaf, below the supervisor and the commands.
         dir-internal-pidfile:

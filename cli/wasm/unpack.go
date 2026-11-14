@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/v3/internal/execfile"
+	"github.com/tarantool/tt/sdk/execfile"
 )
 
 const (

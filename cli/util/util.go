@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/internal/execfile"
 	"gopkg.in/yaml.v2"
 )
 

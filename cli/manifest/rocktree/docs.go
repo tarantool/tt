@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/tarantool/tt/v3/internal/execfile"
+	"github.com/tarantool/tt/sdk/execfile"
 )
 
 // StageDoc is the directory of a binary rock that holds its documents, the

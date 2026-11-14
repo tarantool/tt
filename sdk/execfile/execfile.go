@@ -8,6 +8,11 @@
 // starting a process at the wrong moment, as parallel tests do. os/exec forks
 // under syscall.ForkLock, so a write that holds it for reading is one no
 // fork of the process sees.
+//
+// The core and the modules of tt run in one process, and any of them may
+// start a process while another writes a program: they all write the
+// programs, the scripts and the tools they unpack through this package. It
+// depends on the standard library only.
 package execfile
 
 import (

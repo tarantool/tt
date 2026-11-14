@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/core/internal/extmod"
 	"github.com/tarantool/tt/v3/core/internal/mount"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // errRefused is what the integrity checks of these tests refuse a file

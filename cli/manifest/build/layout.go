@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // isSharedObject reports whether a file is a native module, of Linux or of
