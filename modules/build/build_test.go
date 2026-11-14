@@ -32,5 +32,5 @@ func TestNew(t *testing.T) {
 		assert.NotEmpty(t, fields, backend.Name)
 	}
 
-	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c"}, names)
+	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c", "zig"}, names)
 }
