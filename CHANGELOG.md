@@ -246,18 +246,60 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   block names them as those of tt do: the module gives each its fields, its
   checks of them and what it builds, and tt runs it in the same pipeline -
   the preflight before anything is built, the environment of the build, the
-  layout, the stage, `incremental`, the programs of an executable component
-  - and lets a hook name one that says it runs hooks. The seven backends of
-  tt are written against the same contract.
+  layout, the stage, `incremental`, the modules, data files and programs it
+  makes - and lets a hook name one that says it runs hooks. The seven
+  backends of tt are written against the same contract.
+- A component makes what its build makes, any of a module, a data file and
+  a program at once, where a component was of one kind: one `cargo`
+  component of a package with a library and a binary builds both,
+  `module = "fast"` the module and `bin = "fastctl"` the program, into
+  `.rocks/lib/tarantool/<namespace>/` and `.rocks/bin/`. An entry of
+  `output` of `make`, `shell` and `cmake` may be a table that says where
+  the file goes, `{ path = "build/tool", to = "bin" }`, `to` being `lib`,
+  `share` or `bin`; a string is a module, as before. A program of `output`
+  is a program of the component, found by `tt instance` and checked as
+  every program is. A `go` component lays out what its `include` names,
+  where an executable component could have no `include`: only the default
+  include, the Lua of the sources of a Go program, is off for `go`.
 
 ### Changed
 
 - The messages that list build backends list those of tt first - `make`
   and `shell`, then the others by name - and those of the modules after,
   by name: `components.a.build.ldflags: is a field of backend c, go or
-  lua-c, not of "cargo"` (it was `go, c or lua-c`), `module` of `c, cargo
-  or lua-c` (it was `c, lua-c or cargo`), and `kind "executable" wants make,
-  shell, cargo, cmake or go` (it was `go, cargo, cmake, make or shell`).
+  lua-c, not of "cargo"` (it was `go, c or lua-c`), and `module` of `c,
+  cargo or lua-c` (it was `c, lua-c or cargo`).
+- `kind` of a component is deprecated, with a warning,
+  `components.<name>.kind is deprecated: a component makes what its build
+  makes; remove it`, and `manifest_version = "0.2"` is to have none. In
+  `0.1` it is what the component says of its build, which tt checks:
+  `"executable"` makes programs only and lays out no files, as before,
+  `"module"` makes no program. The errors of a kind are new:
+  `components.<name>.kind: is "executable", but backend "c" makes no
+  programs` (it was `components.<name>.build: backend "c" builds a module,
+  not a program (kind "executable" wants ...)`), `is "module", but backend
+  "go" makes programs only`, `is "executable", but the build makes
+  modules`, `is "module", but the build makes programs` (they were `module:
+  names the library of a module component; ...` and `bin: names the binary
+  of an executable component; ...` of `cargo`), and, of a build that made
+  it anyway, with exit code 2, `building component "<name>": kind =
+  "executable", but the build made more than programs: <files>` and `kind
+  = "module", but the build made programs: <files>`. A component of `go`
+  with no `kind` is no error, `backend "go" builds a program: set kind =
+  "executable" on the component`, and `bin` of `cargo` with no `kind` builds
+  the binary. An entry of `output` a backend does not make is refused,
+  `components.<name>.build.output[<i>].to: backend "<backend>" makes no
+  data files`, and so is a table of another `to`, `"etc" is not lib, share
+  or bin`, or without `path`, `output[<i>].path: is required`.
+- The record of what the components built is `_build/results.json`, by
+  component and by type - modules, data files, programs - where
+  `_build/executables.json` had the programs of the executable components;
+  an older record is not read, and the next build writes the new one. The
+  hint of `tt instance` for a program missing from `.rocks/bin/` names the
+  component by that record, by what its build names, or by the name of a
+  component of `kind = "executable"`, and says `the component "<name>" of
+  the project builds it: run tt package build` (it said `the executable
+  component`).
 - A field of another backend in a build block is refused by its key,
   whatever its value: `make_target = ""` on a `go` block is `is a field of
   backend make, not of "go"`, as `make_target = "all"` is, where an empty

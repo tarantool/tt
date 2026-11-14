@@ -155,13 +155,55 @@ memcached-contrib = { source = "path", path = "../memcached-contrib" }
 | Field | |
 | --- | --- |
 | `path` | the directory of the component, relative to the manifest; required |
-| `kind` | `"module"` (the default) or `"executable"` |
-| `include`, `exclude` | the files of a module component; `*.lua` and `*.so` by default |
-| `namespace` | where a module component goes in `.rocks/share/tarantool/`: the package name by default, `""` for the top level |
+| `include`, `exclude` | the files of the component that are laid out; `*.lua` and `*.so` by default, nothing by default for `go` |
+| `namespace` | where the files and the modules of the component go in `.rocks/share/tarantool/` and `.rocks/lib/tarantool/`: the package name by default, `""` for the top level |
 | `dependencies` | the dependencies of the component |
-| `build` | its build, see below; required for an executable component |
+| `build` | its build, see below |
+| `kind` | deprecated: `"module"` or `"executable"`, what the component says its build makes; see below |
 
-A `.wasm` file a module component lays out has to be a WebAssembly binary: a
+A component makes what its build makes, and lays out its files. The build
+may make modules, data files and programs, any of them at once:
+
+| Result | Where the build puts it | Where it is installed |
+| --- | --- | --- |
+| a module | `TT_OUTPUT_DIR`, `lib/<namespace>/` of the package | `.rocks/lib/tarantool/<namespace>/` |
+| a data file, such as `.wasm` | `share/<namespace>/` of the package | `.rocks/share/tarantool/<namespace>/` |
+| a program | `bin/` of the package | `.rocks/bin/`, where `tt instance` runs it from |
+
+What a build makes is told by the fields of its backend: `module` and `bin`
+of `cargo`, or `output` of `make`, `shell` and `cmake`; `go` always makes a
+program, `c` and `lua-c` always a module. tt records what each component
+made, by type, in `_build/results.json`. One component of a cargo package
+with a library and a CLI makes both:
+
+```toml
+[components.fast]
+path = "fast"
+
+[components.fast.build]
+backend = "cargo"
+module = "fast"
+bin = "fastctl"
+```
+
+`kind` is still accepted in `manifest_version = "0.1"`, with a warning,
+`components.<name>.kind is deprecated: a component makes what its build
+makes; remove it`, as what the component says of its build, which tt
+checks. `"executable"` says the build makes programs and nothing else: the
+component lays out none of its files, so `include`, `exclude` and
+`namespace` are errors, a `build` is required, `TT_OUTPUT_DIR` of its build
+is the directory of the programs, a plain string of `output` is a program,
+and `cargo` with neither `module` nor `bin` builds the binary named after
+the component. `"module"` says the build makes no program. A backend that
+cannot make what `kind` says, or a block that asks for what it rules out,
+is an error before anything is built, at `components.<name>.kind`: `is
+"executable", but backend "c" makes no programs`, `is "module", but the
+build makes programs`. A build that makes it anyway fails with exit code 2:
+`kind = "executable", but the build made more than programs: <files>`,
+`kind = "module", but the build made programs: <files>`.
+`manifest_version = "0.2"` has no `kind`.
+
+A `.wasm` file a component lays out has to be a WebAssembly binary: a
 file of another kind fails the build, and a core module, which tarantool-wasm
 does not load, is laid out with a warning. `tt wasm new` declares the
 components tarawasm builds; see
@@ -171,22 +213,46 @@ components tarawasm builds; see
 
 | Field | Backends | |
 | --- | --- | --- |
-| `backend` | | `c`, `lua-c` (module components); `go` (executable components); `cargo`, `cmake`, `make`, `shell` (either) |
+| `backend` | | `c`, `lua-c` (modules); `go` (programs); `cargo` (modules and programs); `cmake`, `make`, `shell` (modules, data files and programs) |
 | `cwd`, `env` | all | the directory the build runs in, its environment |
-| `output` | `make`, `shell`, `cmake` | the files the build makes, which tt copies into `TT_OUTPUT_DIR`; required for `cmake` |
+| `output` | `make`, `shell`, `cmake` | the files the build makes, which tt copies where each goes, see below; required for `cmake` |
 | `incremental` | `make`, `shell` | `true` skips the build when its inputs are those of the last one and what it left is still there |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
 | `cflags` | `c`, `lua-c` | flags of the compiler, one per entry, after tt's own and before `CFLAGS` of the environment; see below |
-| `module` | `cargo` | the name of the module a module component builds: the name of the library by default |
+| `module` | `cargo` | builds the library of the package as the module of this name; a block with neither `module` nor `bin` builds the library under its own name |
 | `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
 | `static` | all | `true`: what the build makes needs nothing of the machine it is installed on, and the build checks it; see below |
 | `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the sources; see below |
 | `name`, `tags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
-| `bin`, `features`, `profile` | `cargo` | `bin`, of an executable component, is the component's name by default; `profile` is `release` by default |
+| `bin`, `features`, `profile` | `cargo` | `bin` builds the binary of this name, the program of the same name; `profile` is `release` by default |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` of the configuration, the targets to build, all by default, and `CMAKE_BUILD_TYPE`, `RelWithDebInfo` by default; `output` is required |
+
+An entry of `output` is the path of a file, relative to `cwd` for `make`
+and `shell` and to the build tree for `cmake`: a string is a module, and a
+table says where the file goes, `to = "lib"` a module, `to = "share"` a
+data file, `to = "bin"` a program. tt copies each under its base name; a
+file the build did not make fails it. A program of `output` is a program of
+the component, which `tt instance` finds by it, and is checked as every
+program is.
+
+```toml
+[components.tool.build]
+backend = "make"
+make_target = "all"
+output = [
+  "build/tool.so",
+  { path = "build/tool.wasm", to = "share" },
+  { path = "build/tool", to = "bin" },
+]
+```
+
+Another `to` is an error, `components.tool.build.output[1].to: "etc" is
+not lib, share or bin`, and so is a table without `path`. A backend that
+makes no file of that type refuses the entry:
+`components.a.build.output[0].to: backend "wasm-tool" makes no data files`.
 
 A field of a backend other than the one of the build is an error, since it
 would do nothing: `cflags` on a `make` build, `make_target` on a `shell`
@@ -214,7 +280,8 @@ a field no backend has, and with the path of the field for a value of a
 wrong type, `components.a.build.cflags: must be an array, not a string`.
 
 A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
-puts what it makes, which exists when the build starts, `TT_PROJECT_ROOT`,
+puts the modules it makes, which exists when the build starts - the
+programs, for a component of `kind = "executable"` - `TT_PROJECT_ROOT`,
 `TT_PACKAGE`, `TT_COMPONENT_NAME`,
 `TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. When tt knows the
 Tarantool it builds for, a build also gets `TT_TARANTOOL_PREFIX`, the
@@ -287,17 +354,17 @@ cmake --build _build/component/<component> --config <build_type> --parallel <CPU
     --target <targets>...
 ```
 
-and copies the files `output` lists, relative to the build tree, into
-`TT_OUTPUT_DIR`; a file the build did not make fails it. The prefix of
+and copies the files `output` lists, relative to the build tree, where each
+goes; a file the build did not make fails it. The prefix of
 Tarantool comes after the prefixes `variables` gives `CMAKE_PREFIX_PATH`, so
 `find_path(... tarantool/module.h)` of the usual `FindTarantool.cmake` finds
 its headers. The build tree stays between builds, and cmake rebuilds what
 changed in it; `--rebuild` configures a new one, and so does a build of a
 project that was moved. `CMAKE_BUILD_PARALLEL_LEVEL`, if set, is the number
 of jobs, and `CMAKE_GENERATOR` in `env` picks another generator. On macOS a
-`.so` of a module component is copied as `.dylib`, which Tarantool loads
-there. An executable component lists its programs in `output`. CMake 3.15
-or newer must be on `PATH`.
+`.so` module is copied as `.dylib`, which Tarantool loads there. A program
+of the build is an entry of `output` with `to = "bin"`. CMake 3.15 or newer
+must be on `PATH`.
 
 ```toml
 [components.memcached]
@@ -311,9 +378,10 @@ targets = ["internalso"]
 output = ["memcached/internal.so"]
 ```
 
-`cargo` builds the binary `bin` of an executable component, and the library
-of the package of a module component: a `cdylib`, which is the native
-module `<module>.so`, `<module>.dylib` on macOS. The build gets
+`cargo` builds the library of the package for `module`: a `cdylib`, which
+is the native module `<module>.so`, `<module>.dylib` on macOS; the binary
+`bin` for `bin`, the program `bin`; both for both; and the library under
+its own name for neither. The build gets
 `CARGO_TARGET_DIR`, `_build/cargo/`, which the cargo components of the
 project share, as the packages of a workspace share its `target/`: what
 they depend on is compiled once. A `target-dir` of the cargo configuration
@@ -329,9 +397,10 @@ the package is installed on, and the build checks that it does: a file that
 needs more fails the build, with exit code 2, naming the file and what it
 needs.
 
-- A program of an executable component needs no loader and no shared
-  library. `go` and `cargo` are asked to build one so, for Linux only;
-  what `cmake`, `make` and `shell` build is only checked.
+- A program needs no loader and no shared library. `go` and `cargo` are
+  asked to build one so, for Linux only - `cargo` builds the binary for
+  musl, and the module of the same block as any module; what `cmake`,
+  `make` and `shell` build is only checked.
 - A module needs no shared library but those of the C library, which
   Tarantool, loading it, has loaded itself: on Linux `libc.so.6`,
   `libm.so.6`, `libdl.so.2`, `libpthread.so.0`, `librt.so.1`, the loader,

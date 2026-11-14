@@ -1,8 +1,9 @@
 # Build a module in Rust
 
-A module component built by cargo is a native module of Tarantool: the
-library of a Rust package, which the code of the application loads with
-`require`, and which holds the C functions of `box.schema.func.create`.
+A component built by cargo makes a native module of Tarantool: the library
+of a Rust package, which the code of the application loads with
+`require`, and which holds the C functions of `box.schema.func.create`. The
+same component may make a program of the package too.
 The [`tarantool` crate](https://docs.rs/tarantool/latest/tarantool/) gives
 it the API of Tarantool.
 
@@ -80,8 +81,54 @@ those of a C module are. `package` selects the package of a workspace,
 
 A `target/` of the component, which cargo run there by hand leaves, is not
 laid out: the library and the proc-macros in it are no files of the
-package. A `*.lua` file
-of the component is laid out as in any module component.
+package. A `*.lua` file of the component is laid out as in any component.
+
+## A module and a program of one crate
+
+A package may have a binary as well as the library: a CLI of the module,
+or a process the application runs beside Tarantool. One component builds
+both when its block names both. With `[[bin]]` in `Cargo.toml`:
+
+```toml
+[[bin]]
+name = "fastrs-cli"
+path = "src/main.rs"
+```
+
+and `src/main.rs`:
+
+```rust
+fn main() {
+    println!("6 * 7 = {}", 6 * 7);
+}
+```
+
+the block names the module and the binary:
+
+```toml
+[components.fastrs.build]
+backend = "cargo"
+module = "fastrs"
+bin = "fastrs-cli"
+```
+
+```console
+$ tt package build
+$ find .rocks/bin .rocks/lib -name 'fastrs*'
+.rocks/bin/fastrs-cli
+.rocks/lib/tarantool/myapp/fastrs.so
+$ .rocks/bin/fastrs-cli
+6 * 7 = 42
+```
+
+The build runs `cargo rustc --lib` of the module first, then
+`cargo build --bin fastrs-cli`, and copies the binary into `.rocks/bin/`,
+where an instance description `{binary: fastrs-cli}` finds it; see
+[Run an external process](external-processes.md). `module` alone builds the
+module only, `bin` alone the program only, and a block with neither builds
+the library under its own name, as above. With `static = true` the binary
+is built for musl and needs no shared library, and the module is built as
+a module is.
 
 ## Call it
 

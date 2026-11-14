@@ -616,7 +616,7 @@ whose build block says `backend = "template"` is built by the backend named
 `github.com/tarantool/tt/sdk/build` alone, as the seven backends of tt are.
 
 `template/template.go` renders a template of the component with `envsubst`
-into a file the package lays out under its namespace:
+into a data file of the package, under its namespace:
 
 ```go
 // Package template is the template build backend: it renders a template
@@ -645,14 +645,15 @@ type Config struct {
 // Backend returns the template backend.
 func Backend() build.Backend {
 	return build.Backend{
-		Name:        "template",
-		Kinds:       []string{build.KindModule},
-		Config:      func() any { return new(Config) },
-		New:         newBuild,
-		Incremental: true,
-		OutputFrom:  build.OutputNone,
-		Exclude:     nil,
-		Hook:        false,
+		Name:           "template",
+		Produces:       []build.Result{build.Data},
+		Config:         func() any { return new(Config) },
+		New:            newBuild,
+		Incremental:    true,
+		OutputFrom:     build.OutputNone,
+		Exclude:        nil,
+		NoSourceLayout: false,
+		Hook:           false,
 	}
 }
 
@@ -752,19 +753,27 @@ What the backend says of itself:
   calls it whenever it checks the manifest, `tt package add` included, so
   it has no side effects; an error of a field is a `build.FieldError`, which
   tt reports with the path of the field in the manifest.
-- `Kinds` are the kinds of the components it builds, `Incremental` allows
-  `incremental = true`, `OutputFrom` says whether the block has `output` and
-  who copies what it lists, `Exclude` are the files its tool leaves in the
-  component that the layout never takes, such as `target/` of cargo, and
+- `Produces` are the types of what its builds make - `build.Module`,
+  `build.Data`, `build.Program`, any of them - and tt refuses a block that
+  asks for another: a file of `output` that goes elsewhere, a build that
+  says it makes another. `Incremental` allows `incremental = true`,
+  `OutputFrom` says whether the block has `output` and who copies what it
+  lists, `Exclude` are the files its tool leaves in the component that the
+  layout never takes, such as `target/` of cargo, `NoSourceLayout` switches
+  off the default `include` of the component, the Lua sources, for a
+  backend whose sources are no files of the package, as `go` does, and
   `Hook` lets a lifecycle hook name it.
 
 The build gets a `build.Context`: the component, the platform, the
 directories - `Cwd` it runs in, `Work` it keeps its intermediate files in
-between builds, `Output` for compiled modules or programs, `Share` for the
-other files under the namespace, `State` of the project - the Tarantool it
-is built against and the toolchain of a C module. tt creates `Work`,
-`Output` and `Share` before the build runs and takes as made what the build
-left there. `Command` gives a command with the environment of the build:
+between builds, then one for each type of result: `Output` for modules,
+`TT_OUTPUT_DIR`, `Share` for data files under the namespace, beside the Lua
+sources, and `Programs` for programs, the `bin/` of the package that is
+installed into `.rocks/bin`; `State` of the project, and `Tools`, its
+`.tarantool/bin` - the Tarantool it is built against and the toolchain of a
+C module. tt creates `Work`, `Output`, `Share` and `Programs` before the
+build runs and takes as made what the build left in the last three, each by
+its type. `Command` gives a command with the environment of the build:
 tt's, the `env` of the block, `.tarantool/bin` of the project first in
 `PATH` and the `TT_*` variables; what the backend appends to `cmd.Env`
 wins. `Run` and `Output` run it as tt runs the commands of a build, quiet
@@ -772,11 +781,18 @@ unless it fails or `tt -V` is given; `Output` returns its stdout. A build
 copies a file into a directory of the Context with `build.CopyFile`, which
 a program it copies can be started from at once.
 
+What a build makes is told by the fields of its block, as `module` and
+`bin` of `cargo` tell it: the backend reads them in `New`. A build may say
+what its block asks for, `build.Producer`, which tt checks against
+`Produces` and against the deprecated `kind` of a component before anything
+is built; `build.Component.Expects` carries what such a `kind` says, and a
+backend that picks what to build when the block does not say may follow it.
+
 A build may also be a `build.Preflighter`, which tt asks before it builds
 anything, so that a missing tool fails at once; a `build.ProgramNamer`,
-which names the programs of an executable component; and a
-`build.InputHasher`, which adds what else an incremental build depends on,
-such as the version of its tool.
+which names the programs it makes, which tt instance finds the component
+by; and a `build.InputHasher`, which adds what else an incremental build
+depends on, such as the version of its tool.
 
 `build/buildtest` checks a block and runs a build on temporary directories,
 as tt does:
@@ -786,8 +802,7 @@ func TestTemplate(t *testing.T) {
 	t.Parallel()
 
 	component := build.Component{
-		Name: "config", Kind: build.KindModule, Path: "config", Namespace: "app",
-		Package: "app",
+		Name: "config", Path: "config", Namespace: "app", Package: "app", Expects: nil,
 	}
 
 	bld, err := buildtest.Validate(template.Backend(), component, buildtest.Block{
