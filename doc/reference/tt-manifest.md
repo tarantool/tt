@@ -112,8 +112,11 @@ manifest's directory; `VERSION_LABEL` follows it.
 ### Standard modules
 
 The standard modules are the modules of the core's repository that the
-official tt is built with: `aeon` and `emmylua` in tt 3.0.0-alpha.3. The
-package `standard` of the core, `github.com/tarantool/tt/v3/standard`, lists
+official tt is built with: `aeon`, `build` and `emmylua` in tt
+3.0.0-alpha.3. `build` has the build backends of tt (see
+[the application manifest](app-manifest.md#componentsnamebuild)); the core
+has none of its own. The package `standard` of the core,
+`github.com/tarantool/tt/v3/standard`, lists
 them, so a distribution gets the ones a newer core adds without an edit of
 its manifest. They are built at the commit of the core, or from its checkout,
 as every module of the core's repository is.

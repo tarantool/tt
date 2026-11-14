@@ -55,7 +55,7 @@ constructor is `New` in the root package of the module unless `package` and
 `symbol` say otherwise. A module of the core's repository, such as `aeon`,
 is built at the commit of the core; any other module without a version at
 its latest. The standard modules need no entry here: the distribution above
-has `aeon` and `emmylua` with its two modules of its own.
+has `aeon`, `build` and `emmylua` with its two modules of its own.
 
 ```sh
 tt binary build tt                  # build ./tt from ./tt.manifest.toml
@@ -112,10 +112,14 @@ Tarantool CLI core version 3.0.0. commit: 9031d7ad96d9 (v3.0.1-0.20261028190206-
 ## Standard modules
 
 The standard modules are the modules of the core's repository that the
-official tt is built with, `aeon` and `emmylua` now. The core lists them in
-its package `standard`, and a distribution takes them all by default, at the
-commit of the core, so it gets the ones a newer core adds without an edit of
-its manifest. `[distribution].exclude` leaves some out, by name:
+official tt is built with, `aeon`, `build` and `emmylua` now. The core lists
+them in its package `standard`, and a distribution takes them all by
+default, at the commit of the core, so it gets the ones a newer core adds
+without an edit of its manifest. `build` has the build backends of tt, from
+`make` and `shell` to `cargo` and `go`: the core has none of its own, and a
+distribution without `build` lays out the Lua of a package but builds no
+component with a build block and runs no hook. `[distribution].exclude`
+leaves some out, by name:
 
 ```toml
 manifest_version = "0.1"
@@ -131,19 +135,21 @@ path = "../tt"
 exclude = ["emmylua"]
 ```
 
-With a checkout of tt in `../tt`, the build takes `aeon` and not `emmylua`:
+With a checkout of tt in `../tt`, the build takes `aeon` and `build`, and
+not `emmylua`:
 
 ```sh
 $ tt binary build tt
    • Resolving the core github.com/tarantool/tt/v3
    •   core github.com/tarantool/tt/v3 (path ../tt)
-   •   standard aeon (with the core)
+   •   standard aeon, build (with the core)
    • Building tt-lite
    • Built /src/lite/tt-lite
 /src/lite/tt-lite
 $ ./tt-lite version --modules
 Tarantool CLI version 3.0.0, linux/amd64. commit: 1a2b3c4
   aeon     (devel)  github.com/tarantool/tt/modules/aeon
+  build    (devel)  github.com/tarantool/tt/modules/build
   builtin  (devel)  github.com/tarantool/tt/v3
 ```
 
@@ -155,7 +161,7 @@ The lock names the standard modules the binary has in its `[core]`, and
 module = 'github.com/tarantool/tt/v3'
 path = '../tt'
 content_hash = 'sha256:4367f681...'
-standard = ['aeon']
+standard = ['aeon', 'build']
 ```
 
 The build reads the list from the source of the package `standard` and
@@ -166,6 +172,7 @@ all:
 ```sh
 $ go version -m tt-lite | grep 'dep.*tt/modules'
 	dep	github.com/tarantool/tt/modules/aeon	v0.0.0
+	dep	github.com/tarantool/tt/modules/build	v0.0.0
 ```
 
 `builtin`, tt's own commands, counts as a standard module here:
@@ -176,7 +183,7 @@ is an error that names the ones it does:
 $ tt binary build tt
    • Resolving the core github.com/tarantool/tt/v3
    •   core github.com/tarantool/tt/v3 (path ../tt)
-   ⨯ distribution.exclude: "tcm" is not a standard module of the core ../tt: they are aeon, emmylua, builtin
+   ⨯ distribution.exclude: "tcm" is not a standard module of the core ../tt: they are aeon, build, emmylua, builtin
 ```
 
 A module of `[dependencies]` with the name of a standard module takes its
@@ -190,7 +197,7 @@ $ tt binary build tt
    • Resolving the core github.com/tarantool/tt/v3
    •   core github.com/tarantool/tt/v3 (path ../tt)
    ⚠ dependencies.aeon takes the place of the standard module aeon of the core: add "aeon" to distribution.exclude to say so, or drop the dependency to take the core's
-   •   standard emmylua (with the core)
+   •   standard build, emmylua (with the core)
    •   aeon github.com/tarantool/tt/modules/aeon (with the core)
    • Building tt-lite
 ```

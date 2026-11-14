@@ -613,7 +613,10 @@ return its error must.
 A module may build the components of a tt package as well: a component
 whose build block says `backend = "template"` is built by the backend named
 `template` the module provides. A backend is written against
-`github.com/tarantool/tt/sdk/build` alone, as the seven backends of tt are.
+`github.com/tarantool/tt/sdk/build` alone, as the seven backends of tt are:
+they are a module too, `build`, one of the standard modules of tt, in
+`modules/build` of its repository, and the core has no backend of its own.
+Their sources are examples of backends of every sort.
 
 `template/template.go` renders a template of the component with `envsubst`
 into a data file of the package, under its namespace:

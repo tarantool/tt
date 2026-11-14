@@ -248,7 +248,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the preflight before anything is built, the environment of the build, the
   layout, the stage, `incremental`, the modules, data files and programs it
   makes - and lets a hook name one that says it runs hooks. The seven
-  backends of tt are written against the same contract.
+  backends of tt are written against the same contract, and are a module
+  too: `build` (`github.com/tarantool/tt/modules/build`), a standard module,
+  which `tt version --modules` lists. The core has no backend of its own: a
+  distribution that excludes `build` builds no component with a build block,
+  `building component "<name>": no module of this tt provides backend
+  "<backend>"`, and runs no hook, `hooks.pre_build: backend "shell" is not
+  supported: no module of this tt provides a backend that runs hooks`.
 - A component makes what its build makes, any of a module, a data file and
   a program at once, where a component was of one kind: one `cargo`
   component of a package with a library and a binary builds both,
@@ -263,21 +269,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   include, the Lua of the sources of a Go program, is off for `go`.
 - `[distribution] standard` and `exclude` in `tt.manifest.toml`: a
   distribution of tt takes the standard modules of its core - the ones the
-  official tt is built with, `aeon` and `emmylua` now, which the package
-  `github.com/tarantool/tt/v3/standard` lists - at the commit of the core,
+  official tt is built with, `aeon`, `build` and `emmylua` now, which the
+  package `github.com/tarantool/tt/v3/standard` lists - at the commit of the core,
   without listing them in `[dependencies]`, and gets the ones a newer core
   adds. `standard` is on by default; `exclude = ["aeon"]` leaves modules
   out, their code too, and `"builtin"` in it is `builtin = false`. A module of
   `[dependencies]` named as a standard one takes its place, and the build
   warns of it unless `exclude` names it too. `tt.manifest.lock` names the
-  standard modules the binary has, `standard = ['aeon', 'emmylua']` in
-  `[core]`. A core before 3.0.0-alpha.3 has no such package: a distribution
+  standard modules the binary has, `standard = ['aeon', 'build',
+  'emmylua']` in `[core]`. A core before 3.0.0-alpha.3 has no such package: a distribution
   built on it needs `standard = false`.
 
 ### Changed
 
-- The messages that list build backends list those of tt first - `make`
-  and `shell`, then the others by name - and those of the modules after,
+- The messages that list build backends list them module by module, in the
+  order of the names of the modules, those of a module in its order: those
+  of tt, of the module `build`, `make` and `shell` first, then the others
   by name: `components.a.build.ldflags: is a field of backend c, go or
   lua-c, not of "cargo"` (it was `go, c or lua-c`), and `module` of `c,
   cargo or lua-c` (it was `c, lua-c or cargo`).
@@ -326,7 +333,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   anything is built, naming the path dependency or source rock it is of:
   `building component "<name>": no module of this tt provides backend
   "<backend>"`. A hook still names a backend that runs hooks, `make` or
-  `shell` of those of tt, or is refused.
+  `shell` of the module `build`, or is refused.
 - The fields of a backend in a build block are checked when the manifest is
   checked, with its other build checks, rather than when it is read: a field
   no backend has is reported there, by the same rules of the format version,

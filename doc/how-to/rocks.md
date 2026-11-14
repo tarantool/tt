@@ -93,8 +93,8 @@ cflags = ["-Wno-deprecated-declarations"]
   (`fnv.dylib` on macOS), which `require('hashkit.fnv')` loads. `cflags`
   and `ldflags` are the flags of the project, one per entry, and
   `platforms.linux` and `platforms.darwin` add to them on that OS only. The
-  `c` and `lua-c` backends are described in the
-  [reference](../reference/app-manifest.md#componentsnamebuild).
+  `c` and `lua-c` backends, of the standard module `build` of tt, are
+  described in the [reference](../reference/app-manifest.md#componentsnamebuild).
 
 `hashkit/fnv.c`, the C part:
 
