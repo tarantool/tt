@@ -171,10 +171,10 @@ may make modules, data files and programs, any of them at once:
 | a program | `bin/` of the package | `.rocks/bin/`, where `tt instance` runs it from |
 
 What a build makes is told by the fields of its backend: `module` and `bin`
-of `cargo`, or `output` of `make`, `shell` and `cmake`; `go` always makes a
-program, `c` and `lua-c` always a module. tt records what each component
-made, by type, in `_build/results.json`. One component of a cargo package
-with a library and a CLI makes both:
+of `cargo` and `zig`, or `output` of `make`, `shell` and `cmake`; `go`
+always makes a program, `c` and `lua-c` always a module. tt records what
+each component made, by type, in `_build/results.json`. One component of a
+cargo package with a library and a CLI makes both:
 
 ```toml
 [components.fast]
@@ -193,8 +193,8 @@ checks. `"executable"` says the build makes programs and nothing else: the
 component lays out none of its files, so `include`, `exclude` and
 `namespace` are errors, a `build` is required, `TT_OUTPUT_DIR` of its build
 is the directory of the programs, a plain string of `output` is a program,
-and `cargo` with neither `module` nor `bin` builds the binary named after
-the component. `"module"` says the build makes no program. A backend that
+and `cargo` or `zig` with neither `module` nor `bin` builds the program
+named after the component. `"module"` says the build makes no program. A backend that
 cannot make what `kind` says, or a block that asks for what it rules out,
 is an error before anything is built, at `components.<name>.kind`: `is
 "executable", but backend "c" makes no programs`, `is "module", but the
@@ -213,10 +213,10 @@ components tarawasm builds; see
 
 | Field | Backends | |
 | --- | --- | --- |
-| `backend` | | `c`, `lua-c` (modules); `go` (programs); `cargo` (modules and programs); `cmake`, `make`, `shell` (modules, data files and programs) |
+| `backend` | | `c`, `lua-c` (modules); `go` (programs); `cargo`, `zig` (modules and programs); `cmake`, `make`, `shell` (modules, data files and programs) |
 | `cwd`, `env` | all | the directory the build runs in, its environment |
 | `output` | `make`, `shell`, `cmake` | the files the build makes, which tt copies where each goes, see below; required for `cmake` |
-| `incremental` | `make`, `shell` | `true` skips the build when its inputs are those of the last one and what it left is still there |
+| `incremental` | `make`, `shell`, `zig` | `true` skips the build when its inputs are those of the last one and what it left is still there |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
@@ -228,6 +228,8 @@ components tarawasm builds; see
 | `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the sources; see below |
 | `name`, `tags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
 | `bin`, `features`, `profile` | `cargo` | `bin` builds the binary of this name, the program of the same name; `profile` is `release` by default |
+| `module`, `bin` | `zig` | the module and the program the build takes from what `zig build` installed; a block names one or both |
+| `steps`, `optimize`, `options` | `zig` | the steps of `zig build`, its default one by default; the mode, `Debug`, `ReleaseSafe`, `ReleaseFast` or `ReleaseSmall`, `ReleaseSafe` by default; `-D<name>=<value>` of the `build.zig` |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` of the configuration, the targets to build, all by default, and `CMAKE_BUILD_TYPE`, `RelWithDebInfo` by default; `output` is required |
 
 An entry of `output` is the path of a file, relative to `cwd` for `make`
@@ -399,15 +401,44 @@ cargo as every build does, and cargo rebuilds what changed, a new compiler
 included. A `target/` of a component cargo builds is not laid out. See
 [Build a module in Rust](../how-to/rust-modules.md).
 
+`zig` runs `zig build` of the `build.zig` of `cwd`, installing into
+`_build/component/<component>/zig-out/` and keeping its cache in
+`zig-cache/` beside it:
+
+```console
+zig build <steps>... -p _build/component/<component>/zig-out \
+    --cache-dir _build/component/<component>/zig-cache [--release=<mode>] -D<name>=<value>...
+```
+
+`optimize` is given as `--release=safe`, `fast` or `small`, and `Debug` as
+no flag, so a `build.zig` that does not declare `-Doptimize` takes it too;
+`options` in the order of their names, and `optimize` is none of them. The
+module `module` is taken from `lib/` of the prefix, `<module>.so` or
+`.dylib`, as `installModule` of zig-tarantool installs it, or
+`lib<module>.so` or `.dylib`, as `b.installArtifact` installs a library,
+and copied as `<module>.so`, `<module>.dylib` on macOS; a dotted module,
+`a.b`, is `lib/a/b.so` there and `a/b.so` in the namespace of the
+component. The program `bin` is taken from `bin/` of the prefix. A block
+that names neither is an error, and so is a module or a program the build
+did not install, which names what it installed. `--rebuild` empties the
+prefix and the cache. A `zig-out/` of a component zig builds is not laid
+out. The inputs of an `incremental` build are also the version of zig and
+`build.zig` and `build.zig.zon` of `cwd`. zig fetches the dependencies of
+`build.zig.zon` itself as it builds. See
+[Build a module in Zig](../how-to/zig-modules.md).
+
 `static = true` asks what the build makes to need nothing of the machine
 the package is installed on, and the build checks that it does: a file that
 needs more fails the build, with exit code 2, naming the file and what it
 needs.
 
-- A program needs no loader and no shared library. `go` and `cargo` are
-  asked to build one so, for Linux only - `cargo` builds the binary for
-  musl, and the module of the same block as any module; what `cmake`,
-  `make` and `shell` build is only checked.
+- A program needs no loader and no shared library. `go`, `cargo` and
+  `zig` are asked to build one so, for Linux only - `cargo` builds the
+  binary for musl, and the module of the same block as any module; `zig`
+  builds a program of a block without a module for musl, `-Dtarget=<arch>-linux-musl`,
+  when the `build.zig` takes `-Dtarget` and `options` names no `target`,
+  and one of a block with a module for the target of the module; what
+  `cmake`, `make` and `shell` build is only checked.
 - A module needs no shared library but those of the C library, which
   Tarantool, loading it, has loaded itself: on Linux `libc.so.6`,
   `libm.so.6`, `libdl.so.2`, `libpthread.so.0`, `librt.so.1`, the loader,

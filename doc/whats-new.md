@@ -54,9 +54,12 @@ tt test
   lockfile is an error, which is useful in CI.
 - `tt package build` installs dependencies into `.rocks/` and builds components:
   + Lua modules;
-  + native modules with the `c`, `lua-c`, `cargo`, `cmake`, `make` or `shell`
-    backend. A native module can be [written in Rust](how-to/rust-modules.md);
-  + programs for external processes with the `go`, `cargo` or `cmake` backend.
+  + native modules with the `c`, `lua-c`, `cargo`, `zig`, `cmake`, `make` or
+    `shell` backend. A native module can be
+    [written in Rust](how-to/rust-modules.md) or
+    [in Zig](how-to/zig-modules.md);
+  + programs for external processes with the `go`, `cargo`, `zig` or `cmake`
+    backend.
 - The package version comes from `VERSION` or the nearest git tag. Read it in
   code with `require('<name>.version').version`.
 - `tt run` runs the project's Tarantool and passes arguments through unchanged.

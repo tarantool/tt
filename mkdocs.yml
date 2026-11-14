@@ -51,6 +51,7 @@ nav:
       - how-to/external-modules.md
       - how-to/rocks.md
       - how-to/rust-modules.md
+      - how-to/zig-modules.md
       - how-to/write-a-module.md
       - how-to/build-distribution.md
       - how-to/wasm-components.md

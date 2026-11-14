@@ -267,6 +267,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   every program is. A `go` component lays out what its `include` names,
   where an executable component could have no `include`: only the default
   include, the Lua of the sources of a Go program, is off for `go`.
+- `backend = "zig"` builds a component with `zig build` of its `build.zig`:
+  `module = "hello"` takes the module it installed, `lib/hello.so` as
+  `installModule` of zig-tarantool installs it or `lib/libhello.so` as
+  `b.installArtifact` does, into `.rocks/lib/tarantool/<namespace>/`, and
+  `bin = "hello-client"` the program, into `.rocks/bin/`; one block may name
+  both. zig build installs into `_build/component/<component>/zig-out/`
+  and keeps its cache beside it, out of the sources; `steps` are the steps
+  run, `optimize` the mode, `ReleaseSafe` by default, passed as
+  `--release=<mode>`, and `options` the `-D<name>=<value>` of the
+  `build.zig`. `incremental` is allowed, and `static = true` builds a
+  program of a block without a module for musl when the `build.zig` takes
+  `-Dtarget`. The backend is one of the standard module `build`, written
+  against the SDK alone; see the how-to "Build a module in Zig". zig 0.16.0
+  is the user's to install.
 - `[distribution] standard` and `exclude` in `tt.manifest.toml`: a
   distribution of tt takes the standard modules of its core - the ones the
   official tt is built with, `aeon`, `build` and `emmylua` now, which the
@@ -287,7 +301,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of tt, of the module `build`, `make` and `shell` first, then the others
   by name: `components.a.build.ldflags: is a field of backend c, go or
   lua-c, not of "cargo"` (it was `go, c or lua-c`), and `module` of `c,
-  cargo or lua-c` (it was `c, lua-c or cargo`).
+  cargo, lua-c or zig` (it was `c, lua-c or cargo`).
 - `kind` of a component is deprecated, with a warning,
   `components.<name>.kind is deprecated: a component makes what its build
   makes; remove it`, and `manifest_version = "0.2"` is to have none. In
