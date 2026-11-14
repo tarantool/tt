@@ -746,7 +746,7 @@ func topologyConnectContext() connect.ConnectCtx {
 		SslKeyFile:     replicasetSslKeyFile, SslCertFile: replicasetSslCertFile,
 		SslCaFile: replicasetSslCaFile, SslCiphers: replicasetSslCiphers,
 		SslPassword: replicasetSslPassword, SslPasswordFile: replicasetSslPasswordFile,
-		Transport: dial.TransportDefault,
+		Transport: dial.TransportDefault, Auth: replicasetAuthType,
 	}
 }
 

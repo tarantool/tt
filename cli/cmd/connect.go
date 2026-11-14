@@ -39,6 +39,10 @@ var (
 	errUnsupportedURIParam = errors.New("unsupported parameter in the query of a URI")
 	errUnknownTransport    = errors.New(`unknown transport in the query of a URI, ` +
 		`use "ssl" or "plain"`)
+	errUnknownAuthType = errors.New(`unknown authentication method in the query of a URI, ` +
+		`use "auto", "chap-sha1" or "pap-sha256"`)
+	errEmptyAuthType = errors.New("unknown authentication method \"\", " +
+		"use auto, chap-sha1, pap-sha256")
 	errPlainTransportWithTLS = errors.New(
 		"is a TLS setting, which conflicts with transport=plain in the query of a URI",
 	)
@@ -50,6 +54,7 @@ var (
 // them: it has the place before the "@".
 const (
 	uriTransportParam       = "transport"
+	uriAuthTypeParam        = "auth_type"
 	uriSslKeyFileParam      = "ssl_key_file"
 	uriSslCertFileParam     = "ssl_cert_file"
 	uriSslCaFileParam       = "ssl_ca_file"
@@ -81,6 +86,7 @@ var (
 	connectSslCiphers      string
 	connectSslPassword     string
 	connectSslPasswordFile string
+	connectAuthType        dial.Auth
 	connectTimeout         = connector.DefaultConnectTimeout
 	connectInteractive     bool
 	connectBinary          bool
@@ -111,7 +117,11 @@ func newConnectCmd(path string) *cobra.Command {
 			"  The URI can be specified in the following formats:\n" +
 			"  * [tcp://][username:password@][host:port]\n" +
 			"  * [unix://][username:password@]socketpath\n" +
-			"  To specify relative path without `unix://` use `./`.\n\n" +
+			"  To specify relative path without `unix://` use `./`.\n" +
+			"  The query of a URI, `?transport=ssl&auth_type=pap-sha256`, takes\n" +
+			"  transport (ssl or plain), auth_type (auto, chap-sha1 or pap-sha256)\n" +
+			"  and the TLS settings ssl_key_file, ssl_cert_file, ssl_ca_file,\n" +
+			"  ssl_ciphers, ssl_password and ssl_password_file.\n\n" +
 			"  Available commands:\n" +
 			"  * \\shortcuts - get the full list of available shortcuts\n" +
 			"  * \\set language <language> - set language (lua or sql)\n" +
@@ -169,6 +179,7 @@ func newConnectCmd(path string) *cobra.Command {
 		`password for decrypting the private SSL key file`)
 	connectCmd.Flags().StringVar(&connectSslPasswordFile, "sslpasswordfile", "",
 		`path to a file containing the password for decrypting the private SSL key file`)
+	addAuthTypeFlag(connectCmd, &connectAuthType)
 	connectCmd.Flags().DurationVar(&connectTimeout, "connect-timeout",
 		connector.DefaultConnectTimeout, `timeout for establishing a binary connection`)
 	connectCmd.Flags().BoolVarP(&connectInteractive, "interactive", "i",
@@ -183,6 +194,54 @@ code from`)
 	_ = connectCmd.Flags().MarkHidden("evaler")
 
 	return connectCmd
+}
+
+// authTypeValue is the value of an --auth-type flag: the authentication
+// method of a binary connection, by the name dial.ParseAuth takes.
+type authTypeValue struct {
+	auth *dial.Auth
+}
+
+// String returns the name of the method.
+func (v authTypeValue) String() string {
+	if v.auth == nil {
+		return dial.AuthAuto.String()
+	}
+
+	return v.auth.String()
+}
+
+// Set sets the method by its name; an empty one is an error, as in the
+// query of a URI.
+func (v authTypeValue) Set(name string) error {
+	if name == "" {
+		return errEmptyAuthType
+	}
+
+	auth, err := dial.ParseAuth(name)
+	if err != nil {
+		return err
+	}
+
+	*v.auth = auth
+
+	return nil
+}
+
+// Type names the type of the value in the help.
+func (authTypeValue) Type() string {
+	return "string"
+}
+
+// addAuthTypeFlag adds --auth-type, the authentication method of a binary
+// connection, to cmd.
+func addAuthTypeFlag(cmd *cobra.Command, auth *dial.Auth) {
+	cmd.Flags().Var(authTypeValue{auth: auth}, "auth-type",
+		`authentication method: auto, chap-sha1 or pap-sha256; `+
+			`pap-sha256 needs TLS and Tarantool EE or CE 3.9+`)
+
+	_ = cmd.RegisterFlagCompletionFunc("auth-type", cobra.FixedCompletions(
+		dial.AuthNames, cobra.ShellCompDirectiveNoFileComp))
 }
 
 // makeConnOpts makes and returns connect options from the arguments.
@@ -202,6 +261,7 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 		Address:        address,
 		Username:       connCtx.Username,
 		Password:       connCtx.Password,
+		Auth:           connCtx.Auth,
 		Ssl:            ssl,
 		ConnectTimeout: connCtx.ConnectTimeout,
 	}
@@ -315,8 +375,9 @@ func unresolvedTargetErr(target string, resolveErr error) error {
 
 // applyURIQuery cuts the query off a URI, applies its parameters to
 // connectCtx and returns the URI without it. The parameters are the TLS
-// settings of the flags, a setting that a flag has set already being an
-// error, as are credentials in both places, and the transport. Transport
+// settings of the flags and the authentication method of --auth-type, a
+// setting that a flag has set already being an error, as are credentials in
+// both places, and the transport. Transport
 // "ssl" takes TLS with no setting at all, "plain" refuses every setting, of
 // the query or of a flag, and with no transport TLS is taken if a setting
 // is set. An error names the parameter or the flag, not its value: it may
@@ -349,6 +410,21 @@ func applyURIQuery(connectCtx *connect.ConnectCtx, uri string) (string, error) {
 			}
 
 			connectCtx.Transport = transport
+
+			continue
+		}
+
+		if key == uriAuthTypeParam {
+			auth, parseErr := dial.ParseAuth(value)
+			if parseErr != nil || value == "" {
+				return "", fmt.Errorf("%q: %w", key, errUnknownAuthType)
+			}
+
+			if connectCtx.Auth != dial.AuthAuto {
+				return "", fmt.Errorf("%q: %w", key, errURIParamSpecifiedByFlag)
+			}
+
+			connectCtx.Auth = auth
 
 			continue
 		}
@@ -413,6 +489,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		SslPassword:     connectSslPassword,
 		SslPasswordFile: connectSslPasswordFile,
 		Transport:       dial.TransportDefault,
+		Auth:            connectAuthType,
 		ConnectTarget:   "",
 		Binary:          connectBinary,
 		Evaler:          connectEvaler,

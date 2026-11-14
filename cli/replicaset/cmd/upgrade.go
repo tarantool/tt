@@ -141,6 +141,7 @@ func getInstanceConnector(instance replicaset.Instance,
 		Address:  run.ConsoleSocket,
 		Username: "",
 		Password: "",
+		Auth:     dial.AuthAuto,
 		Ssl: connector.SslOpts{
 			KeyFile: "", CertFile: "", CaFile: "", Ciphers: "", Password: "", PasswordFile: "",
 			Transport: dial.TransportDefault,

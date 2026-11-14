@@ -21,7 +21,7 @@ from utils import (
     instances_file,
     run_command_and_get_output,
     run_command_and_get_streams,
-    skip_if_tarantool_ce,
+    skip_if_tarantool_ssl_unsupported,
     wait_file,
     wait_files,
 )
@@ -455,7 +455,7 @@ def test_play_to_cluster_app(tt_cmd):
 
 
 def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
-    skip_if_tarantool_ce()
+    skip_if_tarantool_ssl_unsupported()
 
     tmpdir = tmpdir_with_cfg
     test_app_path = Path(__file__).parent / "test_ssl_app"

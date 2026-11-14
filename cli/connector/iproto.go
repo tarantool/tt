@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/tarantool/go-tarantool/v3"
-	"github.com/tarantool/tt/sdk/dial"
 )
 
 // ConnectIproto opens an IPROTO connection to the binary port opts name, as
@@ -39,24 +38,7 @@ func ConnectIproto(ctx context.Context, opts ConnectOpts,
 		address = alias
 	}
 
-	transport := dial.TransportPlain
-	if ssl {
-		transport = dial.TransportSsl
-	}
-
-	dialer, err := dial.New(dial.Opts{
-		Address:         fmt.Sprintf("%s://%s", opts.Network, address),
-		Auth:            tarantool.AutoAuth,
-		User:            opts.Username,
-		Password:        opts.Password,
-		SslKeyFile:      opts.Ssl.KeyFile,
-		SslCertFile:     opts.Ssl.CertFile,
-		SslCaFile:       opts.Ssl.CaFile,
-		SslCiphers:      opts.Ssl.Ciphers,
-		SslPassword:     opts.Ssl.Password,
-		SslPasswordFile: opts.Ssl.PasswordFile,
-		Transport:       transport.String(),
-	})
+	dialer, err := newDialer(opts, address, ssl)
 	if err != nil {
 		return nil, err
 	}

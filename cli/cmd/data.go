@@ -416,7 +416,8 @@ its binary port, transaction by transaction, in their order. No local
 Tarantool is needed. The target is an instance of an application, reached at
 its binary port, or a URI: [tcp://][username:password@]host:port or
 [unix://][username:password@]socketpath, with the TLS settings in the flags or
-in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=...
+in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=..., and the
+authentication method in --auth-type or ?auth_type=auto|chap-sha1|pap-sha256.
 
 ` + dataFilterHelp + `
 
@@ -495,6 +496,7 @@ the request is invalid; 2 - the connection failed.
 		"password for decrypting the private SSL key file")
 	cmd.Flags().StringVar(&play.connectCtx.SslPasswordFile, "sslpasswordfile", "",
 		"path to a file containing the password for decrypting the private SSL key file")
+	addAuthTypeFlag(cmd, &play.connectCtx.Auth)
 	cmd.Flags().DurationVar(&play.connectCtx.ConnectTimeout, "connect-timeout",
 		connector.DefaultConnectTimeout, "timeout for establishing the connection")
 	cmd.Flags().StringVar(&play.txnMode, "txn-mode", string(data.TxnAuto),

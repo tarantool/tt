@@ -3,7 +3,6 @@
 package connector_test
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"os"
@@ -26,9 +25,11 @@ const (
 )
 
 var (
-	console     string
-	tarantoolEe bool
-	opts        = tarantool.Opts{
+	console string
+	// tarantoolSsl is set when the tarantool of the tests has the SSL
+	// transport of IPROTO, and the TLS instance runs.
+	tarantoolSsl bool
+	opts         = tarantool.Opts{
 		Timeout:    500 * time.Millisecond,
 		SkipSchema: true,
 	}
@@ -237,8 +238,8 @@ func TestConnect_binaryTlsToNoTls(t *testing.T) {
 }
 
 func TestConnect_binaryTlsToTls(t *testing.T) {
-	if !tarantoolEe {
-		t.Skip("Only for Tarantool Enterprise.")
+	if !tarantoolSsl {
+		t.Skip("iproto TLS requires Tarantool Enterprise or Community 3.9+.")
 	}
 
 	conn, err := Connect(ConnectOpts{
@@ -287,6 +288,20 @@ func TestConnect_textTls(t *testing.T) {
 	require.ErrorContains(t, err, expected)
 }
 
+// isTarantoolSslSupported reports whether the tarantool the tests start has
+// the SSL transport of IPROTO: Tarantool Enterprise does, the Community
+// Edition since 3.9.
+func isTarantoolSslSupported() (bool, error) {
+	enterprise, err := test_helpers.IsTarantoolEE()
+	if err != nil || enterprise {
+		return enterprise, err
+	}
+
+	less, err := test_helpers.IsTarantoolVersionLess(3, 9, 0)
+
+	return !less, err
+}
+
 func runTestMain(m *testing.M) int {
 	// The console socket needs a short path, outside the source tree.
 	absWorkDir, err := os.MkdirTemp("/tmp", "tt-integration-")
@@ -314,34 +329,13 @@ func runTestMain(m *testing.M) int {
 	}
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-
-	conn, err := tarantool.Connect(ctx, dialer, opts)
+	tarantoolSsl, err = isTarantoolSslSupported()
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
 		return 1
 	}
 
-	req := tarantool.NewEvalRequest("return box.info.package")
-	future := conn.Do(req)
-	data, err := future.Get()
-	future.Release()
-
-	_ = conn.Close()
-
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stdout, "Failed to get box.info.package:", err)
-		return 1
-	}
-
-	if len(data) > 0 {
-		if pack, ok := data[0].(string); ok {
-			tarantoolEe = pack == "Tarantool Enterprise"
-		}
-	}
-
-	if tarantoolEe {
+	if tarantoolSsl {
 		absTLSWorkDir, err := os.MkdirTemp("/tmp", "tt-integration-tls-")
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare TLS test work dir:", err)
@@ -396,8 +390,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestConnect_binaryTlsToTlsEncryptedKey(t *testing.T) {
-	if !tarantoolEe {
-		t.Skip("Only for Tarantool Enterprise.")
+	if !tarantoolSsl {
+		t.Skip("iproto TLS requires Tarantool Enterprise or Community 3.9+.")
 	}
 
 	cases := []struct {

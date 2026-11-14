@@ -21,7 +21,7 @@ from utils import (
     project_root,
     run_command_and_get_output,
     run_path,
-    skip_if_tarantool_ce,
+    skip_if_tarantool_ssl_unsupported,
     wait_file,
     wait_files,
 )
@@ -479,7 +479,7 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
 
 @pytest.mark.tls
 def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
-    skip_if_tarantool_ce()
+    skip_if_tarantool_ssl_unsupported()
 
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/tt/sdk/dial"
 )
 
@@ -25,6 +26,11 @@ type ConnectOpts struct {
 	Username string
 	// Password of the user.
 	Password string
+	// Auth is the authentication method of a binary connection:
+	// dial.AuthAuto takes the server's auth_type over TLS and chap-sha1 over
+	// a plain connection, which refuses dial.AuthPapSha256 before it dials.
+	// A text connection does not authenticate.
+	Auth dial.Auth
 	// Ssl options for a connection.
 	Ssl SslOpts
 	// ConnectTimeout bounds binary connection establishment. Non-positive values
@@ -75,6 +81,31 @@ func (opts SslOpts) encrypted() (bool, error) {
 	default:
 		return false, fmt.Errorf("%w%s", errUnknownTransport, opts.Transport)
 	}
+}
+
+// newDialer returns the dialer of a binary connection to address, a TLS one
+// when ssl is set. A combination of the options it cannot dial, such as
+// pap-sha256 over a plain connection, is an error before anything is
+// dialed.
+func newDialer(opts ConnectOpts, address string, ssl bool) (tarantool.Dialer, error) {
+	transport := dial.TransportPlain
+	if ssl {
+		transport = dial.TransportSsl
+	}
+
+	return dial.New(dial.Opts{
+		Address:         fmt.Sprintf("%s://%s", opts.Network, address),
+		Auth:            opts.Auth,
+		User:            opts.Username,
+		Password:        opts.Password,
+		SslKeyFile:      opts.Ssl.KeyFile,
+		SslCertFile:     opts.Ssl.CertFile,
+		SslCaFile:       opts.Ssl.CaFile,
+		SslCiphers:      opts.Ssl.Ciphers,
+		SslPassword:     opts.Ssl.Password,
+		SslPasswordFile: opts.Ssl.PasswordFile,
+		Transport:       transport.String(),
+	})
 }
 
 func getConnectTimeout(opts ConnectOpts) time.Duration {

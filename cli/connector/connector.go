@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool/v3"
-	"github.com/tarantool/tt/sdk/dial"
 )
 
 var (
@@ -124,6 +123,13 @@ func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
 		opts.Address = address
 	}
 
+	// The dialer of the binary protocol refuses what it cannot dial before
+	// the address is dialed at all.
+	dialer, err := newDialer(opts, opts.Address, ssl)
+	if err != nil {
+		return nil, err
+	}
+
 	// Connect to specified address.
 	greetingConn, err := (&net.Dialer{}).DialContext(
 		ctx, opts.Network, opts.Address)
@@ -179,30 +185,6 @@ func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
 		return NewTextConnector(greetingConn), nil
 	case BinaryProtocol:
 		_ = greetingConn.Close()
-
-		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
-
-		transport := dial.TransportPlain
-		if ssl {
-			transport = dial.TransportSsl
-		}
-
-		dialer, err := dial.New(dial.Opts{
-			Address:         addr,
-			Auth:            tarantool.AutoAuth,
-			User:            opts.Username,
-			Password:        opts.Password,
-			SslKeyFile:      opts.Ssl.KeyFile,
-			SslCertFile:     opts.Ssl.CertFile,
-			SslCaFile:       opts.Ssl.CaFile,
-			SslCiphers:      opts.Ssl.Ciphers,
-			SslPassword:     opts.Ssl.Password,
-			SslPasswordFile: opts.Ssl.PasswordFile,
-			Transport:       transport.String(),
-		})
-		if err != nil {
-			return nil, err
-		}
 
 		// Keep the existing protocol-detection deadline separate. TLS servers
 		// cannot send their greeting until the binary TLS handshake starts.

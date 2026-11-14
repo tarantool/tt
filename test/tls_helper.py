@@ -14,8 +14,10 @@ from utils import is_tarantool_ee, wait_event
 
 @pytest.fixture
 def tls_cluster(tmp_path, port_factory):
+    # Tarantool Community 3.9+ has iproto TLS too, but not the config.storage
+    # role the instance runs.
     if not is_tarantool_ee():
-        pytest.skip("iproto TLS requires Tarantool Enterprise")
+        pytest.skip("the config.storage role requires Tarantool Enterprise")
     certificates = Path(__file__).parent / "integration" / "connect" / "test_ssl_app"
     for name in ["ca.crt", "localhost.crt", "localhost.key"]:
         shutil.copy2(certificates / name, tmp_path / name)

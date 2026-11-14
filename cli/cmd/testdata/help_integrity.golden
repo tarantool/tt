@@ -249,6 +249,9 @@ USAGE
   To specify relative path without `unix://` use `./`.
 
 FLAGS
+      --auth-type string              authentication method: auto, chap-sha1 or
+                                      pap-sha256; pap-sha256 needs TLS and
+                                      Tarantool EE or CE 3.9+ (default "auto")
       --config                        to force the centralized config
                                       orchestrator
       --connect-timeout duration      timeout for establishing a binary

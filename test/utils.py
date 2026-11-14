@@ -861,6 +861,29 @@ def skip_if_tarantool_ce():
         pytest.skip("Tarantool Enterprise required")
 
 
+# The reason the tests of the SSL transport of IPROTO are skipped for.
+TARANTOOL_SSL_REQUIRED = "iproto TLS requires Tarantool Enterprise or Community 3.9+"
+
+
+def is_tarantool_ssl_supported():
+    """Whether the tarantool in PATH listens on and dials the SSL transport
+    of IPROTO: Tarantool Enterprise does, the Community Edition since 3.9."""
+    return is_tarantool_ee() or not is_tarantool_less(3, 9)
+
+
+def skip_if_tarantool_ssl_unsupported():
+    if not is_tarantool_ssl_supported():
+        pytest.skip(TARANTOOL_SSL_REQUIRED)
+
+
+def is_tarantool_pap_sha256_supported():
+    """Whether the tarantool in PATH has the pap-sha256 authentication method:
+    Tarantool Enterprise since 2.11, the Community Edition since 3.9."""
+    if is_tarantool_ee():
+        return not is_tarantool_less(2, 11)
+    return not is_tarantool_less(3, 9)
+
+
 @retry(Exception, tries=40, delay=0.5)
 def wait_string_in_file(file, text):
     with open(file, "r") as fp:

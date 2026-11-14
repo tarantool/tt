@@ -54,6 +54,11 @@ type ConnectCtx struct {
 	// Transport is the transport the query of a URI names: TLS, plain or,
 	// by default, TLS when any of the SSL settings is set.
 	Transport dial.Transport
+	// Auth is the authentication method of a binary connection, the
+	// --auth-type flag or the auth_type parameter of the query of a URI:
+	// dial.AuthAuto, the default, takes the server's over TLS and chap-sha1
+	// over a plain connection.
+	Auth dial.Auth
 	// ConnectTarget contains connection target string: URI or instance name.
 	ConnectTarget string
 	// Binary port is used.
