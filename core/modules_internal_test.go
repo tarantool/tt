@@ -188,7 +188,7 @@ func TestStandardBackends(t *testing.T) {
 
 	_, registry, err = construct(standard.Modules(), &atomic.Bool{}, noVersion)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c"},
+	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c", "zig"},
 		registry.Names())
 
 	for _, name := range registry.Names() {
