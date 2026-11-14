@@ -373,14 +373,18 @@ func (m *Manifest) applyDependencyDefaults() {
 	}
 }
 
-// applyHookDefaults gives a hook that names no backend the shell one. Validate
-// checks the hook with it and the build runs the hook with it: a default
-// Validate alone assumed let a manifest through that the build then refused
-// to run.
+// DefaultHookBackend is the backend of a hook that names none, as the format
+// of the manifest has it.
+const DefaultHookBackend = "shell"
+
+// applyHookDefaults gives a hook that names no backend the default one
+// (DefaultHookBackend). Validate checks the hook with it and the build runs
+// the hook with it: a default Validate alone assumed let a manifest through
+// that the build then refused to run.
 func (m *Manifest) applyHookDefaults() {
 	for name, hook := range m.Hooks {
 		if hook.Backend == "" {
-			hook.Backend = backendShell
+			hook.Backend = DefaultHookBackend
 			m.Hooks[name] = hook
 		}
 	}

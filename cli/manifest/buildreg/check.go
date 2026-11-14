@@ -10,46 +10,49 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
-// blockSetter is a configuration that takes the fields every build block
-// has before the backend checks it: the Spec the backends of the core share
-// (corebackend.Spec.SetBlock), whose checks read them with the fields of the
-// backend, in the order they were checked in before the backends had fields
-// of their own. A backend of a module gets them as build.Common instead.
-type blockSetter interface {
-	SetBlock(build manifest.Build)
-}
+// ErrNoBackend reports a build block of a backend the registry does not
+// have.
+var ErrNoBackend = errors.New("no module of this tt provides backend")
 
 // CheckBuild checks block, the build block at field, which builds target,
 // for its backend, as manifest.Validate has it checked (manifest.BuildChecker).
 // The checks go in this order, and the first error is reported:
 //
-//  1. the fields of block.Rest are decoded into the configuration of the
+//  1. a hook names a backend that runs hooks (build.Backend.Hook);
+//  2. the fields of block.Rest are decoded into the configuration of the
 //     backend (build.Backend.Decode): a value of a wrong type fails it;
-//  2. the fields the configuration has no place for and no other backend
+//  3. the fields the configuration has no place for and no other backend
 //     has are the unknown ones, which Validate reports;
-//  3. the backend checks the block (build.Backend.New);
-//  4. a field of another backend is refused, by key, then output and
+//  4. the backend checks the block (build.Backend.New);
+//  5. a field of another backend is refused, by key, then output and
 //     incremental, for a backend that has no such field;
-//  5. the kind of the component is one the backend builds; a hook has none.
+//  6. the kind of the component is one the backend builds; a hook has none.
 //
-// A block of a backend the registry does not have is not checked.
+// A block of a component whose backend the registry does not have is not
+// checked. The programs of an executable component are those its build
+// names (build.ProgramNamer).
 func (r *Registry) CheckBuild(
 	field string, target manifest.BuildTarget, block manifest.Build,
 ) (manifest.BuildCheck, error) {
 	found, ok := r.lookup(block.Backend)
-	if !ok {
-		return manifest.BuildCheck{Known: false, Unknown: nil}, nil
+
+	check := manifest.BuildCheck{Known: ok, Unknown: nil, Programs: nil}
+
+	if target.Hook && (!ok || !found.backend.Hook) {
+		return check, &manifest.ValidationError{
+			Field: field,
+			Msg: fmt.Sprintf("backend %q is not supported (want %s)", block.Backend,
+				orList(r.hookNames())),
+		}
 	}
 
-	check := manifest.BuildCheck{Known: true, Unknown: nil}
+	if !ok {
+		return check, nil
+	}
 
 	cfg, keys, err := found.backend.Decode(block.Rest)
 	if err != nil {
 		return check, validationError(field, err)
-	}
-
-	if setter, ok := cfg.(blockSetter); ok {
-		setter.SetBlock(block)
 	}
 
 	var foreign []string
@@ -64,7 +67,7 @@ func (r *Registry) CheckBuild(
 		}
 	}
 
-	_, err = found.backend.New(cfg, component(target), common(block))
+	bld, err := found.backend.New(cfg, component(target), common(block))
 	if err != nil {
 		return check, validationError(field, err)
 	}
@@ -74,10 +77,45 @@ func (r *Registry) CheckBuild(
 		err = r.checkKind(field, found, target)
 	}
 
-	return check, err
+	if err != nil {
+		return check, err
+	}
+
+	if namer, ok := bld.(build.ProgramNamer); ok && target.Kind == build.KindExecutable {
+		check.Programs, _ = namer.Programs()
+	}
+
+	return check, nil
 }
 
-// component is the component target, as a backend is told it.
+// Build returns the backend of block, the build block at field which builds
+// target, and the build its New makes of the block: what the build of
+// target runs. The block is to have been checked (CheckBuild): the fields
+// of other backends and those no backend has are not looked at again. A
+// block of a backend the registry does not have is ErrNoBackend.
+func (r *Registry) Build(
+	field string, target manifest.BuildTarget, block manifest.Build,
+) (build.Backend, build.Build, error) {
+	found, ok := r.lookup(block.Backend)
+	if !ok {
+		return build.Backend{}, nil, fmt.Errorf("%w %q", ErrNoBackend, block.Backend)
+	}
+
+	cfg, _, err := found.backend.Decode(block.Rest)
+	if err != nil {
+		return build.Backend{}, nil, validationError(field, err)
+	}
+
+	bld, err := found.backend.New(cfg, component(target), common(block))
+	if err != nil {
+		return build.Backend{}, nil, validationError(field, err)
+	}
+
+	return found.backend, bld, nil
+}
+
+// component is the component target, as a backend is told it: the zero one
+// for a hook.
 func component(target manifest.BuildTarget) build.Component {
 	return build.Component{
 		Name:      target.Component,
@@ -109,15 +147,27 @@ func (r *Registry) owners(key string) []string {
 	return names
 }
 
+// hookNames returns the names of the backends that run hooks, in the order
+// of Names.
+func (r *Registry) hookNames() []string {
+	var names []string
+
+	for _, e := range r.ordered() {
+		if e.backend.Hook {
+			names = append(names, e.backend.Name)
+		}
+	}
+
+	return names
+}
+
 // has reports whether the backend of e has the field key: one of its
 // configuration, or output and incremental when it allows them.
 func (e entry) has(key string) bool {
-	switch {
-	case e.owns != nil:
-		return e.owns(key)
-	case key == "output":
+	switch key {
+	case "output":
 		return e.backend.OutputFrom != build.OutputNone
-	case key == "incremental":
+	case "incremental":
 		return e.backend.Incremental
 	default:
 		return slices.Contains(e.fields, key)
@@ -126,7 +176,9 @@ func (e entry) has(key string) bool {
 
 // checkForeign refuses a field of block the backend of found does not have:
 // those of foreign, the fields of other backends, in key order, then output
-// and incremental.
+// and incremental. A field is the block's when its key is there, whatever
+// its value: make_target = "" on a go block is refused as make_target =
+// "all" is.
 func (r *Registry) checkForeign(
 	field string, found entry, block manifest.Build, foreign []string,
 ) error {
@@ -154,8 +206,7 @@ func (r *Registry) checkForeign(
 }
 
 // checkKind checks that the backend of found builds a component of the kind
-// of target. It is the one check of the kind of a component the backends of
-// modules get.
+// of target.
 func (r *Registry) checkKind(field string, found entry, target manifest.BuildTarget) error {
 	if slices.Contains(found.backend.Kinds, target.Kind) {
 		return nil

@@ -17,6 +17,7 @@ import (
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/util"
@@ -242,7 +243,7 @@ func buildHint(inst *InstanceCtx) string {
 		return ""
 	}
 
-	component, ok := man.ExecutableComponent(inst.Binary)
+	component, ok := man.ExecutableComponent(buildreg.Process(), inst.Binary)
 	if !ok {
 		return ""
 	}

@@ -35,22 +35,17 @@ package build
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"time"
 
-	lrbuild "github.com/tarantool/go-luarocks/build"
 	"github.com/tarantool/go-luarocks/client"
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
-	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -423,8 +418,9 @@ func runBuild(
 	}
 
 	proj := packageProject(opts.ProjectDir, man, productName)
+	stage := packageStage(opts.ProjectDir, productName)
 
-	err = preflightBackends(opts.backends(), proj, components, opts.Tarantool)
+	err = newBuilder(opts, proj, adapter, stage, version.Version{}).preflight(components)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +435,7 @@ func runBuild(
 
 	ver.Flavor = man.Platform.Tarantool.EffectiveFlavor()
 
-	preErr := runHook(ctx, opts, man, ver, hookPreBuild)
+	preErr := newBuilder(opts, proj, adapter, stage, ver).runHook(ctx, hookPreBuild)
 	if preErr != nil {
 		return nil, sdk.Errorf(sdk.ExitSystem, "pre_build hook: %w", preErr)
 	}
@@ -466,7 +462,7 @@ func runBuild(
 		return nil, err
 	}
 
-	stage := packageStage(opts.ProjectDir, productName)
+	proj.pinned = pinnedClosure(prod.Dependencies, lock.DevDependencies)
 
 	programs, err := buildComponents(ctx, opts, proj, adapter, stage, components, ver)
 	if err != nil {
@@ -478,9 +474,9 @@ func runBuild(
 		return nil, err
 	}
 
-	postErr := runPostBuild(ctx, opts, man, ver)
+	postErr := newBuilder(opts, proj, adapter, stage, ver).runHook(ctx, hookPostBuild)
 	if postErr != nil {
-		return nil, postErr
+		return nil, sdk.Errorf(sdk.ExitSystem, "post_build hook: %w", postErr)
 	}
 
 	return &Result{
@@ -493,101 +489,6 @@ func runBuild(
 		Executables: programs,
 	}, nil
 }
-
-// preflightBackends checks that backends has the backend of each of the
-// selected components of proj, which Validate let through with a warning
-// otherwise, then what the go, cargo and cmake builds of them need before
-// any of them runs (backend.Preflight), and that the c and lua-c ones have
-// the headers of a Tarantool, info, to compile against: a missing backend or
-// toolchain then fails the build before it has resolved the closure and
-// compiled the components ahead of it.
-//
-// A toolchain is looked for where the build looks for it: in the PATH of the
-// component's [build].env, after .tarantool/bin of proj, the project being
-// built - the package, or a path dependency in its own directory.
-func preflightBackends(
-	backends *buildreg.Registry, proj project, components []string, info rocks.TarantoolInfo,
-) error {
-	target := native.Host()
-
-	for _, name := range components {
-		component := proj.man.Components[name]
-		if component.Build == nil {
-			continue
-		}
-
-		err := preflightBackend(backends, component.Build.Backend)
-		if err != nil {
-			return sdk.Errorf(sdk.ExitFailure, "building component %q: %w", name, err)
-		}
-
-		spec, err := backend.Decode(*component.Build)
-		if err == nil {
-			err = backend.Preflight(spec, backend.Env{
-				ProjectRoot: proj.dir, OS: target.OS, Arch: target.Arch,
-				Extra: component.Build.Env, Module: !component.IsExecutable(),
-			})
-		}
-
-		if err == nil {
-			err = preflightHeaders(spec, info)
-		}
-
-		if err != nil {
-			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-		}
-	}
-
-	return nil
-}
-
-var (
-	// errNoBackend reports a component of a backend no module of tt
-	// provides.
-	errNoBackend = errors.New("no module of this tt provides backend")
-	// errModuleBackend reports a component of a backend a module provides,
-	// which the build does not run yet: it runs the backends of the core.
-	errModuleBackend = errors.New("the build runs the backends of the core only")
-)
-
-// preflightBackend checks that backends has the backend name, of the
-// backends the build runs.
-func preflightBackend(backends *buildreg.Registry, name string) error {
-	_, module, ok := backends.Backend(name)
-
-	switch {
-	case !ok:
-		return fmt.Errorf("%w %q", errNoBackend, name)
-	case module != "":
-		return fmt.Errorf("backend %q is of module %q: %w", name, module, errModuleBackend)
-	}
-
-	return nil
-}
-
-// preflightHeaders checks that a c or lua-c build has a Tarantool to take
-// the headers from: a tt with no Tarantool builds what needs none, and the
-// cc driver would otherwise refuse it only once its turn came, saying
-// nothing of why. A make, shell or cmake build is not told where the headers
-// are then (TT_TARANTOOL_*), and fails on its own if it needs them.
-func preflightHeaders(build backend.Spec, info rocks.TarantoolInfo) error {
-	switch build.Backend {
-	case backend.BackendC, backend.BackendLuaC:
-	default:
-		return nil
-	}
-
-	if info.IncludeDir() != "" {
-		return nil
-	}
-
-	return fmt.Errorf("%w: %s", backend.ErrMissingHeaders, noTarantoolHint)
-}
-
-// noTarantoolHint says why a build has no headers of Tarantool, and how to
-// give it some.
-const noTarantoolHint = "no tarantool to take them from, neither in .tarantool/bin " +
-	"of the project nor in PATH; tt binary install tarantool installs one"
 
 // project is what the component steps of a build work on (buildComponents):
 // the manifest of a project, its directory and the directory the build keeps
@@ -607,6 +508,10 @@ type project struct {
 	man *manifest.Manifest
 	// product is the product built.
 	product string
+	// pinned is the closure the lock of the build pins, which the backends
+	// read the versions of rocks from (sdkbuild.Context.LockedVersion);
+	// empty before the lock is gated.
+	pinned manifest.LockProduct
 }
 
 // packageProject is the project of the package itself, its state in its own
@@ -643,12 +548,13 @@ func buildComponents(
 		return nil, err
 	}
 
-	programs, written, err := runBackends(ctx, opts, proj, adapter, stage, components, ver, last)
+	programs, written, err := newBuilder(opts, proj, adapter, stage, ver).runBackends(ctx,
+		components, last)
 	if err != nil {
 		return nil, err
 	}
 
-	laidOut, err := layoutComponents(proj.dir, stage, proj.man, components)
+	laidOut, err := layoutComponents(proj.dir, stage, proj.man, components, opts.backends())
 	if err != nil {
 		return nil, err
 	}
@@ -694,114 +600,16 @@ func buildComponents(
 	return programs, nil
 }
 
-// runBackends runs the build backend of every selected component that declares
-// one, in the product's component order, placing artifacts in the component's
-// lib namespace directory of the package's stage, or, for an executable
-// component, in its bin directory. A backend failure is exit code 2.
-//
-// It returns the record of the programs in the bin directory each executable
-// component built, those of the components not built this time as an
-// earlier build recorded them, and, for each component it built or skipped,
-// the absolute paths of the files of the stage the backend left there: what
-// a module component wrote into TT_OUTPUT_DIR (runModuleBackend), with what
-// last, the record of the stage, says it wrote there before and is still
-// there, and the programs of an executable one.
-func runBackends(
-	ctx context.Context, opts Options, proj project,
-	adapter *rocks.Adapter, stage string, components []string, ver version.Version,
-	last stageRecord,
-) (map[string][]string, map[string][]string, error) {
-	flags := adapter.Flags()
-	target := native.Host()
-	tarantoolPrefix, tarantoolIncludeDir := tarantoolDirs(opts.Tarantool)
-	programs := readExecutables(proj.stateDir, opts.Warn)
-	written := map[string][]string{}
-	built := false
-
-	for _, name := range components {
-		component := proj.man.Components[name]
-		if component.Build == nil {
-			continue
-		}
-
-		executor, err := newComponentBuild(component, flags, opts.ShowOutput)
-		if err != nil {
-			return nil, nil, fmt.Errorf("component %q: %w", name, err)
-		}
-
-		outputDir := componentOutputDir(stage, component.EffectiveNamespace(proj.man.Package.Name))
-		if component.IsExecutable() {
-			outputDir = filepath.Join(stage, rocktree.StageBin)
-		}
-
-		env := backend.Env{
-			OutputDir:           outputDir,
-			ProjectRoot:         proj.dir,
-			Package:             proj.man.Package.Name,
-			Component:           name,
-			Version:             ver.SemVer,
-			OS:                  target.OS,
-			Arch:                target.Arch,
-			Extra:               component.Build.Env,
-			Module:              !component.IsExecutable(),
-			TarantoolPrefix:     tarantoolPrefix,
-			TarantoolIncludeDir: tarantoolIncludeDir,
-			BuildDir:            componentBuildDir(proj.stateDir, name),
-			Fresh:               opts.Rebuild,
-			CargoTargetDir:      filepath.Join(proj.stateDir, cargoDirName),
-		}
-
-		err = prepareBuildDir(env.BuildDir, opts.Rebuild)
-		if err != nil {
-			return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-		}
-
-		cwd := backendCwd(proj.dir, component)
-
-		if component.IsExecutable() {
-			programs[name], err = runExecutableBackend(ctx, opts, proj, executor, name, component,
-				cwd, env, programs[name])
-			if err != nil {
-				return nil, nil, err
-			}
-
-			written[name] = joinDir(outputDir, programs[name])
-			built = true
-
-			continue
-		}
-
-		recorded := inDir(outputDir, joinDir(stage, last.Components[name].Written))
-
-		files, err := runModuleBackend(ctx, opts, proj, executor, name, component, cwd, env,
-			recorded)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		written[name] = joinDir(outputDir, files)
-	}
-
-	if !built {
-		return keepExecutable(proj.man, programs), written, nil
-	}
-
-	programs, err := writeExecutables(proj.stateDir, proj.man, programs)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return programs, written, nil
-}
-
 // layoutComponents lays every selected component out under its namespace in
 // the package's stage and returns the destination paths each one wrote, for
 // the version.lua collision check and the record of the stage. An executable
 // component has nothing to lay out: its build placed its programs already,
 // and the default include would otherwise copy the Lua of, say, a test
-// fixture of its sources into the package's namespace.
+// fixture of its sources into the package's namespace. The layout of a
+// component leaves out what its backend excludes (layoutExclude).
 func layoutComponents(
 	projectDir, stage string, man *manifest.Manifest, components []string,
+	backends *buildreg.Registry,
 ) (map[string][]string, error) {
 	laidOut := map[string][]string{}
 
@@ -813,7 +621,8 @@ func layoutComponents(
 
 		compAbsPath := resolveDir(projectDir, component.Path)
 
-		written, err := layoutComponent(stage, man.Package.Name, component, compAbsPath)
+		written, err := layoutComponent(stage, man.Package.Name, component, compAbsPath,
+			layoutExclude(backends, component))
 		if err != nil {
 			return nil, err
 		}
@@ -822,248 +631,6 @@ func layoutComponents(
 	}
 
 	return laidOut, nil
-}
-
-// runModuleBackend runs the build of a module component and returns what it
-// wrote into TT_OUTPUT_DIR, relative to it (runWritingBackend); recorded is
-// what an earlier build of it wrote there. An incremental one is skipped when
-// its inputs are those of its last build and what that build left is still
-// there (see skipUnchanged), and then wrote what that build did; its build
-// records what it wrote and the files of the component the layout takes.
-// Those are the files of a static one the build checks (checkStaticModule),
-// before the record is written: a module that fails the check is built
-// again.
-func runModuleBackend(
-	ctx context.Context, opts Options, proj project, executor componentBuild, name string,
-	component manifest.Component, cwd string, env backend.Env, recorded []string,
-) ([]string, error) {
-	incremental := component.Build.IncrementalValue()
-	static := component.Build.StaticValue()
-
-	if !incremental && !static {
-		return runWritingBackend(ctx, executor, name, cwd, env, recorded)
-	}
-
-	compAbsPath := resolveDir(proj.dir, component.Path)
-
-	var state incrementalState
-
-	if incremental {
-		var (
-			skipped bool
-			err     error
-		)
-
-		state, skipped, err = skipUnchanged(opts, proj, name, component, compAbsPath, cwd, env)
-		if err != nil {
-			return nil, err
-		}
-
-		if skipped {
-			return state.last.Written, nil
-		}
-	}
-
-	written, err := runWritingBackend(ctx, executor, name, cwd, env,
-		append(slices.Clone(recorded), state.last.Written...))
-	if err != nil {
-		return nil, err
-	}
-
-	laidOut, err := laidOutFiles(component, compAbsPath)
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	if static {
-		err = checkStaticModule(opts, name, moduleFiles(env.OutputDir, written,
-			compAbsPath, laidOut))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if incremental {
-		err = writeIncremental(proj.stateDir, name, incrementalRecord{
-			Inputs:  state.inputs,
-			Written: written,
-			LaidOut: laidOut,
-		})
-		if err != nil {
-			return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-		}
-	}
-
-	return written, nil
-}
-
-// runWritingBackend runs the backend of the component name and returns what
-// it wrote into TT_OUTPUT_DIR, relative to it (writtenFiles): the files it
-// created or changed, and those of recorded, which an earlier build wrote,
-// that are still there - a make target that is up to date writes nothing.
-func runWritingBackend(
-	ctx context.Context, executor componentBuild, name, cwd string, env backend.Env,
-	recorded []string,
-) ([]string, error) {
-	before, err := stampTree(env.OutputDir)
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	err = runComponentBackend(ctx, executor, name, cwd, env)
-	if err != nil {
-		return nil, err
-	}
-
-	after, err := stampTree(env.OutputDir)
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	return writtenFiles(before, after, recorded), nil
-}
-
-// runExecutableBackend builds an executable component (see buildExecutable)
-// and returns its programs. An incremental one is skipped as a module
-// component is, its programs being what it wrote into TT_OUTPUT_DIR, and
-// keeps the programs its last build recorded.
-func runExecutableBackend(
-	ctx context.Context, opts Options, proj project, executor componentBuild, name string,
-	component manifest.Component, cwd string, env backend.Env, recorded []string,
-) ([]string, error) {
-	if !component.Build.IncrementalValue() {
-		return buildExecutable(ctx, executor, component, name, cwd, env, recorded)
-	}
-
-	compAbsPath := resolveDir(proj.dir, component.Path)
-
-	state, skipped, err := skipUnchanged(opts, proj, name, component, compAbsPath, cwd, env)
-	if err != nil {
-		return nil, err
-	}
-
-	if skipped {
-		return state.last.Written, nil
-	}
-
-	programs, err := buildExecutable(ctx, executor, component, name, cwd, env, recorded)
-	if err != nil {
-		return nil, err
-	}
-
-	err = writeIncremental(proj.stateDir, name, incrementalRecord{
-		Inputs:  state.inputs,
-		Written: programs,
-		LaidOut: nil,
-	})
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	return programs, nil
-}
-
-// runComponentBackend runs the backend of the component name.
-func runComponentBackend(
-	ctx context.Context, executor componentBuild, name, cwd string, env backend.Env,
-) error {
-	err := executor.run(ctx, cwd, env)
-	if err != nil {
-		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	return nil
-}
-
-// componentBuild is the executor of the backend of a component with the
-// build block of the component decoded for it (backend.Decode).
-type componentBuild struct {
-	executor backend.Backend
-	spec     backend.Spec
-}
-
-// newComponentBuild returns the build of component, which the backends of
-// the core build: Validate checked its block with them, and preflightBackends
-// refused a block of any other backend.
-func newComponentBuild(
-	component manifest.Component, flags lrbuild.Flags, showOutput bool,
-) (componentBuild, error) {
-	spec, err := backend.Decode(*component.Build)
-	if err != nil {
-		return componentBuild{}, err
-	}
-
-	executor, err := backend.New(spec.Backend, flags, showOutput)
-	if err != nil {
-		return componentBuild{}, err
-	}
-
-	return componentBuild{executor: executor, spec: spec}, nil
-}
-
-// run builds the component in cwd with the env contract.
-func (b componentBuild) run(ctx context.Context, cwd string, env backend.Env) error {
-	return b.executor.Run(ctx, b.spec, cwd, env)
-}
-
-// skipUnchanged hashes the inputs of an incremental component and reports
-// whether its build can be skipped: they are those of its last build, and
-// what that build left is still there - the files its output lists, the
-// files of the component the layout took and the files it wrote into
-// TT_OUTPUT_DIR. The files output lists are copied into TT_OUTPUT_DIR before
-// the last are looked for, as the build itself copies them: the tree may have
-// been cleared since.
-func skipUnchanged(
-	opts Options, proj project, name string, component manifest.Component,
-	compAbsPath, cwd string, env backend.Env,
-) (incrementalState, bool, error) {
-	var state incrementalState
-
-	inputs, err := componentInputs(proj.dir, compAbsPath, *component.Build)
-	if err != nil {
-		return state, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	state.inputs = inputs
-
-	last, found := readIncremental(proj.stateDir, name)
-	if found {
-		state.last = last
-	}
-
-	if opts.Rebuild || !found || last.Inputs != inputs ||
-		!allPresent(cwd, component.Build.Output) || !allPresent(compAbsPath, last.LaidOut) {
-		return state, false, nil
-	}
-
-	if len(component.Build.Output) > 0 {
-		err = backend.CopyOutputs(env.OutputDir, cwd, component.Build.Output)
-		if err != nil {
-			return state, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-		}
-	}
-
-	if !allPresent(env.OutputDir, last.Written) {
-		return state, false, nil
-	}
-
-	if opts.Logger != nil {
-		opts.Logger.Info("component is up to date", "component", name)
-	}
-
-	return state, true, nil
-}
-
-// runPostBuild runs the post_build hook after all components are built.
-func runPostBuild(
-	ctx context.Context, opts Options, man *manifest.Manifest, ver version.Version,
-) error {
-	err := runHook(ctx, opts, man, ver, hookPostBuild)
-	if err != nil {
-		return sdk.Errorf(sdk.ExitSystem, "post_build hook: %w", err)
-	}
-
-	return nil
 }
 
 // componentOutputDir is a component's native artifact directory in the
@@ -1079,31 +646,32 @@ func componentOutputDir(stage, namespace string) string {
 	return filepath.Join(stage, rocktree.StageLib, namespace)
 }
 
-const (
-	// componentDirName is the directory of _build/ the intermediate files of
-	// the builds of the components are in, one directory per component.
-	componentDirName = "component"
-	// cargoDirName is the directory of _build/ the cargo builds of a project
-	// share as their target directory.
-	cargoDirName = "cargo"
-)
+// componentShareDir is a component's data directory in the package's stage:
+// <stage>/lua/<namespace>/, flat when the namespace is empty, which the
+// install of the package's rock deploys to .rocks/share/tarantool/<namespace>/
+// with the files the layout of the component takes (sdkbuild.Dirs.Share).
+func componentShareDir(stage, namespace string) string {
+	if namespace == "" {
+		return filepath.Join(stage, rocktree.StageLua)
+	}
+
+	return filepath.Join(stage, rocktree.StageLua, namespace)
+}
+
+// componentDirName is the directory of _build/ the intermediate files of the
+// builds of the components are in, one directory per component.
+const componentDirName = "component"
 
 // componentBuildDir is the directory the build of the component name keeps
 // its intermediate files in between builds, TT_BUILD_DIR,
 // _build/component/<name>/: the build tree of a cmake build, what a make or
 // shell build makes on the way, out of the sources and kept, as the stage
 // is, for the next build to rebuild only what changed. stateDir is the state
-// directory of the project (project.stateDir): _build/ of the package, and
-// the one of a path dependency in _build/path/ of the project that builds
-// it, so a dependency's build tree is not left in its directory.
-//
-// The cargo builds of a project do not build there, but in one target
-// directory, _build/cargo/ of stateDir, as cargo builds the packages of a
-// workspace in one: a module and a program of one crate, or of one
-// workspace, share the dependencies compiled once. Cargo keeps what it
-// builds of each package and profile apart in it, and locks it while it
-// builds; a binary or a library of one name two workspaces put at one path
-// is taken from there right after its build, by the path cargo reports.
+// directory of the project (project.stateDir, sdkbuild.Dirs.State): _build/
+// of the package, and the one of a path dependency in _build/path/ of the
+// project that builds it, so a dependency's build tree is not left in its
+// directory. A backend keeps there what it shares between the components of
+// the project: cargo its target directory.
 func componentBuildDir(stateDir, name string) string {
 	return filepath.Join(stateDir, componentDirName, name)
 }

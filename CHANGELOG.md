@@ -241,9 +241,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   whose password was set before the `auth_type` changed still logs in with
   chap-sha1, and over TLS with `--auth-type chap-sha1`. `sdk/dial` takes the
   method on the plain transport too and has `ParseAuth`.
+- A module of tt may provide build backends of its own
+  (`github.com/tarantool/tt/sdk/build`), which build the components whose
+  block names them as those of tt do: the module gives each its fields, its
+  checks of them and what it builds, and tt runs it in the same pipeline -
+  the preflight before anything is built, the environment of the build, the
+  layout, the stage, `incremental`, the programs of an executable component
+  - and lets a hook name one that says it runs hooks. The seven backends of
+  tt are written against the same contract.
 
 ### Changed
 
+- The messages that list build backends list those of tt first - `make`
+  and `shell`, then the others by name - and those of the modules after,
+  by name: `components.a.build.ldflags: is a field of backend c, go or
+  lua-c, not of "cargo"` (it was `go, c or lua-c`), `module` of `c, cargo
+  or lua-c` (it was `c, lua-c or cargo`), and `kind "executable" wants make,
+  shell, cargo, cmake or go` (it was `go, cargo, cmake, make or shell`).
+- A field of another backend in a build block is refused by its key,
+  whatever its value: `make_target = ""` on a `go` block is `is a field of
+  backend make, not of "go"`, as `make_target = "all"` is, where an empty
+  string passed as if the field were not there.
 - A build block whose backend no module of tt provides is a warning when the
   manifest is checked, `components.<name>.build: no module of this tt
   provides backend "<backend>"; its fields are not checked`, where it was an
@@ -253,7 +271,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `pack` and `fetch`, once they are to build such a component, fail before
   anything is built, naming the path dependency or source rock it is of:
   `building component "<name>": no module of this tt provides backend
-  "<backend>"`. A hook still runs `make` or `shell` only.
+  "<backend>"`. A hook still names a backend that runs hooks, `make` or
+  `shell` of those of tt, or is refused.
 - The fields of a backend in a build block are checked when the manifest is
   checked, with its other build checks, rather than when it is read: a field
   no backend has is reported there, by the same rules of the format version,
@@ -470,6 +489,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The output directory of a build, `TT_OUTPUT_DIR`, exists before the build
+  runs, whatever its backend: a `make` or `shell` build of a module
+  component that copied its file straight into it, `cp x.so
+  "$TT_OUTPUT_DIR/"`, failed with `No such file or directory`, since only
+  the other backends created it.
 - `tt package build` and `tt package fetch` install a registry dependency
   whose servers have no rock of the platform but a LuaRocks source rock, one
   of no `app.manifest.toml`, as before tt built tt packages from their source

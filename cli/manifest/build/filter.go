@@ -1,10 +1,11 @@
 package build
 
 import (
+	"slices"
+
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 )
 
 // defaultInclude is the include set applied when a component declares none: the
@@ -14,11 +15,6 @@ import (
 func defaultInclude() []string {
 	return []string{"*.lua", "*.so"}
 }
-
-// cargoTargetDir is the target directory cargo makes in a component by
-// default: tt builds in _build/cargo/ (componentBuildDir), but cargo run by
-// hand, or a build whose env names target/ itself, leaves it there.
-const cargoTargetDir = "/target/"
 
 // defaultExclude is always applied, ahead of the component's own exclude list.
 // These entries are packaging hazards or tt-internal state that must never land
@@ -51,24 +47,19 @@ type fileFilter struct {
 
 // newFileFilter builds the filter for one component: its include list (or the
 // default when empty) as the allowlist, and defaultExclude followed by the
-// component's own exclude patterns as the denylist. Patterns are anchored at
-// the component root (a nil gitignore domain).
-func newFileFilter(component manifest.Component) fileFilter {
+// component's own exclude patterns and those of its backend, backendExclude
+// (sdkbuild.Backend.Exclude: what the tool of the backend leaves in the
+// component, such as target/ of cargo run by hand), as the denylist.
+// Patterns are anchored at the component root (a nil gitignore domain).
+func newFileFilter(component manifest.Component, backendExclude []string) fileFilter {
 	include := component.Include
 	if len(include) == 0 {
 		include = defaultInclude()
 	}
 
-	// defaultExclude returns a fresh slice, so appending the component's own
-	// patterns onto it neither mutates the defaults nor drops them.
-	exclude := append(defaultExclude(), component.Exclude...)
-
-	// A target/ of cargo in the component holds the library and the
-	// proc-macros of the dependencies, which are no files of the package.
-	// The backend takes the library from where cargo built it itself.
-	if component.Build != nil && component.Build.Backend == backend.BackendCargo {
-		exclude = append(exclude, cargoTargetDir)
-	}
+	// The component's own patterns and its backend's extend the defaults;
+	// they never replace them.
+	exclude := slices.Concat(defaultExclude(), component.Exclude, backendExclude)
 
 	return fileFilter{
 		include: gitignore.NewMatcher(parsePatterns(include)),

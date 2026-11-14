@@ -39,11 +39,13 @@ const (
 //
 // It returns the absolute destination paths it wrote, in deterministic walk
 // order, so the caller can detect a component that laid down a file colliding
-// with the generated version.lua.
+// with the generated version.lua. backendExclude are the patterns the backend
+// of the component has the layout leave out (newFileFilter).
 func layoutComponent(
 	stage, pkgName string, component manifest.Component, compAbsPath string,
+	backendExclude []string,
 ) ([]string, error) {
-	filter := newFileFilter(component)
+	filter := newFileFilter(component, backendExclude)
 	namespace := component.EffectiveNamespace(pkgName)
 
 	var written []string

@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 // pathDirName is the directory of _build/ the path dependencies holding a
@@ -160,9 +161,14 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 			strings.Join(slices.Sorted(maps.Keys(man.Hooks)), ", "), build.what)})
 	}
 
-	proj := project{dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product}
+	proj := project{
+		dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product,
+		pinned: p.pinned,
+	}
 
-	err = preflightBackends(p.opts.backends(), proj, components, p.opts.Tarantool)
+	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
+
+	err = newBuilder(p.opts, proj, p.adapter, stage, version.Version{}).preflight(components)
 	if err != nil {
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
@@ -182,8 +188,6 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 		return sdk.Errorf(sdk.ExitFailure, "%s %q is at version %s, but the lock pins %s; %s",
 			build.what, dep.Name, rockVersion, dep.Version, build.stale)
 	}
-
-	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
 
 	_, err = buildComponents(ctx, p.opts, proj, p.adapter, stage, components, ver)
 	if err != nil {

@@ -550,7 +550,7 @@ profile = 'dev'
 	}
 
 	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "init.lua"))
-	assert.DirExists(t, filepath.Join(dir, buildDirName, cargoDirName, "debug"))
+	assert.DirExists(t, filepath.Join(dir, buildDirName, "cargo", "debug"))
 	assert.NoDirExists(t, filepath.Join(dir, "fast", "target", "debug", "deps"))
 	assert.NoDirExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "target"))
 	assert.NoDirExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "target"))
@@ -597,7 +597,7 @@ profile = 'dev'
 	}
 
 	assert.FileExists(t, filepath.Join(app, rocksDirName, "lib", "tarantool", "rsdep", "fast"+ext))
-	assert.DirExists(t, filepath.Join(pathState(app, "rsdep"), cargoDirName, "debug"))
+	assert.DirExists(t, filepath.Join(pathState(app, "rsdep"), "cargo", "debug"))
 	assert.NoDirExists(t, filepath.Join(rsdep, "fast", "target"))
 	assert.NoDirExists(t, filepath.Join(rsdep, buildDirName))
 }

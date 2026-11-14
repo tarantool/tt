@@ -18,11 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk"
+	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/exitcode"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 // manifestHead is the part of a manifest every test here shares.
@@ -219,7 +220,7 @@ func TestRun_missingToolFailsFirst(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
 	err := Run(context.Background(), dryOptions(dir))
-	require.ErrorIs(t, err, backend.ErrNoTool)
+	require.ErrorIs(t, err, sdkbuild.ErrNoTool)
 	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
 	assert.Contains(t, err.Error(), `"go"`)
 	assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
@@ -253,18 +254,21 @@ env = { PATH = '/nonexistent' }
 
 		proj := project{dir: dir, stateDir: t.TempDir(), man: man, product: "default"}
 		components := slices.Sorted(maps.Keys(man.Components))
-		core := buildreg.Core()
+		adapter := rocks.New(rocks.BuildConfig(rocks.TarantoolInfo{}, rocks.ConfigOptions{
+			Tree: filepath.Join(dir, rocksDirName), WorkingDir: dir,
+		}))
+		builder := newBuilder(Options{ProjectDir: dir, Backends: buildreg.Core()}, proj,
+			adapter, packageStage(dir, "default"), version.Version{})
 
-		require.ErrorIs(t, preflightBackends(core, proj, components, rocks.TarantoolInfo{}),
-			backend.ErrNoTool)
+		require.ErrorIs(t, builder.preflight(components), sdkbuild.ErrNoTool)
 
-		bin := backend.ProjectBinDir(dir)
+		bin := ProjectBinDir(dir)
 		for _, tool := range []string{"go", "cmake"} {
 			writeFile(t, filepath.Join(bin, tool), "#!/bin/sh\n")
 			require.NoError(t, os.Chmod(filepath.Join(bin, tool), 0o755))
 		}
 
-		require.NoError(t, preflightBackends(core, proj, components, rocks.TarantoolInfo{}))
+		require.NoError(t, builder.preflight(components))
 	}
 }
 

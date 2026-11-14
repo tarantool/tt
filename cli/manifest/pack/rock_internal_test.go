@@ -24,7 +24,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
@@ -596,7 +595,7 @@ env = { MARKER = '%s' }
 	})
 
 	_, err = Run(context.Background(), opts)
-	require.ErrorIs(t, err, backend.ErrMissingHeaders)
+	require.ErrorContains(t, err, missingHeaders)
 	assert.Contains(t, err.Error(), `building component "native": tarantool development `+
 		"headers not found: cannot compile c/lua-c component: no tarantool to take them from")
 	assert.NoFileExists(t, marker, "nothing was built")
@@ -662,8 +661,13 @@ env = { MARKER = '%s' }
 	opts.Formats = []string{FormatRock, FormatRockSrc}
 
 	_, err = Run(context.Background(), opts)
-	require.ErrorIs(t, err, backend.ErrMissingHeaders)
+	require.ErrorContains(t, err, missingHeaders)
 }
+
+// missingHeaders is what the c and lua-c backends say of a build with no
+// headers of Tarantool to compile against.
+const missingHeaders = "tarantool development headers not found: " +
+	"cannot compile c/lua-c component"
 
 // TestPackRockRefusesForeignNative: the rock of the host cannot carry a native
 // file of another platform.

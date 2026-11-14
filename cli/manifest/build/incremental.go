@@ -34,8 +34,16 @@ type incrementalRecord struct {
 	// Written is what the build wrote into TT_OUTPUT_DIR, relative to it: a
 	// module's files under its namespace, an executable component's programs.
 	Written []string `json:"written,omitempty"`
+	// Shared is what the build of a module wrote into its share directory
+	// (sdkbuild.Dirs.Share), relative to it.
+	Shared []string `json:"shared,omitempty"`
 	// LaidOut is the files of the component the layout takes, relative to it.
 	LaidOut []string `json:"laid_out,omitempty"`
+}
+
+// made is what the build of a module the record is of wrote.
+func (r incrementalRecord) made() madeFiles {
+	return madeFiles{output: r.Written, share: r.Shared}
 }
 
 // incrementalState is what skipUnchanged found of an incremental component:
@@ -52,8 +60,11 @@ type incrementalState struct {
 // .gitignore files themselves), those of _build and _runtime, and those the
 // .gitignore files ignore - each for its subtree, from projectDir down, as
 // git reads them. What a build generates and git does not keep is so left
-// out, and the hash stays the same from one build to the next.
-func componentInputs(projectDir, dir string, build manifest.Build) (string, error) {
+// out, and the hash stays the same from one build to the next. extra are the
+// inputs the build names besides (sdkbuild.InputHasher), in their order.
+func componentInputs(projectDir, dir string, build manifest.Build, extra []string) (
+	string, error,
+) {
 	// The block in the canonical form of manifest_hash: the fields of its
 	// backend with those every block has, whatever the spelling of the file.
 	block, err := build.Canonical()
@@ -80,6 +91,13 @@ func componentInputs(projectDir, dir string, build manifest.Build) (string, erro
 	digest := sha256.New()
 
 	_, _ = digest.Write(block)
+
+	// An input of the build is hashed with its length, so that no two lists
+	// of them are hashed alike. A build that names none hashes as one of a
+	// backend with no InputHasher does.
+	for _, input := range extra {
+		_, _ = fmt.Fprintf(digest, "input %d %s\n", len(input), input)
+	}
 
 	err = srctree.Walk(dir, domain, patterns, skipInput, func(
 		full string, path []string, entry fs.DirEntry,
@@ -205,9 +223,11 @@ func allPresent(dir string, files []string) bool {
 }
 
 // laidOutFiles lists the files of the component at compAbsPath the layout
-// takes, relative to it.
-func laidOutFiles(component manifest.Component, compAbsPath string) ([]string, error) {
-	filter := newFileFilter(component)
+// takes, relative to it, those of backendExclude left out (newFileFilter).
+func laidOutFiles(
+	component manifest.Component, compAbsPath string, backendExclude []string,
+) ([]string, error) {
+	filter := newFileFilter(component, backendExclude)
 
 	var files []string
 

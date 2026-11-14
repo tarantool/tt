@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/sdk"
+	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
@@ -181,42 +181,42 @@ func changedFiles(before, after map[string]fileStamp) []string {
 	return changed
 }
 
-// buildExecutable runs the backend of the executable component name into
-// binDir and returns the programs it put there, checked.
+// buildExecutable runs the backend of the executable component of run into
+// its output directory, the bin directory of the stage, and returns the
+// programs it put there, checked.
 //
-// What a go or cargo build made is known before it runs: one program, named
-// by the manifest. A make or shell build may name its programs with output,
-// and may write into TT_OUTPUT_DIR whatever else it makes: those are the
-// files of bin/ it created or changed while it ran. A make target that was
-// up to date changes nothing, so the programs the component was recorded
-// with stay its own while they are there.
-func buildExecutable(
-	ctx context.Context, executor componentBuild, component manifest.Component,
-	name, cwd string, env backend.Env, recorded []string,
-) ([]string, error) {
-	before, err := stampDir(env.OutputDir)
+// The programs a build names (sdkbuild.ProgramNamer) are its own. When it
+// names them all - go and cargo build one program, named by the block - they
+// are all it made. Otherwise it may write into TT_OUTPUT_DIR whatever else it
+// makes, as a make or shell build does: those are the files of bin/ it
+// created or changed while it ran. A make target that was up to date changes
+// nothing, so the programs the component was recorded with stay its own
+// while they are there.
+func buildExecutable(ctx context.Context, run componentRun, recorded []string) ([]string, error) {
+	dir := run.context.Dirs.Output
+
+	before, err := stampDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	// A make or shell build writes into TT_OUTPUT_DIR itself, and bin/ is
-	// there only when a rock has put a script in it.
-	err = os.MkdirAll(env.OutputDir, dirPerm)
+	err = runComponentBackend(ctx, run)
 	if err != nil {
-		return nil, fmt.Errorf("creating %s: %w", env.OutputDir, err)
+		return nil, err
 	}
 
-	err = executor.run(ctx, cwd, env)
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	var (
+		programs   []string
+		exhaustive bool
+	)
+
+	if namer, ok := run.build.(sdkbuild.ProgramNamer); ok {
+		programs, exhaustive = namer.Programs()
+		programs = slices.Clone(programs)
 	}
 
-	programs := component.Build.Executables(name)
-
-	switch component.Build.Backend {
-	case backend.BackendGo, backend.BackendCargo:
-	default:
-		after, err := stampDir(env.OutputDir)
+	if !exhaustive {
+		after, err := stampDir(dir)
 		if err != nil {
 			return nil, err
 		}
@@ -230,14 +230,14 @@ func buildExecutable(
 	if len(programs) == 0 {
 		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w: it put no file "+
 			"into %s; an executable component builds programs into TT_OUTPUT_DIR or lists "+
-			"them in output", name, errNoProgram, env.OutputDir)
+			"them in output", run.name, errNoProgram, dir)
 	}
 
-	target := native.Platform{OS: env.OS, Arch: env.Arch}
+	target := native.Platform{OS: run.context.Target.OS, Arch: run.context.Target.Arch}
 
-	err = checkPrograms(env.OutputDir, programs, target, component.Build.StaticValue())
+	err = checkPrograms(dir, programs, target, run.context.Static)
 	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
 	}
 
 	return programs, nil

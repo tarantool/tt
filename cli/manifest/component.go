@@ -3,17 +3,7 @@ package manifest
 import (
 	"fmt"
 	"maps"
-	"path/filepath"
 	"slices"
-)
-
-// Build backends this package names: those hooks may run, and those whose
-// program Build.Executables knows from their fields.
-const (
-	backendMake  = "make"
-	backendShell = "shell"
-	backendGo    = "go"
-	backendCargo = "cargo"
 )
 
 // Component kinds ([components.<name>].kind).
@@ -102,32 +92,6 @@ func (b Build) StaticValue() bool {
 	return b.Static != nil && *b.Static
 }
 
-// Executables lists the names of the programs the build of the executable
-// component named component puts into .rocks/bin/, as far as the manifest
-// tells them: the one a go or cargo build makes, named by name or bin or
-// else after the component, and, for the other backends, the files output
-// lists. A make or shell build that writes into TT_OUTPUT_DIR itself names
-// none here: what it made is only known once it has run.
-func (b Build) Executables(component string) []string {
-	switch b.Backend {
-	case backendGo:
-		return []string{defaultName(b.restField("name"), component)}
-	case backendCargo:
-		return []string{defaultName(b.restField("bin"), component)}
-	}
-
-	names := make([]string, 0, len(b.Output))
-
-	for _, output := range b.Output {
-		name := filepath.Base(output)
-		if !slices.Contains(names, name) {
-			names = append(names, name)
-		}
-	}
-
-	return names
-}
-
 // Canonical returns the build block in the canonical form of manifest_hash
 // (HashTOML), its fields and those of Rest alike: the same block whatever
 // its spelling in the file, and another one for any change of a value.
@@ -183,27 +147,11 @@ func (b Build) tree() map[string]any {
 	return tree
 }
 
-// restField returns the string field key of Rest; empty when the block has
-// none, or one of another type, which the backend refuses.
-func (b Build) restField(key string) string {
-	value, _ := b.Rest[key].(string)
-
-	return value
-}
-
-// defaultName is name, or component when name is not set.
-func defaultName(name, component string) string {
-	if name == "" {
-		return component
-	}
-
-	return name
-}
-
 // ExecutableComponent finds the executable component that builds the
 // program named name: one named so, or one whose build names its program so
-// (Build.Executables). It reports the component's name.
-func (m *Manifest) ExecutableComponent(name string) (string, bool) {
+// to checker (BuildCheck.Programs); a nil checker knows no program. It
+// reports the component's name.
+func (m *Manifest) ExecutableComponent(checker BuildChecker, name string) (string, bool) {
 	for _, component := range sortedKeys(m.Components) {
 		comp := m.Components[component]
 		if !comp.IsExecutable() {
@@ -214,7 +162,13 @@ func (m *Manifest) ExecutableComponent(name string) (string, bool) {
 			return component, true
 		}
 
-		if comp.Build != nil && slices.Contains(comp.Build.Executables(component), name) {
+		if comp.Build == nil || checker == nil {
+			continue
+		}
+
+		check, err := checker.CheckBuild("components."+component+".build",
+			m.ComponentTarget(component), *comp.Build)
+		if err == nil && slices.Contains(check.Programs, name) {
 			return component, true
 		}
 	}
@@ -310,8 +264,8 @@ func (m *Manifest) DefaultProduct() (string, Product, bool) {
 }
 
 // Hook is a lifecycle hook ([hooks.pre_build]/[hooks.post_build]). It is a
-// build block, but only the make and shell backends run one, it has no
-// component and static is refused.
+// build block, but only a backend that runs hooks runs one (make and shell
+// of the backends of tt), it has no component and static is refused.
 type Hook = Build
 
 // EffectiveNamespace returns the install namespace of the component given the

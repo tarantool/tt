@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,9 +16,18 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
-// zigBuild is the build of the zig backend of a module, which the build does
-// not run.
+// zigBuild is the build of the zig backend of a module, whose tool is
+// nowhere.
 type zigBuild struct{}
+
+func (zigBuild) Preflight(c *sdkbuild.Context) error {
+	_, err := c.LookPath("no-such-zig-of-tt")
+	if err != nil {
+		return fmt.Errorf("%w: no-such-zig-of-tt", sdkbuild.ErrNoTool)
+	}
+
+	return nil
+}
 
 func (zigBuild) Run(context.Context, *sdkbuild.Context) error { return nil }
 
@@ -47,7 +57,7 @@ func TestRun_unknownBackendFailsFirst(t *testing.T) {
 	opts.Warn = func(warning string) { warnings = append(warnings, warning) }
 
 	err := Run(context.Background(), opts)
-	require.ErrorIs(t, err, errNoBackend)
+	require.ErrorIs(t, err, buildreg.ErrNoBackend)
 	require.EqualError(t, err,
 		`building component "fast": no module of this tt provides backend "zig"`)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
@@ -74,10 +84,10 @@ func TestRun_pathDependencyOfUnknownBackend(t *testing.T) {
 		stageDirName)))
 }
 
-// TestRun_moduleBackendFailsFirst checks that the build of a component of a
-// backend a module provides fails before anything is resolved or built: the
-// build runs the backends of the core only.
-func TestRun_moduleBackendFailsFirst(t *testing.T) {
+// TestRun_preflightOfAModuleBackend checks that the build of a component of
+// a backend a module provides asks its build what it needs before anything
+// is resolved or built, as it asks one of the core.
+func TestRun_preflightOfAModuleBackend(t *testing.T) {
 	t.Parallel()
 
 	dir := setupProject(t, zigManifest, map[string]string{"fast/build.zig": ""})
@@ -97,6 +107,7 @@ func TestRun_moduleBackendFailsFirst(t *testing.T) {
 		Incremental: false,
 		OutputFrom:  sdkbuild.OutputNone,
 		Exclude:     nil,
+		Hook:        false,
 	}}, nil))
 
 	opts := dryOptions(dir)
@@ -104,8 +115,9 @@ func TestRun_moduleBackendFailsFirst(t *testing.T) {
 	opts.Backends = backends
 
 	err := Run(context.Background(), opts)
-	require.ErrorIs(t, err, errModuleBackend)
-	require.EqualError(t, err, `building component "fast": backend "zig" is of module "zig": `+
-		`the build runs the backends of the core only`)
+	require.ErrorIs(t, err, sdkbuild.ErrNoTool)
+	require.EqualError(t, err, `building component "fast": build tool not found: `+
+		`no-such-zig-of-tt`)
+	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
 	assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
 }

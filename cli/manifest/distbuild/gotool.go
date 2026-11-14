@@ -16,8 +16,37 @@ import (
 // goTool is the program the build runs.
 const goTool = "go"
 
-// errNoGo reports that the go command is not found.
-var errNoGo = errors.New("go is not found in PATH: building tt needs the Go toolchain")
+var (
+	// errNoGo reports that the go command is not found.
+	errNoGo = errors.New("go is not found in PATH: building tt needs the Go toolchain")
+	// errUnquotableFlag reports a linker flag go build cannot be given.
+	errUnquotableFlag = errors.New(
+		"a linker flag with a space and both kinds of quotes cannot be passed to go build")
+)
+
+// quoteFlags joins flags into the string go build splits back into them: on
+// spaces, with single or double quotes around a field that has a space, and
+// no escapes. A flag with a space and both kinds of quotes cannot be passed.
+// It quotes as the go backend of the components does, which a module of tt
+// is to have, not the core.
+func quoteFlags(flags []string) (string, error) {
+	quoted := make([]string, 0, len(flags))
+
+	for _, flag := range flags {
+		switch {
+		case !strings.ContainsAny(flag, " \t\n\r'\""):
+			quoted = append(quoted, flag)
+		case !strings.Contains(flag, "'"):
+			quoted = append(quoted, "'"+flag+"'")
+		case !strings.Contains(flag, `"`):
+			quoted = append(quoted, `"`+flag+`"`)
+		default:
+			return "", fmt.Errorf("%w: %q", errUnquotableFlag, flag)
+		}
+	}
+
+	return strings.Join(quoted, " "), nil
+}
 
 // networkFailures are the phrases the go command prints when it cannot
 // reach a module source: such a failure is the system's, not the manifest's.
