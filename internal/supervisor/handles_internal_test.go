@@ -1,10 +1,11 @@
-//go:build linux
+//go:build linux || darwin
 
 package supervisor
 
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -28,11 +29,13 @@ func startSleep(t *testing.T, before string) *exec.Cmd {
 		_ = cmd.Wait()
 	})
 
-	// The shell has to have become the sleep.
+	// The shell has to have become the sleep. ps names the program on Linux
+	// and gives its path on macOS.
 	require.Eventually(t, func() bool {
-		comm, err := os.ReadFile("/proc/" + strconv.Itoa(cmd.Process.Pid) + "/comm")
+		comm, err := exec.CommandContext(t.Context(), "ps", "-o", "comm=", "-p",
+			strconv.Itoa(cmd.Process.Pid)).Output()
 
-		return err == nil && strings.TrimSpace(string(comm)) == "sleep"
+		return err == nil && filepath.Base(strings.TrimSpace(string(comm))) == "sleep"
 	}, waitTimeout, pollInterval)
 
 	return cmd

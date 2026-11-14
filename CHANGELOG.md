@@ -625,9 +625,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   been started or restarted. The watchdog passed SIGHUP on to tarantool at
   once, and a tarantool that had not set up its handler yet died of it,
   `signal: hangup` in `tt.log`, and was not started again without
-  `restart: always`. On Linux the watchdog now sends the signal, SIGHUP or
-  the `logrotate_signal` of an external process, only to a process that
-  catches, ignores or blocks it, and logs that it did not otherwise; a
+  `restart: always`. On Linux and macOS the watchdog now sends the signal,
+  SIGHUP or the `logrotate_signal` of an external process, only to a process
+  that catches, ignores or blocks it, and logs that it did not otherwise; a
   tarantool sets up its handler before it opens its log, so it misses no
   rotation.
 - `tt package build` and `tt package fetch` install a registry dependency
