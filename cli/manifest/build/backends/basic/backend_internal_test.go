@@ -13,15 +13,21 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// component is a module component the tests build.
-func component(kind string) build.Component {
+// component is the component the tests build, which expects what its build
+// makes to be of the types expects (build.Component.Expects).
+func component(expects ...build.Result) build.Component {
 	return build.Component{
-		Name: "native", Kind: kind, Path: "native", Namespace: "demo", Package: "demo",
+		Name: "native", Path: "native", Namespace: "demo", Package: "demo", Expects: expects,
 	}
 }
 
+// output is the file path of output, of the type to.
+func output(path string, to build.Result) build.OutputFile {
+	return build.OutputFile{Path: path, To: to}
+}
+
 // block is a build block with the fields rest of the backend and output.
-func block(rest map[string]any, output ...string) buildtest.Block {
+func block(rest map[string]any, output ...build.OutputFile) buildtest.Block {
 	return buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: output, Static: false},
 		Incremental: false,
@@ -39,7 +45,8 @@ func TestBackends(t *testing.T) {
 		backend := backends[i]
 
 		assert.Equal(t, name, backend.Name)
-		assert.Equal(t, []string{build.KindModule, build.KindExecutable}, backend.Kinds)
+		assert.Equal(t, build.Results(), backend.Produces)
+		assert.False(t, backend.NoSourceLayout, name)
 		assert.True(t, backend.Incremental, name)
 		assert.True(t, backend.Hook, name)
 		assert.Equal(t, build.OutputCwd, backend.OutputFrom, name)
@@ -79,9 +86,10 @@ func TestShellConfig(t *testing.T) {
 	assert.Equal(t, []string{"command", "args"}, fields)
 }
 
-// TestPrograms checks that a make or shell build of an executable component
-// names the files output lists, by base name, and that the list is not
-// exhaustive: a target may write other programs into TT_OUTPUT_DIR.
+// TestPrograms checks that a make or shell build names the programs of
+// output, by base name, and that the list is not exhaustive: a target may
+// write other programs into the directory of the programs. What it makes is
+// of the types of output.
 func TestPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -97,8 +105,10 @@ func TestPrograms(t *testing.T) {
 		t.Run(test.backend.Name, func(t *testing.T) {
 			t.Parallel()
 
-			bld, err := buildtest.Validate(test.backend, component(build.KindExecutable),
-				block(test.rest, "out/gw", "out/gw-cli", "gw"))
+			bld, err := buildtest.Validate(test.backend, component(),
+				block(test.rest, output("out/gw", build.Program), output("x.so", build.Module),
+					output("out/gw-cli", build.Program), output("gw", build.Program),
+					output("x.wasm", build.Data)))
 			require.NoError(t, err)
 
 			namer, ok := bld.(build.ProgramNamer)
@@ -107,6 +117,24 @@ func TestPrograms(t *testing.T) {
 			names, exhaustive := namer.Programs()
 			assert.Equal(t, []string{"gw", "gw-cli"}, names)
 			assert.False(t, exhaustive)
+
+			producer, ok := bld.(build.Producer)
+			require.True(t, ok)
+			assert.Equal(t, []build.Result{build.Program, build.Module, build.Data},
+				producer.Produces())
+
+			bld, err = buildtest.Validate(test.backend, component(), block(test.rest))
+			require.NoError(t, err)
+
+			namer, ok = bld.(build.ProgramNamer)
+			require.True(t, ok)
+
+			names, _ = namer.Programs()
+			assert.Empty(t, names)
+
+			producer, ok = bld.(build.Producer)
+			require.True(t, ok)
+			assert.Empty(t, producer.Produces())
 		})
 	}
 }
@@ -165,8 +193,7 @@ func TestValidateErrors(t *testing.T) {
 
 			for _, validate := range []func() (build.Build, error){
 				func() (build.Build, error) {
-					return buildtest.Validate(test.backend, component(build.KindModule),
-						block(test.rest))
+					return buildtest.Validate(test.backend, component(), block(test.rest))
 				},
 				func() (build.Build, error) {
 					return buildtest.ValidateHook(test.backend, block(test.rest))
@@ -184,8 +211,9 @@ func TestValidateErrors(t *testing.T) {
 	}
 }
 
-// TestValidate checks that both backends build both kinds of components and
-// run hooks, with output and incremental.
+// TestValidate checks that both backends make every type of result, of a
+// component of no kind and of the deprecated kinds, and run hooks, with
+// output and incremental.
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
@@ -195,16 +223,22 @@ func TestValidate(t *testing.T) {
 			rest = map[string]any{"command": "sh"}
 		}
 
-		with := block(rest, "out/x.so")
+		with := block(rest, output("out/x.so", build.Module), output("out/x", build.Program),
+			output("out/x.wasm", build.Data))
 
 		with.Incremental = true
 
-		for _, kind := range []string{build.KindModule, build.KindExecutable} {
-			_, err := buildtest.Validate(backend, component(kind), with)
-			require.NoError(t, err, backend.Name, kind)
+		_, err := buildtest.Validate(backend, component(), with)
+		require.NoError(t, err, backend.Name)
+
+		for _, expects := range [][]build.Result{
+			{build.Module, build.Data}, {build.Program},
+		} {
+			_, err = buildtest.Validate(backend, component(expects...), block(rest))
+			require.NoError(t, err, backend.Name, expects)
 		}
 
-		_, err := buildtest.ValidateHook(backend, with)
+		_, err = buildtest.ValidateHook(backend, with)
 		require.NoError(t, err, backend.Name)
 	}
 }
@@ -223,11 +257,11 @@ func TestMakeRunsTargetIntoOutputDir(t *testing.T) {
 	t.Parallel()
 	requireMake(t)
 
-	bld, err := buildtest.Validate(Make(), component(build.KindModule),
+	bld, err := buildtest.Validate(Make(), component(),
 		block(map[string]any{"make_target": "build"}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 	facts := harness.Context
 
 	makefile := "build:\n\tprintf x > $(TT_OUTPUT_DIR)/mod.so\n"
@@ -242,13 +276,13 @@ func TestMakeCustomEntrypointAndFlags(t *testing.T) {
 	t.Parallel()
 	requireMake(t)
 
-	bld, err := buildtest.Validate(Make(), component(build.KindModule),
+	bld, err := buildtest.Validate(Make(), component(),
 		block(map[string]any{
 			"make_target": "build", "entrypoint": "tt.mk", "flags": []any{"NAME=custom"},
 		}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 	facts := harness.Context
 
 	makefile := "build:\n\tprintf x > $(TT_OUTPUT_DIR)/$(NAME).so\n"
@@ -262,14 +296,14 @@ func TestMakeCustomEntrypointAndFlags(t *testing.T) {
 func TestShellWritesToOutputDir(t *testing.T) {
 	t.Parallel()
 
-	bld, err := buildtest.Validate(Shell(), component(build.KindModule),
+	bld, err := buildtest.Validate(Shell(), component(),
 		block(map[string]any{
 			"command": "sh",
 			"args":    []any{"-c", `printf "$TT_COMPONENT_NAME" > "$TT_OUTPUT_DIR/artifact.txt"`},
 		}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 
 	require.NoError(t, harness.Run(t.Context(), bld))
 
@@ -283,12 +317,12 @@ func TestShellWritesToOutputDir(t *testing.T) {
 func TestShellRunsInCwd(t *testing.T) {
 	t.Parallel()
 
-	bld, err := buildtest.Validate(Shell(), component(build.KindModule),
+	bld, err := buildtest.Validate(Shell(), component(),
 		block(map[string]any{"command": "sh", "args": []any{"-c", "printf x > artifact.so"}},
-			"artifact.so"))
+			output("artifact.so", build.Module)))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 
 	require.NoError(t, harness.Run(t.Context(), bld))
 	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Cwd, "artifact.so"))
@@ -299,11 +333,11 @@ func TestShellRunsInCwd(t *testing.T) {
 func TestShellNonZeroExitIsError(t *testing.T) {
 	t.Parallel()
 
-	bld, err := buildtest.Validate(Shell(), component(build.KindModule),
+	bld, err := buildtest.Validate(Shell(), component(),
 		block(map[string]any{"command": "sh", "args": []any{"-c", "echo boom >&2; exit 1"}}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 
 	require.Error(t, harness.Run(t.Context(), bld))
 	assert.Contains(t, harness.Printed(), "boom")
@@ -313,11 +347,11 @@ func TestMakeNonZeroExitIsError(t *testing.T) {
 	t.Parallel()
 	requireMake(t)
 
-	bld, err := buildtest.Validate(Make(), component(build.KindModule),
+	bld, err := buildtest.Validate(Make(), component(),
 		block(map[string]any{"make_target": "build"}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 
 	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, "Makefile"),
 		[]byte("build:\n\texit 3\n"), 0o600))

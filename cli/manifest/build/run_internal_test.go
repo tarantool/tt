@@ -556,6 +556,56 @@ profile = 'dev'
 	assert.NoDirExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "target"))
 }
 
+// TestRun_cargoModuleAndProgram builds one cargo component of a crate with a
+// library and a binary, whose block names module and bin: the module goes
+// into the namespace of the package, the program into .rocks/bin/, both
+// recorded, and the Lua of the component is laid out.
+func TestRun_cargoModuleAndProgram(t *testing.T) {
+	requireCargo(t)
+
+	dir := setupProject(t, manifestHead+`
+[components.fast]
+path = 'fast'
+
+[components.fast.build]
+backend = 'cargo'
+profile = 'dev'
+module = 'fast'
+bin = 'fastctl'
+`, map[string]string{
+		"fast/Cargo.toml": "[package]\nname = \"fast\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[[bin]]\nname = \"fastctl\"\npath = \"src/main.rs\"\n\n" +
+			"[dependencies]\n",
+		"fast/src/lib.rs":  "#[no_mangle]\npub extern \"C\" fn fast_answer() -> i32 { 42 }\n",
+		"fast/src/main.rs": "fn main() { println!(\"fastctl\"); }\n",
+		"fast/init.lua":    "return require('my-app.fast')",
+	})
+
+	ext := ".so"
+	if runtime.GOOS == "darwin" {
+		ext = ".dylib"
+	}
+
+	tree := filepath.Join(dir, ".rocks")
+
+	result, err := RunResult(context.Background(), dryOptions(dir))
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast"+ext))
+	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "init.lua"))
+	assert.NoFileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fastctl"))
+
+	program := filepath.Join(tree, "bin", "fastctl")
+	out, err := exec.CommandContext(context.Background(), program).Output()
+	require.NoError(t, err)
+	assert.Equal(t, "fastctl\n", string(out))
+
+	assert.Equal(t, map[string][]string{"fast": {"fastctl"}}, result.Programs)
+	assert.Equal(t, madeFiles{
+		Modules: []string{"fast" + ext}, Data: nil, Programs: []string{"fastctl"},
+	}, recordOf(t, dir)["fast"])
+}
+
 // TestRun_cargoPathDependency builds a path dependency whose component cargo
 // builds: in the consumer's _build/path/<name>/cargo/, leaving no target/ in
 // the directory of the dependency, another checkout.

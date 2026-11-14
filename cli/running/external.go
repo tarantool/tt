@@ -17,6 +17,7 @@ import (
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
@@ -223,11 +224,13 @@ func (e *notFoundError) Unwrap() error {
 }
 
 // buildHint tells to run tt package build when inst runs in a project whose
-// manifest has an executable component that builds its binary: the program
-// is then missing only because the project has not been built, and
-// tt instance start does not build it, so that a long build is not hidden in
-// a start or in a restart by the watchdog. A manifest that cannot be read
-// gives no hint; tt package build reports what is wrong with it.
+// manifest has a component that builds its binary - by the record of the
+// last build of the project, or by what its build block names
+// (manifest.ProgramComponent): the program is then missing only because the
+// project has not been built, and tt instance start does not build it, so
+// that a long build is not hidden in a start or in a restart by the
+// watchdog. A manifest that cannot be read gives no hint; tt package build
+// reports what is wrong with it.
 func buildHint(inst *InstanceCtx) string {
 	if inst.Scope != app.ScopeProject {
 		return ""
@@ -243,13 +246,14 @@ func buildHint(inst *InstanceCtx) string {
 		return ""
 	}
 
-	component, ok := man.ExecutableComponent(buildreg.Process(), inst.Binary)
+	component, ok := man.ProgramComponent(buildreg.Process(), inst.Binary,
+		build.RecordedPrograms(inst.AppDir))
 	if !ok {
 		return ""
 	}
 
-	return fmt.Sprintf("; the executable component %q of the project builds it: "+
-		"run tt package build", component)
+	return fmt.Sprintf("; the component %q of the project builds it: run tt package build",
+		component)
 }
 
 // checkExternal checks what has to hold before an external process starts:

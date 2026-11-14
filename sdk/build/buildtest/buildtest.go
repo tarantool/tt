@@ -43,19 +43,53 @@ type Block struct {
 // Validate checks block, the build block of component, for backend as the
 // core checks one, in its order: the fields of the backend are decoded into
 // its configuration ([build.Backend.Decode]), a field it has no place for
-// being unknown; backend.New checks them; then output, incremental and the
-// kind of component are checked against what backend allows. It returns the
-// build, or the first error: a [*build.FieldError] for a field, with its
-// path from the block.
+// being unknown; backend.New checks them; then output and incremental are
+// checked against what backend allows, and the types of what the block
+// asks for - the to of each file of output, those the build says it makes
+// ([build.Producer]) - and those component expects against what backend
+// produces. It returns the build, or the first error: a [*build.FieldError]
+// for a field, with its path from the block.
 func Validate(backend build.Backend, component build.Component, block Block) (build.Build, error) {
 	bld, err := validate(backend, component, block)
 	if err != nil {
 		return nil, err
 	}
 
-	if !slices.Contains(backend.Kinds, component.Kind) {
-		return nil, build.FieldErrorf("", "backend %q does not build a component of kind %q",
-			backend.Name, component.Kind)
+	for i, file := range block.Common.Output {
+		if !slices.Contains(backend.Produces, file.To) {
+			return nil, build.FieldErrorf(fmt.Sprintf("output[%d].to", i),
+				"backend %q makes no %s", backend.Name, file.To)
+		}
+	}
+
+	var asked []build.Result
+
+	if producer, ok := bld.(build.Producer); ok {
+		asked = producer.Produces()
+	}
+
+	for _, result := range asked {
+		if !slices.Contains(backend.Produces, result) {
+			return nil, build.FieldErrorf("", "backend %q makes no %s, but the build "+
+				"says it does", backend.Name, result)
+		}
+	}
+
+	if component.Expects == nil {
+		return bld, nil
+	}
+
+	if !slices.ContainsFunc(component.Expects,
+		func(result build.Result) bool { return slices.Contains(backend.Produces, result) }) {
+		return nil, build.FieldErrorf("", "backend %q makes nothing the component expects",
+			backend.Name)
+	}
+
+	for _, result := range asked {
+		if !slices.Contains(component.Expects, result) {
+			return nil, build.FieldErrorf("", "the build makes a %s, which the component "+
+				"does not expect", result)
+		}
 	}
 
 	return bld, nil
@@ -63,15 +97,15 @@ func Validate(backend build.Backend, component build.Component, block Block) (bu
 
 // ValidateHook checks block, the block of a lifecycle hook, for backend as
 // the core checks one: as Validate does, New being given the zero
-// component, and the backend must run hooks ([build.Backend.Hook]) rather
-// than build a kind of component.
+// component, and the backend must run hooks ([build.Backend.Hook]); what a
+// hook makes is not looked at.
 func ValidateHook(backend build.Backend, block Block) (build.Build, error) {
 	if !backend.Hook {
 		return nil, build.FieldErrorf("", "backend %q runs no hook", backend.Name)
 	}
 
-	return validate(backend, build.Component{Name: "", Kind: "", Path: "", Namespace: "",
-		Package: ""}, block)
+	return validate(backend, build.Component{Name: "", Path: "", Namespace: "", Package: "",
+		Expects: nil}, block)
 }
 
 // validate is what Validate and ValidateHook check alike.
@@ -127,8 +161,8 @@ type Harness struct {
 // unless it names another, in directories of tb.TempDir(): <tmp>/project is
 // the project, with the component at its Path in it (its name when Path is
 // empty), its .tarantool/bin and .rocks; <tmp>/work, <tmp>/output,
-// <tmp>/share and <tmp>/state are the other directories of the build. All of
-// them but the tree exist. The target is the machine the test runs on, the
+// <tmp>/share, <tmp>/bin and <tmp>/state are the other directories of the
+// build. All of them but the tree exist. The target is the machine the test runs on, the
 // toolchain is cc of CC with the flags of the target, and no Tarantool is
 // known.
 func New(tb testing.TB, component build.Component) *Harness {
@@ -153,13 +187,14 @@ func New(tb testing.TB, component build.Component) *Harness {
 		Work:      filepath.Join(root, "work"),
 		Output:    filepath.Join(root, "output"),
 		Share:     filepath.Join(root, "share"),
+		Programs:  filepath.Join(root, "bin"),
 		State:     filepath.Join(root, "state"),
-		Bin:       filepath.Join(project, ".tarantool", "bin"),
+		Tools:     filepath.Join(project, ".tarantool", "bin"),
 		Tree:      filepath.Join(project, ".rocks"),
 	}
 
-	for _, dir := range []string{dirs.Component, dirs.Work, dirs.Output, dirs.Share, dirs.State,
-		dirs.Bin} {
+	for _, dir := range []string{dirs.Component, dirs.Work, dirs.Output, dirs.Share,
+		dirs.Programs, dirs.State, dirs.Tools} {
 		err := os.MkdirAll(dir, dirPerm)
 		if err != nil {
 			tb.Fatalf("buildtest: %v", err)
@@ -212,12 +247,13 @@ func NewHook(tb testing.TB) *Harness {
 		Work:      "",
 		Output:    "",
 		Share:     "",
+		Programs:  "",
 		State:     filepath.Join(root, "state"),
-		Bin:       filepath.Join(project, ".tarantool", "bin"),
+		Tools:     filepath.Join(project, ".tarantool", "bin"),
 		Tree:      filepath.Join(project, ".rocks"),
 	}
 
-	for _, dir := range []string{dirs.Project, dirs.State, dirs.Bin} {
+	for _, dir := range []string{dirs.Project, dirs.State, dirs.Tools} {
 		err := os.MkdirAll(dir, dirPerm)
 		if err != nil {
 			tb.Fatalf("buildtest: %v", err)
@@ -227,7 +263,7 @@ func NewHook(tb testing.TB) *Harness {
 	target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
 
 	return newHarness(build.Context{
-		Component: build.Component{Name: "", Kind: "", Path: "", Namespace: "", Package: ""},
+		Component: build.Component{Name: "", Path: "", Namespace: "", Package: "", Expects: nil},
 		Target:    target,
 		Dirs:      dirs,
 		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
@@ -429,7 +465,7 @@ func (s host) environ() []string {
 		}
 	}
 
-	return append(environ, "PATH="+facts.Dirs.Bin+string(os.PathListSeparator)+path)
+	return append(environ, "PATH="+facts.Dirs.Tools+string(os.PathListSeparator)+path)
 }
 
 // errNotFound reports a program that is not in the PATH of the build.

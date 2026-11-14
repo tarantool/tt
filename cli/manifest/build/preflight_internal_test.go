@@ -98,9 +98,9 @@ func TestRun_preflightOfAModuleBackend(t *testing.T) {
 
 	backends := buildreg.Core()
 	require.NoError(t, backends.Add("zig", []sdkbuild.Backend{{
-		Name:   "zig",
-		Kinds:  []string{sdkbuild.KindModule},
-		Config: func() any { return new(zigConfig) },
+		Name:     "zig",
+		Produces: []sdkbuild.Result{sdkbuild.Module},
+		Config:   func() any { return new(zigConfig) },
 		New: func(any, sdkbuild.Component, sdkbuild.Common) (sdkbuild.Build, error) {
 			return zigBuild{}, nil
 		},

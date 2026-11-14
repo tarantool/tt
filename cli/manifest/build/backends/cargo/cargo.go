@@ -1,7 +1,10 @@
-// Package cargo is the cargo build backend: cargo build of a Rust binary of
-// an executable component, copied into the output directory under its bin
-// name, and, for a module component, the library of the package built as a
-// cdylib, which Tarantool loads as a native module.
+// Package cargo is the cargo build backend: the library of a Rust package
+// built as a cdylib, which Tarantool loads as a native module, copied into
+// the directory of the modules of the build under the name module gives
+// it, and a binary of the package, copied into the directory of the
+// programs under its bin name. A block that names module builds the
+// module, one that names bin builds the binary, one that names both builds
+// both, and one that names neither builds the library under its own name.
 //
 // Where cargo puts what it built depends on the target, the profile and the
 // target directory the project or the environment configures, so the paths
@@ -92,7 +95,7 @@ var (
 func Backend() build.Backend {
 	return build.Backend{
 		Name:        Name,
-		Kinds:       []string{build.KindModule, build.KindExecutable},
+		Produces:    []build.Result{build.Module, build.Program},
 		Config:      func() any { return new(Config) },
 		New:         newBuild,
 		Incremental: false,
@@ -101,20 +104,24 @@ func Backend() build.Backend {
 		// by hand holds the library and the proc-macros of the
 		// dependencies, which are no files of the package: the build takes
 		// what it built from the target directory it builds in.
-		Exclude: []string{"/target/"},
-		Hook:    false,
+		Exclude:        []string{"/target/"},
+		NoSourceLayout: false,
+		Hook:           false,
 	}
 }
 
 // Config are the fields of a cargo build block.
 type Config struct {
-	// Module is the name of the module a module component builds; the name
-	// of the library of the package by default.
+	// Module builds the library of the package as the module of this
+	// name. A block that names neither module nor bin builds the library
+	// under its own name.
 	Module string `toml:"module"`
 	// Package is the cargo package that holds the binary or the library.
 	Package string `toml:"package"`
-	// Bin is the binary an executable component builds; the name of the
-	// component by default.
+	// Bin builds the binary of this name, the program of the same name.
+	// A block of a component of kind = "executable" (manifest_version 0.1,
+	// deprecated) that names neither builds the binary named after the
+	// component.
 	Bin string `toml:"bin"`
 	// Features are the features of the package enabled.
 	Features []string `toml:"features"`
@@ -122,10 +129,12 @@ type Config struct {
 	Profile string `toml:"profile"`
 }
 
-// newBuild checks a cargo build block of the component: the shapes of its
-// fields, and that those of one kind are on a component of that kind - bin
-// on the binary of an executable component, module on the library of a
-// module one.
+// newBuild checks a cargo build block of the component, the shapes of its
+// fields, and picks what it builds: the module when the block names it,
+// the binary when it names it. One that names neither builds the library
+// under its own name, or, for a component that expects programs only (the
+// kind = "executable" of manifest_version 0.1), the binary named after the
+// component.
 func newBuild(cfg any, component build.Component, common build.Common) (build.Build, error) {
 	config, ok := cfg.(*Config)
 	if !ok {
@@ -137,20 +146,14 @@ func newBuild(cfg any, component build.Component, common build.Common) (build.Bu
 		return nil, err
 	}
 
-	module := component.Kind == build.KindModule
+	module, bin := config.Module != "", config.Bin
 
-	switch {
-	case !module && config.Module != "":
-		return nil, build.FieldErrorf("module", "names the library of a module component; "+
-			"kind %q builds the binary bin", build.KindExecutable)
-	case module && config.Bin != "":
-		return nil, build.FieldErrorf("bin", "names the binary of an executable component; "+
-			"a module component builds the library of the package, named by module")
-	}
-
-	bin := config.Bin
-	if bin == "" {
-		bin = component.Name
+	if !module && bin == "" {
+		if slices.Equal(component.Expects, []build.Result{build.Program}) {
+			bin = component.Name
+		} else {
+			module = true
+		}
 	}
 
 	return cargoBuild{config: *config, bin: bin, module: module, static: common.Static}, nil
@@ -183,27 +186,45 @@ func checkConfig(config Config) error {
 // cargoBuild is a checked cargo build block.
 type cargoBuild struct {
 	config Config
-	// bin is the binary of an executable component.
+	// bin is the binary built; empty for none.
 	bin string
-	// module is set for the build of a module component, of the library.
+	// module is set for a build of the library, as a module.
 	module bool
 	static bool
 }
 
-// Programs names the one program the build of an executable component
-// makes.
+// Produces names what the build makes: a module, a program or both.
+func (b cargoBuild) Produces() []build.Result {
+	var results []build.Result
+
+	if b.module {
+		results = append(results, build.Module)
+	}
+
+	if b.bin != "" {
+		results = append(results, build.Program)
+	}
+
+	return results
+}
+
+// Programs names the program the build makes, if it builds one.
 func (b cargoBuild) Programs() ([]string, bool) {
+	if b.bin == "" {
+		return nil, true
+	}
+
 	return []string{b.bin}, true
 }
 
 // Preflight checks that a static program is not asked for darwin, that the
 // platform has a target and that cargo is in the PATH of the build.
 func (b cargoBuild) Preflight(c *build.Context) error {
-	if b.static && !b.module && c.Target.OS == darwinOS {
+	if b.static && b.bin != "" && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
 	}
 
-	_, err := b.target(c.Target)
+	_, err := b.target(c.Target, b.bin != "")
 	if err != nil {
 		return err
 	}
@@ -217,9 +238,8 @@ func (b cargoBuild) Preflight(c *build.Context) error {
 	return nil
 }
 
-// Run builds the binary in the working directory as
-// cargo build --profile <profile> --bin <bin> and copies it to
-// <output>/<bin>; for a module component, the library (see runModule).
+// Run builds the module (see runModule), then the binary (see runBinary),
+// as the block asks for them.
 func (b cargoBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(c)
 	if err != nil {
@@ -227,10 +247,24 @@ func (b cargoBuild) Run(ctx context.Context, c *build.Context) error {
 	}
 
 	if b.module {
-		return b.runModule(ctx, c)
+		err = b.runModule(ctx, c)
+		if err != nil {
+			return err
+		}
 	}
 
-	target, err := b.target(c.Target)
+	if b.bin == "" {
+		return nil
+	}
+
+	return b.runBinary(ctx, c)
+}
+
+// runBinary builds the binary in the working directory as
+// cargo build --profile <profile> --bin <bin> and copies it to
+// <programs>/<bin>.
+func (b cargoBuild) runBinary(ctx context.Context, c *build.Context) error {
+	target, err := b.target(c.Target, true)
 	if err != nil {
 		return err
 	}
@@ -250,7 +284,7 @@ func (b cargoBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	err = build.CopyFile(filepath.Join(c.Dirs.Output, b.bin), executable)
+	err = build.CopyFile(filepath.Join(c.Dirs.Programs, b.bin), executable)
 	if err != nil {
 		return fmt.Errorf("copy the binary %q: %w", executable, err)
 	}
@@ -270,7 +304,7 @@ func (b cargoBuild) Run(ctx context.Context, c *build.Context) error {
 // dynamic_lookup, as those of a C module are, and the dependencies are built
 // as cargo builds them anyway.
 func (b cargoBuild) runModule(ctx context.Context, c *build.Context) error {
-	target, err := b.target(c.Target)
+	target, err := b.target(c.Target, false)
 	if err != nil {
 		return err
 	}
@@ -380,8 +414,8 @@ func (b cargoBuild) selection(target string) []string {
 	return args
 }
 
-// target picks the --target of the build for platform, or none when
-// cargo's own host target does.
+// target picks the --target of the build of the binary, for program, or of
+// the module for platform, or none when cargo's own host target does.
 //
 // A static linux program is built for <arch>-unknown-linux-musl, which links
 // the C library in: the gnu targets link glibc dynamically. A static module
@@ -390,7 +424,7 @@ func (b cargoBuild) selection(target string) []string {
 // no --target otherwise, so that the project's own configuration of its host
 // builds applies; a build for another platform names the gnu or apple target
 // of that platform.
-func (b cargoBuild) target(platform build.Target) (string, error) {
+func (b cargoBuild) target(platform build.Target, program bool) (string, error) {
 	goos, goarch := platform.OS, platform.Arch
 
 	arch, ok := cargoArches[goarch]
@@ -402,7 +436,7 @@ func (b cargoBuild) target(platform build.Target) (string, error) {
 
 	switch goos {
 	case "linux":
-		if b.static && !b.module {
+		if b.static && program {
 			return arch + "-unknown-linux-musl", nil
 		}
 

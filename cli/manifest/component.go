@@ -4,22 +4,29 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"github.com/pelletier/go-toml/v2/unstable"
 )
 
-// Component kinds ([components.<name>].kind).
+// The kinds of a component of manifest_version 0.1 ([components.<name>].kind),
+// which is deprecated: a component makes what its build makes - modules,
+// data files and programs, any of them at once - and lays out its files.
+// A kind is still accepted, as what the component says of its build, and the
+// build checks it.
 const (
-	// KindModule is a component whose files are laid out under its namespace
-	// in the rocks tree: Lua sources and compiled modules. It is the default.
+	// KindModule says the build of the component makes no program.
 	KindModule = "module"
-	// KindExecutable is a component whose build makes programs, placed in
-	// .rocks/bin/: the external processes of an application.
+	// KindExecutable says the build of the component makes programs only,
+	// placed in .rocks/bin/, and that the component lays out no files.
 	KindExecutable = "executable"
 )
 
 // Component is a group of files plus an optional build ([components.<name>]).
 type Component struct {
-	Path         string                `toml:"path"`              // Required.
-	Kind         string                `toml:"kind,omitempty"`    // module|executable; "": module.
+	Path string `toml:"path"` // Required.
+	// Kind is the deprecated kind of manifest_version 0.1, KindModule or
+	// KindExecutable; empty when the manifest says none, as it is to.
+	Kind         string                `toml:"kind,omitempty"`
 	Include      []string              `toml:"include,omitempty"` // Default *.lua, *.so.
 	Exclude      []string              `toml:"exclude,omitempty"`
 	Namespace    *string               `toml:"namespace,omitempty"` // Nil: pkg name; "": flat.
@@ -27,10 +34,94 @@ type Component struct {
 	Build        *Build                `toml:"build,omitempty"`
 }
 
-// IsExecutable reports whether the component builds programs into
-// .rocks/bin/ rather than laying files out under its namespace.
-func (c Component) IsExecutable() bool {
+// ProgramsOnly reports whether the component says its build makes programs
+// only and lays out no files: kind = "executable" of manifest_version 0.1.
+func (c Component) ProgramsOnly() bool {
 	return c.Kind == KindExecutable
+}
+
+// Where a file of the output of a build block goes (OutputEntry.To).
+const (
+	// OutputToLib is a module: lib/<namespace>/ of the package, the default.
+	OutputToLib = "lib"
+	// OutputToShare is a data file: share/<namespace>/ of the package.
+	OutputToShare = "share"
+	// OutputToBin is a program: bin/ of the package, .rocks/bin/.
+	OutputToBin = "bin"
+)
+
+// The keys of the table form of an entry of output.
+const (
+	outputPathKey = "path"
+	outputToKey   = "to"
+)
+
+// OutputEntry is a file of the output of a build block. It is written in two
+// forms: a string, the path of a module, and a table,
+// { path = "build/tool", to = "bin" }, which says where the file goes.
+type OutputEntry struct {
+	// Path is the file, relative to where the backend of the block takes
+	// it from: the working directory of make and shell, the build tree of
+	// cmake. Required.
+	Path string `toml:"path"`
+	// To is where the file goes: OutputToLib, OutputToShare or OutputToBin;
+	// empty is a module, but for a component of kind = "executable", whose
+	// files are programs.
+	To string `toml:"to,omitempty"`
+}
+
+// UnmarshalTOML decodes an entry of either form. The decoder must have
+// EnableUnmarshalerInterface set (ParseManifest does). An entry written as
+// a table of an array of tables ([[components.<name>.build.output]]) is
+// decoded key by key into the struct instead.
+func (e *OutputEntry) UnmarshalTOML(node *unstable.Node) error {
+	switch node.Kind {
+	case unstable.String:
+		e.Path = string(node.Data)
+
+		return nil
+	case unstable.InlineTable, unstable.Table:
+	default:
+		return invalid("", "an entry of output must be a string or a table, got %s", node.Kind)
+	}
+
+	it := node.Children()
+	for it.Next() {
+		entry := it.Node()
+
+		keys := entry.Key()
+		if !keys.Next() {
+			continue
+		}
+
+		key := string(keys.Node().Data)
+
+		value := entry.Value()
+		if value.Kind != unstable.String {
+			return invalid("", "field %q of an entry of output must be a string", key)
+		}
+
+		switch key {
+		case outputPathKey:
+			e.Path = string(value.Data)
+		case outputToKey:
+			e.To = string(value.Data)
+		default:
+			return invalid("", "unknown field %q of an entry of output", key)
+		}
+	}
+
+	return nil
+}
+
+// OutputPaths returns the paths of the files of output, in their order.
+func OutputPaths(output []OutputEntry) []string {
+	paths := make([]string, 0, len(output))
+	for _, entry := range output {
+		paths = append(paths, entry.Path)
+	}
+
+	return paths
 }
 
 // Build describes the native build of a component ([components.<name>.build])
@@ -48,8 +139,9 @@ type Build struct {
 	Cwd string `toml:"cwd,omitempty"`
 	// Env are the variables the build block adds to the environment.
 	Env map[string]string `toml:"env,omitempty"`
-	// Output are the files the build makes, for a backend that copies them.
-	Output []string `toml:"output,omitempty"`
+	// Output are the files the build makes, for a backend that copies them,
+	// each where its entry says it goes.
+	Output []OutputEntry `toml:"output,omitempty"`
 	// Incremental skips the build of a component when its inputs - the
 	// build block and the files of the component, but those its .gitignore
 	// files ignore - are the ones of its last build, and its outputs are
@@ -57,9 +149,9 @@ type Build struct {
 	Incremental *bool `toml:"incremental,omitempty"`
 	// Static, of the build of any component, asks for what the build makes
 	// to need nothing of the machine it is installed on, and the build checks
-	// that it does. A program, of an executable component, needs no loader
-	// and no shared library: go and cargo are asked to build one so, and what
-	// cmake, make or shell built is only checked. A module needs no shared
+	// that it does. A program needs no loader and no shared library: go and
+	// cargo are asked to build one so, and what cmake, make or shell built is
+	// only checked. A module needs no shared
 	// library but those of the C library and the loader, which Tarantool,
 	// which loads it, has loaded itself; its backend is asked for nothing.
 	Static *bool `toml:"static,omitempty"`
@@ -130,7 +222,13 @@ func (b Build) tree() map[string]any {
 	if len(b.Output) > 0 {
 		output := make([]any, 0, len(b.Output))
 		for _, entry := range b.Output {
-			output = append(output, entry)
+			if entry.To == "" {
+				output = append(output, entry.Path)
+			} else {
+				output = append(output, map[string]any{
+					outputPathKey: entry.Path, outputToKey: entry.To,
+				})
+			}
 		}
 
 		tree["output"] = output
@@ -147,21 +245,31 @@ func (b Build) tree() map[string]any {
 	return tree
 }
 
-// ExecutableComponent finds the executable component that builds the
-// program named name: one named so, or one whose build names its program so
-// to checker (BuildCheck.Programs); a nil checker knows no program. It
-// reports the component's name.
-func (m *Manifest) ExecutableComponent(checker BuildChecker, name string) (string, bool) {
-	for _, component := range sortedKeys(m.Components) {
-		comp := m.Components[component]
-		if !comp.IsExecutable() {
-			continue
-		}
+// ProgramComponent finds the component whose build makes the program named
+// name, and reports its name. recorded are the programs the builds of the
+// components put into .rocks/bin/, by component, as the record of the
+// build of the project has them; nil when there is none. The component is,
+// in this order:
+//
+//   - one with a build that the record says put the program there;
+//   - one whose build names the program to checker (BuildCheck.Programs);
+//     a nil checker knows no program;
+//   - one of kind = "executable" (manifest_version 0.1, deprecated) named
+//     so, whose build may make a program of any name.
+func (m *Manifest) ProgramComponent(
+	checker BuildChecker, name string, recorded map[string][]string,
+) (string, bool) {
+	names := sortedKeys(m.Components)
 
-		if component == name {
+	for _, component := range names {
+		if m.Components[component].Build != nil &&
+			slices.Contains(recorded[component], name) {
 			return component, true
 		}
+	}
 
+	for _, component := range names {
+		comp := m.Components[component]
 		if comp.Build == nil || checker == nil {
 			continue
 		}
@@ -171,6 +279,11 @@ func (m *Manifest) ExecutableComponent(checker BuildChecker, name string) (strin
 		if err == nil && slices.Contains(check.Programs, name) {
 			return component, true
 		}
+	}
+
+	comp, ok := m.Components[name]
+	if ok && comp.ProgramsOnly() {
+		return name, true
 	}
 
 	return "", false

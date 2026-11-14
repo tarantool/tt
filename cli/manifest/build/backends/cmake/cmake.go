@@ -81,14 +81,15 @@ var (
 // Backend returns the cmake backend.
 func Backend() build.Backend {
 	return build.Backend{
-		Name:        Name,
-		Kinds:       []string{build.KindModule, build.KindExecutable},
-		Config:      func() any { return new(Config) },
-		New:         newBuild,
-		Incremental: false,
-		OutputFrom:  build.OutputBackend,
-		Exclude:     nil,
-		Hook:        false,
+		Name:           Name,
+		Produces:       build.Results(),
+		Config:         func() any { return new(Config) },
+		New:            newBuild,
+		Incremental:    false,
+		OutputFrom:     build.OutputBackend,
+		Exclude:        nil,
+		NoSourceLayout: false,
+		Hook:           false,
 	}
 }
 
@@ -109,7 +110,7 @@ type Config struct {
 // cmake holds the objects, the caches and the generated files of the build
 // as well, so the build takes from it the files output names and nothing
 // else.
-func newBuild(cfg any, component build.Component, common build.Common) (build.Build, error) {
+func newBuild(cfg any, _ build.Component, common build.Common) (build.Build, error) {
 	config, ok := cfg.(*Config)
 	if !ok {
 		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
@@ -122,11 +123,11 @@ func newBuild(cfg any, component build.Component, common build.Common) (build.Bu
 
 	for _, output := range common.Output {
 		switch {
-		case output == "":
+		case output.Path == "":
 			return nil, build.FieldErrorf("output", "must not contain an empty entry")
-		case filepath.IsAbs(output):
+		case filepath.IsAbs(output.Path):
 			return nil, build.FieldErrorf("output", "%q is not relative to the build tree",
-				output)
+				output.Path)
 		}
 	}
 
@@ -152,32 +153,42 @@ func newBuild(cfg any, component build.Component, common build.Common) (build.Bu
 		return nil, build.FieldErrorf("build_type", "%q is not a build type", config.BuildType)
 	}
 
-	return cmakeBuild{
-		config: *config, output: common.Output, module: component.Kind == build.KindModule,
-	}, nil
+	return cmakeBuild{config: *config, output: common.Output}, nil
 }
 
 // cmakeBuild is a checked cmake build block.
 type cmakeBuild struct {
 	config Config
-	output []string
-	// module is set for the build of a module component.
-	module bool
+	output []build.OutputFile
 }
 
-// Programs names the programs of an executable component: the files output
-// lists, by base name, which is what the build copies them as.
-func (b cmakeBuild) Programs() ([]string, bool) {
-	names := make([]string, 0, len(b.output))
+// Produces names the types of the files of output, which are what the
+// build makes.
+func (b cmakeBuild) Produces() []build.Result {
+	var results []build.Result
 
 	for _, output := range b.output {
-		name := filepath.Base(output)
-		if !slices.Contains(names, name) {
+		if !slices.Contains(results, output.To) {
+			results = append(results, output.To)
+		}
+	}
+
+	return results
+}
+
+// Programs names the programs of output, by base name, which is what the
+// build copies them as.
+func (b cmakeBuild) Programs() ([]string, bool) {
+	var names []string
+
+	for _, output := range b.output {
+		name := filepath.Base(output.Path)
+		if output.To == build.Program && !slices.Contains(names, name) {
 			names = append(names, name)
 		}
 	}
 
-	return names, false
+	return names, true
 }
 
 // Preflight checks that cmake is in the PATH of the build.
@@ -312,23 +323,23 @@ func buildType(config Config) string {
 }
 
 // copyOutputs copies the files output lists, relative to the build tree,
-// into the output directory under their base names, as the core copies
-// those of a make build. A file the build did not make fails it, all of
-// them named at once.
+// into the directories of their types under their base names, as the core
+// copies those of a make build. A file the build did not make fails it, all
+// of them named at once.
 //
-// On macOS, a .so of a module component is copied as .dylib: CMake names a
-// MODULE library .so there too, and Tarantool loads no .so on macOS. The c,
-// lua-c and cargo backends name the module so as well, and output can name
-// the file of every platform alike.
+// On macOS, a .so module is copied as .dylib: CMake names a MODULE library
+// .so there too, and Tarantool loads no .so on macOS. The c, lua-c and cargo
+// backends name the module so as well, and output can name the file of every
+// platform alike.
 func (b cmakeBuild) copyOutputs(c *build.Context) error {
 	tree := c.Dirs.Work
 
 	var missing []string
 
 	for _, output := range b.output {
-		info, err := os.Stat(filepath.Join(tree, output))
+		info, err := os.Stat(filepath.Join(tree, output.Path))
 		if err != nil || !info.Mode().IsRegular() {
-			missing = append(missing, strconv.Quote(output))
+			missing = append(missing, strconv.Quote(output.Path))
 		}
 	}
 
@@ -339,16 +350,17 @@ func (b cmakeBuild) copyOutputs(c *build.Context) error {
 	}
 
 	for _, output := range b.output {
-		name := filepath.Base(output)
-		if b.module && c.Target.OS == darwinOS {
+		name := filepath.Base(output.Path)
+		if output.To == build.Module && c.Target.OS == darwinOS {
 			if stem, ok := strings.CutSuffix(name, linuxModuleExt); ok {
 				name = stem + c.Target.ModuleExt()
 			}
 		}
 
-		err := build.CopyFile(filepath.Join(c.Dirs.Output, name), filepath.Join(tree, output))
+		err := build.CopyFile(filepath.Join(c.Dirs.Of(output.To), name),
+			filepath.Join(tree, output.Path))
 		if err != nil {
-			return fmt.Errorf("copy declared output %q: %w", output, err)
+			return fmt.Errorf("copy declared output %q: %w", output.Path, err)
 		}
 	}
 

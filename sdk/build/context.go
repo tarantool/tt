@@ -26,10 +26,11 @@ func (t Target) ModuleExt() string {
 }
 
 // Dirs are the directories of a build, all of them absolute. The core
-// creates Work, Output and Share before the build runs and takes as made
-// what the build leaves in Output and Share; anything else there that no
-// build made is removed. The build of a hook has no Component, Work, Output
-// and Share: they are empty.
+// creates Work, Output, Share and Programs before the build runs and takes
+// as made what the build leaves in Output, Share and Programs, each by its
+// type ([Result]); anything else there that no build made is removed. The
+// build of a hook has no Component, Work, Output, Share and Programs: they
+// are empty.
 type Dirs struct {
 	// Project is the root of the project the component is of: the package,
 	// or a path dependency or a source rock being built.
@@ -43,25 +44,44 @@ type Dirs struct {
 	// between builds too, out of the sources: emptied when the build is
 	// Fresh.
 	Work string
-	// Output is where the build puts what it made: the compiled modules of
-	// a module component, under its namespace, or the programs of an
-	// executable one.
+	// Output is where the build puts the modules it makes ([Module]): lib/
+	// of the stage of the package, under the namespace of the component,
+	// TT_OUTPUT_DIR.
 	Output string
-	// Share is where the build puts the data files of the component, under
-	// its namespace: what Tarantool reads as files rather than loads as
-	// modules, such as .wasm. Empty for an executable component, which lays
-	// out no files.
+	// Share is where the build puts the data files it makes ([Data]): what
+	// Tarantool reads as files rather than loads as modules, such as .wasm,
+	// under the namespace of the component, beside its Lua sources.
 	Share string
+	// Programs is where the build puts the programs it makes ([Program]):
+	// bin/ of the stage of the package, which is installed into .rocks/bin
+	// of the project, where tt instance finds them. The programs of the
+	// other components are there too.
+	Programs string
 	// State is the directory of the state of the build of the project, the
 	// same for every component of it.
 	State string
-	// Bin is the directory of the tools of the project, .tarantool/bin,
+	// Tools is the directory of the tools of the project, .tarantool/bin,
 	// which is first in the PATH of the commands of the build when it
-	// exists.
-	Bin string
+	// exists: what the build runs, not what it makes.
+	Tools string
 	// Tree is the rocks tree the dependencies of the project are installed
 	// into.
 	Tree string
+}
+
+// Of returns the directory the results of the type result go to: Output,
+// Share or Programs; empty for no type of [Results].
+func (d Dirs) Of(result Result) string {
+	switch result {
+	case Module:
+		return d.Output
+	case Data:
+		return d.Share
+	case Program:
+		return d.Programs
+	default:
+		return ""
+	}
 }
 
 // Tarantool is the Tarantool a component is built against.
@@ -137,8 +157,8 @@ type Context struct {
 	Static bool
 	// Hook is set for the build of a lifecycle hook ([Backend.Hook]), which
 	// runs around the builds of all the components rather than for one:
-	// Component is the zero one, Dirs has no Component, Work, Output and
-	// Share, and Env has no TT_OUTPUT_DIR, TT_COMPONENT_NAME and
+	// Component is the zero one, Dirs has no Component, Work, Output, Share
+	// and Programs, and Env has no TT_OUTPUT_DIR, TT_COMPONENT_NAME and
 	// TT_BUILD_DIR. The files output lists are not copied for a hook.
 	Hook bool
 	// Log is the logger of the build.

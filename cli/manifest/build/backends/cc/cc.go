@@ -63,16 +63,17 @@ func LuaC() build.Backend {
 // backend returns the backend name, of the driver of cc.
 func backend(name string) build.Backend {
 	return build.Backend{
-		Name:   name,
-		Kinds:  []string{build.KindModule},
-		Config: func() any { return new(Config) },
+		Name:     name,
+		Produces: []build.Result{build.Module},
+		Config:   func() any { return new(Config) },
 		New: func(cfg any, _ build.Component, common build.Common) (build.Build, error) {
 			return newBuild(name, cfg, common)
 		},
-		Incremental: false,
-		OutputFrom:  build.OutputNone,
-		Exclude:     nil,
-		Hook:        false,
+		Incremental:    false,
+		OutputFrom:     build.OutputNone,
+		Exclude:        nil,
+		NoSourceLayout: false,
+		Hook:           false,
 	}
 }
 

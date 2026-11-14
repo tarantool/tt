@@ -26,11 +26,15 @@ var ErrNoBackend = errors.New("no module of this tt provides backend")
 //  4. the backend checks the block (build.Backend.New);
 //  5. a field of another backend is refused, by key, then output and
 //     incremental, for a backend that has no such field;
-//  6. the kind of the component is one the backend builds; a hook has none.
+//  6. what the block asks for is what the backend makes
+//     (build.Backend.Produces): the to of each file of output, then the
+//     types the build says it makes (build.Producer); then the deprecated
+//     kind of the component, when it has one, says what the backend can
+//     make and what the build makes. A hook makes nothing that is checked.
 //
 // A block of a component whose backend the registry does not have is not
-// checked. The programs of an executable component are those its build
-// names (build.ProgramNamer).
+// checked. The programs of a component are those its build names
+// (build.ProgramNamer).
 func (r *Registry) CheckBuild(
 	field string, target manifest.BuildTarget, block manifest.Build,
 ) (manifest.BuildCheck, error) {
@@ -67,21 +71,21 @@ func (r *Registry) CheckBuild(
 		}
 	}
 
-	bld, err := found.backend.New(cfg, component(target), common(block))
+	bld, err := found.backend.New(cfg, component(target), common(block, target))
 	if err != nil {
 		return check, validationError(field, err)
 	}
 
 	err = r.checkForeign(field, found, block, foreign)
 	if err == nil && !target.Hook {
-		err = r.checkKind(field, found, target)
+		err = checkResults(field, found.backend, bld, block, target)
 	}
 
 	if err != nil {
 		return check, err
 	}
 
-	if namer, ok := bld.(build.ProgramNamer); ok && target.Kind == build.KindExecutable {
+	if namer, ok := bld.(build.ProgramNamer); ok && !target.Hook {
 		check.Programs, _ = namer.Programs()
 	}
 
@@ -106,7 +110,7 @@ func (r *Registry) Build(
 		return build.Backend{}, nil, validationError(field, err)
 	}
 
-	bld, err := found.backend.New(cfg, component(target), common(block))
+	bld, err := found.backend.New(cfg, component(target), common(block, target))
 	if err != nil {
 		return build.Backend{}, nil, validationError(field, err)
 	}
@@ -119,18 +123,64 @@ func (r *Registry) Build(
 func component(target manifest.BuildTarget) build.Component {
 	return build.Component{
 		Name:      target.Component,
-		Kind:      target.Kind,
 		Path:      target.Path,
 		Namespace: target.Namespace,
 		Package:   target.Package,
+		Expects:   Expects(target.Kind),
 	}
 }
 
-// common is what a backend is told of the fields every build block has.
-func common(block manifest.Build) build.Common {
-	return build.Common{
-		Cwd: block.Cwd, Env: block.Env, Output: block.Output, Static: block.StaticValue(),
+// Expects returns the types of what a component of the deprecated kind
+// says its build makes (build.Component.Expects): nil for none.
+func Expects(kind string) []build.Result {
+	switch kind {
+	case manifest.KindExecutable:
+		return []build.Result{build.Program}
+	case manifest.KindModule:
+		return []build.Result{build.Module, build.Data}
+	default:
+		return nil
 	}
+}
+
+// common is what a backend is told of the fields every build block has,
+// the block building target.
+func common(block manifest.Build, target manifest.BuildTarget) build.Common {
+	var output []build.OutputFile
+
+	if block.Output != nil {
+		output = make([]build.OutputFile, 0, len(block.Output))
+	}
+
+	for _, entry := range block.Output {
+		output = append(output, build.OutputFile{
+			Path: entry.Path, To: OutputType(entry, target.Kind),
+		})
+	}
+
+	return build.Common{
+		Cwd: block.Cwd, Env: block.Env, Output: output, Static: block.StaticValue(),
+	}
+}
+
+// OutputType returns the type of the file of output entry of a component of
+// the deprecated kind: where the entry says it goes, or, for an entry that
+// says nothing, a module - a program for kind = "executable".
+func OutputType(entry manifest.OutputEntry, kind string) build.Result {
+	switch entry.To {
+	case manifest.OutputToShare:
+		return build.Data
+	case manifest.OutputToBin:
+		return build.Program
+	case manifest.OutputToLib:
+		return build.Module
+	}
+
+	if kind == manifest.KindExecutable {
+		return build.Program
+	}
+
+	return build.Module
 }
 
 // owners returns the names of the backends that have the field key of a
@@ -205,34 +255,90 @@ func (r *Registry) checkForeign(
 	return nil
 }
 
-// checkKind checks that the backend of found builds a component of the kind
-// of target.
-func (r *Registry) checkKind(field string, found entry, target manifest.BuildTarget) error {
-	if slices.Contains(found.backend.Kinds, target.Kind) {
-		return nil
-	}
+// checkResults checks that what block, the build block at field of the
+// component of target, asks for is what backend makes, and that the build
+// bld of the block makes what the deprecated kind of the component says it
+// does: kind = "executable" a backend that makes programs, and a build that
+// makes nothing else; kind = "module" a backend that makes modules or data,
+// and a build that makes no program. What a build makes besides what it
+// says it does is checked after it ran.
+func checkResults(
+	field string, backend build.Backend, bld build.Build, block manifest.Build,
+	target manifest.BuildTarget,
+) error {
+	for index, entry := range block.Output {
+		result := OutputType(entry, target.Kind)
+		if slices.Contains(backend.Produces, result) {
+			continue
+		}
 
-	if target.Kind == build.KindExecutable {
-		var builders []string
-
-		for _, e := range r.ordered() {
-			if slices.Contains(e.backend.Kinds, build.KindExecutable) {
-				builders = append(builders, e.backend.Name)
-			}
+		entryField := fmt.Sprintf("%s.output[%d]", field, index)
+		if entry.To != "" {
+			entryField += ".to"
 		}
 
 		return &manifest.ValidationError{
-			Field: field,
-			Msg: fmt.Sprintf("backend %q builds a module, not a program (kind %q wants %s)",
-				found.backend.Name, build.KindExecutable, orList(builders)),
+			Field: entryField,
+			Msg:   fmt.Sprintf("backend %q makes no %s", backend.Name, Plural(result)),
 		}
 	}
 
-	return &manifest.ValidationError{
-		Field: field,
-		Msg: fmt.Sprintf("backend %q builds a program: set kind = %q on the component",
-			found.backend.Name, build.KindExecutable),
+	var asked []build.Result
+
+	if producer, ok := bld.(build.Producer); ok {
+		asked = producer.Produces()
 	}
+
+	for _, result := range asked {
+		if !slices.Contains(backend.Produces, result) {
+			return &manifest.ValidationError{
+				Field: field,
+				Msg:   fmt.Sprintf("backend %q makes no %s", backend.Name, Plural(result)),
+			}
+		}
+	}
+
+	expects := Expects(target.Kind)
+	if expects == nil {
+		return nil
+	}
+
+	kindField := strings.TrimSuffix(field, ".build") + ".kind"
+
+	if !slices.ContainsFunc(expects, func(result build.Result) bool {
+		return slices.Contains(backend.Produces, result)
+	}) {
+		what := "no " + Plural(build.Program)
+		if target.Kind == manifest.KindModule {
+			what = Plural(build.Program) + " only"
+		}
+
+		return &manifest.ValidationError{
+			Field: kindField,
+			Msg:   fmt.Sprintf("is %q, but backend %q makes %s", target.Kind, backend.Name, what),
+		}
+	}
+
+	for _, result := range asked {
+		if !slices.Contains(expects, result) {
+			return &manifest.ValidationError{
+				Field: kindField,
+				Msg:   fmt.Sprintf("is %q, but the build makes %s", target.Kind, Plural(result)),
+			}
+		}
+	}
+
+	return nil
+}
+
+// Plural names the results of the type result in a message: modules, data
+// files, programs.
+func Plural(result build.Result) string {
+	if result == build.Data {
+		return "data files"
+	}
+
+	return string(result) + "s"
 }
 
 // validationError is err, of a check of the build block at field, as

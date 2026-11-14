@@ -42,11 +42,11 @@ include = ['*.lua']
 `
 
 // goManifest is my-app with a Go program built by the go backend, whose
-// sources carry a Lua file the default include would lay out.
+// sources carry a Lua file the default include would lay out. The
+// component says no kind: it makes what its build makes.
 const goManifest = manifestHead + `
 [components.gw]
 path = 'gw'
-kind = 'executable'
 
 [components.gw.build]
 backend = 'go'
@@ -79,8 +79,9 @@ func hostProgram(t *testing.T) string {
 	return path
 }
 
-// shellManifest is my-app with an executable component built by a shell
-// command.
+// shellManifest is my-app with a component of the deprecated
+// kind = "executable" built by a shell command, which is told to put its
+// programs into TT_OUTPUT_DIR.
 func shellManifest(command string) string {
 	return manifestHead + `
 [components.tools]
@@ -94,18 +95,27 @@ args = ['-c', '''` + command + `''']
 `
 }
 
-// readRecord reads the record of programs of the project dir.
-func readRecord(t *testing.T, dir string) map[string][]string {
+// recordOf reads the record of what the components of the project dir
+// built, strictly.
+func recordOf(t *testing.T, dir string) map[string]madeFiles {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(dir, buildDirName, executablesFileName))
+	data, err := os.ReadFile(filepath.Join(dir, buildDirName, resultsFileName))
 	require.NoError(t, err)
 
-	var record executablesRecord
+	var record resultsRecord
 
 	require.NoError(t, json.Unmarshal(data, &record))
 
 	return record.Components
+}
+
+// readRecord reads the programs of the record of the project dir, by
+// component, of the components that made any.
+func readRecord(t *testing.T, dir string) map[string][]string {
+	t.Helper()
+
+	return programsOf(recordOf(t, dir))
 }
 
 func TestRun_executableGo(t *testing.T) {
@@ -124,15 +134,48 @@ func TestRun_executableGo(t *testing.T) {
 	assert.True(t, prog.Static(), "%+v", prog)
 	assert.Equal(t, []native.Platform{native.Host()}, prog.Platforms)
 
-	assert.Equal(t, map[string][]string{"gw": {"gw"}}, result.Executables)
+	assert.Equal(t, map[string][]string{"gw": {"gw"}}, result.Programs)
 	assert.Equal(t, map[string][]string{"gw": {"gw"}}, readRecord(t, dir))
+	assert.Equal(t, madeFiles{Programs: []string{"gw"}}, recordOf(t, dir)["gw"])
 
-	// An executable component lays nothing out under the namespace.
+	// The sources of a go component are not laid out under the namespace.
 	share := filepath.Join(dir, ".rocks", "share", "tarantool", "my-app")
 	assert.True(t, exists(t, filepath.Join(share, "init.lua")))
 	assert.False(t, exists(t, filepath.Join(share, "testdata")))
 	assert.False(t, exists(t, filepath.Join(share, "cmd")))
 	assert.False(t, exists(t, filepath.Join(dir, ".rocks", "share", "tarantool", "gw")))
+}
+
+// TestRun_goIncludeLaysOut: what the include of a go component names is laid
+// out, the rest of its sources not: the include of a component is its own
+// whatever its backend.
+func TestRun_goIncludeLaysOut(t *testing.T) {
+	t.Parallel()
+
+	files := maps.Clone(goFiles)
+
+	files["gw/lua/client.lua"] = "return {}"
+
+	dir := setupProject(t, manifestHead+`
+[components.gw]
+path = 'gw'
+include = ['lua/*.lua']
+namespace = 'gw'
+
+[components.gw.build]
+backend = 'go'
+package = './cmd/gw'
+`, files)
+
+	result, err := RunResult(context.Background(), dryOptions(dir))
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{"gw": {"gw"}}, result.Programs)
+
+	share := filepath.Join(dir, ".rocks", "share", "tarantool", "gw")
+	assert.True(t, exists(t, filepath.Join(share, "lua", "client.lua")))
+	assert.False(t, exists(t, filepath.Join(share, "testdata")))
+	assert.False(t, exists(t, filepath.Join(share, "cmd")))
+	assert.True(t, exists(t, filepath.Join(dir, ".rocks", "bin", "gw")))
 }
 
 // TestRun_executableShellKeepsItsRecord: a make or shell build owns what it
@@ -153,7 +196,7 @@ func TestRun_executableShellKeepsItsRecord(t *testing.T) {
 	for range 2 {
 		result, err := RunResult(context.Background(), dryOptions(dir))
 		require.NoError(t, err)
-		assert.Equal(t, map[string][]string{"tools": {"helper"}}, result.Executables)
+		assert.Equal(t, map[string][]string{"tools": {"helper"}}, result.Programs)
 	}
 
 	assert.Equal(t, map[string][]string{"tools": {"helper"}}, readRecord(t, dir))
@@ -201,7 +244,7 @@ func TestRun_componentBuildKeepsTheOthersRecord(t *testing.T) {
 
 	result, err := RunResult(context.Background(), opts)
 	require.NoError(t, err)
-	assert.Equal(t, map[string][]string{"gw": {"gw"}}, result.Executables)
+	assert.Equal(t, map[string][]string{"gw": {"gw"}}, result.Programs)
 
 	// gw is a Lua component now.
 	writeFile(t, filepath.Join(dir, manifestFileName),
@@ -209,7 +252,7 @@ func TestRun_componentBuildKeepsTheOthersRecord(t *testing.T) {
 
 	result, err = RunResult(context.Background(), dryOptions(dir))
 	require.NoError(t, err)
-	assert.Empty(t, result.Executables)
+	assert.Empty(t, result.Programs)
 }
 
 // TestRun_missingToolFailsFirst: a go component without go in PATH fails the

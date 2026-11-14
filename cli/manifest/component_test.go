@@ -38,7 +38,8 @@ func programsOf(t *testing.T, mfst *manifest.Manifest, name string) []string {
 }
 
 // TestExecutableComponentFields checks that every field of the go and cargo
-// backends decodes into the build.
+// backends decodes into the build, of a component of no kind and of one of
+// the deprecated kind = "executable".
 func TestExecutableComponentFields(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +59,6 @@ env = { CC = "musl-gcc" }
 
 [components.agent]
 path = "agent"
-kind = "executable"
 [components.agent.build]
 backend = "cargo"
 bin = "agent-bin"
@@ -68,10 +68,13 @@ profile = "dist"
 static = true
 `)
 
-	_, err := mfst.Validate(buildreg.Core())
+	warnings, err := mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
+	assert.Equal(t, []string{"components.gw.kind is deprecated: a component makes what its " +
+		"build makes; remove it"}, warnings)
 
-	assert.True(t, mfst.Components["gw"].IsExecutable())
+	assert.True(t, mfst.Components["gw"].ProgramsOnly())
+	assert.False(t, mfst.Components["agent"].ProgramsOnly())
 	assert.Equal(t, []string{"gateway"}, programsOf(t, mfst, "gw"))
 
 	gateway := mfst.Components["gw"].Build
@@ -97,40 +100,66 @@ static = true
 	assert.True(t, agent.StaticValue())
 }
 
-// TestBuildPrograms checks the programs the build of an executable
-// component names to the checker of the backends of tt.
+// TestBuildPrograms checks the programs the build of a component names to
+// the checker of the backends of tt, of no kind and of the deprecated
+// kind = "executable".
 func TestBuildPrograms(t *testing.T) {
 	t.Parallel()
 
-	target := manifest.BuildTarget{
-		Component: "gw", Kind: manifest.KindExecutable, Path: "gw", Package: "demo",
-	}
+	target := manifest.BuildTarget{Component: "gw", Path: "gw", Package: "demo"}
+	executable := target
+
+	executable.Kind = manifest.KindExecutable
 
 	tests := []struct {
-		name  string
-		build manifest.Build
-		want  []string
+		name   string
+		target manifest.BuildTarget
+		build  manifest.Build
+		want   []string
 	}{
-		{"go defaults to the component", manifest.Build{Backend: "go"}, []string{"gw"}},
+		{"go defaults to the component", target, manifest.Build{Backend: "go"}, []string{"gw"}},
 		{
-			"go name", manifest.Build{Backend: "go", Rest: map[string]any{"name": "gateway"}},
+			"go name", target,
+			manifest.Build{Backend: "go", Rest: map[string]any{"name": "gateway"}},
 			[]string{"gateway"},
 		},
-		{"cargo defaults to the component", manifest.Build{Backend: "cargo"}, []string{"gw"}},
 		{
-			"cargo bin", manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gwd"}},
+			"cargo of kind = executable defaults to the component", executable,
+			manifest.Build{Backend: "cargo"}, []string{"gw"},
+		},
+		{
+			"cargo bin", target,
+			manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gwd"}},
 			[]string{"gwd"},
 		},
 		{
-			"make lists its output by base name",
+			"cargo bin and module", target,
+			manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gwd", "module": "gw"}},
+			[]string{"gwd"},
+		},
+		{
+			"make of kind = executable lists its output by base name", executable,
 			manifest.Build{
-				Backend: "make", Output: []string{"out/gw", "out/gw-cli", "gw"},
+				Backend: "make", Output: []manifest.OutputEntry{
+					{Path: "out/gw"}, {Path: "out/gw-cli"}, {Path: "gw"},
+				},
 				Rest: map[string]any{"make_target": "all"},
 			},
 			[]string{"gw", "gw-cli"},
 		},
 		{
-			"shell writing TT_OUTPUT_DIR names none",
+			"make lists the programs of its output", target,
+			manifest.Build{
+				Backend: "make", Output: []manifest.OutputEntry{
+					{Path: "out/gw.so"}, {Path: "out/gw", To: manifest.OutputToBin},
+					{Path: "gw.wasm", To: manifest.OutputToShare},
+				},
+				Rest: map[string]any{"make_target": "all"},
+			},
+			[]string{"gw"},
+		},
+		{
+			"shell writing TT_OUTPUT_DIR names none", executable,
 			manifest.Build{Backend: "shell", Rest: map[string]any{"command": "./b.sh"}},
 			[]string{},
 		},
@@ -140,21 +169,20 @@ func TestBuildPrograms(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			check, err := buildreg.Core().CheckBuild("components.gw.build", target, tt.build)
+			check, err := buildreg.Core().CheckBuild("components.gw.build", tt.target, tt.build)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, check.Programs)
 		})
 	}
 
-	// A module component makes no program.
-	check, err := buildreg.Core().CheckBuild("components.gw.build", manifest.BuildTarget{
-		Component: "gw", Kind: manifest.KindModule, Path: "gw", Package: "demo",
-	}, manifest.Build{Backend: "cargo"})
+	// A cargo build that names neither builds the library, no program.
+	check, err := buildreg.Core().CheckBuild("components.gw.build", target,
+		manifest.Build{Backend: "cargo"})
 	require.NoError(t, err)
 	assert.Nil(t, check.Programs)
 }
 
-func TestExecutableComponent(t *testing.T) {
+func TestProgramComponent(t *testing.T) {
 	t.Parallel()
 
 	mfst := parseBody(t, `
@@ -163,19 +191,32 @@ path = "src"
 
 [components.gw]
 path = "gw"
-kind = "executable"
 [components.gw.build]
 backend = "go"
 name = "gateway"
 
 [components.tools]
 path = "tools"
-kind = "executable"
 [components.tools.build]
 backend = "make"
 make_target = "all"
-output = ["build/gw-cli"]
+output = [{ path = "build/gw-cli", to = "bin" }, "build/tools.so"]
+
+[components.legacy]
+path = "legacy"
+kind = "executable"
+[components.legacy.build]
+backend = "shell"
+command = "./build.sh"
+
+[components.writer]
+path = "writer"
+[components.writer.build]
+backend = "shell"
+command = "./build.sh"
 `)
+
+	recorded := map[string][]string{"writer": {"written"}, "lua": {"stale"}}
 
 	for _, tt := range []struct {
 		binary    string
@@ -183,24 +224,122 @@ output = ["build/gw-cli"]
 		found     bool
 	}{
 		{"gateway", "gw", true},
-		{"gw", "gw", true},
 		{"gw-cli", "tools", true},
-		{"tools", "tools", true},
+		{"legacy", "legacy", true},
+		{"written", "writer", true},
+		// A component without a build makes nothing, whatever a record says.
+		{"stale", "", false},
+		// A component of no kind makes the programs its build names only.
+		{"gw", "", false},
+		{"tools", "", false},
+		{"writer", "", false},
 		{"lua", "", false},
 		{"python3", "", false},
 	} {
-		component, found := mfst.ExecutableComponent(buildreg.Core(), tt.binary)
+		component, found := mfst.ProgramComponent(buildreg.Core(), tt.binary, recorded)
 		assert.Equal(t, tt.found, found, tt.binary)
 		assert.Equal(t, tt.component, component, tt.binary)
 	}
 
-	// With no checker, a program is found by the name of its component only.
-	component, found := mfst.ExecutableComponent(nil, "gw")
+	// With no checker and no record, a program is found by the name of a
+	// component of kind = "executable" only.
+	component, found := mfst.ProgramComponent(nil, "legacy", nil)
 	assert.True(t, found)
-	assert.Equal(t, "gw", component)
+	assert.Equal(t, "legacy", component)
 
-	_, found = mfst.ExecutableComponent(nil, "gateway")
+	_, found = mfst.ProgramComponent(nil, "gateway", nil)
 	assert.False(t, found)
+}
+
+// TestOutputEntries checks the two forms of an entry of output, and that the
+// table form is written back as it was.
+func TestOutputEntries(t *testing.T) {
+	t.Parallel()
+
+	mfst := parseBody(t, `
+[components.tool]
+path = "tool"
+[components.tool.build]
+backend = "shell"
+command = "./build.sh"
+output = [
+  "build/tool.so",
+  { path = "build/tool", to = "bin" },
+  { path = "build/tool.wasm", to = "share" },
+  { path = "build/x.so", to = "lib" },
+]
+
+[components.other]
+path = "other"
+[components.other.build]
+backend = "make"
+make_target = "all"
+
+[[components.other.build.output]]
+path = "gen/other"
+to = "bin"
+`)
+
+	_, err := mfst.Validate(buildreg.Core())
+	require.NoError(t, err)
+
+	assert.Equal(t, []manifest.OutputEntry{
+		{Path: "build/tool.so"}, {Path: "build/tool", To: manifest.OutputToBin},
+		{Path: "build/tool.wasm", To: manifest.OutputToShare},
+		{Path: "build/x.so", To: manifest.OutputToLib},
+	}, mfst.Components["tool"].Build.Output)
+	assert.Equal(t, []manifest.OutputEntry{{Path: "gen/other", To: manifest.OutputToBin}},
+		mfst.Components["other"].Build.Output)
+	assert.Equal(t, []string{"build/tool.so", "build/tool", "build/tool.wasm", "build/x.so"},
+		manifest.OutputPaths(mfst.Components["tool"].Build.Output))
+	assert.Equal(t, []string{"tool"}, programsOf(t, mfst, "tool"))
+
+	data, err := mfst.Marshal()
+	require.NoError(t, err)
+
+	again, _, err := manifest.ParseManifest(data)
+	require.NoError(t, err)
+	assert.Equal(t, mfst.Components["tool"].Build.Output, again.Components["tool"].Build.Output)
+}
+
+// TestOutputEntryErrors covers the entries of output validation and parsing
+// rule out.
+func TestOutputEntryErrors(t *testing.T) {
+	t.Parallel()
+
+	head := "manifest_version = \"0.1\"\n[package]\nname = \"demo\"\n" +
+		"[platform]\ntarantool = \">=3.0.0\"\ntt = \">=3.0.0\"\n" +
+		"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"shell\"\n" +
+		"command = \"./b.sh\"\n"
+
+	for _, tt := range []struct {
+		name, output, field, msg string
+	}{
+		{"a place of no name", `[{ path = "a", to = "etc" }]`, "components.a.build.output[0].to",
+			`"etc" is not lib, share or bin`},
+		{"no path", `["a", { to = "bin" }]`, "components.a.build.output[1].path", "is required"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mfst, _, err := manifest.ParseManifest([]byte(head + "output = " + tt.output + "\n"))
+			require.NoError(t, err)
+
+			_, err = mfst.Validate(nil)
+
+			var verr *manifest.ValidationError
+
+			require.ErrorAs(t, err, &verr)
+			assert.Equal(t, tt.field, verr.Field)
+			assert.Equal(t, tt.msg, verr.Msg)
+		})
+	}
+
+	for _, output := range []string{`[{ path = "a", into = "bin" }]`, `[1]`,
+		`[{ path = "a", to = 1 }]`} {
+		_, _, err := manifest.ParseManifest([]byte(head + "output = " + output + "\n"))
+		require.Error(t, err, output)
+	}
 }
 
 // TestValidateExecutableComponents covers what an executable component and
@@ -251,28 +390,54 @@ func TestValidateExecutableComponents(t *testing.T) {
 			name: "a module backend",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
 				"[components.a.build]\nbackend = \"c\"\nmodule = \"m\"\nsources = [\"m.c\"]\n",
-			field: "components.a.build",
-			msg:   `backend "c" builds a module`,
+			field: "components.a.kind",
+			msg:   `is "executable", but backend "c" makes no programs`,
 		},
 		{
-			name:  "go for a module",
-			body:  "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"go\"\n",
-			field: "components.a.build",
-			msg:   `set kind = "executable"`,
+			name: "go for kind = module",
+			body: "[components.a]\npath = \"a\"\nkind = \"module\"\n" +
+				"[components.a.build]\nbackend = \"go\"\n",
+			field: "components.a.kind",
+			msg:   `is "module", but backend "go" makes programs only`,
 		},
 		{
-			name: "bin on a cargo module",
-			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
-				"bin = \"a\"\n",
-			field: "components.a.build.bin",
-			msg:   "names the binary of an executable component",
+			name: "bin on a cargo build of kind = module",
+			body: "[components.a]\npath = \"a\"\nkind = \"module\"\n" +
+				"[components.a.build]\nbackend = \"cargo\"\nbin = \"a\"\n",
+			field: "components.a.kind",
+			msg:   `is "module", but the build makes programs`,
 		},
 		{
-			name: "module on a cargo program",
+			name: "module on a cargo build of kind = executable",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
 				"[components.a.build]\nbackend = \"cargo\"\nmodule = \"a\"\n",
-			field: "components.a.build.module",
-			msg:   "names the library of a module component",
+			field: "components.a.kind",
+			msg:   `is "executable", but the build makes modules`,
+		},
+		{
+			name: "an output to lib of kind = executable",
+			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\n" +
+				"output = [\"gw\", { path = \"a.so\", to = \"lib\" }]\n",
+			field: "components.a.kind",
+			msg:   `is "executable", but the build makes modules`,
+		},
+		{
+			name: "an output to bin of kind = module",
+			body: "[components.a]\npath = \"a\"\nkind = \"module\"\n" +
+				"[components.a.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
+				"output = [{ path = \"gw\", to = \"bin\" }]\n",
+			field: "components.a.kind",
+			msg:   `is "module", but the build makes programs`,
+		},
+		{
+			name: "a program of make clashes with a go program",
+			body: "[components.a]\npath = \"a\"\n" +
+				"[components.a.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
+				"output = [\"a.so\", { path = \"out/b\", to = \"bin\" }]\n" +
+				"[components.b]\npath = \"b\"\n[components.b.build]\nbackend = \"go\"\n",
+			field: "components.b.build",
+			msg:   `program "b" is built by component "a" too`,
 		},
 		{
 			name: "a dotted cargo module",
@@ -544,6 +709,24 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 			"[components.gw.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\nstatic = false\n",
 		"static on cmake": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
 			"[components.gw.build]\nbackend = \"cmake\"\noutput = [\"gw\"]\nstatic = true\n",
+		// A component of no kind makes what its build makes.
+		"go of no kind": "[components.gw]\npath = \"gw\"\n" +
+			"[components.gw.build]\nbackend = \"go\"\n",
+		"go with an include": "[components.gw]\npath = \"gw\"\ninclude = [\"lua/*.lua\"]\n" +
+			"namespace = \"gw\"\n[components.gw.build]\nbackend = \"go\"\n",
+		"cargo of a module and a program": "[components.fast]\npath = \"fast\"\n" +
+			"[components.fast.build]\nbackend = \"cargo\"\nmodule = \"fast\"\nbin = \"fastctl\"\n",
+		"shell of the three": "[components.tool]\npath = \"tool\"\n" +
+			"[components.tool.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\n" +
+			"output = [\"t.so\", { path = \"t\", to = \"bin\" }, { path = \"t.wasm\", " +
+			"to = \"share\" }]\n",
+		"cmake of the three": "[components.tool]\npath = \"tool\"\n" +
+			"[components.tool.build]\nbackend = \"cmake\"\n" +
+			"output = [{ path = \"t.so\", to = \"lib\" }, { path = \"bin/t\", to = \"bin\" }, " +
+			"{ path = \"t.wasm\", to = \"share\" }]\n",
+		"an output to share of kind = module": "[components.tool]\npath = \"tool\"\n" +
+			"kind = \"module\"\n[components.tool.build]\nbackend = \"shell\"\n" +
+			"command = \"./b.sh\"\noutput = [{ path = \"t.wasm\", to = \"share\" }]\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -633,13 +816,13 @@ output = ["bin/mc-bench", "mc-cli"]
 		"targets":    []any{"internalso"},
 		"build_type": "Release",
 	}, memcached.Rest)
-	assert.Equal(t, []string{"memcached/internal.so"}, memcached.Output)
+	assert.Equal(t, []manifest.OutputEntry{{Path: "memcached/internal.so"}}, memcached.Output)
 
 	tools := mfst.Components["tools"]
-	assert.True(t, tools.IsExecutable())
+	assert.True(t, tools.ProgramsOnly())
 	assert.Equal(t, []string{"mc-bench", "mc-cli"}, programsOf(t, mfst, "tools"))
 
-	component, found := mfst.ExecutableComponent(buildreg.Core(), "mc-bench")
+	component, found := mfst.ProgramComponent(buildreg.Core(), "mc-bench", nil)
 	assert.True(t, found)
 	assert.Equal(t, "tools", component)
 }

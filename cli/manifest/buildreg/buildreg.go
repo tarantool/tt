@@ -126,22 +126,27 @@ func (r *Registry) Add(module string, backends []build.Backend, checks []build.F
 }
 
 var (
-	// errKinds reports the kinds of a backend that are not well formed.
-	errKinds = errors.New("the Kinds must name module, executable or both, once each")
+	// errProduces reports the result types of a backend that are not well
+	// formed.
+	errProduces = errors.New("the Produces must name module, data or program, once each")
 	// errExclude reports an empty pattern of the exclusions of a backend.
 	errExclude = errors.New("an empty pattern in Exclude")
 )
 
-// checkKinds checks the kinds a backend builds.
-func checkKinds(kinds []string) error {
-	if len(kinds) == 0 {
-		return errKinds
+// checkProduces checks the types of what a backend makes.
+func checkProduces(produces []build.Result) error {
+	if len(produces) == 0 {
+		return errProduces
 	}
 
-	for i, kind := range kinds {
-		if kind != build.KindModule && kind != build.KindExecutable ||
-			slices.Contains(kinds[:i], kind) {
-			return fmt.Errorf("%w, not %q", errKinds, strings.Join(kinds, ", "))
+	for i, result := range produces {
+		if !slices.Contains(build.Results(), result) || slices.Contains(produces[:i], result) {
+			names := make([]string, 0, len(produces))
+			for _, result := range produces {
+				names = append(names, string(result))
+			}
+
+			return fmt.Errorf("%w, not %q", errProduces, strings.Join(names, ", "))
 		}
 	}
 
@@ -231,7 +236,7 @@ func (r *Registry) check(module string, backend build.Backend) (entry, error) {
 		return entry{}, fmt.Errorf("%w %q: no New", ErrBackend, backend.Name)
 	}
 
-	err := checkKinds(backend.Kinds)
+	err := checkProduces(backend.Produces)
 	if err == nil {
 		err = checkOutputFrom(backend.OutputFrom)
 	}

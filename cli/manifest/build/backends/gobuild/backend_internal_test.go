@@ -17,10 +17,10 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// component is the executable component gw, in the directory gw.
+// component is the component gw, in the directory gw.
 func component() build.Component {
 	return build.Component{
-		Name: "gw", Kind: build.KindExecutable, Path: "gw", Namespace: "", Package: "",
+		Name: "gw", Path: "gw", Namespace: "", Package: "", Expects: nil,
 	}
 }
 
@@ -87,6 +87,19 @@ func TestProgramsDefaultToTheComponent(t *testing.T) {
 	names, exhaustive := namer.Programs()
 	assert.Equal(t, []string{"gw"}, names)
 	assert.True(t, exhaustive)
+
+	producer, ok := validate(t, nil, false).(build.Producer)
+	require.True(t, ok)
+	assert.Equal(t, []build.Result{build.Program}, producer.Produces())
+
+	// A component of kind = "executable" of manifest_version 0.1 builds the
+	// same program.
+	legacy := component()
+
+	legacy.Expects = []build.Result{build.Program}
+
+	_, err := buildtest.Validate(Backend(), legacy, block(nil, false))
+	require.NoError(t, err)
 }
 
 func TestValidateErrors(t *testing.T) {
@@ -94,7 +107,7 @@ func TestValidateErrors(t *testing.T) {
 
 	module := component()
 
-	module.Kind = build.KindModule
+	module.Expects = []build.Result{build.Module, build.Data}
 
 	tests := []struct {
 		name      string
@@ -123,8 +136,8 @@ func TestValidateErrors(t *testing.T) {
 			"tags[0]", "must be a string, not an integer"},
 		{"an unknown field", component(), map[string]any{"make_target": "all"},
 			"make_target", "unknown field"},
-		{"a module component", module, nil,
-			"", `backend "go" does not build a component of kind "module"`},
+		{"a component of modules", module, nil,
+			"", `backend "go" makes nothing the component expects`},
 	}
 
 	for _, test := range tests {
@@ -149,7 +162,8 @@ func TestBackend(t *testing.T) {
 	backend := Backend()
 
 	assert.Equal(t, Name, backend.Name)
-	assert.Equal(t, []string{build.KindExecutable}, backend.Kinds)
+	assert.Equal(t, []build.Result{build.Program}, backend.Produces)
+	assert.True(t, backend.NoSourceLayout)
 	assert.Equal(t, build.OutputNone, backend.OutputFrom)
 	assert.False(t, backend.Incremental)
 	assert.False(t, backend.Hook)
@@ -166,7 +180,7 @@ func TestPreflight(t *testing.T) {
 		t.Parallel()
 
 		harness := buildtest.New(t, component())
-		writeTool(t, harness.Context.Dirs.Bin, "go", "")
+		writeTool(t, harness.Context.Dirs.Tools, "go", "")
 
 		harness.Context.Target = build.Target{OS: "darwin", Arch: "arm64"}
 
@@ -201,7 +215,7 @@ func TestPreflight(t *testing.T) {
 		harness := buildtest.New(t, component())
 
 		harness.Context.Env["PATH"] = t.TempDir()
-		writeTool(t, harness.Context.Dirs.Bin, "go", "")
+		writeTool(t, harness.Context.Dirs.Tools, "go", "")
 
 		preflighter, ok := validate(t, nil, false).(build.Preflighter)
 		require.True(t, ok)
@@ -220,7 +234,7 @@ func TestRunSelectsTheTarget(t *testing.T) {
 	facts := harness.Context
 	log := filepath.Join(facts.Dirs.State, "go")
 
-	writeTool(t, facts.Dirs.Bin, "go", `printf '%s\n' "$PWD" "$@" > "`+log+`.args"
+	writeTool(t, facts.Dirs.Tools, "go", `printf '%s\n' "$PWD" "$@" > "`+log+`.args"
 printf '%s\n' "$GOOS" "$GOARCH" "$CGO_ENABLED" "$CC" > "`+log+`.env"
 `)
 
@@ -239,7 +253,7 @@ printf '%s\n' "$GOOS" "$GOARCH" "$CGO_ENABLED" "$CC" > "`+log+`.env"
 	args, err := os.ReadFile(log + ".args")
 	require.NoError(t, err)
 	assert.Equal(t, cwd+"\nbuild\n-trimpath\n-o\n"+
-		filepath.Join(facts.Dirs.Output, "gateway")+"\n./cmd/gw\n", string(args))
+		filepath.Join(facts.Dirs.Programs, "gateway")+"\n./cmd/gw\n", string(args))
 
 	env, err := os.ReadFile(log + ".env")
 	require.NoError(t, err)
@@ -352,7 +366,7 @@ func TestBuildsAStaticProgram(t *testing.T) {
 		"package": "./cmd/gw", "name": "gateway",
 	}, false)))
 
-	program := filepath.Join(harness.Context.Dirs.Output, "gateway")
+	program := filepath.Join(harness.Context.Dirs.Programs, "gateway")
 	assert.Equal(t, "gw", runProgram(t, program))
 
 	interpreter, libraries := linkage(t, program)
@@ -375,7 +389,7 @@ func TestBuildsAStaticCgoProgram(t *testing.T) {
 		"package": "./cmd/gw", "cgo": true,
 	}, true)))
 
-	program := filepath.Join(harness.Context.Dirs.Output, "gw")
+	program := filepath.Join(harness.Context.Dirs.Programs, "gw")
 	assert.Equal(t, "gw 42", runProgram(t, program))
 
 	interpreter, libraries := linkage(t, program)
@@ -421,7 +435,7 @@ func TestCgoIsDynamicWithoutStatic(t *testing.T) {
 		"package": "./cmd/gw", "cgo": true,
 	}, false)))
 
-	interpreter, _ := linkage(t, filepath.Join(harness.Context.Dirs.Output, "gw"))
+	interpreter, _ := linkage(t, filepath.Join(harness.Context.Dirs.Programs, "gw"))
 	assert.NotEmpty(t, interpreter)
 }
 

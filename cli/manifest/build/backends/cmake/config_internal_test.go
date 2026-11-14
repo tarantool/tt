@@ -12,22 +12,40 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// module is a module component of the cmake backend.
+// module is a component of the cmake backend, of no kind.
 func module() build.Component {
 	return build.Component{
-		Name: "answer", Kind: build.KindModule, Path: "answer", Namespace: "demo", Package: "demo",
+		Name: "answer", Path: "answer", Namespace: "demo", Package: "demo", Expects: nil,
 	}
 }
 
-// program is an executable component of the cmake backend.
+// program is a component of the cmake backend of the deprecated
+// kind = "executable".
 func program() build.Component {
 	return build.Component{
-		Name: "tool", Kind: build.KindExecutable, Path: "tool", Namespace: "", Package: "demo",
+		Name: "tool", Path: "tool", Namespace: "demo", Package: "demo",
+		Expects: []build.Result{build.Program},
 	}
 }
 
-// block is a cmake build block with output and the fields of rest.
+// modules are the files of output, modules each.
+func modules(paths ...string) []build.OutputFile {
+	files := make([]build.OutputFile, 0, len(paths))
+	for _, path := range paths {
+		files = append(files, build.OutputFile{Path: path, To: build.Module})
+	}
+
+	return files
+}
+
+// block is a cmake build block with the modules output and the fields of
+// rest.
 func block(output []string, rest map[string]any) buildtest.Block {
+	return typedBlock(modules(output...), rest)
+}
+
+// typedBlock is a cmake build block with output and the fields of rest.
+func typedBlock(output []build.OutputFile, rest map[string]any) buildtest.Block {
 	return buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: output, Static: false},
 		Incremental: false,
@@ -41,7 +59,8 @@ func TestBackend(t *testing.T) {
 	backend := Backend()
 
 	assert.Equal(t, "cmake", backend.Name)
-	assert.Equal(t, []string{build.KindModule, build.KindExecutable}, backend.Kinds)
+	assert.Equal(t, build.Results(), backend.Produces)
+	assert.False(t, backend.NoSourceLayout)
 	assert.Equal(t, build.OutputBackend, backend.OutputFrom)
 	assert.False(t, backend.Incremental)
 	assert.False(t, backend.Hook)
@@ -55,28 +74,52 @@ func TestBackend(t *testing.T) {
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
-	for _, comp := range []build.Component{module(), program()} {
-		bld, err := buildtest.Validate(Backend(), comp, block(
-			[]string{"lib/answer.so", "bin/answer.so"},
-			map[string]any{
-				"variables":  map[string]any{"WITH_SASL": "OFF", "CMAKE_PREFIX_PATH:PATH": "/d"},
-				"targets":    []any{"answer", "ns.target+1"},
-				"build_type": "Debug",
-			}))
-		require.NoError(t, err, comp.Kind)
+	rest := map[string]any{
+		"variables":  map[string]any{"WITH_SASL": "OFF", "CMAKE_PREFIX_PATH:PATH": "/d"},
+		"targets":    []any{"answer", "ns.target+1"},
+		"build_type": "Debug",
+	}
+
+	tests := []struct {
+		component build.Component
+		output    []build.OutputFile
+		programs  []string
+		results   []build.Result
+	}{
+		{module(), []build.OutputFile{
+			{Path: "lib/answer.so", To: build.Module}, {Path: "bin/answer", To: build.Program},
+			{Path: "bin/answerctl", To: build.Program}, {Path: "answer", To: build.Program},
+			{Path: "answer.wasm", To: build.Data},
+		}, []string{"answer", "answerctl"}, build.Results()},
+		{program(), []build.OutputFile{
+			{Path: "lib/answer", To: build.Program}, {Path: "bin/answer", To: build.Program},
+		}, []string{"answer"}, []build.Result{build.Program}},
+	}
+
+	for _, test := range tests {
+		bld, err := buildtest.Validate(Backend(), test.component, typedBlock(test.output, rest))
+		require.NoError(t, err, test.component.Name)
 
 		namer, ok := bld.(build.ProgramNamer)
 		require.True(t, ok)
 
-		// The files output lists, by base name, each once: the build copies
-		// them so, and may not know them all.
+		// The programs output lists, by base name, each once: the build
+		// copies them so, and copies nothing else.
 		names, exhaustive := namer.Programs()
-		assert.Equal(t, []string{"answer.so"}, names)
-		assert.False(t, exhaustive)
+		assert.Equal(t, test.programs, names)
+		assert.True(t, exhaustive)
+
+		producer, ok := bld.(build.Producer)
+		require.True(t, ok)
+		assert.ElementsMatch(t, test.results, producer.Produces())
 
 		_, ok = bld.(build.Preflighter)
 		assert.True(t, ok)
 	}
+
+	// A module of output is not what kind = "executable" expects.
+	_, err := buildtest.Validate(Backend(), program(), block([]string{"answer.so"}, rest))
+	require.Error(t, err)
 }
 
 func TestValidateErrors(t *testing.T) {
@@ -139,7 +182,7 @@ func TestValidateErrors(t *testing.T) {
 			"make_target": "all",
 		}), "make_target", "unknown field"},
 		{"incremental", buildtest.Block{
-			Common:      build.Common{Cwd: "", Env: nil, Output: output, Static: false},
+			Common:      build.Common{Cwd: "", Env: nil, Output: modules(output...), Static: false},
 			Incremental: true,
 			Rest:        nil,
 		}, "incremental", `is not a field of backend "cmake"`},
@@ -175,7 +218,7 @@ func TestPreflightNamesTheMissingTool(t *testing.T) {
 	assert.Contains(t, err.Error(), `the cmake backend runs "cmake", which is not in PATH`)
 
 	// The tools of the project are in the PATH of the build.
-	tool := filepath.Join(harness.Context.Dirs.Bin, "cmake")
+	tool := filepath.Join(harness.Context.Dirs.Tools, "cmake")
 	require.NoError(t, os.WriteFile(tool, []byte("#!/bin/sh\n"), 0o700))
 
 	preflighter, ok := bld.(build.Preflighter)

@@ -245,9 +245,9 @@ func validateDependency(field string, dep Dependency) error {
 }
 
 func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
-	// programs maps a program an executable component builds to that
-	// component: two of them building one name would overwrite each other's
-	// file in .rocks/bin/.
+	// programs maps a program a component builds to that component: two of
+	// them building one name would overwrite each other's file in
+	// .rocks/bin/.
 	programs := map[string]string{}
 
 	var warnings []string
@@ -272,6 +272,11 @@ func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
 		err = validateKind(field, comp)
 		if err != nil {
 			return nil, err
+		}
+
+		if comp.Kind != "" {
+			warnings = append(warnings, fmt.Sprintf("%s.kind is deprecated: a component "+
+				"makes what its build makes; remove it", field))
 		}
 
 		if comp.Build == nil {
@@ -308,6 +313,11 @@ func (m *Manifest) validateComponentBuild(
 	field := "components." + name + ".build"
 	if comp.Build.Backend == "" {
 		return BuildCheck{}, nil, invalid(field, "backend is required")
+	}
+
+	err := validateOutput(field+".output", comp.Build.Output)
+	if err != nil {
+		return BuildCheck{}, nil, err
 	}
 
 	if checker == nil {
@@ -356,10 +366,32 @@ func (m *Manifest) checkBuild(
 	return check, warnings, err
 }
 
-// validateKind checks the kind of a component and what the kind rules out.
-// An executable component is made by its build alone: it lays no files out,
-// so include, exclude and namespace have nothing to act on, and without a
-// build it would make nothing.
+// validateOutput checks the entries of output, at field: each has a path,
+// and goes to lib, share or bin.
+func validateOutput(field string, output []OutputEntry) error {
+	for i, entry := range output {
+		entryField := fmt.Sprintf("%s[%d]", field, i)
+
+		switch entry.To {
+		case "", OutputToLib, OutputToShare, OutputToBin:
+		default:
+			return invalid(entryField+".to", "%q is not %s, %s or %s", entry.To,
+				OutputToLib, OutputToShare, OutputToBin)
+		}
+
+		if entry.Path == "" && entry.To != "" {
+			return invalid(entryField+".path", "is required")
+		}
+	}
+
+	return nil
+}
+
+// validateKind checks the deprecated kind of a component and what the kind
+// rules out. A component of kind = "executable" is made by its build alone:
+// it lays no files out, so include, exclude and namespace have nothing to
+// act on, and without a build it would make nothing. What its build makes
+// is checked against the kind by the checker and by the build.
 func validateKind(field string, comp Component) error {
 	switch comp.Kind {
 	case "", KindModule:
@@ -489,6 +521,11 @@ func (m *Manifest) validateHooks(checker BuildChecker) ([]string, error) {
 		// (applyHookDefaults).
 		field := "hooks." + name
 		hook := m.Hooks[name]
+
+		err := validateOutput(field+".output", hook.Output)
+		if err != nil {
+			return warnings, err
+		}
 
 		if checker != nil {
 			check, hookWarnings, err := m.checkBuild(checker, field, m.HookTarget(), hook)

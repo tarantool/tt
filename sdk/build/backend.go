@@ -6,15 +6,28 @@ import (
 	"fmt"
 )
 
-// Component kinds, as [components.<name>].kind names them.
+// Result is a type of what a build makes. Each type has a directory of the
+// build ([Dirs.Of]), which the rock of the package installs to its place in
+// the rocks tree. One build may make results of every type.
+type Result string
+
 const (
-	// KindModule is a component whose files are laid out under its
-	// namespace in the rocks tree: Lua sources and compiled modules.
-	KindModule = "module"
-	// KindExecutable is a component whose build makes programs, which go to
-	// the bin directory of the rocks tree.
-	KindExecutable = "executable"
+	// Module is a file Tarantool loads as a module, a compiled one mostly:
+	// it goes to [Dirs.Output], lib/<namespace> of the rock.
+	Module Result = "module"
+	// Data is a file Tarantool reads rather than loads, such as .wasm: it
+	// goes to [Dirs.Share], share/<namespace> of the rock, beside the Lua
+	// sources of the component.
+	Data Result = "data"
+	// Program is a program the instances of an application run as external
+	// processes: it goes to [Dirs.Programs], bin of the rock.
+	Program Result = "program"
 )
+
+// Results are the result types, in the order the core lists them in.
+func Results() []Result {
+	return []Result{Module, Data, Program}
+}
 
 // OutputFrom says where the files the output field of a build block lists
 // are taken from, and so whether a backend has the field at all.
@@ -22,17 +35,18 @@ type OutputFrom int
 
 const (
 	// OutputNone is a backend without the output field: it puts what it
-	// made into [Dirs.Output] itself, and a build block of it that lists
-	// output is refused.
+	// made into the directories of the Context itself, and a build block of
+	// it that lists output is refused.
 	OutputNone OutputFrom = iota
 	// OutputCwd has the core copy the files output lists, relative to the
-	// working directory of the build, into [Dirs.Output] after the build
-	// succeeded - and before an incremental build that was skipped is taken
-	// as built, since the stage may no longer hold them.
+	// working directory of the build, into the directory of the type of
+	// each ([OutputFile.To]) after the build succeeded - and before an
+	// incremental build that was skipped is taken as built, since the stage
+	// may no longer hold them.
 	OutputCwd
 	// OutputBackend leaves the files output lists to the backend: it reads
 	// them from [Common.Output] and copies them itself, from where it built
-	// them.
+	// them, into the directory of the type of each.
 	OutputBackend
 )
 
@@ -47,10 +61,10 @@ type Backend struct {
 	// lowercase letter, then lowercase letters, digits and dashes. No two
 	// backends of a tt have one name.
 	Name string
-	// Kinds are the kinds of the components the backend builds:
-	// [KindModule], [KindExecutable] or both. A component of another kind
-	// is refused.
-	Kinds []string
+	// Produces are the types of what the builds of the backend make, each
+	// once. A block that asks for another type is refused: a file of
+	// output whose to names it, a build that says it makes it ([Producer]).
+	Produces []Result
 	// Config returns a fresh, empty configuration: a pointer to a struct
 	// whose fields are the fields of the build block the backend has, named
 	// by their toml tags (the field name when there is none), each a
@@ -78,6 +92,12 @@ type Backend struct {
 	// never takes, whatever its include says: what the backend's tool
 	// leaves in the component's directory, such as target/ of cargo.
 	Exclude []string
+	// NoSourceLayout has the layout take no file of the component unless
+	// the include of the component names it: the default include, the Lua
+	// sources and the prebuilt modules, is off. For a backend whose sources
+	// are no files of the package, such as go, whose test fixtures would
+	// otherwise be laid out.
+	NoSourceLayout bool
 	// Hook lets a lifecycle hook ([hooks.pre_build], [hooks.post_build])
 	// name the backend; a hook may name no other. New checks the block of a
 	// hook too, given the zero Component, and the build runs in a Context
@@ -94,16 +114,22 @@ var ErrNoTool = errors.New("build tool not found")
 type Component struct {
 	// Name is the name of the component.
 	Name string
-	// Kind is the kind of the component: [KindModule] or [KindExecutable].
-	Kind string
 	// Path is the directory of the component, relative to the project.
 	Path string
-	// Namespace is the namespace the files of a module component are laid
-	// out under; empty is a flat layout, and an executable component has
-	// none.
+	// Namespace is the namespace the modules and the data files of the
+	// component go under; empty is a flat layout.
 	Namespace string
 	// Package is the name of the package of the component.
 	Package string
+	// Expects are the types of what the manifest says the build makes, for
+	// a manifest that says it: kind of manifest_version 0.1, deprecated,
+	// is [Program] for kind = "executable" and [Module] and [Data] for
+	// kind = "module". Nil when the manifest says nothing, as a manifest is
+	// to: the build makes what its block asks for. The core checks the
+	// build against them; a backend that picks what to build when its block
+	// does not say follows them - cargo builds the binary named after the
+	// component then.
+	Expects []Result
 }
 
 // Common are the fields every build block has, whatever its backend.
@@ -116,10 +142,24 @@ type Common struct {
 	Env map[string]string
 	// Output are the files the build makes, as output lists them; see
 	// [Backend.OutputFrom].
-	Output []string
+	Output []OutputFile
 	// Static asks for what the build makes to need nothing of the machine
 	// it is installed on. The core checks that it does, after the build.
 	Static bool
+}
+
+// OutputFile is a file of the output field of a build block.
+type OutputFile struct {
+	// Path is the file, as output names it: relative to the working
+	// directory of the build for [OutputCwd], to where the backend builds
+	// for [OutputBackend].
+	Path string
+	// To is the type of the file, which says where it goes, by its base
+	// name: [Module] for a plain string and to = "lib", [Data] for
+	// to = "share", [Program] for to = "bin". A plain string of a component
+	// of kind = "executable" (manifest_version 0.1, deprecated) is a
+	// [Program].
+	To Result
 }
 
 // FieldError is an error of a field of a build block. Field is the path of
@@ -151,10 +191,11 @@ func FieldErrorf(field, format string, a ...any) error {
 
 // Build is a checked build block, ready to run.
 type Build interface {
-	// Run builds the component of c: in [Dirs.Cwd], into [Dirs.Output]
-	// (and, as the backend needs, [Dirs.Share] and [Dirs.Bin]), keeping
-	// what it may reuse next time in [Dirs.Work]. The core takes as made
-	// what Run left in the directories it was given, and what output lists
+	// Run builds the component of c: in [Dirs.Cwd], each file it makes into
+	// the directory of its type - [Dirs.Output] for a module, [Dirs.Share]
+	// for data, [Dirs.Programs] for a program - keeping what it may reuse
+	// next time in [Dirs.Work]. The core takes as made what Run left in
+	// these directories, by their types, and what output lists
 	// ([Backend.OutputFrom]).
 	Run(ctx context.Context, c *Context) error
 }
@@ -168,11 +209,20 @@ type Preflighter interface {
 	Preflight(c *Context) error
 }
 
-// ProgramNamer is a Build of an executable component that names the
-// programs it makes. The core checks with them that no two components make
-// one program, and tells by them which component an instance runs. When
-// the list is exhaustive the core takes as made what the build names and
-// nothing else; otherwise it adds what the build wrote into [Dirs.Output].
+// Producer is a Build that says what its block asks it to make: the types
+// of the results it makes at least, each of them among
+// [Backend.Produces]. The core checks them against the kind of a
+// component of manifest_version 0.1 before anything is built. A Build that
+// is no Producer may make any type its backend produces.
+type Producer interface {
+	Produces() []Result
+}
+
+// ProgramNamer is a Build that names the programs it makes. The core
+// checks with them that no two components make one program, and tells by
+// them which component makes a program an instance runs. When the list is
+// exhaustive the core takes as programs what the build names and nothing
+// else; otherwise it adds what the build wrote into [Dirs.Programs].
 type ProgramNamer interface {
 	Programs() (names []string, exhaustive bool)
 }
