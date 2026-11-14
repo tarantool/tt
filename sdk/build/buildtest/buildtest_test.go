@@ -43,12 +43,22 @@ func (b touchBuild) Run(ctx context.Context, facts *build.Context) error {
 		`printf %s "$1" > "$TT_OUTPUT_DIR/$2"; echo done`, "sh", string(out), b.file))
 }
 
-// touch is a backend of module components.
+// programBuild is a build of touch that says it makes a program.
+type programBuild struct {
+	touchBuild
+}
+
+func (programBuild) Produces() []build.Result {
+	return []build.Result{build.Program}
+}
+
+// touch is a backend of modules, whose file "program" asks for a program
+// all the same. Its output lists the files the core copies.
 func touch() build.Backend {
 	return build.Backend{
-		Name:   "touch",
-		Kinds:  []string{build.KindModule},
-		Config: func() any { return new(touchConfig) },
+		Name:     "touch",
+		Produces: []build.Result{build.Module},
+		Config:   func() any { return new(touchConfig) },
 		New: func(cfg any, _ build.Component, _ build.Common) (build.Build, error) {
 			config, ok := cfg.(*touchConfig)
 			if !ok {
@@ -60,17 +70,23 @@ func touch() build.Backend {
 				return nil, build.FieldErrorf("", "file is required for backend %q", "touch")
 			}
 
+			if file == "program" {
+				return programBuild{touchBuild{file: file}}, nil
+			}
+
 			return touchBuild{file: file}, nil
 		},
-		Incremental: false,
-		OutputFrom:  build.OutputNone,
-		Exclude:     nil,
+		Incremental:    false,
+		OutputFrom:     build.OutputCwd,
+		Exclude:        nil,
+		NoSourceLayout: false,
+		Hook:           false,
 	}
 }
 
 func component() build.Component {
 	return build.Component{
-		Name: "native", Kind: build.KindModule, Path: "native", Namespace: "", Package: "",
+		Name: "native", Path: "native", Namespace: "", Package: "", Expects: nil,
 	}
 }
 
@@ -90,36 +106,64 @@ func TestValidateErrors(t *testing.T) {
 
 	executable := component()
 
-	executable.Kind = build.KindExecutable
+	executable.Expects = []build.Result{build.Program}
+
+	module := component()
+
+	module.Expects = []build.Result{build.Module, build.Data}
+
+	noOutput := touch()
+
+	noOutput.OutputFrom = build.OutputNone
+
+	programs := touch()
+
+	programs.Produces = []build.Result{build.Module, build.Program}
 
 	tests := []struct {
+		backend   build.Backend
 		name      string
 		component build.Component
 		block     buildtest.Block
 		field     string
 		msg       string
 	}{
-		{"a type", component(), buildtest.Block{Rest: map[string]any{"file": int64(1)}},
+		{touch(), "a type", component(), buildtest.Block{Rest: map[string]any{"file": int64(1)}},
 			"file", "must be a string, not an integer"},
-		{"an unknown field", component(), buildtest.Block{Rest: map[string]any{
+		{touch(), "an unknown field", component(), buildtest.Block{Rest: map[string]any{
 			"file": "a", "make_target": "all",
 		}}, "make_target", "unknown field"},
-		{"New", component(), buildtest.Block{}, "", `file is required for backend "touch"`},
-		{"output", component(), buildtest.Block{
-			Common: build.Common{Output: []string{"a"}}, Rest: map[string]any{"file": "a"},
+		{touch(), "New", component(), buildtest.Block{}, "",
+			`file is required for backend "touch"`},
+		{noOutput, "output", component(), buildtest.Block{
+			Common: build.Common{Output: []build.OutputFile{{Path: "a", To: build.Module}}},
+			Rest:   map[string]any{"file": "a"},
 		}, "output", `is not a field of backend "touch"`},
-		{"incremental", component(), buildtest.Block{
+		{touch(), "incremental", component(), buildtest.Block{
 			Incremental: true, Rest: map[string]any{"file": "a"},
 		}, "incremental", `is not a field of backend "touch"`},
-		{"a kind", executable, buildtest.Block{Rest: map[string]any{"file": "a"}},
-			"", `backend "touch" does not build a component of kind "executable"`},
+		{touch(), "the type of an output", component(), buildtest.Block{
+			Common: build.Common{Output: []build.OutputFile{
+				{Path: "a", To: build.Module}, {Path: "b", To: build.Program},
+			}},
+			Rest: map[string]any{"file": "a"},
+		}, "output[1].to", `backend "touch" makes no program`},
+		{touch(), "what the build makes", component(), buildtest.Block{
+			Rest: map[string]any{"file": "program"},
+		}, "", `backend "touch" makes no program, but the build says it does`},
+		{touch(), "what the component expects", executable, buildtest.Block{
+			Rest: map[string]any{"file": "a"},
+		}, "", `backend "touch" makes nothing the component expects`},
+		{programs, "what the build makes for the component", module, buildtest.Block{
+			Rest: map[string]any{"file": "program"},
+		}, "", `the build makes a program, which the component does not expect`},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := buildtest.Validate(touch(), test.component, test.block)
+			_, err := buildtest.Validate(test.backend, test.component, test.block)
 
 			var fieldErr *build.FieldError
 
@@ -165,7 +209,8 @@ func TestNewHook(t *testing.T) {
 	assert.Empty(t, facts.Dirs.Work)
 	assert.Empty(t, facts.Dirs.Component)
 	assert.Equal(t, facts.Dirs.Project, facts.Dirs.Cwd)
-	assert.DirExists(t, facts.Dirs.Bin)
+	assert.Empty(t, facts.Dirs.Programs)
+	assert.DirExists(t, facts.Dirs.Tools)
 
 	out, err := facts.Output(facts.Command(t.Context(), "sh", "-c",
 		`echo "${TT_PACKAGE}:${TT_OUTPUT_DIR-unset}:${TT_COMPONENT_NAME-unset}:`+
@@ -185,7 +230,9 @@ func TestHarness(t *testing.T) {
 	harness.Locked["sdk"] = "3.1.0"
 
 	assert.DirExists(t, harness.Context.Dirs.Component)
-	assert.DirExists(t, harness.Context.Dirs.Bin)
+	assert.DirExists(t, harness.Context.Dirs.Tools)
+	assert.DirExists(t, harness.Context.Dirs.Programs)
+	assert.NotEqual(t, harness.Context.Dirs.Tools, harness.Context.Dirs.Programs)
 	assert.Equal(t, harness.Context.Dirs.Component, harness.Context.Dirs.Cwd)
 	assert.Equal(t, "demo", harness.Context.Component.Package)
 
@@ -204,8 +251,13 @@ func TestHarnessBin(t *testing.T) {
 
 	facts := buildtest.New(t, component()).Context
 
-	tool := filepath.Join(facts.Dirs.Bin, "tool")
-	require.NoError(t, os.WriteFile(tool, []byte("#!/bin/sh\necho tool\n"), 0o700))
+	// The script is copied into place with no fork of the parallel tests
+	// in between, which would hold it open for writing (ETXTBSY).
+	script := filepath.Join(t.TempDir(), "tool")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho tool\n"), 0o700))
+
+	tool := filepath.Join(facts.Dirs.Tools, "tool")
+	require.NoError(t, build.CopyFile(tool, script))
 
 	path, err := facts.LookPath("tool")
 	require.NoError(t, err)

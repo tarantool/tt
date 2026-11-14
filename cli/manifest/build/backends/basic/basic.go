@@ -2,7 +2,8 @@
 // tool of the project's own - a Makefile, a command - rather than one tt
 // knows, and the two lifecycle hooks run with.
 //
-// Neither copies the files output lists: the core copies them from the
+// Either makes modules, data files and programs, as the files of output say
+// (build.OutputFile.To). Neither copies them: the core copies them from the
 // working directory of the build (build.OutputCwd). A target or a command
 // writes what else it makes into TT_OUTPUT_DIR itself.
 //
@@ -41,14 +42,15 @@ func Backends() []build.Backend {
 // <flags...>.
 func Make() build.Backend {
 	return build.Backend{
-		Name:        MakeName,
-		Kinds:       []string{build.KindModule, build.KindExecutable},
-		Config:      func() any { return new(MakeConfig) },
-		New:         newMake,
-		Incremental: true,
-		OutputFrom:  build.OutputCwd,
-		Exclude:     nil,
-		Hook:        true,
+		Name:           MakeName,
+		Produces:       build.Results(),
+		Config:         func() any { return new(MakeConfig) },
+		New:            newMake,
+		Incremental:    true,
+		OutputFrom:     build.OutputCwd,
+		Exclude:        nil,
+		NoSourceLayout: false,
+		Hook:           true,
 	}
 }
 
@@ -56,14 +58,15 @@ func Make() build.Backend {
 // no shell parsing - a pipeline needs a script of its own.
 func Shell() build.Backend {
 	return build.Backend{
-		Name:        ShellName,
-		Kinds:       []string{build.KindModule, build.KindExecutable},
-		Config:      func() any { return new(ShellConfig) },
-		New:         newShell,
-		Incremental: true,
-		OutputFrom:  build.OutputCwd,
-		Exclude:     nil,
-		Hook:        true,
+		Name:           ShellName,
+		Produces:       build.Results(),
+		Config:         func() any { return new(ShellConfig) },
+		New:            newShell,
+		Incremental:    true,
+		OutputFrom:     build.OutputCwd,
+		Exclude:        nil,
+		NoSourceLayout: false,
+		Hook:           true,
 	}
 }
 
@@ -97,7 +100,7 @@ func newMake(cfg any, _ build.Component, common build.Common) (build.Build, erro
 		return nil, build.FieldErrorf("", "make_target is required for backend %q", MakeName)
 	}
 
-	return makeBuild{config: *config, output: common.Output}, nil
+	return makeBuild{config: *config, outputs: common.Output}, nil
 }
 
 // newShell checks a shell build block.
@@ -111,24 +114,52 @@ func newShell(cfg any, _ build.Component, common build.Common) (build.Build, err
 		return nil, build.FieldErrorf("", "command is required for backend %q", ShellName)
 	}
 
-	return shellBuild{config: *config, output: common.Output}, nil
+	return shellBuild{config: *config, outputs: common.Output}, nil
+}
+
+// outputs are the files of the output of a make or shell build block: what
+// the build makes at least, besides what it writes into the directories of
+// the Context itself.
+type outputs []build.OutputFile
+
+// Produces names the types of the files of output.
+func (o outputs) Produces() []build.Result {
+	var results []build.Result
+
+	for _, file := range o {
+		if !slices.Contains(results, file.To) {
+			results = append(results, file.To)
+		}
+	}
+
+	return results
+}
+
+// Programs names the programs of output, by base name, which is what the
+// core copies them as. A target or a command may write others into the
+// directory of the programs.
+func (o outputs) Programs() ([]string, bool) {
+	var programs []string
+
+	for _, file := range o {
+		if file.To == build.Program {
+			programs = append(programs, file.Path)
+		}
+	}
+
+	return outputNames(programs), false
 }
 
 // makeBuild is a checked make build block.
 type makeBuild struct {
+	outputs
+
 	config MakeConfig
-	output []string
 }
 
 // Run runs make in the working directory of the build.
 func (b makeBuild) Run(ctx context.Context, c *build.Context) error {
 	return c.Run(c.Command(ctx, makeTool, makeArgs(b.config, c.Dirs.Cwd)...))
-}
-
-// Programs names the programs of an executable component: the files output
-// lists, by base name. A target may write others into TT_OUTPUT_DIR.
-func (b makeBuild) Programs() ([]string, bool) {
-	return outputNames(b.output), false
 }
 
 // makeArgs is the argv of make in cwd: -C <cwd> -f <entrypoint>
@@ -144,8 +175,9 @@ func makeArgs(config MakeConfig, cwd string) []string {
 
 // shellBuild is a checked shell build block.
 type shellBuild struct {
+	outputs
+
 	config ShellConfig
-	output []string
 }
 
 // Run runs the command in the working directory of the build.
@@ -153,14 +185,8 @@ func (b shellBuild) Run(ctx context.Context, c *build.Context) error {
 	return c.Run(c.Command(ctx, b.config.Command, b.config.Args...))
 }
 
-// Programs names the programs of an executable component: the files output
-// lists, by base name. The command may write others into TT_OUTPUT_DIR.
-func (b shellBuild) Programs() ([]string, bool) {
-	return outputNames(b.output), false
-}
-
-// outputNames returns the base names of the files output lists, each once,
-// in their order: what the core copies them into the output directory as.
+// outputNames returns the base names of the files of output, each once, in
+// their order: what the core copies them into their directory as.
 func outputNames(output []string) []string {
 	names := make([]string, 0, len(output))
 

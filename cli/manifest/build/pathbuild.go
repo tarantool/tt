@@ -41,8 +41,8 @@ type manifestBuilder interface {
 // package, at the version the lock pins, into the consumer's tree.
 //
 // What the build writes goes into the consumer's _build/path/<name>/ - the
-// stage, rock/<product>/, the records of the incremental and executable
-// components, the TT_BUILD_DIR of each component, the build tree of cmake in
+// stage, rock/<product>/, the records of the incremental components and of
+// what each component made, the TT_BUILD_DIR of each component, the build tree of cmake in
 // it, and the target directory of cargo - and not into the dependency's
 // directory, which may be another checkout, shared by other consumers. The
 // backends still run in the dependency's directory, which is their

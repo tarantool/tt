@@ -34,6 +34,19 @@ func TestModuleExt(t *testing.T) {
 	assert.Equal(t, ".dylib", build.Target{OS: "darwin", Arch: "arm64"}.ModuleExt())
 }
 
+func TestDirsOf(t *testing.T) {
+	t.Parallel()
+
+	//nolint:exhaustruct // Only the directories of the results matter.
+	dirs := build.Dirs{Output: "/stage/lib/app", Share: "/stage/lua/app", Programs: "/stage/bin"}
+
+	assert.Equal(t, []build.Result{build.Module, build.Data, build.Program}, build.Results())
+	assert.Equal(t, "/stage/lib/app", dirs.Of(build.Module))
+	assert.Equal(t, "/stage/lua/app", dirs.Of(build.Data))
+	assert.Equal(t, "/stage/bin", dirs.Of(build.Program))
+	assert.Empty(t, dirs.Of("executable"))
+}
+
 func TestSupportedOS(t *testing.T) {
 	t.Parallel()
 

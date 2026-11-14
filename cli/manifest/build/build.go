@@ -8,9 +8,10 @@
 // lock (resolve and rewrite unless --locked), materialize the pinned closure
 // into .rocks/, run each component's build backend, lay the component files out
 // under their install namespace, generate version.lua, install the package as
-// a rock of .rocks/, then run post_build. An executable component builds
-// programs into the bin directory of the package instead, and lays nothing
-// out; what it built is checked and recorded (see executables.go).
+// a rock of .rocks/, then run post_build. What a backend makes is typed by
+// where it goes - modules to lib/, data files to share/, programs to bin/ -
+// and one component may make all three; what it made is checked and recorded
+// by component and type (see results.go).
 //
 // The components are laid out in the package's stage, _build/rock/<product>/,
 // as an unpacked binary rock - lua/, lib/ and bin/ - which is then installed
@@ -161,12 +162,12 @@ type Result struct {
 	// package was installed from. A fetch run lays out nothing and reports
 	// none.
 	Stage string
-	// Executables maps every executable component of the manifest to the
-	// programs its build put into the bin directory of Tree, by file name:
+	// Programs maps every component of the manifest whose build made
+	// programs to those it put into the bin directory of Tree, by file name:
 	// the package's own files there, as against the console scripts of its
 	// dependencies. A component the run did not build is reported as its
 	// last build recorded it, if at all. A fetch run reports none.
-	Executables map[string][]string
+	Programs map[string][]string
 }
 
 // Run executes the build (or fetch) described by opts, discarding the result.
@@ -232,7 +233,7 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 // hook and no backend, so it needs no compiler and no headers of Tarantool:
 // tt package pack --format rock-src, whose source rock holds the files of the
 // project and no build output, packs from it. The result has no Tree, Stage
-// or Executables.
+// or Programs.
 func Prepare(ctx context.Context, opts Options) (*Result, error) {
 	man, err := readManifest(opts.ProjectDir, opts)
 	if err != nil {
@@ -281,7 +282,7 @@ func Prepare(ctx context.Context, opts Options) (*Result, error) {
 
 	return &Result{
 		Manifest: man, Lock: lock, Version: ver, Product: productName,
-		Tree: "", Stage: "", Executables: nil,
+		Tree: "", Stage: "", Programs: nil,
 	}, nil
 }
 
@@ -480,13 +481,13 @@ func runBuild(
 	}
 
 	return &Result{
-		Manifest:    man,
-		Lock:        lock,
-		Version:     ver,
-		Product:     productName,
-		Tree:        tree,
-		Stage:       stage,
-		Executables: programs,
+		Manifest: man,
+		Lock:     lock,
+		Version:  ver,
+		Product:  productName,
+		Tree:     tree,
+		Stage:    stage,
+		Programs: programs,
 	}, nil
 }
 
@@ -502,7 +503,7 @@ type project struct {
 	// their inputs.
 	dir string
 	// stateDir is the directory of the build's own state: the records of the
-	// incremental components and of the programs of the executable ones.
+	// incremental components and of what each component made.
 	stateDir string
 	// man is the manifest of the project.
 	man *manifest.Manifest
@@ -537,8 +538,9 @@ func (proj project) versionLuaNamespace() string {
 // buildComponents runs the component steps of a build of proj into stage:
 // the backends of components (runBackends), their layout (layoutComponents),
 // the check of the laid-out wasm files and version.lua. Then it removes from
-// the stage what no component put there (settleStage). It returns the record
-// of the programs of the executable components, as runBackends does.
+// the stage what no component put there (settleStage). It returns the
+// programs of the components that made any, from the record runBackends
+// returns.
 func buildComponents(
 	ctx context.Context, opts Options, proj project, adapter *rocks.Adapter,
 	stage string, components []string, ver version.Version,
@@ -548,11 +550,13 @@ func buildComponents(
 		return nil, err
 	}
 
-	programs, written, err := newBuilder(opts, proj, adapter, stage, ver).runBackends(ctx,
+	results, written, err := newBuilder(opts, proj, adapter, stage, ver).runBackends(ctx,
 		components, last)
 	if err != nil {
 		return nil, err
 	}
+
+	programs := programsOf(results)
 
 	laidOut, err := layoutComponents(proj.dir, stage, proj.man, components, opts.backends())
 	if err != nil {
@@ -602,11 +606,12 @@ func buildComponents(
 
 // layoutComponents lays every selected component out under its namespace in
 // the package's stage and returns the destination paths each one wrote, for
-// the version.lua collision check and the record of the stage. An executable
-// component has nothing to lay out: its build placed its programs already,
-// and the default include would otherwise copy the Lua of, say, a test
-// fixture of its sources into the package's namespace. The layout of a
-// component leaves out what its backend excludes (layoutExclude).
+// the version.lua collision check and the record of the stage. A component
+// whose sources are no files of the package has nothing to lay out but what
+// its include names, and one of kind = "executable" nothing at all
+// (sourceLayout): the default include would otherwise copy the Lua of, say,
+// a test fixture of the sources of a Go program into the package's
+// namespace. The layout of a component leaves out what its backend excludes.
 func layoutComponents(
 	projectDir, stage string, man *manifest.Manifest, components []string,
 	backends *buildreg.Registry,
@@ -615,14 +620,16 @@ func layoutComponents(
 
 	for _, name := range components {
 		component := man.Components[name]
-		if component.IsExecutable() {
+
+		lays, exclude := sourceLayout(backends, component)
+		if !lays {
 			continue
 		}
 
 		compAbsPath := resolveDir(projectDir, component.Path)
 
 		written, err := layoutComponent(stage, man.Package.Name, component, compAbsPath,
-			layoutExclude(backends, component))
+			exclude)
 		if err != nil {
 			return nil, err
 		}

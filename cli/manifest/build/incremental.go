@@ -31,19 +31,23 @@ const (
 // skipped build needs to be there.
 type incrementalRecord struct {
 	Inputs string `json:"inputs"`
-	// Written is what the build wrote into TT_OUTPUT_DIR, relative to it: a
-	// module's files under its namespace, an executable component's programs.
+	// Written is what the build wrote into its output directory
+	// (sdkbuild.Dirs.Output), relative to it: the modules under its
+	// namespace.
 	Written []string `json:"written,omitempty"`
-	// Shared is what the build of a module wrote into its share directory
+	// Shared is what the build wrote into its share directory
 	// (sdkbuild.Dirs.Share), relative to it.
 	Shared []string `json:"shared,omitempty"`
+	// Programs are the programs the build put into the bin directory
+	// (sdkbuild.Dirs.Programs), by name.
+	Programs []string `json:"programs,omitempty"`
 	// LaidOut is the files of the component the layout takes, relative to it.
 	LaidOut []string `json:"laid_out,omitempty"`
 }
 
-// made is what the build of a module the record is of wrote.
+// made is what the build the record is of made.
 func (r incrementalRecord) made() madeFiles {
-	return madeFiles{output: r.Written, share: r.Shared}
+	return madeFiles{Modules: r.Written, Data: r.Shared, Programs: r.Programs}
 }
 
 // incrementalState is what skipUnchanged found of an incremental component:

@@ -31,7 +31,7 @@ var (
 )
 
 // checkWasmFiles checks the .wasm files among the files the components laid
-// out, as the build of an executable component checks its programs: a file
+// out, as the build checks the programs a component makes: a file
 // that is no WebAssembly binary, an output a build mistook for one, fails the
 // build. A core module is laid out with a warning: tarantool-wasm loads
 // components only, but another loader may well want a module.

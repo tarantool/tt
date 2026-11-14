@@ -147,7 +147,7 @@ func TestRun_cmakeComponents(t *testing.T) {
 	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", module))
 	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "answer.lua"))
 	assert.FileExists(t, filepath.Join(tree, "bin", "hello"))
-	assert.Equal(t, []string{"hello"}, result.Executables["hello"])
+	assert.Equal(t, []string{"hello"}, result.Programs["hello"])
 
 	for _, component := range []string{"native", "hello"} {
 		assert.FileExists(t, filepath.Join(dir, "_build", "component", component,

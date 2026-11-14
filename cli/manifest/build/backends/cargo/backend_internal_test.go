@@ -18,23 +18,35 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// A build of cargo names its programs and checks what it needs first.
+// A build of cargo says what it makes, names its programs and checks what it
+// needs first.
 var (
+	_ build.Producer     = cargoBuild{}
 	_ build.ProgramNamer = cargoBuild{}
 	_ build.Preflighter  = cargoBuild{}
 )
 
-// program is the executable component agent, in the directory agent.
+// program is the component agent, in the directory agent, of the deprecated
+// kind = "executable": it expects programs only.
 func program() build.Component {
 	return build.Component{
-		Name: "agent", Kind: build.KindExecutable, Path: "agent", Namespace: "", Package: "",
+		Name: "agent", Path: "agent", Namespace: "", Package: "",
+		Expects: []build.Result{build.Program},
 	}
 }
 
-// module is the module component lib, in the directory lib.
+// module is the component lib, in the directory lib, of no kind.
 func module() build.Component {
 	return build.Component{
-		Name: "lib", Kind: build.KindModule, Path: "lib", Namespace: "demo", Package: "",
+		Name: "lib", Path: "lib", Namespace: "demo", Package: "", Expects: nil,
+	}
+}
+
+// both is the component both, in the directory both, of no kind, whose
+// crate has a library and a binary.
+func both() build.Component {
+	return build.Component{
+		Name: "both", Path: "both", Namespace: "demo", Package: "", Expects: nil,
 	}
 }
 
@@ -104,20 +116,67 @@ func TestValidate(t *testing.T) {
 	names, exhaustive := bld.Programs()
 	assert.Equal(t, []string{"agent-bin"}, names)
 	assert.True(t, exhaustive)
+	assert.Equal(t, []build.Result{build.Program}, bld.Produces())
 
 	bld = validate(t, module(), map[string]any{"module": "fast"}, false)
 	assert.Equal(t, cargoBuild{
 		config: Config{Module: "fast", Package: "", Bin: "", Features: nil, Profile: ""},
-		bin:    "lib", module: true, static: false,
+		bin:    "", module: true, static: false,
 	}, bld)
+	assert.Equal(t, []build.Result{build.Module}, bld.Produces())
+
+	names, exhaustive = bld.Programs()
+	assert.Empty(t, names)
+	assert.True(t, exhaustive)
 }
 
-func TestProgramsDefaultToTheComponent(t *testing.T) {
+// TestWhatTheBlockBuilds checks that the fields of the block say what the
+// build makes: module the module, bin the binary, both of them both, and
+// neither the library under its own name - or, for a component of the
+// deprecated kind = "executable", the binary named after the component.
+func TestWhatTheBlockBuilds(t *testing.T) {
 	t.Parallel()
 
-	names, exhaustive := validate(t, program(), nil, false).Programs()
-	assert.Equal(t, []string{"agent"}, names)
-	assert.True(t, exhaustive)
+	tests := []struct {
+		name      string
+		component build.Component
+		rest      map[string]any
+		module    bool
+		programs  []string
+	}{
+		{"neither", module(), nil, true, nil},
+		{"module", module(), map[string]any{"module": "fast"}, true, nil},
+		{"bin", module(), map[string]any{"bin": "fastctl"}, false, []string{"fastctl"}},
+		{"both", module(), map[string]any{"module": "fast", "bin": "fastctl"}, true,
+			[]string{"fastctl"}},
+		{"neither of kind = executable", program(), nil, false, []string{"agent"}},
+		{"bin of kind = executable", program(), map[string]any{"bin": "agentd"}, false,
+			[]string{"agentd"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			bld := validate(t, test.component, test.rest, false)
+			assert.Equal(t, test.module, bld.module)
+
+			names, _ := bld.Programs()
+			assert.Equal(t, test.programs, names)
+
+			var results []build.Result
+
+			if test.module {
+				results = append(results, build.Module)
+			}
+
+			if test.programs != nil {
+				results = append(results, build.Program)
+			}
+
+			assert.Equal(t, results, bld.Produces())
+		})
+	}
 }
 
 func TestValidateErrors(t *testing.T) {
@@ -144,12 +203,8 @@ func TestValidateErrors(t *testing.T) {
 			"features", `"" is not a feature name`},
 		{"a profile with a space", program(), map[string]any{"profile": "my dist"},
 			"profile", `"my dist" is not a profile name`},
-		{"module on a program", program(), map[string]any{"module": "a"},
-			"module", `names the library of a module component; kind "executable" ` +
-				"builds the binary bin"},
-		{"bin on a module", module(), map[string]any{"bin": "a"},
-			"bin", "names the binary of an executable component; a module component " +
-				"builds the library of the package, named by module"},
+		{"module of kind = executable", program(), map[string]any{"module": "a"},
+			"", "the build makes a module, which the component does not expect"},
 		{"a bin of a number", program(), map[string]any{"bin": int64(1)},
 			"bin", "must be a string, not an integer"},
 		{"features of a string", program(), map[string]any{"features": "tls"},
@@ -182,7 +237,8 @@ func TestBackend(t *testing.T) {
 	backend := Backend()
 
 	assert.Equal(t, Name, backend.Name)
-	assert.Equal(t, []string{build.KindModule, build.KindExecutable}, backend.Kinds)
+	assert.Equal(t, []build.Result{build.Module, build.Program}, backend.Produces)
+	assert.False(t, backend.NoSourceLayout)
 	assert.Equal(t, build.OutputNone, backend.OutputFrom)
 	assert.Equal(t, []string{"/target/"}, backend.Exclude)
 	assert.False(t, backend.Incremental)
@@ -202,7 +258,7 @@ func TestPreflight(t *testing.T) {
 		t.Parallel()
 
 		harness := buildtest.New(t, program())
-		writeTool(t, harness.Context.Dirs.Bin, "")
+		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = darwin
 
@@ -217,7 +273,7 @@ func TestPreflight(t *testing.T) {
 		t.Parallel()
 
 		harness := buildtest.New(t, module())
-		writeTool(t, harness.Context.Dirs.Bin, "")
+		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = darwin
 
@@ -229,7 +285,7 @@ func TestPreflight(t *testing.T) {
 		t.Parallel()
 
 		harness := buildtest.New(t, program())
-		writeTool(t, harness.Context.Dirs.Bin, "")
+		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = build.Target{OS: "linux", Arch: "s390x"}
 
@@ -255,16 +311,17 @@ func TestPreflight(t *testing.T) {
 		harness := buildtest.New(t, program())
 
 		harness.Context.Env["PATH"] = t.TempDir()
-		writeTool(t, harness.Context.Dirs.Bin, "")
+		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		require.NoError(t,
 			validate(t, program(), nil, false).Preflight(harness.Context))
 	})
 }
 
-// fakeCargo writes a cargo into the bin directory of harness that records
+// fakeCargo writes a cargo into the tools directory of harness that records
 // its working directory, its arguments and the target directory it was
-// given, at <state>/cargo.args and <state>/cargo.env, makes a binary agent
+// given, at <state>/cargo.args and <state>/cargo.env, and the arguments of
+// every run, one run a line, at <state>/cargo.runs, makes a binary agent
 // and a library agent_lib in the target directory, and reports both as
 // cargo does, among a line of a build script; it fails when FAKE_FAIL is
 // set.
@@ -273,8 +330,9 @@ func fakeCargo(t *testing.T, harness *buildtest.Harness) string {
 
 	log := filepath.Join(harness.Context.Dirs.State, "cargo")
 
-	writeTool(t, harness.Context.Dirs.Bin, `[ -n "$FAKE_FAIL" ] && exit 1
+	writeTool(t, harness.Context.Dirs.Tools, `[ -n "$FAKE_FAIL" ] && exit 1
 printf '%s\n' "$PWD" "$@" > "`+log+`.args"
+printf '%s\n' "$*" >> "`+log+`.runs"
 printf '%s\n' "${CARGO_TARGET_DIR-unset}" > "`+log+`.env"
 dir=${CARGO_TARGET_DIR:-$CARGO_BUILD_TARGET_DIR}
 mkdir -p "$dir"
@@ -303,7 +361,7 @@ func readLines(t *testing.T, path string) []string {
 
 // TestRunCopiesTheBinary: cargo build of the binary is run in the working
 // directory, in the target directory of the project, and the binary it
-// reports is copied into the output directory under its bin name.
+// reports is copied into the directory of the programs under its bin name.
 func TestRunCopiesTheBinary(t *testing.T) {
 	t.Parallel()
 
@@ -326,11 +384,50 @@ func TestRunCopiesTheBinary(t *testing.T) {
 	targetDir := filepath.Join(facts.Dirs.State, targetDirName)
 	assert.Equal(t, []string{targetDir}, readLines(t, log+".env"))
 
-	data, err := os.ReadFile(filepath.Join(facts.Dirs.Output, "agent"))
+	data, err := os.ReadFile(filepath.Join(facts.Dirs.Programs, "agent"))
 	require.NoError(t, err)
 	assert.Equal(t, "bin\n", string(data))
+	assert.NoFileExists(t, filepath.Join(facts.Dirs.Output, "agent"))
 
 	assert.Equal(t, "compiling\n", harness.Printed(), "stdout is read, not shown")
+}
+
+// TestRunCopiesTheLibraryAndTheBinary: a block that names module and bin
+// builds the library, into the directory of the modules, then the binary,
+// into that of the programs; a static one builds the binary alone for musl.
+func TestRunCopiesTheLibraryAndTheBinary(t *testing.T) {
+	t.Parallel()
+
+	for _, static := range []bool{false, true} {
+		harness := buildtest.New(t, both())
+		facts := harness.Context
+		log := fakeCargo(t, harness)
+
+		noTargetDir(harness)
+
+		require.NoError(t, harness.Run(t.Context(), validate(t, both(),
+			map[string]any{"module": "agent_mod", "bin": "agent", "profile": "dev"}, static)))
+
+		ext := facts.Target.ModuleExt()
+
+		assert.FileExists(t, filepath.Join(facts.Dirs.Output, "agent_mod"+ext))
+		assert.FileExists(t, filepath.Join(facts.Dirs.Programs, "agent"))
+		assert.NoFileExists(t, filepath.Join(facts.Dirs.Programs, "agent_mod"+ext))
+		assert.NoFileExists(t, filepath.Join(facts.Dirs.Output, "agent"))
+
+		runs := readLines(t, log+".runs")
+		require.Len(t, runs, 2)
+		assert.True(t, strings.HasPrefix(runs[0], "rustc --lib --crate-type cdylib"), runs[0])
+		assert.NotContains(t, runs[0], "--target")
+		assert.True(t, strings.HasPrefix(runs[1], "build --profile dev --bin agent"), runs[1])
+
+		arch, ok := cargoArches[runtime.GOARCH]
+		if static && runtime.GOOS == "linux" && ok {
+			assert.Contains(t, runs[1], "--target "+arch+"-unknown-linux-musl")
+		} else {
+			assert.NotContains(t, runs[1], "--target")
+		}
+	}
 }
 
 // TestRunCopiesTheLibrary: the library of a module component is copied
@@ -489,20 +586,16 @@ func crateHarness(t *testing.T, component build.Component) *buildtest.Harness {
 
 	noTargetDir(harness)
 
-	if component.Kind == build.KindExecutable {
-		writeFiles(t, harness.Context.Dirs.Component, map[string]string{
-			"Cargo.toml": "[package]\nname = \"agent-crate\"\nversion = \"0.1.0\"\n" +
-				"edition = \"2021\"\n\n[[bin]]\nname = \"agent\"\npath = \"src/main.rs\"\n\n" +
-				"[dependencies]\n",
-			"src/main.rs": "fn main() { println!(\"agent\"); }\n",
-		})
-
-		return harness
+	binary := map[string]string{
+		"Cargo.toml": "[package]\nname = \"agent-crate\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[[bin]]\nname = \"agent\"\npath = \"src/main.rs\"\n\n" +
+			"[dependencies]\n",
+		"src/main.rs": "fn main() { println!(\"agent\"); }\n",
 	}
 
 	// A library that is a Lua module: require of it returns 42. Its symbol
 	// of Lua is left for Tarantool to resolve when it loads the module.
-	writeFiles(t, harness.Context.Dirs.Component, map[string]string{
+	library := map[string]string{
 		"Cargo.toml": "[package]\nname = \"agent-lib\"\nversion = \"0.1.0\"\n" +
 			"edition = \"2021\"\n\n[dependencies]\n",
 		"src/lib.rs": "use std::os::raw::{c_int, c_void};\n\n" +
@@ -512,7 +605,23 @@ func crateHarness(t *testing.T, component build.Component) *buildtest.Harness {
 			"    lua_pushinteger(l, 42);\n    1\n}\n\n" +
 			"#[no_mangle]\npub unsafe extern \"C\" fn luaopen_agent(l: *mut c_void) -> c_int {\n" +
 			"    lua_pushinteger(l, 43);\n    1\n}\n",
-	})
+	}
+
+	switch component.Name {
+	case program().Name:
+		writeFiles(t, harness.Context.Dirs.Component, binary)
+	case both().Name:
+		// One crate of both: the library and the binary agent.
+		writeFiles(t, harness.Context.Dirs.Component, library)
+		writeFiles(t, harness.Context.Dirs.Component, map[string]string{
+			"Cargo.toml": "[package]\nname = \"agent-lib\"\nversion = \"0.1.0\"\n" +
+				"edition = \"2021\"\n\n[[bin]]\nname = \"agent\"\npath = \"src/main.rs\"\n\n" +
+				"[dependencies]\n",
+			"src/main.rs": binary["src/main.rs"],
+		})
+	default:
+		writeFiles(t, harness.Context.Dirs.Component, library)
+	}
 
 	return harness
 }
@@ -564,7 +673,29 @@ func TestBuildsTheBinary(t *testing.T) {
 
 	require.NoError(t, harness.Run(t.Context(), validate(t, program(),
 		map[string]any{"profile": "dev"}, false)))
-	assert.Equal(t, "agent", runProgram(t, filepath.Join(harness.Context.Dirs.Output, "agent")))
+	assert.Equal(t, "agent", runProgram(t, filepath.Join(harness.Context.Dirs.Programs, "agent")))
+}
+
+// TestBuildsAModuleAndABinary builds one crate of a library and a binary
+// with one block, which names both: the module Tarantool loads and the
+// program it runs.
+func TestBuildsAModuleAndABinary(t *testing.T) {
+	t.Parallel()
+	requireCargo(t, "")
+
+	harness := crateHarness(t, both())
+	dirs := harness.Context.Dirs
+	ext := harness.Context.Target.ModuleExt()
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, both(),
+		map[string]any{"profile": "dev", "module": "agent_lib", "bin": "agent"}, false)))
+
+	library := filepath.Join(dirs.Output, "agent_lib"+ext)
+	assert.FileExists(t, library)
+	assert.Equal(t, "agent", runProgram(t, filepath.Join(dirs.Programs, "agent")))
+	assert.NoFileExists(t, filepath.Join(dirs.Output, "agent"))
+	assert.NoDirExists(t, filepath.Join(dirs.Component, "target"))
+	assert.Equal(t, "42", requireModule(t, library, "agent_lib"))
 }
 
 func TestBuildsAModule(t *testing.T) {
@@ -605,7 +736,7 @@ func TestBuildsAStaticBinary(t *testing.T) {
 
 	require.NoError(t, harness.Run(t.Context(), validate(t, program(), nil, true)))
 
-	path := filepath.Join(harness.Context.Dirs.Output, "agent")
+	path := filepath.Join(harness.Context.Dirs.Programs, "agent")
 	assert.Equal(t, "agent", runProgram(t, path))
 
 	// A static-pie program has a dynamic segment of its own, and is still
@@ -635,16 +766,16 @@ func TestBuildsInTheTargetDir(t *testing.T) {
 		harness := crateHarness(t, component)
 		facts := harness.Context
 
-		file := "agent"
-		if component.Kind == build.KindModule {
-			file = "agent_lib" + facts.Target.ModuleExt()
+		file := filepath.Join(facts.Dirs.Programs, "agent")
+		if component.Expects == nil {
+			file = filepath.Join(facts.Dirs.Output, "agent_lib"+facts.Target.ModuleExt())
 		}
 
 		for range 2 {
-			require.NoError(t, os.RemoveAll(facts.Dirs.Output))
+			require.NoError(t, os.RemoveAll(filepath.Dir(file)))
 			require.NoError(t, harness.Run(t.Context(), validate(t, component,
 				map[string]any{"profile": "dev"}, false)))
-			assert.FileExists(t, filepath.Join(facts.Dirs.Output, file))
+			assert.FileExists(t, file)
 			assert.NoDirExists(t, filepath.Join(facts.Dirs.Component, "target"))
 			assert.DirExists(t, filepath.Join(facts.Dirs.State, targetDirName, "debug"))
 		}

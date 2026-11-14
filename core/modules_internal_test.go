@@ -52,9 +52,9 @@ func TestModuleTable(t *testing.T) {
 // testBackend is a backend a module of the tests provides.
 func testBackend(name string) sdkbuild.Backend {
 	return sdkbuild.Backend{
-		Name:   name,
-		Kinds:  []string{sdkbuild.KindModule},
-		Config: func() any { return new(struct{}) },
+		Name:     name,
+		Produces: []sdkbuild.Result{sdkbuild.Module},
+		Config:   func() any { return new(struct{}) },
 		New: func(any, sdkbuild.Component, sdkbuild.Common) (sdkbuild.Build, error) {
 			return nil, nil
 		},

@@ -1,11 +1,16 @@
-"""End-to-end coverage of the executable components of a manifest.
+"""End-to-end coverage of the components of a manifest that build programs.
 
-A component with kind = "executable" builds the external process of an
+A component whose build makes a program builds the external process of an
 application from its sources: tt package build puts the program into
 .rocks/bin/, tt package pack carries it in a --without-deps archive, and the
 record gw: {binary: gw} of an instance description runs it from .rocks/bin/
 of the project or of the installed version. tt instance start builds
 nothing, and says so when the program is missing.
+
+The go component says no kind, as a component is to: its build makes a
+program. The cargo component says kind = "executable", deprecated but still
+accepted in manifest_version 0.1, which builds the binary named after the
+component.
 
 The applications here have external processes only: nothing starts a
 Tarantool instance or binds a port.
@@ -44,8 +49,7 @@ tt = '>=3.1.0'
 
 [components.{name}]
 path = '{name}'
-kind = 'executable'
-
+{kind}
 [components.{name}.build]
 {build}
 """
@@ -102,7 +106,7 @@ def make_go_project(root: Path) -> Path:
     (root / "gw" / "go.mod").write_text("module example.com/gw\n\ngo 1.22\n")
     (root / "gw" / "main.go").write_text(GO_MAIN)
     (root / "app.manifest.toml").write_text(
-        MANIFEST.format(name="gw", build="backend = 'go'"),
+        MANIFEST.format(name="gw", kind="", build="backend = 'go'"),
     )
     return finish_project(root, "gw")
 
@@ -116,7 +120,11 @@ def make_cargo_project(root: Path) -> Path:
     )
     (root / "agent" / "src" / "main.rs").write_text(RUST_MAIN)
     (root / "app.manifest.toml").write_text(
-        MANIFEST.format(name="agent", build="backend = 'cargo'\nprofile = 'dev'\nstatic = true"),
+        MANIFEST.format(
+            name="agent",
+            kind="kind = 'executable'\n",
+            build="backend = 'cargo'\nprofile = 'dev'\nstatic = true",
+        ),
     )
     return finish_project(root, "agent")
 
@@ -238,7 +246,7 @@ def test_start_without_build_tells_to_build(tt_cmd, tmp_path):
             assert result.returncode != 0, result.stdout
             output = result.stdout + result.stderr
             assert f'"gw" is neither in {project / ".rocks" / "bin"} nor in PATH' in output
-            assert 'the executable component "gw" of the project builds it' in output
+            assert 'the component "gw" of the project builds it' in output
             assert "run tt package build" in output
     finally:
         kill_instances(root)

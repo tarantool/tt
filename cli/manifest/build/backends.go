@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
@@ -69,17 +68,18 @@ type componentRun struct {
 	backend   sdkbuild.Backend
 	build     sdkbuild.Build
 	context   *sdkbuild.Context
-}
-
-// executable reports whether the component builds programs.
-func (r componentRun) executable() bool {
-	return r.component.IsExecutable()
+	// outputs are the files of the output of its block, each with its type.
+	outputs []sdkbuild.OutputFile
 }
 
 // component returns the run of the component name, which has a build block:
 // its backend checks the block again (buildreg.Registry.Build), as Validate
 // did, and the run gets its Context. A block of a backend the registry does
 // not have is buildreg.ErrNoBackend.
+//
+// TT_OUTPUT_DIR is the directory of the modules, but for a component of
+// kind = "executable" (manifest_version 0.1, deprecated), whose build was
+// told to put its programs there: it is the directory of the programs then.
 func (b builder) component(name string) (componentRun, error) {
 	component := b.proj.man.Components[name]
 	target := b.proj.man.ComponentTarget(name)
@@ -97,21 +97,29 @@ func (b builder) component(name string) (componentRun, error) {
 		Work:      componentBuildDir(b.proj.stateDir, name),
 		Output:    componentOutputDir(b.stage, target.Namespace),
 		Share:     componentShareDir(b.stage, target.Namespace),
+		Programs:  filepath.Join(b.stage, rocktree.StageBin),
 		State:     b.proj.stateDir,
-		Bin:       ProjectBinDir(b.proj.dir),
+		Tools:     ProjectBinDir(b.proj.dir),
 		Tree:      filepath.Join(b.opts.ProjectDir, rocksDirName),
 	}
 
-	if component.IsExecutable() {
-		dirs.Output = filepath.Join(b.stage, rocktree.StageBin)
-		dirs.Share = ""
+	outputDir := dirs.Output
+	if component.ProgramsOnly() {
+		outputDir = dirs.Programs
+	}
+
+	outputs := make([]sdkbuild.OutputFile, 0, len(component.Build.Output))
+	for _, entry := range component.Build.Output {
+		outputs = append(outputs, sdkbuild.OutputFile{
+			Path: entry.Path, To: buildreg.OutputType(entry, component.Kind),
+		})
 	}
 
 	env := environment{
 		block:       component.Build.Env,
 		projectRoot: b.proj.dir,
 		contract: contract{
-			outputDir:   dirs.Output,
+			outputDir:   outputDir,
 			component:   name,
 			buildDir:    dirs.Work,
 			projectRoot: b.proj.dir,
@@ -125,8 +133,8 @@ func (b builder) component(name string) (componentRun, error) {
 
 	facts := sdkbuild.Context{
 		Component: sdkbuild.Component{
-			Name: name, Kind: target.Kind, Path: target.Path, Namespace: target.Namespace,
-			Package: target.Package,
+			Name: name, Path: target.Path, Namespace: target.Namespace,
+			Package: target.Package, Expects: buildreg.Expects(target.Kind),
 		},
 		Target:    b.target,
 		Dirs:      dirs,
@@ -143,7 +151,7 @@ func (b builder) component(name string) (componentRun, error) {
 
 	return componentRun{
 		name: name, component: component, backend: backend, build: bld,
-		context: sdkbuild.NewContext(facts, b.host(env, dirs.Cwd)),
+		context: sdkbuild.NewContext(facts, b.host(env, dirs.Cwd)), outputs: outputs,
 	}, nil
 }
 
@@ -158,8 +166,9 @@ func (b builder) hookContext(hook manifest.Hook) *sdkbuild.Context {
 		Work:      "",
 		Output:    "",
 		Share:     "",
+		Programs:  "",
 		State:     b.proj.stateDir,
-		Bin:       ProjectBinDir(b.proj.dir),
+		Tools:     ProjectBinDir(b.proj.dir),
 		Tree:      filepath.Join(b.opts.ProjectDir, rocksDirName),
 	}
 
@@ -180,7 +189,7 @@ func (b builder) hookContext(hook manifest.Hook) *sdkbuild.Context {
 	}
 
 	facts := sdkbuild.Context{
-		Component: sdkbuild.Component{Name: "", Kind: "", Path: "", Namespace: "", Package: ""},
+		Component: sdkbuild.Component{Name: "", Path: "", Namespace: "", Package: "", Expects: nil},
 		Target:    b.target,
 		Dirs:      dirs,
 		Tarantool: b.tarantool,
@@ -244,56 +253,22 @@ func (b builder) preflight(components []string) error {
 	return nil
 }
 
-// madeFiles are what the build of a module component made: the files it
-// wrote into its output directory and into its share directory, each
-// relative to its directory.
-type madeFiles struct {
-	output []string
-	share  []string
-}
-
-// paths are the files of made, absolute in dirs.
-func (made madeFiles) paths(dirs sdkbuild.Dirs) []string {
-	return append(joinDir(dirs.Output, made.output), joinDir(dirs.Share, made.share)...)
-}
-
-// join is made and other, each file once.
-func (made madeFiles) join(other madeFiles) madeFiles {
-	return madeFiles{
-		output: slices.Concat(made.output, other.output),
-		share:  slices.Concat(made.share, other.share),
-	}
-}
-
-// madeIn is what of paths, absolute files of the stage, is in the output and
-// the share directories of dirs.
-func madeIn(dirs sdkbuild.Dirs, paths []string) madeFiles {
-	made := madeFiles{output: inDir(dirs.Output, paths), share: nil}
-
-	if dirs.Share != "" {
-		made.share = inDir(dirs.Share, paths)
-	}
-
-	return made
-}
-
 // runBackends runs the build backend of every selected component that declares
-// one, in the product's component order, placing artifacts in the component's
-// lib namespace directory of the package's stage (and its share directory),
-// or, for an executable component, in its bin directory. A backend failure
-// is exit code 2.
+// one, in the product's component order, each file it makes going to the
+// directory of the package's stage of its type: the component's lib
+// namespace directory, its share directory, the bin directory. A backend
+// failure is exit code 2.
 //
-// It returns the record of the programs in the bin directory each executable
-// component built, those of the components not built this time as an
-// earlier build recorded them, and, for each component it built or skipped,
-// the absolute paths of the files of the stage the backend left there: what
-// a module component wrote into its output and share directories
-// (runModule), with what last, the record of the stage, says it wrote there
-// before and is still there, and the programs of an executable one.
+// It returns the record of what each component built, by type, those of the
+// components not built this time as an earlier build recorded them, and,
+// for each component it built or skipped, the absolute paths of the files of
+// the stage the backend left there (runComponent). What an earlier build of
+// a component made and is still there counts as made: what the record says,
+// and what last, the record of the stage, says it wrote there.
 func (b builder) runBackends(
 	ctx context.Context, components []string, last stageRecord,
-) (map[string][]string, map[string][]string, error) {
-	programs := readExecutables(b.proj.stateDir, b.opts.Warn)
+) (map[string]madeFiles, map[string][]string, error) {
+	results := readResults(b.proj.stateDir, b.opts.Warn)
 	written := map[string][]string{}
 	built := false
 
@@ -314,60 +289,45 @@ func (b builder) runBackends(
 			return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 		}
 
-		if run.executable() {
-			programs[name], err = b.runExecutable(ctx, run, programs[name])
-			if err != nil {
-				return nil, nil, err
-			}
+		recorded := results[name].join(madeIn(dirs, joinDir(b.stage,
+			last.Components[name].Written)))
 
-			written[name] = joinDir(dirs.Output, programs[name])
-			built = true
-
-			continue
-		}
-
-		recorded := madeIn(dirs, joinDir(b.stage, last.Components[name].Written))
-
-		made, err := b.runModule(ctx, run, recorded)
+		made, err := b.runComponent(ctx, run, recorded)
 		if err != nil {
 			return nil, nil, err
 		}
 
+		results[name] = made
 		written[name] = made.paths(dirs)
+		built = true
 	}
 
 	if !built {
-		return keepExecutable(b.proj.man, programs), written, nil
+		return keepDeclared(b.proj.man, results), written, nil
 	}
 
-	programs, err := writeExecutables(b.proj.stateDir, b.proj.man, programs)
+	results, err := writeResults(b.proj.stateDir, b.proj.man, results)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return programs, written, nil
+	return results, written, nil
 }
 
-// runModule runs the build of a module component and returns what it
-// wrote into its output and share directories (runWritingBackend); recorded
-// is what an earlier build of it wrote there. An incremental one is skipped
-// when its inputs are those of its last build and what that build left is
-// still there (see skipUnchanged), and then wrote what that build did; its
-// build records what it wrote and the files of the component the layout
-// takes. Those are the files of a static one the build checks
+// runComponent runs the build of a component and returns what it made, by
+// type (runWritingBackend); recorded is what an earlier build of it made.
+// What it made is checked (checkMade). An incremental one is skipped when its
+// inputs are those of its last build and what that build left is still there
+// (see skipUnchanged), and then made what that build did; its build records
+// what it made and the files of the component the layout takes. Those, and
+// the modules it made, are the files of a static one the build checks
 // (checkStaticModule), before the record is written: a module that fails the
 // check is built again.
-func (b builder) runModule(
+func (b builder) runComponent(
 	ctx context.Context, run componentRun, recorded madeFiles,
 ) (madeFiles, error) {
 	incremental := run.component.Build.IncrementalValue()
 	static := run.component.Build.StaticValue()
-
-	if !incremental && !static {
-		return runWritingBackend(ctx, run, recorded)
-	}
-
-	compAbsPath := run.context.Dirs.Component
 
 	var state incrementalState
 
@@ -387,19 +347,30 @@ func (b builder) runModule(
 		}
 	}
 
-	written, err := runWritingBackend(ctx, run, recorded.join(state.last.made()))
-	if err != nil {
-		return madeFiles{}, err
+	made, err := runWritingBackend(ctx, run, recorded.join(state.last.made()))
+	if err == nil {
+		err = checkMade(run, b.stage, made)
 	}
 
-	laidOut, err := laidOutFiles(run.component, compAbsPath, run.backend.Exclude)
-	if err != nil {
-		return madeFiles{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
+	if err != nil || !incremental && !static {
+		return made, err
+	}
+
+	compAbsPath := run.context.Dirs.Component
+
+	var laidOut []string
+
+	if laysOut(run.component, run.backend) {
+		laidOut, err = laidOutFiles(run.component, compAbsPath, run.backend.Exclude)
+		if err != nil {
+			return madeFiles{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
+				run.name, err)
+		}
 	}
 
 	if static {
 		err = checkStaticModule(b.opts, run.name, moduleFiles(run.context.Dirs.Output,
-			written.output, compAbsPath, laidOut))
+			made.Modules, compAbsPath, laidOut))
 		if err != nil {
 			return madeFiles{}, err
 		}
@@ -407,10 +378,11 @@ func (b builder) runModule(
 
 	if incremental {
 		err = writeIncremental(b.proj.stateDir, run.name, incrementalRecord{
-			Inputs:  state.inputs,
-			Written: written.output,
-			Shared:  written.share,
-			LaidOut: laidOut,
+			Inputs:   state.inputs,
+			Written:  made.Modules,
+			Shared:   made.Data,
+			Programs: made.Programs,
+			LaidOut:  laidOut,
 		})
 		if err != nil {
 			return madeFiles{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name,
@@ -418,14 +390,15 @@ func (b builder) runModule(
 		}
 	}
 
-	return written, nil
+	return made, nil
 }
 
-// runWritingBackend runs the backend of a module component and returns what
-// it wrote into its output and share directories, relative to each
-// (writtenFiles): the files it created or changed, and those of recorded,
-// which an earlier build wrote, that are still there - a make target that is
-// up to date writes nothing.
+// runWritingBackend runs the backend of a component and returns what it
+// made, by type: what it wrote into its output and share directories,
+// relative to each (writtenFiles) - the files it created or changed, and
+// those of recorded, which an earlier build wrote, that are still there, as
+// a make target that is up to date writes nothing - and the programs it put
+// into the bin directory (madePrograms).
 func runWritingBackend(ctx context.Context, run componentRun, recorded madeFiles) (
 	madeFiles, error,
 ) {
@@ -450,6 +423,11 @@ func runWritingBackend(ctx context.Context, run componentRun, recorded madeFiles
 		return madeFiles{}, err
 	}
 
+	programsBefore, err := stampDir(dirs.Programs)
+	if err != nil {
+		return madeFiles{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
+	}
+
 	err = runComponentBackend(ctx, run)
 	if err != nil {
 		return madeFiles{}, err
@@ -460,64 +438,32 @@ func runWritingBackend(ctx context.Context, run componentRun, recorded madeFiles
 		return madeFiles{}, err
 	}
 
+	programs, err := madePrograms(run, programsBefore, recorded.Programs)
+	if err != nil {
+		return madeFiles{}, err
+	}
+
 	return madeFiles{
-		output: writtenFiles(outputBefore, outputAfter, recorded.output),
-		share:  writtenFiles(shareBefore, shareAfter, recorded.share),
+		Modules:  writtenFiles(outputBefore, outputAfter, recorded.Modules),
+		Data:     writtenFiles(shareBefore, shareAfter, recorded.Data),
+		Programs: programs,
 	}, nil
 }
 
-// runExecutable builds an executable component (see buildExecutable) and
-// returns its programs. An incremental one is skipped as a module component
-// is, its programs being what it wrote into its output directory, and keeps
-// the programs its last build recorded.
-func (b builder) runExecutable(
-	ctx context.Context, run componentRun, recorded []string,
-) ([]string, error) {
-	if !run.component.Build.IncrementalValue() {
-		return buildExecutable(ctx, run, recorded)
-	}
-
-	state, skipped, err := b.skipUnchanged(run)
-	if err != nil {
-		return nil, err
-	}
-
-	if skipped {
-		return state.last.Written, nil
-	}
-
-	programs, err := buildExecutable(ctx, run, recorded)
-	if err != nil {
-		return nil, err
-	}
-
-	err = writeIncremental(b.proj.stateDir, run.name, incrementalRecord{
-		Inputs:  state.inputs,
-		Written: programs,
-		Shared:  nil,
-		LaidOut: nil,
-	})
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
-	}
-
-	return programs, nil
-}
-
-// runComponentBackend runs the build of a component: it creates the output
-// and share directories, runs the build and, for a backend whose output the
-// core copies (sdkbuild.OutputCwd), copies the files output lists from the
-// working directory into the output directory.
+// runComponentBackend runs the build of a component: it creates the output,
+// share and programs directories, runs the build and, for a backend whose
+// output the core copies (sdkbuild.OutputCwd), copies the files output lists
+// from the working directory into the directories of their types.
 func runComponentBackend(ctx context.Context, run componentRun) error {
 	dirs := run.context.Dirs
 
-	err := makeDirs(dirs.Output, dirs.Share)
+	err := makeDirs(dirs.Output, dirs.Share, dirs.Programs)
 	if err == nil {
 		err = run.build.Run(ctx, run.context)
 	}
 
 	if err == nil && run.backend.OutputFrom == sdkbuild.OutputCwd {
-		err = copyOutputs(dirs.Output, dirs.Cwd, run.component.Build.Output)
+		err = copyOutputs(dirs, dirs.Cwd, run.outputs)
 	}
 
 	if err != nil {
@@ -543,28 +489,39 @@ func makeDirs(dirs ...string) error {
 	return nil
 }
 
-// copyOutputs copies each file output lists from cwd into outputDir,
-// flattened to its base name (matching how the loader looks up
-// <namespace>/<name>). A listed file that does not exist after the build is
-// an error: the build claimed an output it did not make.
-func copyOutputs(outputDir, cwd string, outputs []string) error {
+// copyOutputs copies each file of outputs from cwd into the directory of
+// dirs of its type, flattened to its base name (matching how the loader
+// looks up <namespace>/<name>, and tt instance a program in .rocks/bin/). A
+// listed file that does not exist after the build is an error: the build
+// claimed an output it did not make.
+func copyOutputs(dirs sdkbuild.Dirs, cwd string, outputs []sdkbuild.OutputFile) error {
 	for _, entry := range outputs {
-		err := sdkbuild.CopyFile(filepath.Join(outputDir, filepath.Base(entry)),
-			filepath.Join(cwd, entry))
+		err := sdkbuild.CopyFile(filepath.Join(dirs.Of(entry.To), filepath.Base(entry.Path)),
+			filepath.Join(cwd, entry.Path))
 		if err != nil {
-			return fmt.Errorf("copy declared output %q: %w", entry, err)
+			return fmt.Errorf("copy declared output %q: %w", entry.Path, err)
 		}
 	}
 
 	return nil
 }
 
+// outputPaths returns the paths of the files of outputs.
+func outputPaths(outputs []sdkbuild.OutputFile) []string {
+	paths := make([]string, 0, len(outputs))
+	for _, entry := range outputs {
+		paths = append(paths, entry.Path)
+	}
+
+	return paths
+}
+
 // skipUnchanged hashes the inputs of an incremental component and reports
 // whether its build can be skipped: they are those of its last build, and
 // what that build left is still there - the files its output lists, the
-// files of the component the layout took and the files it wrote into its
-// output and share directories. The files output lists are copied into the
-// output directory before the last are looked for, as the build itself
+// files of the component the layout took and the files it made into its
+// output, share and programs directories. The files output lists are copied
+// into their directories before the last are looked for, as the build itself
 // copies them (sdkbuild.OutputCwd): the tree may have been cleared since.
 func (b builder) skipUnchanged(run componentRun) (incrementalState, bool, error) {
 	var state incrementalState
@@ -584,24 +541,25 @@ func (b builder) skipUnchanged(run componentRun) (incrementalState, bool, error)
 		state.last = last
 	}
 
-	var outputs []string
+	var outputs []sdkbuild.OutputFile
 
 	if run.backend.OutputFrom == sdkbuild.OutputCwd {
-		outputs = run.component.Build.Output
+		outputs = run.outputs
 	}
 
 	if b.opts.Rebuild || !found || last.Inputs != inputs ||
-		!allPresent(dirs.Cwd, outputs) || !allPresent(dirs.Component, last.LaidOut) {
+		!allPresent(dirs.Cwd, outputPaths(outputs)) || !allPresent(dirs.Component, last.LaidOut) {
 		return state, false, nil
 	}
 
-	err = copyOutputs(dirs.Output, dirs.Cwd, outputs)
+	err = copyOutputs(dirs, dirs.Cwd, outputs)
 	if err != nil {
 		return state, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name,
 			err)
 	}
 
-	if !allPresent(dirs.Output, last.Written) || !allPresent(dirs.Share, last.Shared) {
+	if !allPresent(dirs.Output, last.Written) || !allPresent(dirs.Share, last.Shared) ||
+		!allPresent(dirs.Programs, last.Programs) {
 		return state, false, nil
 	}
 
@@ -668,17 +626,32 @@ func (b builder) runHook(ctx context.Context, name string) error {
 	return nil
 }
 
-// layoutExclude returns the patterns of the files of component its backend
-// has the layout leave out (sdkbuild.Backend.Exclude), as backends has it.
-func layoutExclude(backends *buildreg.Registry, component manifest.Component) []string {
-	if component.Build == nil {
-		return nil
+// sourceLayout reports whether the files of component are laid out, and
+// returns the patterns of those its backend has the layout leave out
+// (sdkbuild.Backend.Exclude), as backends has it (laysOut).
+func sourceLayout(backends *buildreg.Registry, component manifest.Component) (bool, []string) {
+	var backend sdkbuild.Backend
+
+	if component.Build != nil {
+		backend, _, _ = backends.Backend(component.Build.Backend)
 	}
 
-	backend, _, ok := backends.Backend(component.Build.Backend)
-	if !ok {
-		return nil
-	}
+	return laysOut(component, backend), backend.Exclude
+}
 
-	return backend.Exclude
+// laysOut reports whether the files of component, built by backend, are laid
+// out: not for a component of kind = "executable" (manifest_version 0.1,
+// deprecated), which says its build makes everything it has, and not for a
+// backend whose sources are no files of the package
+// (sdkbuild.Backend.NoSourceLayout) but those the include of the component
+// names.
+func laysOut(component manifest.Component, backend sdkbuild.Backend) bool {
+	switch {
+	case component.ProgramsOnly():
+		return false
+	case backend.NoSourceLayout:
+		return len(component.Include) > 0
+	default:
+		return true
+	}
 }

@@ -23,14 +23,15 @@ type BuildChecker interface {
 type BuildTarget struct {
 	// Component is the name of the component; empty for a hook.
 	Component string
-	// Kind is the kind of the component, KindModule for one that names
-	// none; empty for a hook.
+	// Kind is the deprecated kind of the component, KindModule or
+	// KindExecutable, which the checker checks the build against; empty for
+	// a component that says none, as it is to, and for a hook.
 	Kind string
 	// Path is the directory of the component, as the manifest gives it.
 	Path string
-	// Namespace is the namespace the files of a module component are laid
-	// out under (Component.EffectiveNamespace); empty for a flat layout, an
-	// executable component and a hook.
+	// Namespace is the namespace the modules and the data files of the
+	// component go under (Component.EffectiveNamespace); empty for a flat
+	// layout and a hook.
 	Namespace string
 	// Package is the name of the package.
 	Package string
@@ -45,32 +46,20 @@ type BuildCheck struct {
 	// Unknown are the fields of the block no backend has, by their path
 	// from the block, in the order they are reported in.
 	Unknown []string
-	// Programs are the names of the programs the build of an executable
-	// component puts into .rocks/bin/, as far as its block tells them; a
-	// build may make others its block does not name. Nil for a module
-	// component and a hook.
+	// Programs are the names of the programs the build of a component puts
+	// into .rocks/bin/, as far as its block tells them; a build may make
+	// others its block does not name. Nil for a hook.
 	Programs []string
 }
 
 // ComponentTarget returns what the build block of the component name builds,
-// as a BuildChecker is told it: the kind is KindModule for a component that
-// names none, and an executable component has no namespace.
+// as a BuildChecker is told it.
 func (m *Manifest) ComponentTarget(name string) BuildTarget {
 	comp := m.Components[name]
 
-	kind := comp.Kind
-	if kind == "" {
-		kind = KindModule
-	}
-
-	namespace := comp.EffectiveNamespace(m.Package.Name)
-	if comp.IsExecutable() {
-		namespace = ""
-	}
-
 	return BuildTarget{
-		Component: name, Kind: kind, Path: comp.Path, Namespace: namespace,
-		Package: m.Package.Name, Hook: false,
+		Component: name, Kind: comp.Kind, Path: comp.Path,
+		Namespace: comp.EffectiveNamespace(m.Package.Name), Package: m.Package.Name, Hook: false,
 	}
 }
 

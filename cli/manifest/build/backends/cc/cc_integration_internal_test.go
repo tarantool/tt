@@ -20,7 +20,7 @@ import (
 func hostHarness(t *testing.T, includeDir string, sources map[string]string) *buildtest.Harness {
 	t.Helper()
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 
 	harness.Context.Toolchain.IncludeDir = includeDir
 
@@ -40,7 +40,7 @@ func hostBuild(
 ) {
 	t.Helper()
 
-	bld, err := buildtest.Validate(backend, component(build.KindModule), block(rest, nil))
+	bld, err := buildtest.Validate(backend, component(), block(rest, nil))
 	require.NoError(t, err)
 
 	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
@@ -90,7 +90,7 @@ func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
 		"module": "warn", "sources": []any{"warn.c"}, "cflags": []any{"-Wall", "-Werror"},
 	}
 
-	bld, err := buildtest.Validate(C(), component(build.KindModule), block(rest, nil))
+	bld, err := buildtest.Validate(C(), component(), block(rest, nil))
 	require.NoError(t, err)
 
 	t.Setenv("CFLAGS", "")

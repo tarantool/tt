@@ -21,10 +21,19 @@
 // runs ([Context.Command], [Context.Run], [Context.Output]), with the
 // environment tt builds every component in. A Build may be a [Preflighter],
 // which the core asks before any component is built, so that a missing tool
-// fails the build before the first long compile; a [ProgramNamer], which
-// names the programs an executable component makes; an [InputHasher], which
-// adds to what an incremental build is skipped by. A backend copies what its
-// tool built into the directories of the Context with [CopyFile].
+// fails the build before the first long compile; a [Producer], which says
+// what types of results its block asks for; a [ProgramNamer], which names
+// the programs it makes; an [InputHasher], which adds to what an incremental
+// build is skipped by.
+//
+// What a build makes is typed ([Result]) by the directory it goes to: a
+// module into [Dirs.Output], data into [Dirs.Share], a program into
+// [Dirs.Programs]. One build may make all three, and a backend says which
+// types its builds make ([Backend.Produces]). A backend copies what its
+// tool built into these directories with [CopyFile]. The files of the
+// component - its Lua sources, by default - are laid out by the core, which
+// a backend whose sources are no files of the package switches off
+// ([Backend.NoSourceLayout]).
 //
 // A backend whose [Backend.Hook] is set runs lifecycle hooks too: the core
 // checks the block of a hook as it checks a build block, New given the zero

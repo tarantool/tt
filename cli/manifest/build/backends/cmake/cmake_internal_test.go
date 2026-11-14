@@ -131,9 +131,7 @@ func TestJobs(t *testing.T) {
 
 	// The level the env of the build sets is in the environment of its
 	// commands, which is where the backend reads it.
-	harness := buildtest.New(t, build.Component{
-		Name: "m", Kind: build.KindModule, Path: "m", Namespace: "", Package: "",
-	})
+	harness := buildtest.New(t, component())
 
 	harness.Context.Env[parallelLevel] = "2"
 
@@ -199,9 +197,9 @@ func TestStaleTree(t *testing.T) {
 	})
 }
 
-// component is a component of kind.
-func component(kind string) build.Component {
-	return build.Component{Name: "m", Kind: kind, Path: "m", Namespace: "", Package: ""}
+// component is the component m, of no kind.
+func component() build.Component {
+	return build.Component{Name: "m", Path: "m", Namespace: "", Package: "", Expects: nil}
 }
 
 func TestCopyOutputs(t *testing.T) {
@@ -210,13 +208,13 @@ func TestCopyOutputs(t *testing.T) {
 	t.Run("names every missing file", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component(build.KindModule))
+		harness := buildtest.New(t, component())
 		tree := harness.Context.Dirs.Work
 
 		writeFiles(t, tree, map[string]string{"lib/m.so": "so"})
 		require.NoError(t, os.MkdirAll(filepath.Join(tree, "dir"), 0o750))
 
-		bld := cmakeBuild{output: []string{"lib/m.so", "m2.so", "dir"}, module: true}
+		bld := cmakeBuild{output: modules("lib/m.so", "m2.so", "dir")}
 
 		err := bld.copyOutputs(harness.Context)
 		require.ErrorIs(t, err, errMissingOutput)
@@ -228,30 +226,41 @@ func TestCopyOutputs(t *testing.T) {
 	tests := []struct {
 		name string
 		goos string
-		kind string
+		to   build.Result
 		want string
 	}{
-		{"a module on linux", "linux", build.KindModule, "m.so"},
-		{"a module on macOS", darwinOS, build.KindModule, "m.dylib"},
-		{"a program on macOS", darwinOS, build.KindExecutable, "m.so"},
+		{"a module on linux", "linux", build.Module, "m.so"},
+		{"a module on macOS", darwinOS, build.Module, "m.dylib"},
+		{"a program on macOS", darwinOS, build.Program, "m.so"},
+		{"a data file on macOS", darwinOS, build.Data, "m.so"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			harness := buildtest.New(t, component(tt.kind))
+			harness := buildtest.New(t, component())
 
 			harness.Context.Target.OS = tt.goos
 			writeFiles(t, harness.Context.Dirs.Work, map[string]string{"lib/m.so": "so"})
 
-			bld := cmakeBuild{output: []string{"lib/m.so"}, module: tt.kind == build.KindModule}
+			bld := cmakeBuild{output: []build.OutputFile{{Path: "lib/m.so", To: tt.to}}}
 			require.NoError(t, bld.copyOutputs(harness.Context))
 
-			entries, err := os.ReadDir(harness.Context.Dirs.Output)
-			require.NoError(t, err)
-			require.Len(t, entries, 1)
-			assert.Equal(t, tt.want, entries[0].Name())
+			// The file is in the directory of its type, and in no other.
+			for _, result := range build.Results() {
+				entries, err := os.ReadDir(harness.Context.Dirs.Of(result))
+				require.NoError(t, err)
+
+				if result != tt.to {
+					assert.Empty(t, entries, result)
+
+					continue
+				}
+
+				require.Len(t, entries, 1)
+				assert.Equal(t, tt.want, entries[0].Name())
+			}
 		})
 	}
 }
@@ -305,7 +314,7 @@ func answerHarness(t *testing.T) *buildtest.Harness {
 	t.Helper()
 
 	harness := buildtest.New(t, build.Component{
-		Name: "answer", Kind: build.KindModule, Path: "answer", Namespace: "demo", Package: "",
+		Name: "answer", Path: "answer", Namespace: "demo", Package: "", Expects: nil,
 	})
 
 	prefix := t.TempDir()
@@ -336,9 +345,9 @@ func answerBuild(t *testing.T, output string, targets ...any) build.Build {
 	}
 
 	bld, err := buildtest.Validate(Backend(), build.Component{
-		Name: "answer", Kind: build.KindModule, Path: "answer", Namespace: "demo", Package: "",
+		Name: "answer", Path: "answer", Namespace: "demo", Package: "", Expects: nil,
 	}, buildtest.Block{
-		Common:      build.Common{Cwd: "", Env: nil, Output: []string{output}, Static: false},
+		Common:      build.Common{Cwd: "", Env: nil, Output: modules(output), Static: false},
 		Incremental: false,
 		Rest:        rest,
 	})

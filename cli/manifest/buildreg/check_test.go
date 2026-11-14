@@ -46,7 +46,8 @@ type zigBuild struct {
 
 func (zigBuild) Run(context.Context, *build.Context) error { return nil }
 
-// zig is a backend of a module: of both kinds, incremental, with no output.
+// zig is a backend of a module: of modules and programs, incremental, with
+// no output.
 func zig() build.Backend {
 	zigger := backend("zig")
 
@@ -82,7 +83,7 @@ func registry(t *testing.T) *buildreg.Registry {
 	tool := backend("wasm-tool")
 
 	tool.Config = func() any { return new(struct{}) }
-	tool.Kinds = []string{build.KindExecutable}
+	tool.Produces = []build.Result{build.Program}
 	tool.Incremental = false
 	tool.OutputFrom = build.OutputCwd
 
@@ -91,12 +92,21 @@ func registry(t *testing.T) *buildreg.Registry {
 	return registry
 }
 
-// moduleTarget is a module component a of the package demo.
+// moduleTarget is a component a of the package demo, of no kind, as a
+// component is.
 func moduleTarget() manifest.BuildTarget {
 	return manifest.BuildTarget{
-		Component: "a", Kind: manifest.KindModule, Path: "a", Namespace: "demo",
-		Package: "demo", Hook: false,
+		Component: "a", Kind: "", Path: "a", Namespace: "demo", Package: "demo", Hook: false,
 	}
+}
+
+// kindTarget is moduleTarget of the deprecated kind.
+func kindTarget(kind string) manifest.BuildTarget {
+	target := moduleTarget()
+
+	target.Kind = kind
+
+	return target
 }
 
 func TestCheckBuild(t *testing.T) {
@@ -118,8 +128,9 @@ type namedBuild struct {
 
 func (b namedBuild) Programs() ([]string, bool) { return b.programs, true }
 
-// TestCheckBuildPrograms checks that the programs of an executable component
-// are those its build names, and that a module component has none.
+// TestCheckBuildPrograms checks that the programs of a component are those
+// its build names, whatever the kind of the component, and that a build
+// that names none has none.
 func TestCheckBuildPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -132,18 +143,80 @@ func TestCheckBuildPrograms(t *testing.T) {
 
 	require.NoError(t, registry.Add("zig", []build.Backend{named}, nil))
 
-	program := moduleTarget()
+	for _, target := range []manifest.BuildTarget{
+		moduleTarget(), kindTarget(manifest.KindExecutable),
+	} {
+		check, err := registry.CheckBuild("components.a.build", target,
+			manifest.Build{Backend: "zig"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"gw", "gwctl"}, check.Programs)
+	}
 
-	program.Kind = manifest.KindExecutable
-
-	check, err := registry.CheckBuild("components.a.build", program, manifest.Build{Backend: "zig"})
+	check, err := registry.CheckBuild("components.a.build", moduleTarget(),
+		manifest.Build{Backend: "make", Rest: map[string]any{"make_target": "all"}})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"gw", "gwctl"}, check.Programs)
+	assert.Empty(t, check.Programs)
 
-	check, err = registry.CheckBuild("components.a.build", moduleTarget(),
-		manifest.Build{Backend: "zig"})
+	check, err = registry.CheckBuild("components.a.build", moduleTarget(), manifest.Build{
+		Backend: "make", Rest: map[string]any{"make_target": "all"},
+		Output: []manifest.OutputEntry{
+			{Path: "out/a.so", To: ""}, {Path: "out/gw", To: manifest.OutputToBin},
+		},
+	})
 	require.NoError(t, err)
-	assert.Nil(t, check.Programs)
+	assert.Equal(t, []string{"gw"}, check.Programs)
+}
+
+// TestCheckBuildExpects checks what a backend is told the component expects
+// of its build: nothing for a component of no kind, as a component is, and
+// what the deprecated kind says otherwise; and the types of the files of
+// output by the kind.
+func TestCheckBuildExpects(t *testing.T) {
+	t.Parallel()
+
+	var told []build.Component
+
+	registry := buildreg.Core()
+	expecting := zig()
+
+	expecting.New = func(_ any, component build.Component, common build.Common) (
+		build.Build, error,
+	) {
+		told = append(told, component)
+
+		return zigBuild{steps: nil}, nil
+	}
+
+	require.NoError(t, registry.Add("zig", []build.Backend{expecting}, nil))
+
+	for _, target := range []manifest.BuildTarget{
+		moduleTarget(), kindTarget(manifest.KindModule), kindTarget(manifest.KindExecutable),
+	} {
+		_, err := registry.CheckBuild("components.a.build", target, manifest.Build{Backend: "zig"})
+		require.NoError(t, err)
+	}
+
+	require.Len(t, told, 3)
+	assert.Nil(t, told[0].Expects)
+	assert.Equal(t, []build.Result{build.Module, build.Data}, told[1].Expects)
+	assert.Equal(t, []build.Result{build.Program}, told[2].Expects)
+
+	entries := []manifest.OutputEntry{
+		{Path: "a", To: ""}, {Path: "a", To: manifest.OutputToLib},
+		{Path: "a", To: manifest.OutputToShare}, {Path: "a", To: manifest.OutputToBin},
+	}
+
+	types := make([]build.Result, 0, len(entries))
+	programs := make([]build.Result, 0, len(entries))
+
+	for _, entry := range entries {
+		types = append(types, buildreg.OutputType(entry, ""))
+		programs = append(programs, buildreg.OutputType(entry, manifest.KindExecutable))
+	}
+
+	assert.Equal(t, []build.Result{build.Module, build.Module, build.Data, build.Program}, types)
+	assert.Equal(t, []build.Result{build.Program, build.Module, build.Data, build.Program},
+		programs)
 }
 
 // TestBuild checks that the registry returns the backend of a block and the
@@ -211,10 +284,8 @@ func TestCheckBuildUnknownFields(t *testing.T) {
 func TestCheckBuildErrors(t *testing.T) {
 	t.Parallel()
 
-	program := moduleTarget()
-
-	program.Kind = manifest.KindExecutable
-	program.Namespace = ""
+	program := kindTarget(manifest.KindExecutable)
+	module := kindTarget(manifest.KindModule)
 
 	hook := manifest.BuildTarget{
 		Component: "", Kind: "", Path: "", Namespace: "", Package: "demo", Hook: true,
@@ -268,9 +339,10 @@ func TestCheckBuildErrors(t *testing.T) {
 		},
 		{
 			"output", moduleTarget(),
-			manifest.Build{Backend: "zig", Output: []string{"a.so"}, Rest: map[string]any{
-				"steps": steps,
-			}},
+			manifest.Build{
+				Backend: "zig", Output: []manifest.OutputEntry{{Path: "a.so", To: ""}},
+				Rest: map[string]any{"steps": steps},
+			},
 			"components.a.build.output",
 			`is a field of backend make, shell, cmake or wasm-tool, not of "zig"`,
 		},
@@ -281,19 +353,51 @@ func TestCheckBuildErrors(t *testing.T) {
 			`is a field of backend make, shell or zig, not of "wasm-tool"`,
 		},
 		{
-			"a program of a backend of modules", program,
+			"a module of a backend of programs", moduleTarget(),
+			manifest.Build{
+				Backend: "wasm-tool", Output: []manifest.OutputEntry{{Path: "a.so", To: ""}},
+			},
+			"components.a.build.output[0]", `backend "wasm-tool" makes no modules`,
+		},
+		{
+			"a data file of a backend of programs", moduleTarget(),
+			manifest.Build{Backend: "wasm-tool", Output: []manifest.OutputEntry{
+				{Path: "gw", To: manifest.OutputToBin},
+				{Path: "a.wasm", To: manifest.OutputToShare},
+			}},
+			"components.a.build.output[1].to", `backend "wasm-tool" makes no data files`,
+		},
+		{
+			"kind = executable of a backend of modules", program,
 			manifest.Build{Backend: "c", Rest: map[string]any{
 				"module": "m", "sources": []any{"m.c"},
 			}},
-			"components.a.build",
-			`backend "c" builds a module, not a program (kind "executable" wants ` +
-				`make, shell, cargo, cmake, go, wasm-tool or zig)`,
+			"components.a.kind", `is "executable", but backend "c" makes no programs`,
 		},
 		{
-			"a module of a backend of programs", moduleTarget(),
-			manifest.Build{Backend: "wasm-tool"},
-			"components.a.build", `backend "wasm-tool" builds a program: set kind = ` +
-				`"executable" on the component`,
+			"kind = module of a backend of programs", module,
+			manifest.Build{Backend: "go"},
+			"components.a.kind", `is "module", but backend "go" makes programs only`,
+		},
+		{
+			"kind = executable of a build of a module", program,
+			manifest.Build{Backend: "cargo", Rest: map[string]any{"module": "m"}},
+			"components.a.kind", `is "executable", but the build makes modules`,
+		},
+		{
+			"kind = module of a build of a program", module,
+			manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gw"}},
+			"components.a.kind", `is "module", but the build makes programs`,
+		},
+		{
+			"kind = executable of an output of a module", program,
+			manifest.Build{
+				Backend: "shell", Rest: map[string]any{"command": "./b.sh"},
+				Output: []manifest.OutputEntry{
+					{Path: "gw", To: ""}, {Path: "gw.so", To: manifest.OutputToLib},
+				},
+			},
+			"components.a.kind", `is "executable", but the build makes modules`,
 		},
 		{
 			"a hook", hook,
@@ -325,27 +429,50 @@ func TestCheckBuildErrors(t *testing.T) {
 	}
 }
 
-// TestCheckBuildKindOfModules checks the kind a backend of a module builds
-// against a list of the backends of programs with those of the modules.
-func TestCheckBuildKindOfModules(t *testing.T) {
+// TestCheckBuildResultsOfModules checks what a backend of a module makes
+// against what its block asks for and the deprecated kind of the component:
+// one that makes modules only, and one whose build says it makes what the
+// backend does not make.
+func TestCheckBuildResultsOfModules(t *testing.T) {
 	t.Parallel()
 
 	registry := registry(t)
 
 	modules := backend("cpp")
 
-	modules.Kinds = []string{build.KindModule}
+	modules.Produces = []build.Result{build.Module}
 
-	require.NoError(t, registry.Add("cpp", []build.Backend{modules}, nil))
+	liar := backend("liar")
 
-	program := moduleTarget()
+	liar.Produces = []build.Result{build.Data}
+	liar.New = func(any, build.Component, build.Common) (build.Build, error) {
+		return producerBuild{results: []build.Result{build.Data, build.Program}}, nil
+	}
 
-	program.Kind = manifest.KindExecutable
+	require.NoError(t, registry.Add("cpp", []build.Backend{modules, liar}, nil))
 
-	_, err := registry.CheckBuild("components.a.build", program, manifest.Build{Backend: "cpp"})
-	require.EqualError(t, err, `components.a.build: backend "cpp" builds a module, `+
-		`not a program (kind "executable" wants make, shell, cargo, cmake, go, wasm-tool or zig)`)
+	_, err := registry.CheckBuild("components.a.build", moduleTarget(),
+		manifest.Build{Backend: "cpp"})
+	require.NoError(t, err)
+
+	_, err = registry.CheckBuild("components.a.build", kindTarget(manifest.KindExecutable),
+		manifest.Build{Backend: "cpp"})
+	require.EqualError(t, err,
+		`components.a.kind: is "executable", but backend "cpp" makes no programs`)
+
+	_, err = registry.CheckBuild("components.a.build", moduleTarget(),
+		manifest.Build{Backend: "liar"})
+	require.EqualError(t, err, `components.a.build: backend "liar" makes no programs`)
 }
+
+// producerBuild is a build that says it makes results.
+type producerBuild struct {
+	zigBuild
+
+	results []build.Result
+}
+
+func (b producerBuild) Produces() []build.Result { return b.results }
 
 // TestCheckBuildHookKind checks that a hook is no component of a kind, and
 // that it names a backend that runs hooks: one of a module runs them when it

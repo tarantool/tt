@@ -14,10 +14,11 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// component is a component the tests build, of kind.
-func component(kind string) build.Component {
+// component is a component the tests build, which expects its build to make
+// results of the types expects (build.Component.Expects).
+func component(expects ...build.Result) build.Component {
 	return build.Component{
-		Name: "native", Kind: kind, Path: "native", Namespace: "demo", Package: "demo",
+		Name: "native", Path: "native", Namespace: "demo", Package: "demo", Expects: expects,
 	}
 }
 
@@ -50,7 +51,8 @@ func TestBackends(t *testing.T) {
 		backend := backends[i]
 
 		assert.Equal(t, name, backend.Name)
-		assert.Equal(t, []string{build.KindModule}, backend.Kinds)
+		assert.Equal(t, []build.Result{build.Module}, backend.Produces)
+		assert.False(t, backend.NoSourceLayout, name)
 		assert.False(t, backend.Incremental, name)
 		assert.False(t, backend.Hook, name)
 		assert.Equal(t, build.OutputNone, backend.OutputFrom, name)
@@ -101,7 +103,7 @@ func TestConfig(t *testing.T) {
 	}, cfg)
 
 	for _, backend := range Backends() {
-		_, err := buildtest.Validate(backend, component(build.KindModule), block(module(nil), nil))
+		_, err := buildtest.Validate(backend, component(), block(module(nil), nil))
 		require.NoError(t, err, backend.Name)
 	}
 }
@@ -173,7 +175,7 @@ func TestValidateErrors(t *testing.T) {
 			t.Parallel()
 
 			for _, backend := range Backends() {
-				_, err := buildtest.Validate(backend, component(build.KindModule),
+				_, err := buildtest.Validate(backend, component(),
 					block(test.rest, test.env))
 
 				var fieldErr *build.FieldError
@@ -189,20 +191,20 @@ func TestValidateErrors(t *testing.T) {
 	}
 }
 
-// TestKind checks that neither backend builds an executable component nor
-// runs a hook.
+// TestKind checks that neither backend builds a component that expects
+// programs only nor runs a hook.
 func TestKind(t *testing.T) {
 	t.Parallel()
 
 	for _, backend := range Backends() {
-		_, err := buildtest.Validate(backend, component(build.KindExecutable),
+		_, err := buildtest.Validate(backend, component(build.Program),
 			block(module(nil), nil))
 
 		var fieldErr *build.FieldError
 
 		require.ErrorAs(t, err, &fieldErr)
-		assert.Equal(t, `backend "`+backend.Name+`" does not build a component of kind `+
-			`"executable"`, fieldErr.Msg)
+		assert.Equal(t, `backend "`+backend.Name+`" makes nothing the component expects`,
+			fieldErr.Msg)
 
 		_, err = buildtest.ValidateHook(backend, block(module(nil), nil))
 		require.ErrorAs(t, err, &fieldErr)
@@ -216,10 +218,10 @@ func TestKind(t *testing.T) {
 func TestMissingHeaders(t *testing.T) {
 	t.Parallel()
 
-	bld, err := buildtest.Validate(C(), component(build.KindModule), block(module(nil), nil))
+	bld, err := buildtest.Validate(C(), component(), block(module(nil), nil))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component(build.KindModule))
+	harness := buildtest.New(t, component())
 
 	harness.Context.Toolchain.CC = "/nonexistent/cc"
 	harness.Context.Toolchain.IncludeDir = ""
@@ -258,14 +260,14 @@ func TestRun(t *testing.T) {
 	t.Setenv("LDFLAGS", "")
 
 	for _, goos := range []string{"linux", "darwin"} {
-		bld, err := buildtest.Validate(LuaC(), component(build.KindModule),
+		bld, err := buildtest.Validate(LuaC(), component(),
 			block(map[string]any{"module": "a.b", "sources": []any{"a.c"}}, nil))
 		require.NoError(t, err)
 
-		harness := buildtest.New(t, component(build.KindModule))
+		harness := buildtest.New(t, component())
 		facts := harness.Context
 
-		require.NoError(t, os.WriteFile(filepath.Join(facts.Dirs.Bin, "fakecc"), []byte(fakeCC),
+		require.NoError(t, os.WriteFile(filepath.Join(facts.Dirs.Tools, "fakecc"), []byte(fakeCC),
 			0o700))
 
 		facts.Toolchain = build.Toolchain{

@@ -20,9 +20,9 @@ type zigConfig struct {
 // what they check.
 func backend(name string) build.Backend {
 	return build.Backend{
-		Name:   name,
-		Kinds:  []string{build.KindModule, build.KindExecutable},
-		Config: func() any { return new(zigConfig) },
+		Name:     name,
+		Produces: []build.Result{build.Module, build.Program},
+		Config:   func() any { return new(zigConfig) },
 		New: func(any, build.Component, build.Common) (build.Build, error) {
 			return nil, nil
 		},
@@ -79,11 +79,12 @@ func TestAddRefused(t *testing.T) {
 		{"a Config of a map", func(b *build.Backend) {
 			b.Config = func() any { return map[string]any{} }
 		}, "Config returned map[string]interface {}, not a pointer to a struct"},
-		{"no kinds", func(b *build.Backend) { b.Kinds = nil }, "the Kinds must name"},
-		{"an unknown kind", func(b *build.Backend) { b.Kinds = []string{"wasm"} },
-			`the Kinds must name module, executable or both, once each, not "wasm"`},
-		{"a kind twice", func(b *build.Backend) {
-			b.Kinds = []string{build.KindModule, build.KindModule}
+		{"no results", func(b *build.Backend) { b.Produces = nil }, "the Produces must name"},
+		{"an unknown result", func(b *build.Backend) {
+			b.Produces = []build.Result{"executable"}
+		}, `the Produces must name module, data or program, once each, not "executable"`},
+		{"a result twice", func(b *build.Backend) {
+			b.Produces = []build.Result{build.Module, build.Module}
 		}, `not "module, module"`},
 		{"an OutputFrom of no meaning", func(b *build.Backend) { b.OutputFrom = 7 },
 			"OutputFrom is none of OutputNone, OutputCwd and OutputBackend: 7"},

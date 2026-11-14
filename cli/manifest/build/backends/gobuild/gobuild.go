@@ -1,6 +1,8 @@
-// Package gobuild is the go build backend: go build of a Go program of an
-// executable component, into the output directory of the build under the
-// name of its program.
+// Package gobuild is the go build backend: go build of a Go program, into
+// the directory of the programs of the build (build.Dirs.Programs) under the
+// name of the program. Its builds make programs only, and the files of the
+// component are not laid out unless its include names them: Go sources are
+// no files of a package, and the fixtures of their tests are not either.
 //
 // The target platform is that of the build, GOOS and GOARCH, and cgo is off
 // unless the block turns it on: a program without cgo is static and runs
@@ -62,14 +64,15 @@ var programNameRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._+-]*$`)
 // Backend returns the go backend.
 func Backend() build.Backend {
 	return build.Backend{
-		Name:        Name,
-		Kinds:       []string{build.KindExecutable},
-		Config:      func() any { return new(Config) },
-		New:         newBuild,
-		Incremental: false,
-		OutputFrom:  build.OutputNone,
-		Exclude:     nil,
-		Hook:        false,
+		Name:           Name,
+		Produces:       []build.Result{build.Program},
+		Config:         func() any { return new(Config) },
+		New:            newBuild,
+		Incremental:    false,
+		OutputFrom:     build.OutputNone,
+		Exclude:        nil,
+		NoSourceLayout: true,
+		Hook:           false,
 	}
 }
 
@@ -124,6 +127,11 @@ type goBuild struct {
 	static  bool
 }
 
+// Produces says the build makes a program.
+func (b goBuild) Produces() []build.Result {
+	return []build.Result{build.Program}
+}
+
 // Programs names the one program the build makes.
 func (b goBuild) Programs() ([]string, bool) {
 	return []string{b.program}, true
@@ -146,7 +154,7 @@ func (b goBuild) Preflight(c *build.Context) error {
 }
 
 // Run builds the program in the working directory as
-// go build -trimpath -o <output>/<name> <package>, for the target of the
+// go build -trimpath -o <programs>/<name> <package>, for the target of the
 // build.
 func (b goBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(c)
@@ -154,7 +162,7 @@ func (b goBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	args, err := goArgs(b.config, filepath.Join(c.Dirs.Output, b.program), b.static)
+	args, err := goArgs(b.config, filepath.Join(c.Dirs.Programs, b.program), b.static)
 	if err != nil {
 		return err
 	}

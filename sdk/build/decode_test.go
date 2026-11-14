@@ -39,7 +39,7 @@ type config struct {
 func backendOf(newConfig func() any) build.Backend {
 	return build.Backend{
 		Name:        "demo",
-		Kinds:       []string{build.KindModule},
+		Produces:    []build.Result{build.Module},
 		Config:      newConfig,
 		New:         nil,
 		Incremental: false,

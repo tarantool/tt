@@ -65,6 +65,7 @@ func TestTarget(t *testing.T) {
 	plain := cargoBuild{bin: "agent"}
 	static := cargoBuild{bin: "agent", static: true}
 	staticModule := cargoBuild{module: true, static: true}
+	staticBoth := cargoBuild{module: true, bin: "agent", static: true}
 
 	tests := []struct {
 		name     string
@@ -72,6 +73,9 @@ func TestTarget(t *testing.T) {
 		platform build.Target
 		want     string
 	}{
+		// The module of a static build of both is built as a static module
+		// is, and its binary as a static program is.
+		{"the module of a static build of both", staticBoth, host, ""},
 		{"the host takes no target", plain, host, ""},
 		{
 			"static linux amd64", static, build.Target{OS: "linux", Arch: "amd64"},
@@ -107,16 +111,22 @@ func TestTarget(t *testing.T) {
 				t.Skip("cargo has no target for the host")
 			}
 
-			target, err := tt.build.target(tt.platform)
+			// What a test builds is the binary, but for a build of a
+			// module.
+			target, err := tt.build.target(tt.platform, !tt.build.module)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, target)
 		})
 	}
 
-	_, err := plain.target(build.Target{OS: "linux", Arch: "riscv64"})
+	target, err := staticBoth.target(build.Target{OS: "linux", Arch: "amd64"}, true)
+	require.NoError(t, err)
+	assert.Equal(t, "x86_64-unknown-linux-musl", target)
+
+	_, err = plain.target(build.Target{OS: "linux", Arch: "riscv64"}, true)
 	require.ErrorIs(t, err, errUnsupportedTarget)
 
-	_, err = plain.target(build.Target{OS: "windows", Arch: "amd64"})
+	_, err = plain.target(build.Target{OS: "windows", Arch: "amd64"}, true)
 	require.ErrorIs(t, err, errUnsupportedTarget)
 }
 
