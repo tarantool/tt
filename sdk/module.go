@@ -37,7 +37,7 @@ type Mount struct {
 type Constructor func(Services) []Mount
 
 // Module is what a module contributes to tt: commands, build backends and
-// checks of the files a build lays out.
+// checks of the files of a package.
 type Module struct {
 	// Commands are the module's commands, as a [Constructor] returns them.
 	Commands []Mount
@@ -45,7 +45,7 @@ type Module struct {
 	// whose build block names one is built by it. No two backends of a tt
 	// have one name, whichever module provides them; the core has none of
 	// its own, and those of tt are the standard module build's (make,
-	// shell, c, lua-c, cargo, cmake and go).
+	// shell, c, lua-c, cargo, cmake, go and zig).
 	Backends []build.Backend
 	// FileChecks check the files of a package by their suffix, whatever
 	// component made them: what the layout of a component copies and the

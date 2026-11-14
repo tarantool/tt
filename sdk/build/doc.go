@@ -41,8 +41,9 @@
 // Context whose Hook is set, which has no component and none of its
 // directories.
 //
-// A module may also check the files the build lays out ([FileCheck]), by
-// their suffix, whichever backend made them.
+// A module may also check the files of a package ([FileCheck]) by their
+// suffix, whichever backend made them: the files the components lay out and
+// the data files their builds make.
 //
 // The package depends on the standard library only, and not on the module
 // contract (github.com/tarantool/tt/sdk), which depends on it.

@@ -8,17 +8,22 @@
 //   - a module is a [Constructor]: given the core's [Services], it returns
 //     cobra commands as [Mount]s, each with the path of the group it goes
 //     under; a module that contributes build backends or checks of the
-//     files a build lays out as well is a [ModuleConstructor], which returns
+//     files of a package as well is a [ModuleConstructor], which returns
 //     all of them in a [Module];
 //   - [Services] give a module's commands a logger, the [Tarantool] to run
 //     and its [TarantoolVersion], files read through the [Integrity] checks,
-//     the [Project] - its directory, a [Dependency] declared in its manifest
-//     as tt package add declares one ([Project.AddDependency]) and its rocks
-//     installed from the lock as tt package fetch installs them
-//     ([Project.Install]) - prompts ([Services.Confirm]), the standard
-//     [Streams] with their printers, the cluster configuration of a
-//     [ClusterSource] ([Services.ClusterConfig]) and the core's way to end
-//     the process for code that cannot return an error ([Services.Exit]);
+//     the [Project] - the directory of the command and the project it is in
+//     ([Project.Root]), what its manifest declares ([Project.Manifest]), a
+//     [Dependency] declared in it as tt package add declares one
+//     ([Project.AddDependency]), a [Component] appended to it
+//     ([Project.AddComponent]), its rocks installed from the lock as tt
+//     package fetch installs them ([Project.Install]), its state directory
+//     and the scripts that activate it ([Project.StateDir],
+//     [Project.PrepareEnvironment]) - rock servers indexed as tt package
+//     index indexes one ([Services.Rocks]), prompts ([Services.Confirm]),
+//     the standard [Streams] with their printers, the cluster configuration
+//     of a [ClusterSource] ([Services.ClusterConfig]) and the core's way to
+//     end the process for code that cannot return an error ([Services.Exit]);
 //   - [ExitError] and [ExitCode] carry the exit code a command's error should
 //     end tt with, [UsageError] marks an error in how a command was invoked,
 //     which tt follows with the command's usage, and [Reported] one the user
@@ -38,13 +43,16 @@
 // The subpackages hold the rest:
 //
 //   - [github.com/tarantool/tt/sdk/build] is the contract of a build backend
-//     and of a check of the files a build lays out, a module of its own
-//     that depends on the standard library only;
+//     and of a check of the files of a package, a module of its own that
+//     depends on the standard library only;
 //   - [github.com/tarantool/tt/sdk/bundle] is the contract of a source of
 //     the prebuilt archives tt binary installs, which a distribution
 //     chooses;
 //   - [github.com/tarantool/tt/sdk/console] runs an interactive console
 //     with line editing and history over a command processor;
+//   - [github.com/tarantool/tt/sdk/execfile] writes the programs and the
+//     scripts a process runs with no fork of it in between, so that they
+//     start while it starts other processes;
 //   - [github.com/tarantool/tt/sdk/formatter] renders the YAML a Tarantool
 //     console answers with as YAML, Lua or tables, the way tt's consoles
 //     print it;
