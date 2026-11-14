@@ -72,7 +72,7 @@ func TestFindComponents(t *testing.T) {
 	version, err := DeclaredVersion(project)
 	require.NoError(t, err)
 	assert.Equal(t, "0.1.0", version)
-	assert.Empty(t, SDKWarnings(project))
+	assert.Empty(t, SDKMismatches(components, version))
 }
 
 func TestSDKMismatch(t *testing.T) {
@@ -80,9 +80,13 @@ func TestSDKMismatch(t *testing.T) {
 
 	project := writeProject(t, "0.0.9")
 
-	warnings := SDKWarnings(project)
-	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], `component "router" is built with the tarantool-wasm 0.0.9 SDK`)
+	components, err := FindComponents(project)
+	require.NoError(t, err)
+
+	mismatches := SDKMismatches(components, "0.1.0")
+	require.Len(t, mismatches, 1)
+	assert.Equal(t, `component "router" is built with the tarantool-wasm 0.0.9 SDK, `+
+		`the package declares wasm 0.1.0`, mismatches[0])
 }
 
 func TestComponentLanguages(t *testing.T) {
