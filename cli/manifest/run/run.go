@@ -34,6 +34,7 @@ import (
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )
 
 // Names the project layout fixes.
@@ -158,10 +159,11 @@ func isExecutableFile(path string) bool {
 // Exec replaces the tt process with the tarantool at executable, running in
 // root with argv appended verbatim.
 //
-// The host environment is inherited unfiltered and no LUA_PATH or LUA_CPATH is
-// composed: Tarantool finds .rocks/ from its own working directory, so moving
-// there is the whole of what tt has to arrange. It returns only when the
-// replacement itself fails.
+// The host environment is inherited unfiltered, but for the CMake policy
+// version tt has set for the rocks it built (cmakepolicy.Strip), and no
+// LUA_PATH or LUA_CPATH is composed: Tarantool finds .rocks/ from its own
+// working directory, so moving there is the whole of what tt has to arrange.
+// It returns only when the replacement itself fails.
 func Exec(root, executable string, argv []string) error {
 	chdirErr := os.Chdir(root)
 	if chdirErr != nil {
@@ -173,7 +175,7 @@ func Exec(root, executable string, argv []string) error {
 
 	// The interpreter comes from the project's own tree or the host's PATH, and
 	// becoming it is the whole operation rather than a side effect of one.
-	execErr := syscall.Exec(executable, args, os.Environ())
+	execErr := syscall.Exec(executable, args, cmakepolicy.Strip(os.Environ()))
 	if execErr != nil {
 		return fmt.Errorf("running %s: %w", executable, execErr)
 	}

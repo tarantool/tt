@@ -306,6 +306,9 @@ linters:
             # build tags and linker flags the magefile builds tt with.
             - "github.com/tarantool/tt/v3/internal/buildflags"
             - "github.com/tarantool/tt/v3/internal/pidfile"
+            # cli/manifest/rocks sets the CMake policy version for the rocks
+            # it builds, which build and run keep from the user's code.
+            - "github.com/tarantool/tt/v3/internal/cmakepolicy"
             - "github.com/tarantool/tt/v3/cli/version"
             # cli/manifest/run starts the tarantool the instance commands
             # start, chosen by the one resolver.
@@ -349,6 +352,9 @@ linters:
             # what tt binary lists and what the tarantool resolver finds.
             - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/internal/binary"
+            # cli/manifest/build tests check that a component does not get the
+            # CMake policy version of the rocks.
+            - "github.com/tarantool/tt/v3/internal/cmakepolicy"
         # One allow-list per top-level directory, tests included; their file
         # globs do not overlap, so each file is checked against exactly one
         # of them (plus the deny-only rules above). An import from another
@@ -439,6 +445,8 @@ linters:
             - "github.com/tarantool/tt/v3/cli/templates"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
+            # A Tarantool built from source gets the CMake policy version.
+            - "github.com/tarantool/tt/v3/internal/cmakepolicy"
             - "github.com/ulikunitz/xz"
             - "golang.org/x/net/html"
             - "golang.org/x/sys"
@@ -806,6 +814,8 @@ linters:
             - "github.com/tarantool/tt/v3/cli/manifest/rocktree"
             - "github.com/tarantool/tt/v3/cli/rocks"
             - "github.com/tarantool/tt/v3/cli/util"
+            # The rocks LuaRocks builds get the CMake policy version.
+            - "github.com/tarantool/tt/v3/internal/cmakepolicy"
         dir-cli-running:
           files:
             - "**/cli/running/**"
@@ -982,6 +992,15 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/pidfile"
+        # The CMake policy version tt builds old code with, Tarantool from
+        # source and rocks, but not the user's components: a leaf on the
+        # standard library.
+        dir-internal-cmakepolicy:
+          files:
+            - "**/internal/cmakepolicy/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
         # The scope roots and the project rule tt binary, tt package,
         # tt instance and the modules share: a leaf on the standard library,
         # so that none of them has to import another to agree on a path.

@@ -60,6 +60,18 @@ def rocks_mirror_env(env=None):
     return env
 
 
+def no_cmake_policy_env(env=None):
+    """Return env, os.environ by default, without CMAKE_POLICY_VERSION_MINIMUM.
+
+    CMake 4 configures no project that asks for a CMake older than 3.5, as a
+    tarantool commit of 2024 or older and rocks such as crud and stat do,
+    unless the variable says the policy version to assume. tt sets it for
+    these builds itself: the tests that run them unset it to check that."""
+    env = dict(os.environ if env is None else env)
+    env.pop("CMAKE_POLICY_VERSION_MINIMUM", None)
+    return env
+
+
 def run_command_and_get_output(
     cmd,
     stdout=subprocess.PIPE,

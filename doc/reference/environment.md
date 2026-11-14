@@ -11,6 +11,14 @@
 | `TT_CLI_TARANTOOL_PREFIX` | the prefix of the Tarantool headers rocks with a C part are built against; `.env/activate.sh` sets it |
 | `TT_PROJECT_DIR` | set by `.env/activate.sh` to the project directory |
 | `TT_CLI_EE_USERNAME`, `TT_CLI_EE_PASSWORD` | the customer-zone credentials for Enterprise, TCM and the SDK, when `--credentials-file` is not given |
+| `CMAKE_POLICY_VERSION_MINIMUM` | the policy version CMake 4 configures a project of an older CMake with; tt sets it to `3.5` for the `cmake` and `make` that build Tarantool from source and for the rocks it builds, unless it is set, the empty value included |
+
+CMake 4 refuses to configure a project that asks for a CMake older than 3.5
+with `cmake_minimum_required`, as a Tarantool commit of 2024 or older and
+many rocks do, unless `CMAKE_POLICY_VERSION_MINIMUM` says the policy version
+to assume. CMake 3 does not read the variable. tt does not set it for the
+components of a project and their hooks, which are the user's code, nor for
+the Tarantool that `tt run` and `tt test` start.
 
 See [Projects and scopes](../concepts/projects-and-scopes.md) and
 [Manage binaries](../how-to/binaries.md).

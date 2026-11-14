@@ -10,6 +10,7 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )
 
 const (
@@ -137,17 +138,29 @@ func buildTarantool(srcPath string,
 		return "", fmt.Errorf("failed to create build directory: %w", err)
 	}
 
+	// The make configures build trees too: those of the projects the
+	// static build adds, Tarantool among them.
+	environ := tarantoolBuildEnviron()
 	cmakeOpts := prepareCmakeOpts(buildPath, installCtx)
 
-	err = binary.ExecuteCommand(cmakeExec, installCtx.Verbose, logFile, buildPath, cmakeOpts...)
+	err = binary.ExecuteCommandEnv(cmakeExec, environ, installCtx.Verbose, logFile, buildPath,
+		cmakeOpts...)
 	if err != nil {
 		return "", err
 	}
 
 	makeOpts := prepareMakeOpts(installCtx)
 
-	return buildPath, binary.ExecuteCommand(makeExec, installCtx.Verbose, logFile, buildPath,
-		makeOpts...)
+	return buildPath, binary.ExecuteCommandEnv(makeExec, environ, installCtx.Verbose, logFile,
+		buildPath, makeOpts...)
+}
+
+// tarantoolBuildEnviron is the environment of the cmake and make that build
+// Tarantool from source: the environment of tt, with the policy version CMake
+// 4 needs to configure a commit of 2024 or older, unless the user has set one
+// (cmakepolicy).
+func tarantoolBuildEnviron() []string {
+	return cmakepolicy.Environ(os.Environ())
 }
 
 // copyLocalTarantool finds and copies local tarantool folder to tmp folder.

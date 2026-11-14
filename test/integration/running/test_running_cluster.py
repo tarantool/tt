@@ -14,6 +14,7 @@ from utils import (
     inst_log_dir,
     inst_run_dir,
     instances_file,
+    no_cmake_policy_env,
     rocks_mirror_env,
     run_command_and_get_output,
     wait_event,
@@ -187,10 +188,10 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     app_path = prepare_app(tmpdir, "cluster_crud_app")
 
     # Build app.
-    # The CMakeLists.txt of crud asks for a CMake older than 3.5, with which
-    # CMake 4 has dropped compatibility unless told the policy version.
+    # The CMakeLists.txt of crud asks for a CMake older than 3.5, which tt
+    # makes CMake 4 configure (no_cmake_policy_env).
     build_cmd = [tt_cmd, "package", "build"]
-    env = rocks_mirror_env(dict(os.environ, CMAKE_POLICY_VERSION_MINIMUM="3.5"))
+    env = rocks_mirror_env(no_cmake_policy_env())
     rc, build_out = run_command_and_get_output(build_cmd, cwd=app_path, env=env)
     assert rc == 0, build_out
 

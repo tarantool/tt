@@ -168,7 +168,18 @@ func CreateSymlink(oldName, newName string, overwrite bool) error {
 func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir string,
 	args ...string,
 ) error {
+	return ExecuteCommandEnv(program, nil, isVerbose, writer, workDir, args...)
+}
+
+// ExecuteCommandEnv is ExecuteCommand that runs program in the environment
+// environ, key=value entries; a nil one is the environment of tt.
+func ExecuteCommandEnv(program string, environ []string, isVerbose bool, writer io.Writer,
+	workDir string, args ...string,
+) error {
 	cmd := exec.CommandContext(context.Background(), program, args...)
+
+	cmd.Env = environ
+
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
 	}
