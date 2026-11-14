@@ -608,6 +608,211 @@ so the fallback is the answer that is safe to assume. A flag such as
 cannot return an error, such as a callback of a library. A command that can
 return its error must.
 
+## Provide a build backend
+
+A module may build the components of a tt package as well: a component
+whose build block says `backend = "template"` is built by the backend named
+`template` the module provides. A backend is written against
+`github.com/tarantool/tt/sdk/build` alone, as the seven backends of tt are.
+
+`template/template.go` renders a template of the component with `envsubst`
+into a file the package lays out under its namespace:
+
+```go
+// Package template is the template build backend: it renders a template
+// of a component with envsubst.
+package template
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/tarantool/tt/sdk/build"
+)
+
+// Config are the fields of a template build block.
+type Config struct {
+	// Template is the template, relative to the working directory of the
+	// build, its name ending with .in.
+	Template string `toml:"template"`
+	// Vars are the variables the template is rendered with.
+	Vars map[string]string `toml:"vars"`
+}
+
+// Backend returns the template backend.
+func Backend() build.Backend {
+	return build.Backend{
+		Name:        "template",
+		Kinds:       []string{build.KindModule},
+		Config:      func() any { return new(Config) },
+		New:         newBuild,
+		Incremental: true,
+		OutputFrom:  build.OutputNone,
+		Exclude:     nil,
+		Hook:        false,
+	}
+}
+
+// newBuild checks a template build block.
+func newBuild(cfg any, _ build.Component, _ build.Common) (build.Build, error) {
+	config, ok := cfg.(*Config)
+	if !ok {
+		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
+	}
+
+	switch {
+	case config.Template == "":
+		return nil, build.FieldErrorf("", "template is required for backend %q", "template")
+	case !strings.HasSuffix(config.Template, ".in"):
+		return nil, build.FieldErrorf("template", "%q does not end with .in", config.Template)
+	}
+
+	return templateBuild{config: *config}, nil
+}
+
+// templateBuild is a checked template build block.
+type templateBuild struct {
+	config Config
+}
+
+// Preflight checks that envsubst is in the PATH of the build.
+func (b templateBuild) Preflight(c *build.Context) error {
+	_, err := c.LookPath("envsubst")
+	if err != nil {
+		return fmt.Errorf("%w: the template backend runs envsubst", build.ErrNoTool)
+	}
+
+	return nil
+}
+
+// Run renders the template into the share directory of the component.
+func (b templateBuild) Run(ctx context.Context, c *build.Context) error {
+	source, err := os.Open(filepath.Join(c.Dirs.Cwd, b.config.Template))
+	if err != nil {
+		return err
+	}
+
+	defer source.Close()
+
+	cmd := c.Command(ctx, "envsubst")
+
+	cmd.Stdin = source
+	for name, value := range b.config.Vars {
+		cmd.Env = append(cmd.Env, name+"="+value)
+	}
+
+	out, err := c.Output(cmd)
+	if err != nil {
+		return err
+	}
+
+	name := strings.TrimSuffix(filepath.Base(b.config.Template), ".in")
+
+	return os.WriteFile(filepath.Join(c.Dirs.Share, name), out, 0o644)
+}
+```
+
+and the constructor of the module returns it:
+
+```go
+// New is the constructor of the module.
+func New(sdk.Services) sdk.Module {
+	return sdk.Module{Commands: nil, Backends: []build.Backend{template.Backend()},
+		FileChecks: nil}
+}
+```
+
+A component of a package built with a tt that has the module:
+
+```toml
+[components.config]
+path = "config"
+
+[components.config.build]
+backend = "template"
+template = "defaults.lua.in"
+vars = { PORT = "3301" }
+incremental = true
+```
+
+What the backend says of itself:
+
+- `Config` returns an empty configuration: a pointer to a struct whose
+  fields, by their `toml` tags, are the fields of the block the backend
+  has. tt decodes the block into it strictly. A field of another backend is
+  reported as one, `is a field of backend make, not of "template"`; one no
+  backend has is an unknown field of the manifest; a value of a wrong type
+  names its path, `components.config.build.vars.PORT: must be a string, not
+  an integer`. The fields every block has - `backend`, `cwd`, `env`,
+  `output`, `incremental` and `static` - are tt's, `build.Common`.
+- `New` checks the configuration of a component and returns the build. tt
+  calls it whenever it checks the manifest, `tt package add` included, so
+  it has no side effects; an error of a field is a `build.FieldError`, which
+  tt reports with the path of the field in the manifest.
+- `Kinds` are the kinds of the components it builds, `Incremental` allows
+  `incremental = true`, `OutputFrom` says whether the block has `output` and
+  who copies what it lists, `Exclude` are the files its tool leaves in the
+  component that the layout never takes, such as `target/` of cargo, and
+  `Hook` lets a lifecycle hook name it.
+
+The build gets a `build.Context`: the component, the platform, the
+directories - `Cwd` it runs in, `Work` it keeps its intermediate files in
+between builds, `Output` for compiled modules or programs, `Share` for the
+other files under the namespace, `State` of the project - the Tarantool it
+is built against and the toolchain of a C module. tt creates `Work`,
+`Output` and `Share` before the build runs and takes as made what the build
+left there. `Command` gives a command with the environment of the build:
+tt's, the `env` of the block, `.tarantool/bin` of the project first in
+`PATH` and the `TT_*` variables; what the backend appends to `cmd.Env`
+wins. `Run` and `Output` run it as tt runs the commands of a build, quiet
+unless it fails or `tt -V` is given; `Output` returns its stdout. A build
+copies a file into a directory of the Context with `build.CopyFile`, which
+a program it copies can be started from at once.
+
+A build may also be a `build.Preflighter`, which tt asks before it builds
+anything, so that a missing tool fails at once; a `build.ProgramNamer`,
+which names the programs of an executable component; and a
+`build.InputHasher`, which adds what else an incremental build depends on,
+such as the version of its tool.
+
+`build/buildtest` checks a block and runs a build on temporary directories,
+as tt does:
+
+```go
+func TestTemplate(t *testing.T) {
+	t.Parallel()
+
+	component := build.Component{
+		Name: "config", Kind: build.KindModule, Path: "config", Namespace: "app",
+		Package: "app",
+	}
+
+	bld, err := buildtest.Validate(template.Backend(), component, buildtest.Block{
+		Rest: map[string]any{
+			"template": "defaults.lua.in", "vars": map[string]any{"PORT": "3301"},
+		},
+	})
+	require.NoError(t, err)
+
+	harness := buildtest.New(t, component)
+	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd,
+		"defaults.lua.in"), []byte("return { port = ${PORT} }\n"), 0o600))
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	data, err := os.ReadFile(filepath.Join(harness.Context.Dirs.Share, "defaults.lua"))
+	require.NoError(t, err)
+	assert.Equal(t, "return { port = 3301 }\n", string(data))
+
+	_, err = buildtest.Validate(template.Backend(), component, buildtest.Block{
+		Rest: map[string]any{"template": "defaults.lua"},
+	})
+	require.EqualError(t, err, `template: "defaults.lua" does not end with .in`)
+}
+```
+
 ## Test it
 
 `probe_test.go`:

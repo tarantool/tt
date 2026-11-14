@@ -55,12 +55,13 @@ Each directory is a separate Go module:
 - `build` is the contract of a build backend, with the standard library
   only: a `Backend` - its name, the kinds of components it builds, the
   configuration its fields of a build block decode into and the `New` that
-  checks them and returns the `Build` - the `Context` a build runs in, with
-  the directories, the target and the commands of the build, and a
-  `FileCheck` of the files a build lays out. `buildtest` checks a build
-  block for a backend and runs its build on temporary directories, as the
-  core does. A module provides backends and file checks through the
-  `Module` its `ModuleConstructor` returns.
+  checks them and returns the `Build`, and whether lifecycle hooks may name
+  it - the `Context` a build or a hook runs in, with the directories, the
+  target and the commands of the build, and a `FileCheck` of the files a
+  build lays out. The seven build backends of tt are written against it.
+  `buildtest` checks a build block for a backend and runs its build on
+  temporary directories, as the core does. A module provides backends and
+  file checks through the `Module` its `ModuleConstructor` returns.
 
 ## Contract module
 
