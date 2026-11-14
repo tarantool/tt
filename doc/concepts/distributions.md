@@ -8,12 +8,16 @@ commands come from modules. There are two kinds of them.
 
 A tt module is a Go module compiled into tt. Its package exports a
 constructor, `func New(sdk.Services) []sdk.Mount`, that returns the commands
-it adds. tt itself is the core with the module `builtin`, its own commands,
-and `aeon`.
+it adds. tt itself is the core with its **standard modules**: `builtin`,
+its own commands, and the modules of its repository the core's package
+`standard` lists, `aeon` and `emmylua`.
 
 A **distribution** of tt is the core and a set of modules built into one
-binary, described by `tt.manifest.toml`. It can present itself under another
-name and edition, choose an integrity provider, which
+binary, described by `tt.manifest.toml`. It takes the standard modules of
+its core by default, at the commit of the core, and adds modules of its own;
+it can leave some standard modules out, or put a module of its own in the
+place of one. It can present itself under another name and edition, choose
+an integrity provider, which
 [signs and checks packages](../how-to/sign-packages.md), and leave out tt's
 own commands or external modules. `tt version --modules` lists the modules
 of a binary.

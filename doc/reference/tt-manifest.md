@@ -13,12 +13,14 @@ manifest_kind = "tt-distribution"
 name = "tt"
 
 [core]
-tt = "v3.0.0-alpha.2"
+tt = "v3.0.0-alpha.3"
 
 [distribution]
 title = "Tarantool CLI EE"
 edition = "ee"
 integrity = "rsa"
+standard = true
+exclude = ["emmylua"]
 builtin = true
 external_modules = true
 bundle_sources = ["customer-zone", "rws", "github"]
@@ -28,7 +30,6 @@ ssl = "openssl_static"
 tags = ["netgo"]
 
 [dependencies]
-aeon = "github.com/tarantool/tt/modules/aeon"
 probe = "../tt-probe"
 foo = "github.com/acme/tt-foo@v1.2.0"
 bar = { module = "github.com/acme/tools", version = "v0.3.0", package = "github.com/acme/tools/ttbar", symbol = "Commands" }
@@ -39,7 +40,8 @@ bar = { module = "github.com/acme/tools", version = "v0.3.0", package = "github.
 ```
 
 Only `manifest_version` and `manifest_kind` are required: the smallest
-manifest builds tt itself on the core of the tt that runs the build. An
+manifest builds tt itself, with its standard modules, on the core of the tt
+that runs the build. An
 unknown field is an error, unless the manifest declares a newer minor
 `manifest_version` than tt knows, in which case it is a warning. Another
 major version is refused.
@@ -69,7 +71,7 @@ The tt core the binary is built on. `tt` and `path` exclude each other.
 
 `tt` is resolved by the go command, as `go list -m <module>@<tt>`:
 
-- a version, such as `v3.0.0-alpha.2`;
+- a version, such as `v3.0.0-alpha.3`;
 - a commit hash, for a commit no tag points to;
 - `latest`: the newest release, or the newest pre-release while there is
   none;
@@ -98,12 +100,50 @@ How the binary presents itself and what it has besides its modules.
 | `title` | `Tarantool CLI` | the name the binary presents itself under, in the help and in `tt version` |
 | `edition` | none | semver build metadata after the short version: `ee` makes it `3.1.0+ee` |
 | `integrity` | `none` | the integrity provider: `none` or `rsa` (see [Sign packages](../how-to/sign-packages.md)) |
-| `builtin` | `true` | tt's own commands, the module `builtin` |
+| `standard` | `true` | the standard modules of the core, at its commit (see [Standard modules](#standard-modules)) |
+| `exclude` | none | the standard modules left out, by name; `"builtin"` is `builtin = false`. Not allowed with `standard = false` |
+| `builtin` | `true`, `false` when `exclude` lists `builtin` | tt's own commands, the module `builtin` |
 | `external_modules` | `true` | [external modules](../how-to/external-modules.md) and `tt modules` |
 | `bundle_sources` | `["customer-zone", "rws", "github"]` | where `tt binary install` and `tt binary search` find prebuilt products, in order; the first source with a product is the one asked for it: `customer-zone` is the customer zone of tarantool.io, with `--credentials-file`, for Tarantool Enterprise, the SDK, TCM and tt-ee; `rws` is the static RPMs of rws.tarantool.org, for Tarantool Community 3 on Linux with glibc; `github` is the releases of tt on GitHub, for tt and its latest release. Without the customer zone these products are installed from `--local-dir` only; without `rws` or `github` every version of Tarantool Community or tt is built from source. `[]` is no source |
 
 The version of the distribution is taken from `git describe` in the
 manifest's directory; `VERSION_LABEL` follows it.
+
+### Standard modules
+
+The standard modules are the modules of the core's repository that the
+official tt is built with: `aeon` and `emmylua` in tt 3.0.0-alpha.3. The
+package `standard` of the core, `github.com/tarantool/tt/v3/standard`, lists
+them, so a distribution gets the ones a newer core adds without an edit of
+its manifest. They are built at the commit of the core, or from its checkout,
+as every module of the core's repository is.
+
+- `exclude` leaves modules out by name. A name the core does not list is an
+  error that lists the ones it does. An excluded module has no commands in
+  the binary, but its Go code is still compiled in, because the package
+  `standard` imports it; to leave the code out as well, set
+  `standard = false` and list the modules you want in `[dependencies]`.
+- `builtin`, tt's own commands, is a standard module too, though the core
+  adds it itself rather than the package `standard`. `exclude = ["builtin"]`
+  and `builtin = false` say the same, and may be written together;
+  `builtin = true` with `"builtin"` in `exclude` is an error. With
+  `standard = false`, `builtin` alone decides.
+- A module of `[dependencies]` with the name of a standard module takes its
+  place: a fork of `aeon`, or a local checkout of it. Name it in `exclude`
+  too to say so; otherwise the build warns. It is a warning and not an
+  error, so that a manifest that lists `aeon` itself, as manifests did
+  before the standard modules, and a manifest with a module of a name a
+  newer core adds to the set, still build.
+- The lock names the standard modules the binary has, without the excluded
+  ones and those `[dependencies]` replaces, and without `builtin`:
+  `standard = ['aeon']` in its `[core]`. `--locked` fails when the build
+  would take others.
+- A core before v3.0.0-alpha.3 has no package `standard`, and a build on it
+  with `standard` on fails: set `standard = false` and list the modules. The
+  build tells by the package itself, not by the version, so a fork or a
+  commit of the core is told right. With `standard = false` the build makes
+  the same `main` it made before the standard modules, which every core
+  builds.
 
 ## `[build]`
 
@@ -122,7 +162,9 @@ builds the binary any way.
 The tt modules, by name. The name is the module's name in tt - in
 `tt version --modules`, in its log records and in errors about its
 commands: a letter followed by letters, digits, `-` and `_`. `builtin` is
-taken while `[distribution].builtin` is on.
+taken while tt's own commands are in, see `builtin` and `exclude` of
+`[distribution]`. A module with the name of a standard module takes its
+place (see [Standard modules](#standard-modules)).
 
 A module is a string or a table. The string is one of:
 

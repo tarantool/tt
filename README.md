@@ -541,7 +541,7 @@ manifest_kind = "tt-distribution"
 name = "tt"
 
 [core]
-tt = "v3.0.0-alpha.2"
+tt = "v3.0.0-alpha.3"
 
 [distribution]
 title = "Tarantool CLI EE"
@@ -549,7 +549,6 @@ edition = "ee"
 integrity = "rsa"
 
 [dependencies]
-aeon = "github.com/tarantool/tt/modules/aeon"
 migrations = "./plugins/migrations"
 foo = "github.com/acme/tt-foo@v1.2.0"
 ```
@@ -561,8 +560,12 @@ Go version query for the core module - a version, a commit, `latest` - and
 reads `v3` as "the newest v3.x.y release", not as the branch `v3`, and while
 tt 3 has pre-releases only it matches nothing. `[distribution]` sets how the binary
 presents itself (`title`, `edition`), the integrity provider (`none` or
-`rsa`), and whether it has tt's own commands (`builtin`) and external modules
-(`external_modules`), both on by default. `[build]` sets the TLS
+`rsa`), and whether it has the standard modules of the core (`standard`),
+tt's own commands (`builtin`) and external modules (`external_modules`), all
+on by default. The standard modules are the ones the official tt is built
+with, `aeon` and `emmylua` now, which the core's package `standard` lists;
+`exclude = ["emmylua"]` leaves some out, and a core before v3.0.0-alpha.3,
+which has no such package, needs `standard = false`. `[build]` sets the TLS
 implementation (`ssl`: `default`, `openssl` or `openssl_static`, overridden
 by `TT_CLI_BUILD_SSL`), extra build `tags` and `ldflags`.
 
@@ -570,7 +573,8 @@ A dependency is a local directory (`./...`, `../...` or an absolute path), a
 module path, or a module path with a version after `@`; the long form is a
 table with `module`, `version`, `path`, `package` and `symbol`. A module of
 the core's repository, such as `aeon`, is built at the commit of the core;
-any other module without a version at its latest.
+any other module without a version at its latest. A dependency with the name
+of a standard module takes its place.
 
 ``` sh
 tt binary build tt                  # build ./tt from ./tt.manifest.toml
