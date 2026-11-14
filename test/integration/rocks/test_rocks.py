@@ -634,9 +634,9 @@ def test_rocks_refuses_the_source_rock_of_a_tt_package(tt_cmd, tmp_path):
     assert rc == 1, output
     # LuaRocks says the rock is installed before tt looks; tt's error, the
     # last word, says it is not.
-    said = output.index("lualib 1.0.0-1 is now installed")
-    refused = output.index("LuaRocks built nothing of the source rock of a tt package")
-    assert said < refused, output
+    said = output.find("lualib 1.0.0-1 is now installed")
+    refused = output.find("LuaRocks built nothing of the source rock of a tt package")
+    assert 0 <= said < refused, output
     assert (
         "lualib 1.0.0-1 is not installed, whatever LuaRocks printed above; "
         "tt removed it from the tree again" in output
