@@ -1,0 +1,188 @@
+package build
+
+import (
+	"context"
+	"log/slog"
+	"os/exec"
+)
+
+// Target is the platform a component is built for, as GOOS and GOARCH name
+// it: the machine tt runs on, since tt does not build for another.
+type Target struct {
+	OS   string
+	Arch string
+}
+
+// ModuleExt returns the extension of a compiled module Tarantool loads on
+// the target: ".dylib" on darwin, ".so" elsewhere.
+func (t Target) ModuleExt() string {
+	if t.OS == "darwin" {
+		return ".dylib"
+	}
+
+	return ".so"
+}
+
+// Dirs are the directories of a build, all of them absolute. The core
+// creates Work, Output, Share and Bin before the build runs and takes as
+// made what the build leaves in Output, Share and Bin; anything else there
+// that no build made is removed.
+type Dirs struct {
+	// Project is the root of the project the component is of: the package,
+	// or a path dependency or a source rock being built.
+	Project string
+	// Component is the directory of the component.
+	Component string
+	// Cwd is the working directory of the build: the cwd of its block, or
+	// Component.
+	Cwd string
+	// Work is the directory the build keeps its intermediate files in,
+	// between builds too, out of the sources: emptied when the build is
+	// Fresh.
+	Work string
+	// Output is where the build puts what it made: the compiled modules of
+	// a module component, under its namespace, or the programs of an
+	// executable one.
+	Output string
+	// Share is where the build puts the data files of the component, under
+	// its namespace.
+	Share string
+	// State is the directory of the state of the build of the project, the
+	// same for every component of it.
+	State string
+	// Bin is the directory of the tools of the project, .tarantool/bin,
+	// which is in the PATH of the commands of the build.
+	Bin string
+	// Tree is the rocks tree the dependencies of the project are installed
+	// into.
+	Tree string
+}
+
+// Tarantool is the Tarantool a component is built against.
+type Tarantool struct {
+	// Prefix is its install prefix; empty when tt does not know it.
+	Prefix string
+	// IncludeDir is the directory of its C headers, module.h and lua.h, as
+	// #include <module.h> finds them; empty when module.h is not there.
+	IncludeDir string
+	// Version is its version; empty when tt does not know it.
+	Version string
+}
+
+// Toolchain is how tt compiles a C module, for a backend that compiles one
+// as tt does.
+type Toolchain struct {
+	// CC is the C compiler: CC of the environment, cc by default.
+	CC string
+	// LibFlag are the flags that link a module Tarantool loads: -shared,
+	// or -bundle -undefined dynamic_lookup on darwin.
+	LibFlag []string
+	// Rpath reports whether each -L<dir> is followed by -Wl,-rpath,<dir>.
+	Rpath bool
+	// IncludeDir is the directory of the headers of Tarantool under its
+	// prefix, as the compiler is given it whether or not module.h is there;
+	// empty when tt knows no prefix.
+	IncludeDir string
+}
+
+// Host runs the commands of a build for a [Context]. Only the core and
+// [github.com/tarantool/tt/sdk/build/buildtest] implement it, since methods
+// may be added to it; a backend calls the methods of Context.
+type Host interface {
+	// Command returns the command name with args, run in [Dirs.Cwd], with
+	// the environment of the build.
+	Command(ctx context.Context, name string, args ...string) *exec.Cmd
+	// Run runs cmd, showing what it prints as tt shows it.
+	Run(cmd *exec.Cmd) error
+	// Output runs cmd and returns what it printed to stdout; its stderr is
+	// shown as Run shows it.
+	Output(cmd *exec.Cmd) ([]byte, error)
+	// LookPath finds the program name in the PATH of the build.
+	LookPath(name string) (string, error)
+	// LockedVersion returns the version of the rock the lock of the project
+	// pins.
+	LockedVersion(rock string) (string, bool)
+}
+
+// Context is what a build is given to run: the facts of the build and the
+// way to run its commands. The core makes one per component and build
+// ([NewContext]).
+type Context struct {
+	// Component is the component built.
+	Component Component
+	// Target is the platform it is built for.
+	Target Target
+	// Dirs are the directories of the build.
+	Dirs Dirs
+	// Tarantool is the Tarantool it is built against.
+	Tarantool Tarantool
+	// Toolchain is how tt compiles a C module.
+	Toolchain Toolchain
+	// Env are the variables of the build: those of its block, and the TT_*
+	// ones tt sets for every build, which win.
+	Env map[string]string
+	// Fresh asks the build to drop what it kept in Work and to build from
+	// scratch, as tt package build --rebuild does.
+	Fresh bool
+	// Locked is set when the lock of the project is not to be resolved
+	// again (--locked): a tool of the build must not move a version either.
+	Locked bool
+	// Static is the static of the build block ([Common.Static]).
+	Static bool
+	// Log is the logger of the build.
+	Log *slog.Logger
+	// Warn shows a warning to the user.
+	Warn func(string)
+
+	host Host
+}
+
+// NewContext returns a copy of facts that runs its commands with host.
+func NewContext(facts Context, host Host) *Context {
+	facts.host = host
+
+	return &facts
+}
+
+// Command returns the command name with args, run in [Dirs.Cwd], with
+// cmd.Env set to the environment of the build: that of tt, the variables of
+// Env, and .tarantool/bin of the project first in PATH. A backend may append
+// to cmd.Env; a variable it appends wins.
+func (c *Context) Command(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return c.mustHost().Command(ctx, name, args...)
+}
+
+// Run runs cmd as tt runs the commands of a build: what it prints is shown
+// as it runs with tt -V, and only when it fails otherwise.
+func (c *Context) Run(cmd *exec.Cmd) error {
+	return c.mustHost().Run(cmd)
+}
+
+// Output runs cmd as Run does and returns what it printed to stdout, which
+// is not shown: for a tool that reports in JSON there.
+func (c *Context) Output(cmd *exec.Cmd) ([]byte, error) {
+	return c.mustHost().Output(cmd)
+}
+
+// LookPath finds the program name in the PATH of the build, which has
+// .tarantool/bin of the project first.
+func (c *Context) LookPath(name string) (string, error) {
+	return c.mustHost().LookPath(name)
+}
+
+// LockedVersion returns the version of the rock the lock of the project
+// pins, and whether it pins one: for a tool whose version follows that of a
+// rock.
+func (c *Context) LockedVersion(rock string) (string, bool) {
+	return c.mustHost().LockedVersion(rock)
+}
+
+// mustHost returns the host of c. A Context made other than by NewContext
+// has none, which is a mistake of whoever made it.
+func (c *Context) mustHost() Host {
+	if c.host == nil {
+		panic("build: a Context not made by NewContext runs no command")
+	}
+
+	return c.host
+}
