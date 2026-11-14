@@ -235,13 +235,19 @@ type InputHasher interface {
 	Inputs(c *Context) ([]string, error)
 }
 
-// FileCheck checks the files the build lays out whose names end with
-// Suffix, whatever made them.
+// FileCheck checks the files of a package whose names end with Suffix,
+// whatever component and backend made them: the files the layout of every
+// component copies into the package, and the data files ([Data]) the build
+// of every component makes in [Dirs.Share], those of a build skipped as up
+// to date included. Modules and programs are not given to it: the core
+// checks them itself.
 type FileCheck struct {
 	// Suffix is the end of the names of the files Check is given: ".wasm".
 	Suffix string
-	// Check checks the file at path. A warning is shown and the build goes
-	// on; an error fails the build.
+	// Check checks the file at path, an absolute path in the stage of the
+	// package. A warning is shown and the build goes on; an error fails the
+	// build, with exit code 1, and the warnings of the other files are not
+	// shown. Both are shown as they are, so they name the file.
 	Check func(path string) (warning string, err error)
 }
 
