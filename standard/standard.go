@@ -12,10 +12,14 @@
 //	modules["builtin"] = core.Builtin
 //	os.Exit(core.Main(modules))
 //
-// tt binary build tt reads the names of the modules from the source of
-// this package, without building it, to check [distribution].exclude and
-// to record the modules in tt.manifest.lock: Modules is one return of a
-// map literal whose keys are string literals.
+// tt binary build tt reads the modules from the source of this package,
+// without building it, and imports the constructors of those a
+// distribution takes into the main package it generates, so that an
+// excluded module is not compiled in. The body of Modules is therefore one
+// return of a map literal whose keys are string literals and whose values
+// are <import>.<constructor>: an exported function of a package the file
+// imports, under its name or the last element of its path, and not an
+// internal package.
 package standard
 
 import (

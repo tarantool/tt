@@ -123,6 +123,13 @@ hello = "./plugins/hello"
 	assert.Regexp(t, `(?m)^  hello +\(devel\) +example\.com/hello$`, string(out))
 	assert.NotContains(t, string(out), "emmylua")
 
+	// The excluded module is not compiled in at all.
+	out, err = exec.CommandContext(t.Context(), goTool, "version", "-m", result.Output).
+		CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Contains(t, string(out), "github.com/tarantool/tt/modules/aeon")
+	assert.NotContains(t, string(out), "emmylua")
+
 	out, err = exec.CommandContext(t.Context(), result.Output, "aeon", "--help").
 		CombinedOutput()
 	require.NoError(t, err, string(out))

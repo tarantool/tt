@@ -38,7 +38,8 @@ presents itself (`title`, `edition`), the integrity provider (`none` or
 `rsa`), whether it has the standard modules of the core (`standard`, see
 [Standard modules](#standard-modules)), tt's own commands (`builtin`) and
 external modules (`external_modules`), all on by default, and where
-`tt binary install` finds prebuilt products (`bundle_sources`: by default `customer-zone`, the
+`tt binary install` finds prebuilt products (`bundle_sources`: by default
+`customer-zone`, the
 customer zone of tarantool.io, for Tarantool Enterprise, the SDK, TCM and
 tt-ee, `rws`, the RPMs of rws.tarantool.org, for Tarantool Community, and
 `github`, the releases of tt on GitHub, for tt; `[]` for none, and then
@@ -156,10 +157,15 @@ content_hash = 'sha256:4367f681...'
 standard = ['aeon']
 ```
 
-An excluded module has no commands in the binary, but its Go code is still
-compiled in: the package `standard` imports every module it lists. To leave
-the code out too, set `standard = false` and list the modules you want in
-`[dependencies]`.
+The build reads the list from the source of the package `standard` and
+imports each standard module it takes into the generated `main`, as it does
+the modules of `[dependencies]`, so an excluded module is not compiled in at
+all:
+
+```sh
+$ go version -m tt-lite | grep 'dep.*tt/modules'
+	dep	github.com/tarantool/tt/modules/aeon	v0.0.0
+```
 
 `builtin`, tt's own commands, counts as a standard module here:
 `exclude = ["builtin"]` is `builtin = false`. A name the core does not list
@@ -189,8 +195,7 @@ $ tt binary build tt
 ```
 
 A core before v3.0.0-alpha.3 has no package `standard`. A distribution
-built on it fails until it sets `standard = false` and lists its modules,
-and then its `main` is the one the build made before the standard modules:
+built on it fails until it sets `standard = false` and lists its modules:
 
 ```sh
 $ tt binary build tt

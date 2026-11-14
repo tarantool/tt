@@ -362,10 +362,12 @@ func (b builder) generate(
 		return err
 	}
 
+	// The standard modules are imported from their packages, as those of
+	// [dependencies] are: the go.mod of the core requires them, and the
+	// modules of its repository are pinned already.
 	main, err := generateMain(mainSpec{
 		CoreModule: resolved.Module,
-		Modules:    modules,
-		Standard:   std,
+		Modules:    std.withModules(modules),
 		Options:    b.dist.Distribution,
 		Version:    version,
 	})
@@ -517,7 +519,7 @@ func (b builder) lockOf(
 			Revision:    resolved.Revision,
 			Path:        resolved.Path,
 			ContentHash: hashes.core,
-			Standard:    std.Modules,
+			Standard:    std.names(),
 			Repository:  nil,
 		},
 		Modules: nil,

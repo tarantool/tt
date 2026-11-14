@@ -118,11 +118,8 @@ them, so a distribution gets the ones a newer core adds without an edit of
 its manifest. They are built at the commit of the core, or from its checkout,
 as every module of the core's repository is.
 
-- `exclude` leaves modules out by name. A name the core does not list is an
-  error that lists the ones it does. An excluded module has no commands in
-  the binary, but its Go code is still compiled in, because the package
-  `standard` imports it; to leave the code out as well, set
-  `standard = false` and list the modules you want in `[dependencies]`.
+- `exclude` leaves modules out by name, their code too. A name the core
+  does not list is an error that lists the ones it does.
 - `builtin`, tt's own commands, is a standard module too, though the core
   adds it itself rather than the package `standard`. `exclude = ["builtin"]`
   and `builtin = false` say the same, and may be written together;
@@ -138,12 +135,13 @@ as every module of the core's repository is.
   ones and those `[dependencies]` replaces, and without `builtin`:
   `standard = ['aeon']` in its `[core]`. `--locked` fails when the build
   would take others.
-- A core before v3.0.0-alpha.3 has no package `standard`, and a build on it
-  with `standard` on fails: set `standard = false` and list the modules. The
-  build tells by the package itself, not by the version, so a fork or a
-  commit of the core is told right. With `standard = false` the build makes
-  the same `main` it made before the standard modules, which every core
-  builds.
+- The build reads the list from the source of the package `standard` and
+  imports the constructor of each module it takes into the `main` it
+  generates, as it does for `[dependencies]`; the `main` does not call the
+  package. A core before v3.0.0-alpha.3 has no package `standard`, and a
+  build on it with `standard` on fails: set `standard = false` and list the
+  modules. The build tells by the package itself, not by the version, so a
+  fork or a commit of the core is told right.
 
 ## `[build]`
 
