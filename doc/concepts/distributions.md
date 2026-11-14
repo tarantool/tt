@@ -10,7 +10,8 @@ A tt module is a Go module compiled into tt. Its package exports a
 constructor, `func New(sdk.Services) []sdk.Mount`, that returns the commands
 it adds. tt itself is the core with its **standard modules**: `builtin`,
 its own commands, and the modules of its repository the core's package
-`standard` lists, `aeon` and `emmylua`.
+`standard` lists, `aeon`, `build` and `emmylua`. `build` has the build
+backends of tt: the core has none of its own.
 
 A **distribution** of tt is the core and a set of modules built into one
 binary, described by `tt.manifest.toml`. It takes the standard modules of

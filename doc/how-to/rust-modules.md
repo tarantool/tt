@@ -7,6 +7,10 @@ same component may make a program of the package too.
 The [`tarantool` crate](https://docs.rs/tarantool/latest/tarantool/) gives
 it the API of Tarantool.
 
+The `cargo` backend is one of the standard module `build` of tt, which the
+official tt and every distribution that takes the standard modules have:
+`tt version --modules` lists `build` in a tt that has it.
+
 ## Write the crate
 
 In `libs/fastrs/` of a package named `myapp`, `Cargo.toml`:

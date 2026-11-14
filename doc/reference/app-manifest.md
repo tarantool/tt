@@ -258,17 +258,24 @@ A field of a backend other than the one of the build is an error, since it
 would do nothing: `cflags` on a `make` build, `make_target` on a `shell`
 build or hook, `output` on a `c` one. The field is the block's whatever its
 value, `make_target = ""` too. The error names the backends that have the
-field, those of tt first - `make` and `shell`, then the others by name -
-and those of modules after them, by name: `components.a.build.ldflags: is
-a field of backend c, go or lua-c, not of "cargo"`.
+field, module by module in the order of the names of the modules, those of
+a module in its order - for the standard module `build`, `make` and `shell`,
+then the others by name: `components.a.build.ldflags: is a field of backend
+c, go or lua-c, not of "cargo"`.
 
-The backends above are those of tt itself; a module tt is built with may
-provide more (see [Provide a build backend](../how-to/write-a-module.md#provide-a-build-backend)),
-with fields of their own, which are checked as those of tt are, and builds
-that run through the same steps: before anything is built, in the
+The backends above are those of `build`, a standard module of tt
+(`modules/build` of its repository): the core has none of its own, and the
+official tt, and every distribution that takes the standard modules, has
+them. A module tt is built with may provide more (see
+[Provide a build backend](../how-to/write-a-module.md#provide-a-build-backend)),
+with fields of their own, which are checked as those of `build` are, and
+builds that run through the same steps: before anything is built, in the
 environment below, and laid out, recorded and skipped by `incremental` as
-those of tt. A build block of a backend no module of the tt provides is
-a warning, `no module of this tt provides backend "<name>"; its fields are
+those of `build`. A distribution that excludes `build` (see
+[Standard modules](tt-manifest.md#standard-modules)) has only the backends
+of its other modules.
+
+A build block of a backend no module of the tt provides is a warning, `no module of this tt provides backend "<name>"; its fields are
 not checked`, for a command that builds nothing, such as `tt package add`
 or `tt package pack --format rock-src`. It is an error once tt is to build
 the component - by `tt package build` and `pack`, and by `tt package fetch`
@@ -459,9 +466,13 @@ A command run before or after the components are built, with the `shell`
 backend, the default, or `make` and the fields of a build. A hook gets the
 environment of a build without `TT_OUTPUT_DIR`, `TT_COMPONENT_NAME` and
 `TT_BUILD_DIR`, and the files of its `output` are not copied. A hook names
-a backend that runs hooks: `make` or `shell` of those of tt, or one of a
-module that says it runs them; another is an error, `hooks.pre_build:
-backend "cmake" is not supported (want make or shell)`.
+a backend that runs hooks: `make` or `shell` of the standard module
+`build`, or one of a module that says it runs them; another is an error,
+`hooks.pre_build: backend "cmake" is not supported (want make or shell)`. A
+tt without a backend that runs hooks, such as a distribution that excludes
+`build`, refuses every hook, the one that names no backend too:
+`hooks.pre_build: backend "shell" is not supported: no module of this tt
+provides a backend that runs hooks`.
 
 <!-- TODO(writers): app.manifest.lock - what it records, such as
 bundled_tarantool_version - is not described yet. -->
