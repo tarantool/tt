@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -122,8 +123,16 @@ type DistributionOptions struct {
 	// Integrity is the integrity provider: IntegrityNone or IntegrityRSA.
 	// Default: IntegrityNone.
 	Integrity string `toml:"integrity,omitempty"`
-	// Builtin includes tt's own commands. Default: true.
+	// Builtin includes tt's own commands. Default: true, unless Exclude
+	// lists builtin.
 	Builtin *bool `toml:"builtin,omitempty"`
+	// Standard includes the standard modules of the core - those its
+	// package standard lists - at the commit of the core. Default: true.
+	Standard *bool `toml:"standard,omitempty"`
+	// Exclude are the standard modules left out, by name; builtin among
+	// them leaves out tt's own commands, as Builtin = false does. It needs
+	// Standard on.
+	Exclude []string `toml:"exclude,omitempty"`
 	// ExternalModules lets tt run the external modules TT_CLI_MODULES_PATH
 	// lists. Default: true.
 	ExternalModules *bool `toml:"external_modules,omitempty"`
@@ -277,9 +286,16 @@ func (o DistributionOptions) IntegrityValue() string {
 	return o.Integrity
 }
 
-// BuiltinValue reports whether tt's own commands are included.
+// BuiltinValue reports whether tt's own commands are included: builtin is
+// not off, nor excluded.
 func (o DistributionOptions) BuiltinValue() bool {
-	return o.Builtin == nil || *o.Builtin
+	return (o.Builtin == nil || *o.Builtin) && !slices.Contains(o.Exclude, BuiltinModule)
+}
+
+// StandardValue reports whether the standard modules of the core are
+// included.
+func (o DistributionOptions) StandardValue() bool {
+	return o.Standard == nil || *o.Standard
 }
 
 // BundleSourcesValue returns the sources of prebuilt archives the manifest

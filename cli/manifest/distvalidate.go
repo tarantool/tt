@@ -8,9 +8,9 @@ import (
 	"unicode"
 )
 
-// builtinModule is the name the core's own commands are listed under in the
+// BuiltinModule is the name the core's own commands are listed under in the
 // table of modules; no tt module may take it while they are included.
-const builtinModule = "builtin"
+const BuiltinModule = "builtin"
 
 var (
 	// binaryNameRe is the shape of the name of a binary: no separators, no
@@ -111,6 +111,36 @@ func (d *Distribution) validateOptions() error {
 		}
 	}
 
+	return d.validateExclude()
+}
+
+// validateExclude checks the shape of [distribution].exclude; whether the
+// names are standard modules of the core is checked by the build, which
+// reads the set of the core it resolved.
+func (d *Distribution) validateExclude() error {
+	opts := d.Distribution
+
+	if len(opts.Exclude) > 0 && !opts.StandardValue() {
+		return invalid("distribution.exclude", "leaves out standard modules, "+
+			"and standard = false takes none: drop exclude, or builtin = false for builtin")
+	}
+
+	for index, name := range opts.Exclude {
+		if !moduleNameRe.MatchString(name) {
+			return invalid("distribution.exclude",
+				"%q is not a tt module name: a letter followed by letters, digits, - and _", name)
+		}
+
+		if slices.Contains(opts.Exclude[:index], name) {
+			return invalid("distribution.exclude", "%q is listed twice", name)
+		}
+	}
+
+	if opts.Builtin != nil && *opts.Builtin && slices.Contains(opts.Exclude, BuiltinModule) {
+		return invalid("distribution.exclude", "%q excludes tt's own commands, "+
+			"and builtin = true includes them: drop one of the two", BuiltinModule)
+	}
+
 	return nil
 }
 
@@ -148,9 +178,9 @@ func (d *Distribution) validateDependencies() error {
 				"a tt module name is a letter followed by letters, digits, - and _")
 		}
 
-		if name == builtinModule && d.Distribution.BuiltinValue() {
+		if name == BuiltinModule && d.Distribution.BuiltinValue() {
 			return invalid(field, "%q names tt's own commands; "+
-				"rename the module or set distribution.builtin = false", builtinModule)
+				"rename the module or set distribution.builtin = false", BuiltinModule)
 		}
 
 		dep := d.Dependencies[name]

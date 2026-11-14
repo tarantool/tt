@@ -223,6 +223,20 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 		b.coreLdflags = describe(ctx, resolved.Dir, "").ldflags()
 	}
 
+	std, err := res.resolveStandard(ctx, b.dist, resolved)
+	if err != nil {
+		return nil, err
+	}
+
+	if b.opts.Locked {
+		err = checkLockedStandard(b.lock, std)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	logStandard(std)
+
 	modules, err := res.resolveModules(ctx, b.dist, resolved)
 	if err != nil {
 		return nil, err
@@ -265,7 +279,7 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 
 	version := describe(ctx, b.dir, b.opts.Label)
 
-	err = b.generate(generated, generatedModules, generatedReplaces, version)
+	err = b.generate(generated, std, generatedModules, generatedReplaces, version)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +303,7 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 
-	lock := b.lockOf(resolved, modules, replaces, hashes)
+	lock := b.lockOf(resolved, std, modules, replaces, hashes)
 
 	switch {
 	case b.opts.Locked:
@@ -340,7 +354,8 @@ func (b builder) binary(ctx context.Context, env []string) (string, error) {
 
 // generate writes the main module into the work directory.
 func (b builder) generate(
-	resolved core, modules []module, replaces []replacement, version versionInfo,
+	resolved core, std standardSet, modules []module, replaces []replacement,
+	version versionInfo,
 ) error {
 	gomod, err := generateGoMod(resolved, modules, replaces)
 	if err != nil {
@@ -350,6 +365,7 @@ func (b builder) generate(
 	main, err := generateMain(mainSpec{
 		CoreModule: resolved.Module,
 		Modules:    modules,
+		Standard:   std,
 		Options:    b.dist.Distribution,
 		Version:    version,
 	})
@@ -487,7 +503,8 @@ func (b builder) checkSum() error {
 // was compiled - the TLS implementation, the tags and the toolchain are the
 // choice of each build of the same lock.
 func (b builder) lockOf(
-	resolved core, modules []module, replaces []replacement, hashes contentHashes,
+	resolved core, std standardSet, modules []module, replaces []replacement,
+	hashes contentHashes,
 ) *manifest.DistributionLock {
 	lock := &manifest.DistributionLock{
 		LockVersion:     manifest.LockVersion,
@@ -500,6 +517,7 @@ func (b builder) lockOf(
 			Revision:    resolved.Revision,
 			Path:        resolved.Path,
 			ContentHash: hashes.core,
+			Standard:    std.Modules,
 			Repository:  nil,
 		},
 		Modules: nil,
