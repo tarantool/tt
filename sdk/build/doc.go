@@ -23,7 +23,14 @@
 // which the core asks before any component is built, so that a missing tool
 // fails the build before the first long compile; a [ProgramNamer], which
 // names the programs an executable component makes; an [InputHasher], which
-// adds to what an incremental build is skipped by.
+// adds to what an incremental build is skipped by. A backend copies what its
+// tool built into the directories of the Context with [CopyFile].
+//
+// A backend whose [Backend.Hook] is set runs lifecycle hooks too: the core
+// checks the block of a hook as it checks a build block, New given the zero
+// Component, and runs its build around those of the components, in a
+// Context whose Hook is set, which has no component and none of its
+// directories.
 //
 // A module may also check the files the build lays out ([FileCheck]), by
 // their suffix, whichever backend made them.

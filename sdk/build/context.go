@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"os/exec"
+	"slices"
+	"strings"
 )
 
 // Target is the platform a component is built for, as GOOS and GOARCH name
@@ -24,9 +26,10 @@ func (t Target) ModuleExt() string {
 }
 
 // Dirs are the directories of a build, all of them absolute. The core
-// creates Work, Output, Share and Bin before the build runs and takes as
-// made what the build leaves in Output, Share and Bin; anything else there
-// that no build made is removed.
+// creates Work, Output and Share before the build runs and takes as made
+// what the build leaves in Output and Share; anything else there that no
+// build made is removed. The build of a hook has no Component, Work, Output
+// and Share: they are empty.
 type Dirs struct {
 	// Project is the root of the project the component is of: the package,
 	// or a path dependency or a source rock being built.
@@ -45,13 +48,16 @@ type Dirs struct {
 	// executable one.
 	Output string
 	// Share is where the build puts the data files of the component, under
-	// its namespace.
+	// its namespace: what Tarantool reads as files rather than loads as
+	// modules, such as .wasm. Empty for an executable component, which lays
+	// out no files.
 	Share string
 	// State is the directory of the state of the build of the project, the
 	// same for every component of it.
 	State string
 	// Bin is the directory of the tools of the project, .tarantool/bin,
-	// which is in the PATH of the commands of the build.
+	// which is first in the PATH of the commands of the build when it
+	// exists.
 	Bin string
 	// Tree is the rocks tree the dependencies of the project are installed
 	// into.
@@ -129,6 +135,12 @@ type Context struct {
 	Locked bool
 	// Static is the static of the build block ([Common.Static]).
 	Static bool
+	// Hook is set for the build of a lifecycle hook ([Backend.Hook]), which
+	// runs around the builds of all the components rather than for one:
+	// Component is the zero one, Dirs has no Component, Work, Output and
+	// Share, and Env has no TT_OUTPUT_DIR, TT_COMPONENT_NAME and
+	// TT_BUILD_DIR. The files output lists are not copied for a hook.
+	Hook bool
 	// Log is the logger of the build.
 	Log *slog.Logger
 	// Warn shows a warning to the user.
@@ -145,9 +157,11 @@ func NewContext(facts Context, host Host) *Context {
 }
 
 // Command returns the command name with args, run in [Dirs.Cwd], with
-// cmd.Env set to the environment of the build: that of tt, the variables of
-// Env, and .tarantool/bin of the project first in PATH. A backend may append
-// to cmd.Env; a variable it appends wins.
+// cmd.Env set to the environment of the build: that of tt, the env of the
+// build block, PATH with .tarantool/bin of the project first, and the TT_*
+// variables last, so that the block cannot change them. name is looked up in
+// that PATH. A backend may append to cmd.Env, a variable it appends winning,
+// and read it with [LookupEnv].
 func (c *Context) Command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	return c.mustHost().Command(ctx, name, args...)
 }
@@ -175,6 +189,19 @@ func (c *Context) LookPath(name string) (string, error) {
 // rock.
 func (c *Context) LockedVersion(rock string) (string, bool) {
 	return c.mustHost().LockedVersion(rock)
+}
+
+// LookupEnv returns the value of key in environ, a list of key=value pairs
+// as cmd.Env holds them, and whether it is there: the last one, which the
+// command gets.
+func LookupEnv(environ []string, key string) (string, bool) {
+	for _, entry := range slices.Backward(environ) {
+		if value, ok := strings.CutPrefix(entry, key+"="); ok {
+			return value, true
+		}
+	}
+
+	return "", false
 }
 
 // mustHost returns the host of c. A Context made other than by NewContext
