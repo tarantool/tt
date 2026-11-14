@@ -62,7 +62,11 @@ func TestReadStandardOfThisCore(t *testing.T) {
 	modules, found, err := readStandard(filepath.Join("..", "..", "..", standardPackage))
 	require.NoError(t, err)
 	assert.True(t, found)
-	assert.Equal(t, standardModules()[:2], modules)
+	assert.Equal(t, []standardModule{
+		{Name: "aeon", Package: "github.com/tarantool/tt/modules/aeon", Symbol: "New"},
+		{Name: "build", Package: "github.com/tarantool/tt/modules/build", Symbol: "New"},
+		{Name: "emmylua", Package: "github.com/tarantool/tt/modules/emmylua", Symbol: "New"},
+	}, modules)
 }
 
 func TestReadStandard(t *testing.T) {

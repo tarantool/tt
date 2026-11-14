@@ -12,6 +12,7 @@ import (
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/standard"
 )
 
 // testConstructor is a constructor of this package defined by name.
@@ -142,7 +143,7 @@ func TestConstruct(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "backends", entries[0].Module)
-	assert.Equal(t, append(buildreg.Core().Names(), "demo"), registry.Names())
+	assert.Equal(t, []string{"demo"}, registry.Names())
 	assert.Len(t, registry.FileChecks(), 1)
 
 	_, module, ok := registry.Backend("demo")
@@ -158,15 +159,42 @@ func TestConstruct(t *testing.T) {
 	require.ErrorIs(t, err, errConstructorType)
 	assert.Contains(t, err.Error(), `module "backends": invalid build backend "demo": `+
 		`module "again" provides one of the name too`)
-	assert.Equal(t, append(buildreg.Core().Names(), "demo"), registry.Names())
+	assert.Equal(t, []string{"demo"}, registry.Names())
 
-	// A module cannot take the name of a backend of the core.
-	_, _, err = construct(Modules{
-		"make": func(sdk.Services) sdk.Module {
-			return sdk.Module{Commands: nil, Backends: []sdkbuild.Backend{testBackend("make")},
-				FileChecks: nil}
-		},
-	}, ready, noVersion)
+	// A module cannot take the name of a backend of a standard module.
+	modules := Modules(standard.Modules())
+
+	modules["make"] = func(sdk.Services) sdk.Module {
+		return sdk.Module{Commands: nil, Backends: []sdkbuild.Backend{testBackend("make")},
+			FileChecks: nil}
+	}
+
+	_, _, err = construct(modules, ready, noVersion)
 	require.ErrorContains(t, err, `module "make": invalid build backend "make": `+
-		`the core provides one of the name too`)
+		`module "build" provides one of the name too`)
+}
+
+// TestStandardBackends checks that the core has no build backend of its
+// own, and that the standard modules give tt its backends: those of the
+// module build, make and shell first, which run the hooks.
+func TestStandardBackends(t *testing.T) {
+	t.Parallel()
+
+	noVersion := func(bool, bool) string { return "" }
+
+	_, registry, err := construct(Modules{}, &atomic.Bool{}, noVersion)
+	require.NoError(t, err)
+	assert.Empty(t, registry.Names())
+
+	_, registry, err = construct(standard.Modules(), &atomic.Bool{}, noVersion)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c"},
+		registry.Names())
+
+	for _, name := range registry.Names() {
+		backend, module, ok := registry.Backend(name)
+		require.True(t, ok, name)
+		assert.Equal(t, "build", module, name)
+		assert.Equal(t, name == "make" || name == "shell", backend.Hook, name)
+	}
 }

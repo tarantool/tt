@@ -1,6 +1,7 @@
 // Package buildreg is the registry of the build backends a tt has and of
-// the checks of the files its builds lay out: those of the core, and those
-// the modules tt is built from contribute (sdk.Module).
+// the checks of the files its builds lay out: those the modules tt is built
+// from contribute (sdk.Module). The core has no backend of its own; the
+// backends of tt are those of the standard module build.
 //
 // The core fills the registry of the process once, before any command runs
 // (SetProcess); what checks a manifest or builds a component reads it
@@ -9,7 +10,6 @@
 package buildreg
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"regexp"
@@ -19,11 +19,6 @@ import (
 
 	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backends/basic"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backends/cargo"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backends/cc"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backends/cmake"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backends/gobuild"
 )
 
 // Registry holds the build backends and the file checks of a tt. It is
@@ -39,8 +34,7 @@ type Registry struct {
 // entry is a backend of a registry.
 type entry struct {
 	backend build.Backend
-	// module is the name of the module that provides the backend; empty
-	// for one of the core.
+	// module is the name of the module that provides the backend.
 	module string
 	// fields are the keys of its configuration (build.Backend.Fields).
 	fields []string
@@ -49,35 +43,6 @@ type entry struct {
 // New returns an empty registry.
 func New() *Registry {
 	return &Registry{entries: nil, checks: nil}
-}
-
-// CoreBackends returns the backends of the core in their order, the one the
-// messages that list backends list them in: make and shell, which run the
-// hooks, then the others by name.
-func CoreBackends() []build.Backend {
-	others := append(cc.Backends(), cargo.Backend(), cmake.Backend(), gobuild.Backend())
-
-	slices.SortFunc(others, func(a, b build.Backend) int { return cmp.Compare(a.Name, b.Name) })
-
-	return append(basic.Backends(), others...)
-}
-
-// Core returns a registry of the backends of the core (CoreBackends).
-func Core() *Registry {
-	registry := New()
-
-	for _, provided := range CoreBackends() {
-		added, err := registry.check("", provided)
-		if err != nil {
-			// The backends of the core are this package's to keep well
-			// formed: TestCore checks them.
-			panic(fmt.Sprintf("buildreg: %v", err))
-		}
-
-		registry.entries = append(registry.entries, added)
-	}
-
-	return registry
 }
 
 var (
@@ -177,17 +142,8 @@ func checkFileCheck(check build.FileCheck) error {
 	return nil
 }
 
-// provider names who provides the backend of e, for an error.
-func (e entry) provider() string {
-	if e.module == "" {
-		return "the core"
-	}
-
-	return fmt.Sprintf("module %q", e.module)
-}
-
 // Backend returns the backend name and the name of the module that provides
-// it, empty for one of the core.
+// it.
 func (r *Registry) Backend(name string) (build.Backend, string, bool) {
 	e, ok := r.lookup(name)
 
@@ -222,8 +178,8 @@ func (r *Registry) check(module string, backend build.Backend) (entry, error) {
 	}
 
 	if other, ok := r.lookup(backend.Name); ok {
-		return entry{}, fmt.Errorf("%w %q: %s provides one of the name too",
-			ErrBackend, backend.Name, other.provider())
+		return entry{}, fmt.Errorf("%w %q: module %q provides one of the name too",
+			ErrBackend, backend.Name, other.module)
 	}
 
 	if backend.New == nil {

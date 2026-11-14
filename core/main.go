@@ -331,13 +331,14 @@ func mountExternalModules(
 }
 
 // construct calls the constructor of every module, in the order of their
-// names, and returns their mounts and the registry of the build backends of
-// the core and theirs, with their file checks. A constructor that panics is
-// an internal error naming its module and the version getVersion reports; a
-// constructor of a type the core does not call, and a backend or a file
-// check the registry refuses, is an error naming its module. The other
-// constructors are still called, so that every such error is reported at
-// once.
+// names, and returns their mounts and the registry of their build backends,
+// with their file checks: the core has no backend of its own, a tt builds
+// with those of its modules, the standard module build's for one. A
+// constructor that panics is an internal error naming its module and the
+// version getVersion reports; a constructor of a type the core does not
+// call, and a backend or a file check the registry refuses, is an error
+// naming its module. The other constructors are still called, so that every
+// such error is reported at once.
 func construct(
 	modules Modules, ready *atomic.Bool, getVersion util.VersionFunc,
 ) ([]mount.Entry, *buildreg.Registry, error) {
@@ -346,9 +347,9 @@ func construct(
 		errs    []error
 	)
 
-	// The backends of the modules come after those of the core, whose names
-	// none of them may take.
-	backends := buildreg.Core()
+	// The backends of each module come in its order, the modules in the order
+	// of their names: the order the messages that list backends list them in.
+	backends := buildreg.New()
 
 	for _, name := range slices.Sorted(maps.Keys(modules)) {
 		module, err := callConstructor(name, modules[name], newServices(name, ready),
