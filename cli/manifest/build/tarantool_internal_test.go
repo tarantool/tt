@@ -3,20 +3,20 @@ package build
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
-// cmakeManifest builds a module and a program with cmake, and records what
-// a build and a hook are told of Tarantool.
-const cmakeManifest = `manifest_version = '0.1'
+// treeManifest builds a module and a program with tree, a backend that
+// copies the files output lists itself (buildregtest), and records what a
+// build and a hook are told of Tarantool.
+const treeManifest = `manifest_version = '0.1'
 
 [package]
 name = 'my-app'
@@ -29,9 +29,7 @@ tt = '>=3.1.0'
 path = 'native'
 
 [components.native.build]
-backend = 'cmake'
-variables = { WITH_ANSWER = 'ON' }
-targets = ['answer']
+backend = 'tree'
 output = ['lib/answer.so']
 
 [components.hello]
@@ -39,8 +37,7 @@ path = 'hello'
 kind = 'executable'
 
 [components.hello.build]
-backend = 'cmake'
-build_type = 'Release'
+backend = 'tree'
 output = ['hello']
 
 [components.probe]
@@ -64,51 +61,8 @@ const tellScript = `printf '%s\n%s\n' "$TT_TARANTOOL_PREFIX" "$TT_TARANTOOL_INCL
     > "${TT_OUTPUT_DIR:-.}/tarantool.txt"
 `
 
-// answerCMakeLists is the CMakeLists.txt of a module that finds the headers
-// of Tarantool as FindTarantool.cmake of the Tarantool modules does, through
-// CMAKE_PREFIX_PATH, and builds answer.so into lib/ of the build tree.
-const answerCMakeLists = `cmake_minimum_required(VERSION 3.15)
-project(answer C)
-
-find_path(TARANTOOL_INCLUDE_DIR tarantool/module.h)
-if(NOT TARANTOOL_INCLUDE_DIR)
-    message(FATAL_ERROR "tarantool/module.h not found")
-endif()
-if(NOT WITH_ANSWER)
-    message(FATAL_ERROR "WITH_ANSWER is not set")
-endif()
-
-add_library(answer MODULE answer.c)
-target_include_directories(answer PRIVATE ${TARANTOOL_INCLUDE_DIR}/tarantool)
-set_target_properties(answer PROPERTIES PREFIX "" SUFFIX ".so"
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-`
-
-// cmakeFiles is the project of cmakeManifest.
-var cmakeFiles = map[string]string{
-	"native/CMakeLists.txt": answerCMakeLists,
-	"native/answer.c":       "#include <module.h>\nint answer(void) { return TT_ANSWER; }\n",
-	"native/answer.lua":     "return require('my-app.answer')\n",
-	"hello/CMakeLists.txt": "cmake_minimum_required(VERSION 3.15)\nproject(hello C)\n" +
-		"add_executable(hello hello.c)\n",
-	"hello/hello.c": "int main(void) { return 0; }\n",
-	"probe/tell.sh": tellScript,
-}
-
-// requireCMake skips the test when cmake or a C compiler is not in PATH.
-func requireCMake(t *testing.T) {
-	t.Helper()
-
-	for _, tool := range []string{"cmake", "cc"} {
-		_, err := exec.LookPath(tool)
-		if err != nil {
-			t.Skipf("%s not found in PATH", tool)
-		}
-	}
-}
-
-// fakeTarantoolPrefix writes an install prefix of Tarantool whose module.h
-// is all the module of cmakeFiles needs to compile, and returns it.
+// fakeTarantoolPrefix writes an install prefix of Tarantool with a module.h,
+// and returns it.
 func fakeTarantoolPrefix(t *testing.T) string {
 	t.Helper()
 
@@ -119,14 +73,21 @@ func fakeTarantoolPrefix(t *testing.T) string {
 	return prefix
 }
 
-func TestRun_cmakeComponents(t *testing.T) {
+// TestRun_backendOfItsOutput builds the components of a backend that copies
+// what it built itself, a module and a program, and checks what a build and
+// a hook are told of Tarantool.
+func TestRun_backendOfItsOutput(t *testing.T) {
 	t.Parallel()
-
-	requireCMake(t)
 
 	prefix := fakeTarantoolPrefix(t)
 	includeDir := filepath.Join(prefix, "include", "tarantool")
-	dir := setupProject(t, cmakeManifest, cmakeFiles)
+	dir := setupProject(t, treeManifest, map[string]string{
+		"native/lib/answer.so": "a module",
+		"native/answer.lua":    "return require('my-app.answer')\n",
+		"probe/tell.sh":        tellScript,
+	})
+
+	require.NoError(t, sdkbuild.CopyFile(filepath.Join(dir, "hello", "hello"), hostProgram(t)))
 
 	opts := dryOptions(dir)
 
@@ -135,27 +96,14 @@ func TestRun_cmakeComponents(t *testing.T) {
 	result, err := RunResult(context.Background(), opts)
 	require.NoError(t, err)
 
-	module := "answer.so"
-	if runtime.GOOS == "darwin" {
-		module = "answer.dylib"
-	}
-
 	tree := filepath.Join(dir, ".rocks")
 	stage := packageStage(dir, "default")
 
-	assert.FileExists(t, filepath.Join(stage, "lib", "my-app", module))
-	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", module))
+	assert.FileExists(t, filepath.Join(stage, "lib", "my-app", "answer.so"))
+	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "answer.so"))
 	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "answer.lua"))
 	assert.FileExists(t, filepath.Join(tree, "bin", "hello"))
 	assert.Equal(t, []string{"hello"}, result.Programs["hello"])
-
-	for _, component := range []string{"native", "hello"} {
-		assert.FileExists(t, filepath.Join(dir, "_build", "component", component,
-			"CMakeCache.txt"))
-	}
-
-	assert.NoDirExists(t, filepath.Join(dir, "native", "CMakeFiles"),
-		"the build is out of the source")
 
 	want := prefix + "\n" + includeDir + "\n"
 
@@ -167,9 +115,9 @@ func TestRun_cmakeComponents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, want, string(told), "what a hook is told of Tarantool")
 
-	// A second build rebuilds in the trees it kept.
+	// A second build copies them again.
 	require.NoError(t, Run(context.Background(), opts))
-	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", module))
+	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "answer.so"))
 }
 
 func TestTarantoolDirs(t *testing.T) {

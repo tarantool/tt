@@ -15,7 +15,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/tarantool/tt/sdk/build"
@@ -195,23 +194,18 @@ func (r *Registry) Backend(name string) (build.Backend, string, bool) {
 	return e.backend, e.module, ok
 }
 
-// Names returns the names of the backends: those of the core in the order
-// the core added them, then those of the modules by name. It is the order
+// Names returns the names of the backends in the order they were added: the
+// core adds the backends of the modules in the order of the names of the
+// modules, those of each in the order the module gives them. It is the order
 // the messages that list backends list them in.
 func (r *Registry) Names() []string {
-	var ofCore, ofModules []string
+	names := make([]string, 0, len(r.entries))
 
 	for _, e := range r.entries {
-		if e.module == "" {
-			ofCore = append(ofCore, e.backend.Name)
-		} else {
-			ofModules = append(ofModules, e.backend.Name)
-		}
+		names = append(names, e.backend.Name)
 	}
 
-	slices.Sort(ofModules)
-
-	return append(ofCore, ofModules...)
+	return names
 }
 
 // FileChecks returns the file checks, in the order they were added: those
@@ -275,37 +269,17 @@ func (r *Registry) lookup(name string) (entry, bool) {
 	return entry{}, false
 }
 
-// ordered returns the entries in the order of Names.
-func (r *Registry) ordered() []entry {
-	names := r.Names()
-	entries := make([]entry, 0, len(names))
-
-	for _, name := range names {
-		found, _ := r.lookup(name)
-
-		entries = append(entries, found)
-	}
-
-	return entries
-}
-
-var (
-	// process is the registry of the process.
-	process atomic.Pointer[Registry]
-	// core is the registry of the backends of the core, which a process
-	// whose registry nobody set has.
-	core = sync.OnceValue(Core)
-)
+// process is the registry of the process.
+var process atomic.Pointer[Registry]
 
 // Process returns the registry of the process: the one SetProcess set, or,
-// in a process that set none, such as a test, that of the backends of the
-// core.
+// in a process that set none, such as a test, an empty one.
 func Process() *Registry {
 	if registry := process.Load(); registry != nil {
 		return registry
 	}
 
-	return core()
+	return New()
 }
 
 // SetProcess makes registry the registry of the process. The core calls it

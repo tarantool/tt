@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 // TestBuildRest checks that the fields of the backend of a build block go to
@@ -19,7 +18,7 @@ func TestBuildRest(t *testing.T) {
 [components.a]
 path = "a"
 [components.a.build]
-backend = "lua-c"
+backend = "lib"
 cwd = "src"
 module = "m"
 sources = ["m.c"]
@@ -33,7 +32,7 @@ args = ["x"]
 `)
 
 	assert.Equal(t, &manifest.Build{
-		Backend: "lua-c", Cwd: "src", Env: nil, Output: nil, Incremental: nil, Static: nil,
+		Backend: "lib", Cwd: "src", Env: nil, Output: nil, Incremental: nil, Static: nil,
 		Rest: map[string]any{
 			"module": "m", "sources": []any{"m.c"},
 			"platforms": map[string]any{"linux": map[string]any{"cflags": []any{"-O2"}}},
@@ -53,7 +52,7 @@ func TestBuildRoundTrip(t *testing.T) {
 [components.a]
 path = "a"
 [components.a.build]
-backend = "cmake"
+backend = "tree"
 output = ["a.so"]
 static = true
 variables = { A = "1" }
@@ -87,13 +86,13 @@ func TestValidateBuildFieldsByVersion(t *testing.T) {
 	require.NoError(t, err, "the fields of a backend are not checked when parsed")
 	assert.Empty(t, warnings)
 
-	_, err = mfst.Validate(buildreg.Core())
+	_, err = mfst.Validate(backends())
 	require.EqualError(t, err, `components.a.build.jobs: unknown field in manifest version "0.1"`)
 
 	mfst, _, err = manifest.ParseManifest([]byte("manifest_version = \"0.9\"\n" + body))
 	require.NoError(t, err)
 
-	warnings, err = mfst.Validate(buildreg.Core())
+	warnings, err = mfst.Validate(backends())
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		`field "components.a.build.jobs" appeared in a newer manifest version; ` +
@@ -109,20 +108,20 @@ func TestValidateBuildFields(t *testing.T) {
 	t.Parallel()
 
 	for body, want := range map[string]string{
-		"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"c\"\n" +
+		"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lib\"\n" +
 			"module = \"m\"\nsources = [\"m.c\"]\n[components.a.build.platforms.linux]\n" +
 			"cflag = [\"-O2\"]\n": `components.a.build.platforms.linux.cflag: ` +
 			`unknown field in manifest version "0.1"`,
-		"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"c\"\n" +
+		"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lib\"\n" +
 			"module = \"m\"\nsources = [\"m.c\"]\ncflags = \"-O2\"\n": "components.a.build." +
 			"cflags: must be an array, not a string",
-		"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"c\"\n" +
+		"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lib\"\n" +
 			"module = \"m\"\nsources = [\"m.c\", 1]\n": `components.a.build.sources[1]: ` +
 			`must be a string, not an integer`,
 		"[hooks.pre_build]\ncommand = \"./gen.sh\"\nargs = \"-x\"\n": `hooks.pre_build.args: ` +
 			`must be an array, not a string`,
 	} {
-		_, err := parseBody(t, body).Validate(buildreg.Core())
+		_, err := parseBody(t, body).Validate(backends())
 		require.EqualError(t, err, want)
 	}
 }
@@ -136,17 +135,17 @@ func TestValidateUnknownBackend(t *testing.T) {
 	mfst := parseBody(t, "[components.a]\npath = \"a\"\n[components.a.build]\n"+
 		"backend = \"zig\"\nsteps = [\"install\"]\nanything = true\n")
 
-	warnings, err := mfst.Validate(buildreg.Core())
+	warnings, err := mfst.Validate(backends())
 	require.NoError(t, err)
 	assert.Equal(t, []string{`components.a.build: no module of this tt provides backend ` +
 		`"zig"; its fields are not checked`}, warnings)
 
-	_, err = parseBody(t, "[hooks.pre_build]\nbackend = \"zig\"\n").Validate(buildreg.Core())
+	_, err = parseBody(t, "[hooks.pre_build]\nbackend = \"zig\"\n").Validate(backends())
 	require.EqualError(t, err,
 		`hooks.pre_build: backend "zig" is not supported (want make or shell)`)
 
 	_, err = parseBody(t, "[components.a]\npath = \"a\"\n[components.a.build]\n").
-		Validate(buildreg.Core())
+		Validate(backends())
 	require.EqualError(t, err, "components.a.build: backend is required")
 }
 
@@ -167,14 +166,14 @@ func TestValidateStructureOnly(t *testing.T) {
 	require.EqualError(t, err, "components.a.build: backend is required")
 
 	// Which backends run hooks is the checker's to say.
-	hook := parseBody(t, "[hooks.pre_build]\nbackend = \"go\"\n")
+	hook := parseBody(t, "[hooks.pre_build]\nbackend = \"exe\"\n")
 
 	_, err = hook.Validate(nil)
 	require.NoError(t, err)
 
-	_, err = hook.Validate(buildreg.Core())
+	_, err = hook.Validate(backends())
 	require.EqualError(t, err,
-		`hooks.pre_build: backend "go" is not supported (want make or shell)`)
+		`hooks.pre_build: backend "exe" is not supported (want make or shell)`)
 
 	_, err = parseBody(t, "[hooks.pre_build]\ncommand = \"x\"\nstatic = true\n").Validate(nil)
 	require.ErrorContains(t, err, "hooks.pre_build.static: is for the build of a component")

@@ -24,6 +24,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
@@ -557,8 +558,8 @@ func TestPackRockFailsBeforeTheBuild(t *testing.T) {
 }
 
 // TestPackRockWithoutTarantool: a package of Lua is packed as a rock by a tt
-// with no Tarantool, the zero TarantoolInfo, while a lua-c component of it
-// fails before anything is built, naming the headers it has none of.
+// with no Tarantool, the zero TarantoolInfo, while a component of it whose
+// backend needs the headers of Tarantool fails before anything is built.
 func TestPackRockWithoutTarantool(t *testing.T) {
 	t.Parallel()
 
@@ -581,7 +582,7 @@ func TestPackRockWithoutTarantool(t *testing.T) {
 path = 'native'
 
 [components.native.build]
-backend = 'lua-c'
+backend = 'lib'
 module = 'fast'
 sources = ['fast.c']
 
@@ -595,15 +596,15 @@ env = { MARKER = '%s' }
 	})
 
 	_, err = Run(context.Background(), opts)
-	require.ErrorContains(t, err, missingHeaders)
-	assert.Contains(t, err.Error(), `building component "native": tarantool development `+
-		"headers not found: cannot compile c/lua-c component: no tarantool to take them from")
+	require.ErrorIs(t, err, buildregtest.ErrNoHeaders)
+	assert.Contains(t, err.Error(), `building component "native": `+missingHeaders)
 	assert.NoFileExists(t, marker, "nothing was built")
 }
 
 // TestPackSrcRockBuildsNothing: a pack of the source rock alone builds
-// nothing - no hook, no backend, nothing into .rocks/ - so a lua-c component
-// packs with no Tarantool to take the headers from, while the lock and the
+// nothing - no hook, no backend, nothing into .rocks/ - so a component whose
+// backend needs the headers of Tarantool packs with no Tarantool to take
+// them from, while the lock and the
 // manifest are checked as a build checks them. With the binary rock, the
 // same pack builds and fails for want of the headers.
 func TestPackSrcRockBuildsNothing(t *testing.T) {
@@ -618,7 +619,7 @@ func TestPackSrcRockBuildsNothing(t *testing.T) {
 path = 'native'
 
 [components.native.build]
-backend = 'lua-c'
+backend = 'lib'
 module = 'fast'
 sources = ['fast.c']
 
@@ -664,10 +665,10 @@ env = { MARKER = '%s' }
 	require.ErrorContains(t, err, missingHeaders)
 }
 
-// missingHeaders is what the c and lua-c backends say of a build with no
-// headers of Tarantool to compile against.
-const missingHeaders = "tarantool development headers not found: " +
-	"cannot compile c/lua-c component"
+// missingHeaders is what lib, the backend of modules of the tests
+// (buildregtest), says of a build with no headers of Tarantool to compile
+// against, as the backends of C modules of tt refuse one.
+const missingHeaders = "lib needs the headers of Tarantool"
 
 // TestPackRockRefusesForeignNative: the rock of the host cannot carry a native
 // file of another platform.

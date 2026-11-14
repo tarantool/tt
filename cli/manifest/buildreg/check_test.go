@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
 
 func TestCore(t *testing.T) {
@@ -35,8 +36,8 @@ func TestCore(t *testing.T) {
 }
 
 //nolint:paralleltest // The registry of the process is the process's.
-func TestProcessIsCoreByDefault(t *testing.T) {
-	assert.Equal(t, buildreg.Core().Names(), buildreg.Process().Names())
+func TestProcessIsEmptyByDefault(t *testing.T) {
+	assert.Empty(t, buildreg.Process().Names())
 }
 
 // zigBuild is the build zig returns.
@@ -71,12 +72,12 @@ func zig() build.Backend {
 	return zigger
 }
 
-// registry returns the registry of the core with zig of the module zig and a
-// backend of programs only, wasm-tool, of the module wasm.
+// registry returns the registry of the backends of the tests with zig of the
+// module zig and a backend of programs only, wasm-tool, of the module wasm.
 func registry(t *testing.T) *buildreg.Registry {
 	t.Helper()
 
-	registry := buildreg.Core()
+	registry := buildregtest.Registry()
 
 	require.NoError(t, registry.Add("zig", []build.Backend{zig()}, nil))
 
@@ -134,7 +135,7 @@ func (b namedBuild) Programs() ([]string, bool) { return b.programs, true }
 func TestCheckBuildPrograms(t *testing.T) {
 	t.Parallel()
 
-	registry := buildreg.Core()
+	registry := buildregtest.Registry()
 	named := zig()
 
 	named.New = func(any, build.Component, build.Common) (build.Build, error) {
@@ -176,7 +177,7 @@ func TestCheckBuildExpects(t *testing.T) {
 
 	var told []build.Component
 
-	registry := buildreg.Core()
+	registry := buildregtest.Registry()
 	expecting := zig()
 
 	expecting.New = func(_ any, component build.Component, common build.Common) (
@@ -317,21 +318,21 @@ func TestCheckBuildErrors(t *testing.T) {
 			"components.a.build.bin", `"." is not a file name`,
 		},
 		{
-			"a field of the core", moduleTarget(),
+			"a field of another module", moduleTarget(),
 			manifest.Build{Backend: "zig", Rest: map[string]any{
 				"steps": steps, "make_target": "all",
 			}},
 			"components.a.build.make_target", `is a field of backend make, not of "zig"`,
 		},
 		{
-			"a field the core shares", moduleTarget(),
+			"a field two backends share", moduleTarget(),
 			manifest.Build{Backend: "zig", Rest: map[string]any{
 				"steps": steps, "ldflags": []any{"-s"},
 			}},
-			"components.a.build.ldflags", `is a field of backend c, go or lua-c, not of "zig"`,
+			"components.a.build.ldflags", `is a field of backend exe or lib, not of "zig"`,
 		},
 		{
-			"a field of a module on the core", moduleTarget(),
+			"a field of a module added later", moduleTarget(),
 			manifest.Build{Backend: "make", Rest: map[string]any{
 				"make_target": "all", "steps": steps,
 			}},
@@ -344,7 +345,7 @@ func TestCheckBuildErrors(t *testing.T) {
 				Rest: map[string]any{"steps": steps},
 			},
 			"components.a.build.output",
-			`is a field of backend make, shell, cmake or wasm-tool, not of "zig"`,
+			`is a field of backend make, shell, tree or wasm-tool, not of "zig"`,
 		},
 		{
 			"incremental", program,
@@ -369,24 +370,24 @@ func TestCheckBuildErrors(t *testing.T) {
 		},
 		{
 			"kind = executable of a backend of modules", program,
-			manifest.Build{Backend: "c", Rest: map[string]any{
+			manifest.Build{Backend: "lib", Rest: map[string]any{
 				"module": "m", "sources": []any{"m.c"},
 			}},
-			"components.a.kind", `is "executable", but backend "c" makes no programs`,
+			"components.a.kind", `is "executable", but backend "lib" makes no programs`,
 		},
 		{
 			"kind = module of a backend of programs", module,
-			manifest.Build{Backend: "go"},
-			"components.a.kind", `is "module", but backend "go" makes programs only`,
+			manifest.Build{Backend: "exe"},
+			"components.a.kind", `is "module", but backend "exe" makes programs only`,
 		},
 		{
 			"kind = executable of a build of a module", program,
-			manifest.Build{Backend: "cargo", Rest: map[string]any{"module": "m"}},
+			manifest.Build{Backend: "both", Rest: map[string]any{"module": "m"}},
 			"components.a.kind", `is "executable", but the build makes modules`,
 		},
 		{
 			"kind = module of a build of a program", module,
-			manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gw"}},
+			manifest.Build{Backend: "both", Rest: map[string]any{"bin": "gw"}},
 			"components.a.kind", `is "module", but the build makes programs`,
 		},
 		{
@@ -404,7 +405,7 @@ func TestCheckBuildErrors(t *testing.T) {
 			manifest.Build{Backend: "shell", Rest: map[string]any{
 				"command": "./gen.sh", "cgo": true,
 			}},
-			"hooks.pre_build.cgo", `is a field of backend go, not of "shell"`,
+			"hooks.pre_build.cgo", `is a field of backend exe, not of "shell"`,
 		},
 	}
 
@@ -490,7 +491,7 @@ func TestCheckBuildHookKind(t *testing.T) {
 	require.EqualError(t, err,
 		`hooks.pre_build: backend "zig" is not supported (want make or shell)`)
 
-	registry := buildreg.Core()
+	registry := buildregtest.Registry()
 	hooks := zig()
 
 	hooks.Hook = true
@@ -500,13 +501,25 @@ func TestCheckBuildHookKind(t *testing.T) {
 	_, err = registry.CheckBuild("hooks.pre_build", hook, block)
 	require.NoError(t, err)
 
-	_, err = registry.CheckBuild("hooks.pre_build", hook, manifest.Build{Backend: "cmake"})
+	_, err = registry.CheckBuild("hooks.pre_build", hook, manifest.Build{Backend: "tree"})
 	require.EqualError(t, err,
-		`hooks.pre_build: backend "cmake" is not supported (want make, shell or zig)`)
+		`hooks.pre_build: backend "tree" is not supported (want make, shell or zig)`)
 
 	// A backend of no module is not one that runs hooks either.
 	check, err = registry.CheckBuild("hooks.pre_build", hook, manifest.Build{Backend: "rust"})
 	assert.False(t, check.Known)
 	require.EqualError(t, err,
 		`hooks.pre_build: backend "rust" is not supported (want make, shell or zig)`)
+
+	// A tt none of whose modules provides a backend that runs hooks, as a
+	// distribution without the standard backends, says so of the shell of a
+	// hook that names no backend.
+	none := buildreg.New()
+
+	require.NoError(t, none.Add("zig", []build.Backend{zig()}, nil))
+
+	check, err = none.CheckBuild("hooks.pre_build", hook, manifest.Build{Backend: "shell"})
+	assert.False(t, check.Known)
+	require.EqualError(t, err, `hooks.pre_build: backend "shell" is not supported: `+
+		"no module of this tt provides a backend that runs hooks")
 }

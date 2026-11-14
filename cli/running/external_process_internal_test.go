@@ -22,6 +22,8 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/supervisor"
@@ -69,6 +71,11 @@ func TestMain(m *testing.M) {
 	if mode != "" {
 		os.Exit(runProcess(mode))
 	}
+
+	// The build backends of the tests are those of the process, as the core
+	// makes those of its modules: a program is told by what its build says
+	// it makes.
+	buildreg.SetProcess(buildregtest.Registry())
 
 	os.Exit(m.Run())
 }

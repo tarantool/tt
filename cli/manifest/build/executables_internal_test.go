@@ -20,7 +20,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/exitcode"
-	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
@@ -41,20 +41,20 @@ path = '.'
 include = ['*.lua']
 `
 
-// goManifest is my-app with a Go program built by the go backend, whose
-// sources carry a Lua file the default include would lay out. The
-// component says no kind: it makes what its build makes.
-const goManifest = manifestHead + `
+// exeManifest is my-app with a program built by exe, a backend of programs
+// that lays out no sources of its component (buildregtest), whose sources
+// carry a Lua file the default include would lay out. The component says no
+// kind: it makes what its build makes.
+const exeManifest = manifestHead + `
 [components.gw]
 path = 'gw'
 
 [components.gw.build]
-backend = 'go'
-package = './cmd/gw'
+backend = 'exe'
 `
 
-// goFiles is the project of goManifest.
-var goFiles = map[string]string{
+// exeFiles is the project of exeManifest: the sources of a Go program.
+var exeFiles = map[string]string{
 	"init.lua":           "-- init",
 	"gw/go.mod":          "module example.com/gw\n\ngo 1.22\n",
 	"gw/cmd/gw/main.go":  "package main\n\nfunc main() {}\n",
@@ -118,10 +118,13 @@ func readRecord(t *testing.T, dir string) map[string][]string {
 	return programsOf(recordOf(t, dir))
 }
 
-func TestRun_executableGo(t *testing.T) {
+// TestRun_programBackend: the program a backend of programs makes is laid
+// out into bin/ and recorded, and the sources of its component are not laid
+// out.
+func TestRun_programBackend(t *testing.T) {
 	t.Parallel()
 
-	dir := setupProject(t, goManifest, goFiles)
+	dir := setupProject(t, exeManifest, exeFiles)
 
 	result, err := RunResult(context.Background(), dryOptions(dir))
 	require.NoError(t, err)
@@ -131,14 +134,13 @@ func TestRun_executableGo(t *testing.T) {
 	prog, err := native.InspectProgram(program)
 	require.NoError(t, err)
 	assert.True(t, prog.Executable)
-	assert.True(t, prog.Static(), "%+v", prog)
 	assert.Equal(t, []native.Platform{native.Host()}, prog.Platforms)
 
 	assert.Equal(t, map[string][]string{"gw": {"gw"}}, result.Programs)
 	assert.Equal(t, map[string][]string{"gw": {"gw"}}, readRecord(t, dir))
 	assert.Equal(t, madeFiles{Programs: []string{"gw"}}, recordOf(t, dir)["gw"])
 
-	// The sources of a go component are not laid out under the namespace.
+	// The sources of the component are not laid out under the namespace.
 	share := filepath.Join(dir, ".rocks", "share", "tarantool", "my-app")
 	assert.True(t, exists(t, filepath.Join(share, "init.lua")))
 	assert.False(t, exists(t, filepath.Join(share, "testdata")))
@@ -146,13 +148,13 @@ func TestRun_executableGo(t *testing.T) {
 	assert.False(t, exists(t, filepath.Join(dir, ".rocks", "share", "tarantool", "gw")))
 }
 
-// TestRun_goIncludeLaysOut: what the include of a go component names is laid
-// out, the rest of its sources not: the include of a component is its own
-// whatever its backend.
-func TestRun_goIncludeLaysOut(t *testing.T) {
+// TestRun_includeOfAProgramBackendLaysOut: what the include of a component
+// of a backend that lays out no sources names is laid out, the rest of its
+// sources not: the include of a component is its own whatever its backend.
+func TestRun_includeOfAProgramBackendLaysOut(t *testing.T) {
 	t.Parallel()
 
-	files := maps.Clone(goFiles)
+	files := maps.Clone(exeFiles)
 
 	files["gw/lua/client.lua"] = "return {}"
 
@@ -163,8 +165,7 @@ include = ['lua/*.lua']
 namespace = 'gw'
 
 [components.gw.build]
-backend = 'go'
-package = './cmd/gw'
+backend = 'exe'
 `, files)
 
 	result, err := RunResult(context.Background(), dryOptions(dir))
@@ -233,7 +234,7 @@ func TestRun_executableBuildsNothing(t *testing.T) {
 func TestRun_componentBuildKeepsTheOthersRecord(t *testing.T) {
 	t.Parallel()
 
-	dir := setupProject(t, goManifest, goFiles)
+	dir := setupProject(t, exeManifest, exeFiles)
 
 	_, err := RunResult(context.Background(), dryOptions(dir))
 	require.NoError(t, err)
@@ -255,17 +256,17 @@ func TestRun_componentBuildKeepsTheOthersRecord(t *testing.T) {
 	assert.Empty(t, result.Programs)
 }
 
-// TestRun_missingToolFailsFirst: a go component without go in PATH fails the
-// build before anything is resolved or built.
+// TestRun_missingToolFailsFirst: a component whose build needs a tool not in
+// PATH fails the build before anything is resolved or built.
 func TestRun_missingToolFailsFirst(t *testing.T) {
-	dir := setupProject(t, goManifest, goFiles)
+	dir := setupProject(t, exeManifest, exeFiles)
 
 	t.Setenv("PATH", t.TempDir())
 
 	err := Run(context.Background(), dryOptions(dir))
 	require.ErrorIs(t, err, sdkbuild.ErrNoTool)
 	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
-	assert.Contains(t, err.Error(), `"go"`)
+	assert.Contains(t, err.Error(), `the exe backend runs "sh"`)
 	assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
 }
 
@@ -277,20 +278,22 @@ func TestRun_missingToolFailsFirst(t *testing.T) {
 func TestPreflightFindsTheProjectBin(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
-	const cmakeManifest = manifestHead + `
-[components.fast]
-path = 'fast'
+	toolManifest := func(tool, env string) string {
+		return manifestHead + `
+[components.gw]
+path = 'gw'
 
-[components.fast.build]
-backend = 'cmake'
-output = ['fast.so']
-env = { PATH = '/nonexistent' }
-`
+[components.gw.build]
+backend = 'exe'
+tool = '` + tool + `'
+` + env
+	}
 
 	// The package and a neighbour it is built as a path dependency of.
 	for _, dir := range []string{
-		setupProject(t, goManifest, goFiles),
-		setupProject(t, cmakeManifest, map[string]string{"fast/CMakeLists.txt": ""}),
+		setupProject(t, toolManifest("fake-go", ""), exeFiles),
+		setupProject(t, toolManifest("fake-cmake", "env = { PATH = '/nonexistent' }\n"),
+			exeFiles),
 	} {
 		man, err := readManifest(dir, Options{})
 		require.NoError(t, err)
@@ -300,13 +303,13 @@ env = { PATH = '/nonexistent' }
 		adapter := rocks.New(rocks.BuildConfig(rocks.TarantoolInfo{}, rocks.ConfigOptions{
 			Tree: filepath.Join(dir, rocksDirName), WorkingDir: dir,
 		}))
-		builder := newBuilder(Options{ProjectDir: dir, Backends: buildreg.Core()}, proj,
+		builder := newBuilder(Options{ProjectDir: dir, Backends: buildregtest.Registry()}, proj,
 			adapter, packageStage(dir, "default"), version.Version{})
 
 		require.ErrorIs(t, builder.preflight(components), sdkbuild.ErrNoTool)
 
 		bin := ProjectBinDir(dir)
-		for _, tool := range []string{"go", "cmake"} {
+		for _, tool := range []string{"fake-go", "fake-cmake"} {
 			writeFile(t, filepath.Join(bin, tool), "#!/bin/sh\n")
 			require.NoError(t, os.Chmod(filepath.Join(bin, tool), 0o755))
 		}

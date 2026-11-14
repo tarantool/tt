@@ -27,14 +27,15 @@ tt = '>=3.1.0'
 path = 'lualib'
 `
 
-// luaCComponent is a lua-c component to add to luaPackageManifest, which
-// builds with the headers of a Tarantool only.
+// luaCComponent is a component of lib, the backend of modules of the tests
+// (buildregtest), to add to luaPackageManifest, which builds with the
+// headers of a Tarantool only.
 const luaCComponent = `
 [components.native]
 path = 'native'
 
 [components.native.build]
-backend = 'lua-c'
+backend = 'lib'
 module = 'fast'
 sources = ['fast.c']
 `
@@ -123,19 +124,16 @@ func TestPackagePackRockWithoutTarantool(t *testing.T) {
 	require.NoError(t, runPackage(nil, true))
 }
 
-// TestPackagePackLuaCWithoutTarantool checks that a lua-c component fails the
-// build and the pack of a tt with no tarantool before anything is built,
-// saying that it has no headers to compile against and why.
+// TestPackagePackLuaCWithoutTarantool checks that a component whose backend
+// needs the headers of Tarantool fails the build and the pack of a tt with
+// no tarantool before anything is built, naming the component.
 func TestPackagePackLuaCWithoutTarantool(t *testing.T) {
 	dir := writeLuaPackage(t, luaPackageManifest+luaCComponent)
 	out := filepath.Join(t.TempDir(), "dist")
 
 	withoutTarantool(t, dir, []string{pack.FormatRock}, out)
 
-	const message = `building component "native": tarantool development headers ` +
-		"not found: cannot compile c/lua-c component: no tarantool to take them from, " +
-		"neither in .tarantool/bin of the project nor in PATH; tt binary install " +
-		"tarantool installs one"
+	const message = `building component "native": lib needs the headers of Tarantool`
 
 	err := runPackagePack()
 	require.EqualError(t, err, message)

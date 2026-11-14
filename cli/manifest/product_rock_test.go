@@ -5,8 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 // productRocks are the components of the products below: a module, its tools
@@ -36,7 +34,7 @@ rock = "demo-tools"
 components = ["lib", "tools", "role"]
 `)
 
-	_, err := mfst.Validate(buildreg.Core())
+	_, err := mfst.Validate(backends())
 	require.NoError(t, err)
 
 	assert.Equal(t, "demo", mfst.ProductRock("default"))
@@ -91,7 +89,7 @@ components = ["tools"]
 rock = "demo-tools"
 `: `the component "tools" is in the rock "demo" too`,
 	} {
-		_, err := parseBody(t, productRocks+body).Validate(buildreg.Core())
+		_, err := parseBody(t, productRocks+body).Validate(backends())
 		require.Error(t, err, body)
 		assert.Contains(t, err.Error(), want, body)
 	}

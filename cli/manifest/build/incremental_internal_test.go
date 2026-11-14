@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
 
 func TestComponentInputs(t *testing.T) {
@@ -351,7 +351,7 @@ incremental = true
 func TestIncrementalIsForMakeAndShell(t *testing.T) {
 	t.Parallel()
 
-	const goManifest = `manifest_version = '0.1'
+	const exeManifest = `manifest_version = '0.1'
 
 [package]
 name = 'my-app'
@@ -365,14 +365,14 @@ path = 'prog'
 kind = 'executable'
 
 [components.prog.build]
-backend = 'go'
+backend = 'exe'
 incremental = true
 `
 
-	man, _, err := manifest.ParseManifest([]byte(goManifest))
+	man, _, err := manifest.ParseManifest([]byte(exeManifest))
 	require.NoError(t, err)
 
-	_, err = man.Validate(buildreg.Core())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "incremental")
+	_, err = man.Validate(buildregtest.Registry())
+	require.EqualError(t, err, "components.prog.build.incremental: "+
+		`is a field of backend make or shell, not of "exe"`)
 }
