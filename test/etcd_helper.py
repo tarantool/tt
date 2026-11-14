@@ -13,6 +13,14 @@ DEFAULT_ETCD_USERNAME = "root"
 DEFAULT_ETCD_PASSWORD = "password"
 
 
+def etcd_tool(name):
+    """Return the command of etcd or etcdctl, name: the one of the
+    directory ETCD_PATH names, with a trailing slash, as CI sets it, else
+    the one on PATH. Both come from the directory, so that an etcd on PATH
+    without its etcdctl, or of another release, is not taken for either."""
+    return os.getenv("ETCD_PATH", default="") + name
+
+
 class EtcdInstance:
     def __init__(
         self,
@@ -40,7 +48,7 @@ class EtcdInstance:
 
     def start(self):
         popen = subprocess.Popen(
-            [os.getenv("ETCD_PATH", default="") + "etcd"],
+            [etcd_tool("etcd")],
             env={
                 "ETCD_LISTEN_CLIENT_URLS": self.endpoint,
                 "ETCD_ADVERTISE_CLIENT_URLS": self.endpoint,
@@ -71,7 +79,9 @@ class EtcdInstance:
 
     def truncate(self):
         try:
-            subprocess.run(["etcdctl", "del", "--prefix", "/", f"--endpoints={self.endpoint}"])
+            subprocess.run(
+                [etcd_tool("etcdctl"), "del", "--prefix", "/", f"--endpoints={self.endpoint}"],
+            )
         except Exception as ex:
             self.stop()
             raise ex
@@ -83,7 +93,7 @@ class EtcdInstance:
         try:
             subprocess.run(
                 [
-                    "etcdctl",
+                    etcd_tool("etcdctl"),
                     "user",
                     "add",
                     self.connection_username,
@@ -93,7 +103,7 @@ class EtcdInstance:
             )
             subprocess.run(
                 [
-                    "etcdctl",
+                    etcd_tool("etcdctl"),
                     "auth",
                     "enable",
                     f"--user={self.connection_username}:{self.connection_password}",
@@ -107,7 +117,7 @@ class EtcdInstance:
     def disable_auth(self):
         subprocess.run(
             [
-                "etcdctl",
+                etcd_tool("etcdctl"),
                 "auth",
                 "disable",
                 f"--user={self.connection_username}:{self.connection_password}",
