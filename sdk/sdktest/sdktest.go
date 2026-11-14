@@ -864,7 +864,16 @@ func (f fakeProject) Manifest() (sdk.Manifest, error) { return f.services.readMa
 func (f fakeProject) AddComponent(
 	_ context.Context, component sdk.Component,
 ) (sdk.ComponentChange, error) {
-	return f.services.addComponent(component)
+	change, err := f.services.addComponent(component)
+
+	// The core calls it between the write and the resolution: the fake
+	// writes and resolves nothing, so once declared, before the error
+	// WithResolveError gives.
+	if change.Declared && component.OnDeclared != nil {
+		component.OnDeclared()
+	}
+
+	return change, err
 }
 
 // StateDir returns .tarantool of the root.

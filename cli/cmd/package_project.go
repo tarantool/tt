@@ -86,7 +86,8 @@ func AddDependency(ctx context.Context, dep sdk.Dependency) (*deps.Result, error
 // the one it replaces. declared reports that it was written: a resolution
 // that fails leaves the component declared, and its error says that the
 // lock was not resolved again. A name the manifest declares already is
-// ErrComponentDeclared, and nothing is written.
+// ErrComponentDeclared, and nothing is written. component.OnDeclared is
+// called between the write and the resolution.
 //
 // The warnings of the resolution go to the process logger. It stops on
 // SIGINT and SIGTERM, and when ctx is done. A tt with no Tarantool fails
@@ -111,6 +112,10 @@ func AddComponent(ctx context.Context, component sdk.Component) (*deps.Result, b
 	err = declareComponent(path, component)
 	if err != nil {
 		return nil, false, err
+	}
+
+	if component.OnDeclared != nil {
+		component.OnDeclared()
 	}
 
 	result, err := deps.Resolve(ctx, opts)

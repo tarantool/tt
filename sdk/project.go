@@ -115,6 +115,12 @@ type Component struct {
 	// Registries are the rock servers the lock is resolved with afterwards,
 	// as [Dependency.Registries] are.
 	Registries []string
+	// OnDeclared, when set, is called once the manifest is written with the
+	// component and before the lock is resolved again: a command that tells
+	// the user of each of its steps says there that the component is
+	// declared, ahead of what the resolution logs. It is not called when
+	// nothing is written.
+	OnDeclared func()
 }
 
 // ComponentBuild is the build block of a [Component].
