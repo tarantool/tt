@@ -15,7 +15,9 @@ import (
 
 	"github.com/tarantool/go-luarocks/remote"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/sdktest"
 )
 
 // assetServer serves body for any path and counts the requests.
@@ -127,9 +129,28 @@ func TestFetchIgnoresCorruptCache(t *testing.T) {
 	assert.Equal(t, int32(1), hits.Load())
 }
 
+// testRocks returns services of the SDK whose Rocks().Index writes the
+// LuaRocks manifests of a directory as the core does (remote.MakeManifest),
+// and records the calls (Indexed). The rock index beside them is the core's
+// to write, and is not written.
+func testRocks(t *testing.T) *sdktest.Services {
+	t.Helper()
+
+	services := sdktest.New(t, sdktest.WithIndex(func(dir string, _ sdk.IndexOptions) error {
+		return remote.MakeManifest(context.Background(), dir, remote.MakeManifestOpts{
+			LuaVersions: nil, Index: false, Zip: false, Warn: nil,
+		})
+	}))
+	services.Start()
+
+	return services
+}
+
 // prepareOptions are the options of a Prepare of project that installs no
 // tarawasm and records the declarations it makes in declared.
-func prepareOptions(project string, declared *[]string) Options {
+func prepareOptions(t *testing.T, project string, declared *[]string) Options {
+	t.Helper()
+
 	return Options{
 		ProjectDir:   project,
 		Version:      "",
@@ -139,6 +160,12 @@ func prepareOptions(project string, declared *[]string) Options {
 		Language:     "",
 		From:         "",
 		RockServer:   "",
+		Manifest: func() (sdk.Manifest, error) {
+			t.Error("a Prepare without tarawasm reads no components")
+
+			return testManifest(), nil
+		},
+		Rocks: testRocks(t).Rocks(),
 		Declare: func(_ context.Context, name, constraint, registry string) (bool, error) {
 			*declared = append(*declared, name+" "+constraint+" "+registry)
 
@@ -164,7 +191,7 @@ func TestPrepareRequiresManifest(t *testing.T) {
 
 	var declared []string
 
-	_, err := Prepare(context.Background(), prepareOptions(t.TempDir(), &declared))
+	_, err := Prepare(context.Background(), prepareOptions(t, t.TempDir(), &declared))
 	require.ErrorIs(t, err, ErrNoManifest)
 	assert.Empty(t, declared)
 }
@@ -176,7 +203,7 @@ func TestPrepareFromUnknownRelease(t *testing.T) {
 
 	var declared []string
 
-	opts := prepareOptions(testProject(t), &declared)
+	opts := prepareOptions(t, testProject(t), &declared)
 
 	opts.Version = "9.9.9"
 	opts.From = filepath.Join(t.TempDir(), "module.so")
@@ -196,14 +223,14 @@ func TestPrepareDeclaresFromTheRockServer(t *testing.T) {
 
 	var declared []string
 
-	report, err := Prepare(context.Background(), prepareOptions(project, &declared))
+	report, err := Prepare(context.Background(), prepareOptions(t, project, &declared))
 	require.NoError(t, err)
 	assert.Equal(t, DefaultRockServer, report.Registry)
 	assert.Empty(t, report.Rock)
 	assert.Equal(t, hostRockArch(), report.Platform.RockArch)
 	assert.True(t, report.Declared)
 
-	opts := prepareOptions(project, &declared)
+	opts := prepareOptions(t, project, &declared)
 
 	opts.Version = "9.9.9"
 	opts.RockServer = "https://rocks.example/"
@@ -239,9 +266,11 @@ func TestPreparePacksTheLocalBuild(t *testing.T) {
 
 	envWritten := false
 
-	opts := prepareOptions(project, &declared)
+	rocks := testRocks(t)
+	opts := prepareOptions(t, project, &declared)
 
 	opts.From = module
+	opts.Rocks = rocks.Rocks()
 	opts.PrepareEnv = func() error {
 		envWritten = true
 
@@ -257,9 +286,11 @@ func TestPreparePacksTheLocalBuild(t *testing.T) {
 		report.Rock)
 	assert.Equal(t, "wasm-0.1.0-1."+hostRockArch()+".rock", filepath.Base(report.Rock))
 	assert.FileExists(t, filepath.Join(registry, registryManifestName))
-	// The registry of the project gets no rock index: the lock would pin the
-	// digest of a rock packed anew from every local build.
-	assert.NoFileExists(t, filepath.Join(registry, remote.RocksIndexFile))
+	// The registry of the project gets no rock index unless it has one: the
+	// lock would pin the digest of a rock packed anew from every local build.
+	assert.Equal(t, []sdktest.Index{{
+		Dir: registry, Options: sdk.IndexOptions{IfIndexed: true},
+	}}, rocks.Indexed())
 	assert.Equal(t, []string{"wasm 0.1.0 " + RegistryDir}, declared)
 	assert.Equal(t, RegistryDir, report.Registry)
 	assert.True(t, report.Declared)

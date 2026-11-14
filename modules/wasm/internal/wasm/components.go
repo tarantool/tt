@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/sdk"
 )
 
 const (
@@ -37,14 +37,14 @@ type Component struct {
 	SDKVersion string
 }
 
-// FindComponents returns the components of the package in projectDir that
-// tarawasm builds, in the order of their names.
-func FindComponents(projectDir string) ([]Component, error) {
-	man, err := readManifest(projectDir)
-	if err != nil {
-		return nil, err
-	}
+// ReadManifest returns what the manifest of the project declares, as the
+// project of the SDK reads it ([sdk.Project.Manifest]): an error wrapping
+// ErrNoManifest for a project without one.
+type ReadManifest func() (sdk.Manifest, error)
 
+// FindComponents returns the components of the package in projectDir, whose
+// manifest is man, that tarawasm builds, in the order of their names.
+func FindComponents(projectDir string, man sdk.Manifest) ([]Component, error) {
 	var components []Component
 
 	for _, name := range sortedKeys(man.Components) {
@@ -119,51 +119,31 @@ func readJSON(path string, value any) (bool, error) {
 	return true, nil
 }
 
-// readManifest parses the manifest of the package in projectDir.
-func readManifest(projectDir string) (*manifest.Manifest, error) {
-	path := filepath.Join(projectDir, manifestFileName)
-
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("%w: %s has no %s (create one with tt new)",
-			ErrNoManifest, projectDir, manifestFileName)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
-	}
-
-	man, _, err := manifest.ParseManifest(data)
-	if err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", path, err)
-	}
-
-	return man, nil
+// NoManifestError is the error of a project without a manifest in
+// projectDir, as ReadManifest reports it.
+func NoManifestError(projectDir string) error {
+	return fmt.Errorf("%w: %s has no %s (create one with tt new)",
+		ErrNoManifest, projectDir, manifestFileName)
 }
 
 // exactVersionRe matches a constraint that names one version: 0.1.0 or
 // ==0.1.0.
 var exactVersionRe = regexp.MustCompile(`^\s*(?:==\s*)?([0-9][0-9A-Za-z.\-]*)\s*$`)
 
-// DeclaredVersion returns the version of the wasm rock the manifest declares,
-// when its constraint names one; empty otherwise.
-func DeclaredVersion(projectDir string) (string, error) {
-	man, err := readManifest(projectDir)
-	if err != nil {
-		return "", err
-	}
-
+// DeclaredVersion returns the version of the wasm rock man declares, when
+// its constraint names one; empty otherwise.
+func DeclaredVersion(man sdk.Manifest) string {
 	dependency, ok := man.Dependencies[RockName]
 	if !ok {
-		return "", nil
+		return ""
 	}
 
 	match := exactVersionRe.FindStringSubmatch(dependency.Version)
 	if match == nil {
-		return "", nil
+		return ""
 	}
 
-	return match[1], nil
+	return match[1]
 }
 
 // SDKMismatches returns a line for every component whose SDK is of another

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/scope"
 )
 
@@ -55,6 +56,11 @@ type Options struct {
 	// project, and any version is taken: the server, not tt, knows which it
 	// serves. Empty is DefaultRockServer.
 	RockServer string
+	// Manifest reads the manifest of the project, for the components
+	// tarawasm builds.
+	Manifest ReadManifest
+	// Rocks index the registry a local build is packed into.
+	Rocks sdk.Rocks
 	// Declare declares the dependency rock on the registry and re-resolves the
 	// lock. It reports whether the manifest already declared it, in which case
 	// the declaration was left alone.
@@ -256,7 +262,7 @@ func packLocalBuild(ctx context.Context, opts Options, report *Report) error {
 	// index would have the lock pin the digest of a rock packed anew from
 	// every local build. One that is there is kept current, so it does not
 	// hide the rock.
-	err = indexRegistry(ctx, registry, true)
+	err = indexRegistry(ctx, opts.Rocks, registry, true)
 	if err != nil {
 		return err
 	}
@@ -283,7 +289,12 @@ func prepareTarawasm(ctx context.Context, opts Options, report *Report) error {
 	report.Tarawasm = &layout
 	report.TarawasmInstalled = installed
 
-	components, err := FindComponents(opts.ProjectDir)
+	man, err := opts.Manifest()
+	if err != nil {
+		return err
+	}
+
+	components, err := FindComponents(opts.ProjectDir, man)
 	if err != nil {
 		return err
 	}

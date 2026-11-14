@@ -16,7 +16,9 @@ import (
 	"github.com/tarantool/go-luarocks/remote"
 	"github.com/tarantool/go-luarocks/rockspec"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/sdktest"
 )
 
 // testRelease is the release table entry the tests build rocks of.
@@ -63,7 +65,7 @@ func TestBuildRockLayout(t *testing.T) {
 		return
 	}
 
-	require.NoError(t, IndexRegistry(t.Context(), dir))
+	require.NoError(t, IndexRegistry(t.Context(), testRocks(t).Rocks(), dir))
 
 	tree := t.TempDir()
 	rocks, err := client.New(luarocks.Config{
@@ -124,7 +126,9 @@ func TestRockspecEvaluates(t *testing.T) {
 
 // TestIndexedRegistryServesHostRock checks the registry through the index
 // go-luarocks resolves against: the rock of the host's arch is offered, under
-// the version the lock pins.
+// the version the lock pins. The rock index beside the manifests is the
+// core's to write (sdk.Rocks.Index), as tt package index writes it, and the
+// fake of the tests writes the manifests alone.
 func TestIndexedRegistryServesHostRock(t *testing.T) {
 	t.Parallel()
 
@@ -143,7 +147,11 @@ func TestIndexedRegistryServesHostRock(t *testing.T) {
 	}
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README"), []byte("not a rock"), filePerm))
-	require.NoError(t, IndexRegistry(t.Context(), dir))
+
+	rocks := testRocks(t)
+	require.NoError(t, IndexRegistry(t.Context(), rocks.Rocks(), dir))
+	assert.Equal(t, []sdktest.Index{{Dir: dir, Options: sdk.IndexOptions{IfIndexed: false}}},
+		rocks.Indexed())
 
 	index := remote.NewIndex(dir, remote.IndexOptions{
 		InsecureServers: nil,
@@ -160,24 +168,6 @@ func TestIndexedRegistryServesHostRock(t *testing.T) {
 	assert.Equal(t, "0.1.0-1", found[0].Version.Raw)
 	assert.True(t, strings.HasSuffix(found[0].URL, release.RockFileName(platform)),
 		"got %s", found[0].URL)
-
-	// The registry publishes a rock index too: the version lists the rock
-	// of every platform with its digest, which a lock pins.
-	assert.FileExists(t, filepath.Join(dir, remote.RocksIndexFile))
-
-	arches := make([]string, 0, len(found[0].Artifacts))
-	for _, artifact := range found[0].Artifacts {
-		assert.Len(t, artifact.SHA256, 64)
-
-		arches = append(arches, artifact.Arch)
-	}
-
-	want := make([]string, 0, len(release.Platforms))
-	for _, each := range release.Platforms {
-		want = append(want, each.RockArch)
-	}
-
-	assert.ElementsMatch(t, want, arches)
 }
 
 // writeReleaseTable writes a release table of 0.1.0 whose two builds server
@@ -219,7 +209,8 @@ func TestPackRocks(t *testing.T) {
 	dir := t.TempDir()
 
 	rocks, err := PackRocks(context.Background(), PackOptions{
-		Dir: dir, Version: "", Fetcher: Fetcher{CacheDir: "", Client: nil}, Progress: nil,
+		Dir: dir, Version: "", Fetcher: Fetcher{CacheDir: "", Client: nil},
+		Rocks: testRocks(t).Rocks(), Progress: nil,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []string{
@@ -263,9 +254,11 @@ func TestPackRocksFrom(t *testing.T) {
 	build := filepath.Join(t.TempDir(), "libtarantool_wasm_rs.so")
 	require.NoError(t, os.WriteFile(build, []byte("\x7fELF module"), filePerm))
 
+	servers := testRocks(t).Rocks()
+
 	_, err := PackRocks(t.Context(), PackOptions{
 		Dir: dir, Version: "0.2.0", Fetcher: Fetcher{CacheDir: "", Client: nil},
-		Progress: nil, From: "", Arch: "",
+		Rocks: servers, Progress: nil, From: "", Arch: "",
 	})
 	require.ErrorIs(t, err, ErrUnsupportedPlatform)
 	assert.Contains(t, err.Error(), "--from")
@@ -273,7 +266,7 @@ func TestPackRocksFrom(t *testing.T) {
 	for _, arch := range []string{"linux-aarch64", "macosx-aarch64"} {
 		rocks, err := PackRocks(t.Context(), PackOptions{
 			Dir: dir, Version: "0.2.0", Fetcher: Fetcher{CacheDir: "", Client: nil},
-			Progress: nil, From: build, Arch: arch,
+			Rocks: servers, Progress: nil, From: build, Arch: arch,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, []string{filepath.Join(dir, "wasm-0.2.0-1."+arch+".rock")}, rocks)
@@ -292,7 +285,7 @@ func TestPackRocksFrom(t *testing.T) {
 
 	_, err = PackRocks(t.Context(), PackOptions{
 		Dir: dir, Version: "0.2.0", Fetcher: Fetcher{CacheDir: "", Client: nil},
-		Progress: nil, From: build, Arch: "windows-x86_64",
+		Rocks: servers, Progress: nil, From: build, Arch: "windows-x86_64",
 	})
 	require.ErrorIs(t, err, ErrUnsupportedPlatform)
 }

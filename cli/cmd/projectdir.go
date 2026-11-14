@@ -85,9 +85,9 @@ func absoluteWorkingDir() (string, error) {
 }
 
 // projectRootDir returns the project directory a project command - tt package
-// and its subcommands, tt run, tt test, tt wasm - works on, as an absolute
-// path, and says on stderr, once, which project it is when it is above the
-// working directory.
+// and its subcommands, tt run, tt test, a command of a module through
+// sdk.Project.Root - works on, as an absolute path, and says on stderr, once,
+// which project it is when it is above the working directory.
 //
 // Without -C it is the project the working directory is in, as sdk/scope
 // finds it for the instance commands and the modules: the working directory

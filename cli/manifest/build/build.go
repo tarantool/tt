@@ -537,11 +537,10 @@ func (proj project) versionLuaNamespace() string {
 
 // buildComponents runs the component steps of a build of proj into stage:
 // the backends of components (runBackends), their layout (layoutComponents),
-// the check of the laid-out wasm files, the file checks of the modules
-// (checkFiles) and version.lua. Then it removes from
-// the stage what no component put there (settleStage). It returns the
-// programs of the components that made any, from the record runBackends
-// returns.
+// the file checks of the modules (checkFiles) and version.lua. Then it
+// removes from the stage what no component put there (settleStage). It
+// returns the programs of the components that made any, from the record
+// runBackends returns.
 func buildComponents(
 	ctx context.Context, opts Options, proj project, adapter *rocks.Adapter,
 	stage string, components []string, ver version.Version,
@@ -569,13 +568,6 @@ func buildComponents(
 	for _, name := range components {
 		allLaidOut = append(allLaidOut, laidOut[name]...)
 	}
-
-	wasmWarnings, err := checkWasmFiles(allLaidOut)
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
-	}
-
-	opts.emit(wasmWarnings)
 
 	checkWarnings, err := checkFiles(opts.backends().FileChecks(),
 		checkedFiles(proj, stage, components, laidOut, results))

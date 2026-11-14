@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/remote"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/scope"
 )
 
@@ -50,14 +51,10 @@ type StatusReport struct {
 	Problems []string
 }
 
-// Status reports how far the project in projectDir is prepared, as tt wasm
-// prepare leaves it and tt package build needs it, and changes nothing.
-func Status(ctx context.Context, projectDir string) (*StatusReport, error) {
-	man, err := readManifest(projectDir)
-	if err != nil {
-		return nil, err
-	}
-
+// Status reports how far the project in projectDir, whose manifest is man,
+// is prepared, as tt wasm prepare leaves it and tt package build needs it,
+// and changes nothing.
+func Status(ctx context.Context, projectDir string, man sdk.Manifest) (*StatusReport, error) {
 	root := filepath.Join(projectDir, scope.ProjectDirName)
 	layout := tarawasmLayout(root, "")
 	report := &StatusReport{
@@ -65,11 +62,7 @@ func Status(ctx context.Context, projectDir string) (*StatusReport, error) {
 		Components: nil, Languages: nil, Toolchains: map[string][]ToolStatus{}, Problems: nil,
 	}
 
-	report.Declared, err = DeclaredVersion(projectDir)
-	if err != nil {
-		return nil, err
-	}
-
+	report.Declared = DeclaredVersion(man)
 	report.Registry = man.Dependencies[RockName].Registry
 	report.statusRock(projectDir)
 
@@ -77,7 +70,7 @@ func Status(ctx context.Context, projectDir string) (*StatusReport, error) {
 		report.Tarawasm = layout.Link
 	}
 
-	components, err := FindComponents(projectDir)
+	components, err := FindComponents(projectDir, man)
 	if err != nil {
 		return nil, err
 	}

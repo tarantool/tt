@@ -34,7 +34,8 @@ const pathKey = "PATH"
 
 // ProjectBinDir is the directory a project keeps the programs it installs for
 // itself in: <project>/.tarantool/bin, where tt binary --scope project links
-// its binaries and tt wasm prepare links tarawasm. A build looks there first,
+// its binaries and a module links the tools it installs into the project
+// (sdk.Project.StateDir). A build looks there first,
 // so a component or a hook can name such a program as a bare command without
 // the shell having sourced .env/activate.sh.
 func ProjectBinDir(projectRoot string) string {

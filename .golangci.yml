@@ -383,6 +383,7 @@ linters:
             - "github.com/tarantool/tt/modules/aeon"
             - "github.com/tarantool/tt/modules/build"
             - "github.com/tarantool/tt/modules/emmylua"
+            - "github.com/tarantool/tt/modules/wasm"
             - "github.com/tarantool/tt/v3/standard"
         # The build backends of tt, each a package of the module build, are
         # written against the contract of a build backend alone, as the
@@ -404,6 +405,20 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/modules/build"
+            - "github.com/tarantool/tt/sdk"
+        # The module wasm, tt wasm and the check of the .wasm files, is
+        # written against the SDK alone, as any module is: nothing of the
+        # core, its own packages, and the libraries it needs.
+        dir-modules-wasm:
+          files:
+            - "**/modules/wasm/**"
+          allow:
+            - $gostd
+            - "github.com/spf13/cobra"
+            - "github.com/stretchr/testify"
+            # The rocks of a release are packed and read as LuaRocks does.
+            - "github.com/tarantool/go-luarocks"
+            - "github.com/tarantool/tt/modules/wasm"
             - "github.com/tarantool/tt/sdk"
         dir-internal-binary:
           files:
@@ -578,8 +593,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/tcm"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
-            # tt wasm prepare, a stopgap until tt builds WebAssembly components.
-            - "github.com/tarantool/tt/v3/cli/wasm"
             - "github.com/tarantool/tt/v3/internal/binary"
             # Boot sets the integrity provider the distribution chose, and the
             # commands register their integrity flags through it.
