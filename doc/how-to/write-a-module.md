@@ -432,8 +432,13 @@ included:
 5. `dial.New` returns a dialer for `tarantool.Connect` of go-tarantool. With
    an empty `Transport` it is SSL when any SSL field is set and plain
    otherwise; `"plain"` and `"ssl"` choose; anything else is an error. `Auth`
-   is used over SSL only. The SSL dialer is the Go implementation of TLS, and
-   OpenSSL in a build with the `openssl` tag.
+   is the authentication method: `tarantool.AutoAuth` (`dial.AuthAuto`) takes
+   the server's over SSL and chap-sha1 over a plain connection, and
+   `dial.ParseAuth` reads `auto`, `chap-sha1` or `pap-sha256`, as the
+   `auth_type` parameter of a URI gives it. pap-sha256 sends the password as
+   it is: over a plain connection `dial.New` refuses it with
+   `dial.ErrPapSha256Unencrypted`. The SSL dialer is the Go implementation of
+   TLS, and OpenSSL in a build with the `openssl` tag.
 6. `log.RegisterSecret` hides the password in every log record. A result
    and a prompt are not log records: `log.RedactTarget` hides the
    credentials of a target quoted in them, and in an error.

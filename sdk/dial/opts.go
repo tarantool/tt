@@ -1,17 +1,16 @@
 package dial
 
-import "github.com/tarantool/go-tarantool/v3"
-
 // Opts are the parameters of a dialer [New] builds.
 type Opts struct {
 	// Address is where to connect, in a form go-tarantool parses:
 	// "host:port", "tcp://host:port", "unix://path", "unix/:path", or a
 	// path that starts with "/" or ".".
 	Address string
-	// Auth is the authentication method of the SSL transport; AutoAuth
-	// takes the server's. The plain transport ignores it and authenticates
-	// with chap-sha1.
-	Auth tarantool.Auth
+	// Auth is the authentication method. [AuthAuto] takes the server's
+	// auth_type on the SSL transport and chap-sha1 on the plain one, where
+	// the method of a password sent as it is, [AuthPapSha256], is an error:
+	// [ErrPapSha256Unencrypted]. [ParseAuth] reads it from a name.
+	Auth Auth
 	// User is the user to authenticate as; empty connects as guest.
 	User string
 	// Password is the password of User.
