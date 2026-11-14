@@ -114,6 +114,8 @@ type Services interface {
 	// the prefix (or at the key) wrap ErrNotFound. A storage that cannot be
 	// reached is another error.
 	ClusterConfig(ctx context.Context, src ClusterSource) (ClusterConfig, error)
+	// Rocks returns the rock servers tt writes.
+	Rocks() Rocks
 	// Exit ends the process as the core ends it for a command that returned
 	// err: it reports err once and exits with the code tt returns for it
 	// ([ExitCode], and ExitSystem for a failure of the system). Exit(nil)
@@ -139,22 +141,59 @@ type Integrity interface {
 	Open(path string) (io.ReadCloser, error)
 }
 
-// Project is the directory a command works on, and the package the
-// app.manifest.toml in it describes, managed as tt package manages it.
+// Project is the directory a command works on, the project it is in, and
+// the package the app.manifest.toml of the project describes, managed as tt
+// package manages it.
 //
 // Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Project,
 // as they implement Services.
 type Project interface {
-	// Dir returns the project directory as an absolute path: the working
-	// directory tt runs in. A module cannot declare -C; a command mounted
-	// under a group of tt that declares -C for its subcommands, as tt package
-	// does, gets the directory it names. No manifest is searched for: a
-	// command that works on the project from any of its subdirectories, as
-	// the project commands of tt do, finds it with
-	// [github.com/tarantool/tt/sdk/scope.FindProject] from Dir.
+	// Dir returns the directory of the command as an absolute path: the
+	// working directory tt runs in. A module cannot declare -C; a command
+	// mounted under a group of tt that declares -C for its subcommands, as
+	// tt package does, gets the directory it names. No manifest is searched
+	// for: the project Dir is in is [Project.Root].
 	Dir() (string, error)
-	// AddDependency declares dep in the app.manifest.toml of the project
-	// directory and re-resolves app.manifest.lock, as tt package add does,
+	// Root returns the project the command works on as an absolute path:
+	// the project Dir is in, as the project commands of tt find it - the
+	// nearest directory from Dir up with a project marker
+	// ([github.com/tarantool/tt/sdk/scope.FindProject]), or Dir itself
+	// under -C - and Dir when there is none. When it is above Dir, tt says
+	// once in the process which project the command works on, as tt package
+	// does. The other methods of Project work on Root.
+	Root() (string, error)
+	// Manifest returns what the app.manifest.toml of Root declares, parsed
+	// as tt package parses it and not checked: its warnings are not shown,
+	// the commands of tt package show them. A project without a manifest is
+	// an error that wraps ErrNotFound; a manifest that does not parse is an
+	// error that names it.
+	Manifest() (Manifest, error)
+	// AddComponent declares component in the app.manifest.toml of Root and
+	// re-resolves app.manifest.lock against it, holding every version the
+	// lock already chose. The tables of the component are appended to the
+	// manifest, every other line and comment kept, and the manifest that
+	// makes is parsed and checked as tt package build checks it, the
+	// backends of this tt included, before it is written. A name the
+	// manifest declares already, a component that fails the check, a
+	// project without a manifest and a tt with no Tarantool, whose error
+	// wraps ErrNotFound, are errors, and nothing is written. When the
+	// resolution fails the component stays declared: the change reports
+	// Declared with the error. The warnings of the resolution are logged.
+	AddComponent(ctx context.Context, component Component) (ComponentChange, error)
+	// StateDir returns the directory of the state of Root on this machine,
+	// .tarantool, as an absolute path: tt binary installs into the project
+	// scope there, and its bin/ comes first in the PATH of the builds of the
+	// project and of the shell .env/activate.sh activates. It is not
+	// created, nor is it committed with the project.
+	StateDir() (string, error)
+	// PrepareEnvironment writes .env/activate.sh and .env/deactivate.sh of
+	// Root when they are missing, as the first tt binary install into the
+	// project scope does: sourced, they put bin/ of [Project.StateDir] on
+	// the PATH of a shell and take it off. Scripts that are there are the
+	// user's, and are kept.
+	PrepareEnvironment() error
+	// AddDependency declares dep in the app.manifest.toml of Root and
+	// re-resolves app.manifest.lock, as tt package add does,
 	// holding every version the lock already chose: only dep and what it
 	// requires can move. Nothing is installed; [Project.Install] does that.
 	//
@@ -175,7 +214,7 @@ type Project interface {
 	// whose version the rockspecs are evaluated for, and that error wraps
 	// ErrNotFound.
 	AddDependency(ctx context.Context, dep Dependency) (DependencyChange, error)
-	// Install materializes .rocks/ of the project strictly from its lock, as
+	// Install materializes .rocks/ of Root strictly from its lock, as
 	// tt package fetch does for the default product: the locked closure of
 	// the product and the development closure are installed at the versions
 	// the lock pins, other versions of those rocks are removed, and nothing
@@ -185,6 +224,21 @@ type Project interface {
 	// need none, and fails on one compiled against the headers of
 	// Tarantool. The warnings are logged.
 	Install(ctx context.Context, opts InstallOptions) error
+}
+
+// Rocks are the rock servers tt writes, as tt package index writes one.
+//
+// Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Rocks,
+// as they implement Services.
+type Rocks interface {
+	// Index makes the directory dir a rock server of the rocks and the
+	// rockspecs it holds: it writes the LuaRocks manifests, as luarocks-admin
+	// make_manifest does, which LuaRocks reads, and the rock index of tt,
+	// tt-rocks-index.json, which tt reads first, so that the lock of a
+	// project that declares a rock from dir pins the sha256 of its files.
+	// An index already there is updated as tt package index updates it.
+	// Files that are neither rocks nor rockspecs are left out.
+	Index(ctx context.Context, dir string, opts IndexOptions) error
 }
 
 // Streams are the process's standard streams.

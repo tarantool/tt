@@ -58,6 +58,7 @@ func TestServicesPanicBeforeStart(t *testing.T) {
 		"Tarantool": func() { _, _ = services.Tarantool() },
 		"Integrity": func() { _ = services.Integrity() },
 		"Project":   func() { _ = services.Project() },
+		"Rocks":     func() { _ = services.Rocks() },
 		"Confirm":   func() { _, _ = services.Confirm("sure?", true) },
 		"Streams":   func() { _ = services.Streams() },
 		"ClusterConfig": func() {
@@ -364,6 +365,269 @@ func TestServicesProjectInstall(t *testing.T) {
 
 	assert.Equal(t, 2, calls)
 	assert.Equal(t, []sdk.InstallOptions{{}, mirror}, services.Installs())
+}
+
+// TestServicesProjectRoot checks the root of the project, by default the
+// directory of the command and below it with WithRoot, its StateDir, and
+// that Install runs in it.
+func TestServicesProjectRoot(t *testing.T) {
+	t.Parallel()
+
+	plain := sdktest.New(t)
+	plain.Start()
+
+	dir, err := plain.Project().Dir()
+	require.NoError(t, err)
+
+	root, err := plain.Project().Root()
+	require.NoError(t, err)
+	assert.Equal(t, dir, root)
+
+	state, err := plain.Project().StateDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, ".tarantool"), state)
+	assert.NoDirExists(t, state, "nothing is created")
+
+	top := t.TempDir()
+	sub := filepath.Join(top, "sub")
+
+	var installedIn string
+
+	below := sdktest.New(t, sdktest.WithProject(sub), sdktest.WithRoot(top),
+		sdktest.WithInstall(func(dir string, _ sdk.InstallOptions) error {
+			installedIn = dir
+
+			return nil
+		}))
+	below.Start()
+
+	dir, err = below.Project().Dir()
+	require.NoError(t, err)
+	assert.Equal(t, sub, dir)
+
+	root, err = below.Project().Root()
+	require.NoError(t, err)
+	assert.Equal(t, top, root)
+
+	state, err = below.Project().StateDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(top, ".tarantool"), state)
+
+	require.NoError(t, below.Project().Install(t.Context(), sdk.InstallOptions{}))
+	assert.Equal(t, top, installedIn)
+}
+
+// TestServicesProjectManifest checks that the manifest is what WithManifest
+// and WithDeclared give, with what AddDependency and AddComponent declared
+// since, a copy each time, and that a project WithNoManifest made has none.
+func TestServicesProjectManifest(t *testing.T) {
+	t.Parallel()
+
+	empty := sdktest.New(t)
+	empty.Start()
+
+	manifest, err := empty.Project().Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, sdk.Manifest{
+		Dependencies:    map[string]sdk.ManifestDependency{},
+		DevDependencies: map[string]sdk.ManifestDependency{},
+		Components:      map[string]sdk.ManifestComponent{},
+	}, manifest)
+
+	given := sdk.Manifest{
+		Dependencies: map[string]sdk.ManifestDependency{
+			"wasm":  {Version: "0.1.0", Registry: ".tarantool/registry"},
+			"local": {Path: "../local"},
+		},
+		DevDependencies: nil,
+		Components: map[string]sdk.ManifestComponent{
+			"lua":    {Path: "."},
+			"router": {Path: "router", Build: &sdk.ManifestBuild{Backend: "shell", Cwd: "build"}},
+		},
+	}
+
+	services := sdktest.New(t, sdktest.WithManifest(given),
+		sdktest.WithDeclared(sdk.Dependency{Name: "luatest", Constraint: "1.0.1", Dev: true}))
+	services.Start()
+
+	project := services.Project()
+
+	manifest, err = project.Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, given.Dependencies, manifest.Dependencies)
+	assert.Equal(t, given.Components, manifest.Components)
+	assert.Equal(t, map[string]sdk.ManifestDependency{"luatest": {Version: "1.0.1"}},
+		manifest.DevDependencies)
+
+	// A copy: neither what was given nor what was returned changes it.
+	manifest.Components["router"].Build.Cwd = "elsewhere"
+	given.Components["lua"] = sdk.ManifestComponent{Path: "changed"}
+
+	again, err := project.Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, "build", again.Components["router"].Build.Cwd)
+	assert.Equal(t, ".", again.Components["lua"].Path)
+
+	// What WithManifest declares is declared for AddDependency.
+	change, err := project.AddDependency(t.Context(), sdk.Dependency{
+		Name: "wasm", Constraint: "0.2.0", Registry: "https://rocks.example/",
+	})
+	require.NoError(t, err)
+	assert.True(t, change.Existed)
+	assert.Equal(t, "0.1.0", change.Previous)
+
+	_, err = project.AddDependency(t.Context(), sdk.Dependency{Name: "checks"})
+	require.NoError(t, err)
+
+	manifest, err = project.Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ManifestDependency{Version: "0.1.0", Registry: ".tarantool/registry"},
+		manifest.Dependencies["wasm"], "a declaration with a registry is left as it is")
+	assert.Equal(t, sdk.ManifestDependency{Version: "*"}, manifest.Dependencies["checks"])
+
+	none := sdktest.New(t, sdktest.WithNoManifest())
+	none.Start()
+
+	_, err = none.Project().Manifest()
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+
+	message := fatal(t, func(tb testing.TB) {
+		tb.Helper()
+		sdktest.New(tb, sdktest.WithNoManifest(), sdktest.WithManifest(sdk.Manifest{}))
+	})
+	assert.Contains(t, message, "WithNoManifest excludes")
+}
+
+// routerComponent is a component of the tests of AddComponent.
+func routerComponent() sdk.Component {
+	return sdk.Component{
+		Name: "router", Comment: "A component.", Path: "router",
+		Include: []string{"dist/router.wasm"},
+		Build: &sdk.ComponentBuild{Backend: "shell", Fields: []sdk.BuildField{
+			{Key: "command", Value: "tarawasm"}, {Key: "cwd", Value: "router/src"},
+		}},
+		Registries: []string{"mirror"},
+	}
+}
+
+// TestServicesProjectAddComponent checks that AddComponent records its
+// calls, declares the component in the manifest, refuses what the core
+// refuses, and that WithResolveError fails it once it is declared.
+func TestServicesProjectAddComponent(t *testing.T) {
+	t.Parallel()
+
+	moves := []sdk.DependencyMove{{Name: "wasm", From: "", To: "0.1.0-1"}}
+
+	services := sdktest.New(t, sdktest.WithMoves(moves...))
+	services.Start()
+
+	project := services.Project()
+	router := routerComponent()
+
+	change, err := project.AddComponent(t.Context(), router)
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ComponentChange{Declared: true, Moves: moves}, change)
+
+	manifest, err := project.Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ManifestComponent{
+		Path: "router", Build: &sdk.ManifestBuild{Backend: "shell", Cwd: "router/src"},
+	}, manifest.Components["router"])
+
+	for _, refused := range []sdk.Component{
+		router,
+		{Name: "", Path: "x"},
+		{Name: "x", Path: ""},
+		{Name: "x", Path: "x", Build: &sdk.ComponentBuild{Backend: ""}},
+	} {
+		change, err = project.AddComponent(t.Context(), refused)
+		require.Error(t, err, refused.Name)
+		assert.False(t, change.Declared, refused.Name)
+	}
+
+	added := services.AddedComponents()
+	require.Len(t, added, 5)
+	assert.Equal(t, router, added[0])
+
+	added[0].Build.Fields[0].Value = "changed"
+	assert.Equal(t, "tarawasm", services.AddedComponents()[0].Build.Fields[0].Value,
+		"the record is a copy")
+
+	failure := errors.New("rock not found on any server")
+
+	failing := sdktest.New(t, sdktest.WithResolveError(failure))
+	failing.Start()
+
+	change, err = failing.Project().AddComponent(t.Context(), router)
+	require.ErrorIs(t, err, failure)
+	assert.True(t, change.Declared)
+
+	manifest, err = failing.Project().Manifest()
+	require.NoError(t, err)
+	assert.Contains(t, manifest.Components, "router", "the component stays declared")
+
+	none := sdktest.New(t, sdktest.WithNoManifest())
+	none.Start()
+
+	change, err = none.Project().AddComponent(t.Context(), router)
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+	assert.False(t, change.Declared)
+}
+
+// TestServicesProjectPrepareEnvironment checks that PrepareEnvironment
+// counts its calls and writes nothing.
+func TestServicesProjectPrepareEnvironment(t *testing.T) {
+	t.Parallel()
+
+	services := sdktest.New(t)
+	services.Start()
+
+	assert.Zero(t, services.PreparedEnvironments())
+
+	for range 2 {
+		require.NoError(t, services.Project().PrepareEnvironment())
+	}
+
+	assert.Equal(t, 2, services.PreparedEnvironments())
+
+	root, err := services.Project().Root()
+	require.NoError(t, err)
+	assert.NoDirExists(t, filepath.Join(root, ".env"))
+}
+
+// TestServicesRocksIndex checks that Index records its calls and runs what
+// WithIndex gives.
+func TestServicesRocksIndex(t *testing.T) {
+	t.Parallel()
+
+	plain := sdktest.New(t)
+	plain.Start()
+
+	require.NoError(t, plain.Rocks().Index(t.Context(), "dist/rocks", sdk.IndexOptions{}))
+	assert.Equal(t, []sdktest.Index{{Dir: "dist/rocks"}}, plain.Indexed())
+
+	failure := errors.New("not a rock")
+	registry := sdk.IndexOptions{IfIndexed: true}
+
+	services := sdktest.New(t, sdktest.WithIndex(func(dir string, opts sdk.IndexOptions) error {
+		if opts.IfIndexed {
+			return failure
+		}
+
+		return os.WriteFile(filepath.Join(dir, "manifest"), []byte("repository = {}\n"), 0o600)
+	}))
+	services.Start()
+
+	dir := t.TempDir()
+
+	require.NoError(t, services.Rocks().Index(t.Context(), dir, sdk.IndexOptions{}))
+	assert.FileExists(t, filepath.Join(dir, "manifest"))
+
+	err := services.Rocks().Index(t.Context(), dir, registry)
+	require.ErrorIs(t, err, failure)
+
+	assert.Equal(t, []sdktest.Index{{Dir: dir}, {Dir: dir, Options: registry}},
+		services.Indexed())
 }
 
 func TestServicesStreams(t *testing.T) {
