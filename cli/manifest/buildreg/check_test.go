@@ -13,28 +13,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
 
-func TestCore(t *testing.T) {
-	t.Parallel()
-
-	registry := buildreg.Core()
-
-	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c"},
-		registry.Names())
-
-	for _, name := range registry.Names() {
-		backend, module, ok := registry.Backend(name)
-		assert.True(t, ok, name)
-		assert.Empty(t, module, name)
-		// make and shell alone run hooks.
-		assert.Equal(t, name == "make" || name == "shell", backend.Hook, name)
-	}
-
-	// A module cannot take a name of the core.
-	err := registry.Add("other", []build.Backend{backend("make")}, nil)
-	require.ErrorIs(t, err, buildreg.ErrBackend)
-	assert.Contains(t, err.Error(), "the core provides one of the name too")
-}
-
 //nolint:paralleltest // The registry of the process is the process's.
 func TestProcessIsEmptyByDefault(t *testing.T) {
 	assert.Empty(t, buildreg.Process().Names())

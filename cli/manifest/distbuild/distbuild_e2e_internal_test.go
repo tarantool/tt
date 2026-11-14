@@ -134,6 +134,14 @@ hello = "./plugins/hello"
 		CombinedOutput()
 	require.NoError(t, err, string(out))
 
+	// The build backends are those of the standard module build: the
+	// distribution builds a package as tt does.
+	project := writeShellPackage(t)
+
+	out, err = packageBuild(t, result.Output, project)
+	require.NoError(t, err, string(out))
+	assert.FileExists(t, filepath.Join(project, ".rocks", "lib", "tarantool", "demo", "gen.so"))
+
 	sum, err := os.ReadFile(filepath.Join(dir, "tt.manifest.sum"))
 	require.NoError(t, err)
 
@@ -141,7 +149,7 @@ hello = "./plugins/hello"
 	require.NoError(t, err)
 	assert.Contains(t, string(lock), `path = './plugins/hello'`)
 	assert.Regexp(t, `(?m)^\[core\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`, string(lock))
-	assert.Regexp(t, `(?m)^\[core\][^\[]*\nstandard = \['aeon'\]\n`, string(lock))
+	assert.Regexp(t, `(?m)^\[core\][^\[]*\nstandard = \['aeon', 'build'\]\n`, string(lock))
 	assert.Regexp(t, `(?m)^\[modules\.hello\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`,
 		string(lock))
 
@@ -237,6 +245,101 @@ hello = "./hello"
 	require.ErrorContains(t, err, `duplicate command "binary"`)
 	assert.NoFileExists(t, filepath.Join(dir, "tt"))
 	assert.NoFileExists(t, filepath.Join(dir, "tt.manifest.lock"))
+}
+
+// shellPackage is a package with a component a shell command builds, and a
+// hook that names no backend, which runs with shell.
+const shellPackage = `manifest_version = '0.1'
+
+[package]
+name = 'demo'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.0.0'
+
+[components.gen]
+path = 'gen'
+
+[components.gen.build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'echo module > "$TT_OUTPUT_DIR/gen.so"']
+
+[hooks.pre_build]
+command = 'true'
+`
+
+// writeShellPackage writes a project of shellPackage into a new directory
+// and returns it.
+func writeShellPackage(t *testing.T) string {
+	t.Helper()
+
+	project := t.TempDir()
+	writeFile(t, filepath.Join(project, "app.manifest.toml"), shellPackage)
+	writeFile(t, filepath.Join(project, "VERSION"), "1.0.0\n")
+	writeFile(t, filepath.Join(project, "gen", "gen.c"), "int gen;\n")
+
+	return project
+}
+
+// packageBuild runs tt package build of the binary tt in project, with no
+// registry to ask, and returns what it printed.
+func packageBuild(t *testing.T, tt, project string) ([]byte, error) {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), tt, "package", "build")
+
+	cmd.Dir = project
+
+	cmd.Env = append(os.Environ(), "TT_REGISTRIES="+t.TempDir())
+
+	return cmd.CombinedOutput()
+}
+
+// TestBuildWithoutTheBuildModule builds a distribution without the standard
+// module of the build backends: it has none, and says so of a component and
+// of a hook.
+func TestBuildWithoutTheBuildModule(t *testing.T) {
+	_, err := exec.LookPath(goTool)
+	if err != nil {
+		t.Skip("go is not in PATH")
+	}
+
+	coreDir, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	manifestPath := filepath.Join(dir, "tt.manifest.toml")
+	writeFile(t, manifestPath, `manifest_version = "0.1"
+manifest_kind = "tt-distribution"
+
+[core]
+path = "`+coreDir+`"
+
+[distribution]
+exclude = ["build", "emmylua"]
+`)
+
+	result, err := Run(t.Context(), Options{Manifest: manifestPath, GeneratedBy: "tt test"})
+	require.NoError(t, err)
+
+	project := writeShellPackage(t)
+
+	out, err := packageBuild(t, result.Output, project)
+	require.Error(t, err, string(out))
+	assert.Contains(t, string(out), `hooks.pre_build: backend "shell" is not supported: `+
+		"no module of this tt provides a backend that runs hooks")
+
+	// Without the hook, the component.
+	writeFile(t, filepath.Join(project, "app.manifest.toml"),
+		strings.Replace(shellPackage, "[hooks.pre_build]\ncommand = 'true'\n", "", 1))
+
+	out, err = packageBuild(t, result.Output, project)
+	require.Error(t, err, string(out))
+	assert.Contains(t, string(out), `building component "gen": no module of this tt `+
+		`provides backend "shell"`)
+	assert.NoDirExists(t, filepath.Join(project, ".rocks", "lib"))
 }
 
 // TestBuildWithoutBuiltin builds a distribution without tt's own commands,

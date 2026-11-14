@@ -374,7 +374,9 @@ func (m *Manifest) applyDependencyDefaults() {
 }
 
 // DefaultHookBackend is the backend of a hook that names none, as the format
-// of the manifest has it.
+// of the manifest has it. A module provides it, the standard module build; a
+// tt without one refuses such a hook, saying that no module provides a
+// backend that runs hooks.
 const DefaultHookBackend = "shell"
 
 // applyHookDefaults gives a hook that names no backend the default one

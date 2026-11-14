@@ -24,16 +24,19 @@ package standard
 
 import (
 	"github.com/tarantool/tt/modules/aeon"
+	"github.com/tarantool/tt/modules/build"
 	"github.com/tarantool/tt/modules/emmylua"
 )
 
 // Modules returns the standard modules by name, a new map on each call:
 // the caller may add to it and delete from it. A value is the constructor
 // of the module, of either type core.Modules takes: an sdk.Constructor or
-// an sdk.ModuleConstructor.
+// an sdk.ModuleConstructor. build has the build backends of tt: the core
+// has none of its own.
 func Modules() map[string]any {
 	return map[string]any{
 		"aeon":    aeon.New,
+		"build":   build.New,
 		"emmylua": emmylua.New,
 	}
 }

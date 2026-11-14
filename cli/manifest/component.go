@@ -378,7 +378,7 @@ func (m *Manifest) DefaultProduct() (string, Product, bool) {
 
 // Hook is a lifecycle hook ([hooks.pre_build]/[hooks.post_build]). It is a
 // build block, but only a backend that runs hooks runs one (make and shell
-// of the backends of tt), it has no component and static is refused.
+// of the module build of tt), it has no component and static is refused.
 type Hook = Build
 
 // EffectiveNamespace returns the install namespace of the component given the
