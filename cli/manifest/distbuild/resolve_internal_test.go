@@ -22,6 +22,9 @@ type fakeGo struct {
 	modules map[string]moduleInfo
 	// gomods maps a go.mod path to its contents.
 	gomods map[string]goModFile
+	// downloads maps "module@version" to the directory go mod download
+	// reports.
+	downloads map[string]string
 	// calls records the commands run.
 	calls []string
 }
@@ -37,6 +40,13 @@ func (f *fakeGo) Output(_ context.Context, _ string, _ []string, args ...string)
 		}
 
 		return json.Marshal(info)
+	case len(args) == 4 && args[0] == "mod" && args[1] == "download":
+		dir, ok := f.downloads[args[3]]
+		if !ok {
+			return nil, sdk.Errorf(sdk.ExitFailure, "go mod download: %s: not found", args[3])
+		}
+
+		return json.Marshal(downloadedModule{Dir: dir})
 	case len(args) == 4 && args[0] == "mod":
 		file, ok := f.gomods[args[3]]
 		if !ok {

@@ -85,9 +85,9 @@ path = "`+coreDir+`"
 [distribution]
 title = "Tarantool CLI Hello"
 edition = "hello"
+exclude = ["emmylua"]
 
 [dependencies]
-aeon = "github.com/tarantool/tt/modules/aeon"
 hello = "./plugins/hello"
 `)
 
@@ -117,9 +117,11 @@ hello = "./plugins/hello"
 			string(out))
 	}
 
+	// aeon is a standard module of the core, emmylua an excluded one.
 	assert.Regexp(t, `(?m)^  aeon +\(devel\) +github\.com/tarantool/tt/modules/aeon$`, string(out))
 	assert.Regexp(t, `(?m)^  builtin +\(devel\) +github\.com/tarantool/tt/v3$`, string(out))
 	assert.Regexp(t, `(?m)^  hello +\(devel\) +example\.com/hello$`, string(out))
+	assert.NotContains(t, string(out), "emmylua")
 
 	out, err = exec.CommandContext(t.Context(), result.Output, "aeon", "--help").
 		CombinedOutput()
@@ -132,6 +134,7 @@ hello = "./plugins/hello"
 	require.NoError(t, err)
 	assert.Contains(t, string(lock), `path = './plugins/hello'`)
 	assert.Regexp(t, `(?m)^\[core\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`, string(lock))
+	assert.Regexp(t, `(?m)^\[core\][^\[]*\nstandard = \['aeon'\]\n`, string(lock))
 	assert.Regexp(t, `(?m)^\[modules\.hello\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`,
 		string(lock))
 
@@ -272,7 +275,6 @@ name = "tt-hello"
 path = "`+coreDir+`"
 
 [dependencies]
-aeon = "github.com/tarantool/tt/modules/aeon"
 hello = "./plugins/hello"
 `)
 
@@ -377,6 +379,9 @@ manifest_kind = "tt-distribution"
 
 [core]
 tt = "v3.99.0"
+
+[distribution]
+standard = false
 
 [dependencies]
 aeon = "github.com/tarantool/tt/modules/aeon"

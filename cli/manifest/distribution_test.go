@@ -221,6 +221,25 @@ func TestDistributionErrors(t *testing.T) {
 			src:   head + "[dependencies]\nbuiltin = \"github.com/a/b\"\n",
 			field: "dependencies.builtin",
 		},
+		"exclude without standard": {
+			src:   head + "[distribution]\nstandard = false\nexclude = [\"aeon\"]\n",
+			field: "distribution.exclude",
+		},
+		"exclude builtin without standard": {
+			src:   head + "[distribution]\nstandard = false\nexclude = [\"builtin\"]\n",
+			field: "distribution.exclude",
+		},
+		"exclude a bad name": {
+			src: head + "[distribution]\nexclude = [\"1x\"]\n", field: "distribution.exclude",
+		},
+		"exclude twice": {
+			src:   head + "[distribution]\nexclude = [\"aeon\", \"aeon\"]\n",
+			field: "distribution.exclude",
+		},
+		"exclude builtin with builtin on": {
+			src:   head + "[distribution]\nbuiltin = true\nexclude = [\"builtin\"]\n",
+			field: "distribution.exclude",
+		},
 		"unknown kind": {
 			src:   head + "[dependencies.a]\nmodule = \"github.com/a/b\"\nkind = \"library\"\n",
 			field: "dependencies.a.kind",
@@ -313,6 +332,38 @@ builtin = "github.com/acme/tt-builtin"
 `)
 }
 
+func TestDistributionStandard(t *testing.T) {
+	t.Parallel()
+
+	dist := parseDistribution(t, minimalDistribution)
+	assert.True(t, dist.Distribution.StandardValue(), "the standard modules are in by default")
+	assert.Empty(t, dist.Distribution.Exclude)
+
+	dist = parseDistribution(t, minimalDistribution+"[distribution]\nstandard = false\n")
+	assert.False(t, dist.Distribution.StandardValue())
+	assert.True(t, dist.Distribution.BuiltinValue(), "builtin does not follow standard")
+
+	dist = parseDistribution(t, minimalDistribution+
+		"[distribution]\nexclude = [\"aeon\", \"emmylua\"]\n")
+	assert.True(t, dist.Distribution.StandardValue())
+	assert.Equal(t, []string{"aeon", "emmylua"}, dist.Distribution.Exclude)
+	assert.True(t, dist.Distribution.BuiltinValue())
+
+	// Excluding builtin is builtin = false: the name is free for a module.
+	dist = parseDistribution(t, minimalDistribution+`[distribution]
+exclude = ["builtin"]
+
+[dependencies]
+builtin = "github.com/acme/tt-builtin"
+`)
+	assert.False(t, dist.Distribution.BuiltinValue())
+
+	// Both ways of saying it agree.
+	dist = parseDistribution(t, minimalDistribution+
+		"[distribution]\nbuiltin = false\nexclude = [\"builtin\"]\n")
+	assert.False(t, dist.Distribution.BuiltinValue())
+}
+
 func TestDistributionParseErrors(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +444,7 @@ func TestDistributionLockRoundTrip(t *testing.T) {
 			Module:   "github.com/tarantool/tt/v3",
 			Version:  "v3.0.0-20261028190206-9031d7ad96d9",
 			Revision: "9031d7ad96d956744789412ac3ce7604c70196a4",
+			Standard: []string{"emmylua"},
 			Repository: map[string]string{
 				"github.com/tarantool/tt/sdk":          "v0.0.0-20261028190206-9031d7ad96d9",
 				"github.com/tarantool/tt/modules/aeon": "v0.0.0-20261028190206-9031d7ad96d9",
@@ -415,6 +467,8 @@ func TestDistributionLockRoundTrip(t *testing.T) {
 
 	data, err := lock.Marshal()
 	require.NoError(t, err)
+
+	assert.Regexp(t, `(?m)^\[core\][^\[]*\nstandard = \['emmylua'\]\n`, string(data))
 
 	parsed, err := manifest.ParseDistributionLock(data)
 	require.NoError(t, err)

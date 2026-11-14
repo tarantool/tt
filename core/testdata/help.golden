@@ -948,13 +948,15 @@ build; every other field is optional:
   name = "tt"                   # the binary
 
   [core]
-  tt = "v3.0.0-alpha.2"         # a version, a commit, latest: a Go query
+  tt = "v3.0.0-alpha.3"         # a version, a commit, latest: a Go query
   # path = "../tt"              # or a local checkout of the core
 
   [distribution]
   title = "Tarantool CLI EE"    # how the binary presents itself
   edition = "ee"
   integrity = "rsa"             # none (default) or rsa
+  standard = true               # the standard modules of the core
+  exclude = ["emmylua"]         # but these
   builtin = true                # tt's own commands
   external_modules = true       # TT_CLI_MODULES_PATH
 
@@ -964,7 +966,6 @@ build; every other field is optional:
   ldflags = []
 
   [dependencies]
-  aeon = "github.com/tarantool/tt/modules/aeon"   # follows the core
   foo = "github.com/acme/tt-foo@v1.2.0"            # a module and a version
   migrations = "./plugins/migrations"              # a local module
 
@@ -977,6 +978,13 @@ build; every other field is optional:
 [core].tt is a Go version query for the core module. Pin a version or a
 commit: Go reads "v3" as the newest v3.x.y release, never as the branch v3,
 and it matches no pre-release.
+
+standard takes the standard modules of the core, the ones the official tt is
+built with, at the commit of the core; exclude leaves some of them out, and
+"builtin" in it is builtin = false. A module of [dependencies] named as a
+standard one takes its place; the build warns of it unless exclude names it
+too. A core with no package standard, before v3.0.0-alpha.3, needs
+standard = false.
 
 A module of the core's repository is built at the commit of the core; any
 other module without a version at its latest. A module's constructor is New

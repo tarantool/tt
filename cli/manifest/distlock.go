@@ -11,7 +11,8 @@ import (
 // distribution of tt was last built from. Its envelope is the one of the
 // application lock (lock_version, manifest_version, generated_by,
 // manifest_hash); its body pins the core, the modules of the core's
-// repository and every tt module to exact versions. How the binary is
+// repository and every tt module to exact versions, and names the standard
+// modules of the core the binary has. How the binary is
 // compiled - the TLS implementation, the tags, the Go toolchain - is the
 // choice of each build and is not recorded. The checksums of every Go module
 // are in tt.manifest.sum next to it.
@@ -40,6 +41,12 @@ type LockedCore struct {
 	// modules of its repository it is built with, "sha256:<hex>"; a build
 	// from the lock fails when they changed. Empty for a versioned core.
 	ContentHash string `toml:"content_hash,omitempty"`
+	// Standard are the standard modules of the core the binary is built
+	// with, by name, in order: those the core's package standard lists but
+	// the excluded ones and those [dependencies] takes the place of. The
+	// core's own commands, builtin, are not among them. Empty for a
+	// distribution with standard = false.
+	Standard []string `toml:"standard,omitempty"`
 	// Repository maps every other module of the core's repository to its
 	// exact version at Revision; empty for a local core, whose modules are
 	// taken from its directory.

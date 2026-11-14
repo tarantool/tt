@@ -217,6 +217,29 @@ func TestGenerateMainWithoutBuiltin(t *testing.T) {
 	golden(t, "nobuiltin.main.go.golden", got)
 }
 
+func TestGenerateMainStandard(t *testing.T) {
+	t.Parallel()
+
+	got, err := generateMain(mainSpec{
+		CoreModule: "github.com/tarantool/tt/v3",
+		Modules:    testModules(),
+		Standard:   standardSet{Enabled: true, Modules: nil, Excluded: []string{"emmylua"}},
+		Options: manifest.DistributionOptions{
+			Title: "Tarantool CLI EE", Exclude: []string{"emmylua"},
+		},
+	})
+	require.NoError(t, err)
+	golden(t, "standard.main.go.golden", got)
+
+	got, err = generateMain(mainSpec{
+		CoreModule: "github.com/acme/tt/v3",
+		Standard:   standardSet{Enabled: true, Modules: []string{"aeon"}},
+		Options:    manifest.DistributionOptions{Exclude: []string{"builtin"}},
+	})
+	require.NoError(t, err)
+	golden(t, "standard-minimal.main.go.golden", got)
+}
+
 func TestPlaceholderVersion(t *testing.T) {
 	t.Parallel()
 

@@ -2,6 +2,7 @@ package distbuild
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -173,6 +174,40 @@ func listModule(
 	}
 
 	return info, nil
+}
+
+// downloadedModule is what go mod download -json reports about a module
+// version.
+type downloadedModule struct {
+	// Dir is the copy of the module's source in the module cache.
+	Dir string `json:"Dir"`
+	// Error is why the module was not downloaded.
+	Error string `json:"Error"`
+}
+
+// downloadModule downloads module at the exact version and returns the
+// directory of its source in the module cache.
+func downloadModule(
+	ctx context.Context, gocmd goCommand, dir string, env []string, module, version string,
+) (string, error) {
+	out, err := gocmd.Output(ctx, dir, env, "mod", "download", "-json", module+"@"+version)
+	if err != nil {
+		return "", err
+	}
+
+	var info downloadedModule
+
+	err = json.Unmarshal(out, &info)
+	if err != nil {
+		return "", fmt.Errorf("go mod download -json %s@%s: %w", module, version, err)
+	}
+
+	if info.Error != "" || info.Dir == "" {
+		return "", sdk.Errorf(sdk.ExitFailure, "go mod download %s@%s: %s",
+			module, version, cmp.Or(info.Error, "go reported no directory"))
+	}
+
+	return info.Dir, nil
 }
 
 // goModFile is what go mod edit -json reports about a go.mod file.
