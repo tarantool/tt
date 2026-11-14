@@ -360,14 +360,25 @@ def test_running_multi_inst_app_error_cases(tt_cmd):
         assert "use app:<INSTANCE> or app:*" in start_output
 
 
-def wait_tarantool(watchdog_pid, exclude=None, timeout=10):
-    """Wait for the tarantool the watchdog watchdog_pid runs, other than the
-    process exclude, and return it."""
+def wait_tarantool(watchdog_pid, run_dir, exclude=None, timeout=10):
+    """Wait for the tarantool the watchdog watchdog_pid runs as the instance,
+    other than the process exclude, and return it.
+
+    The instance is the child whose pid is in the pid file tarantool writes
+    in run_dir once box.cfg has run: not every child of the watchdog is the
+    instance, it runs tarantool --version before every start."""
     deadline = time.time() + timeout
+    path = os.path.join(run_dir, "tarantool.pid")
     while time.time() < deadline:
-        for child in psutil.Process(int(watchdog_pid)).children():
-            if exclude is None or child.pid != exclude.pid:
-                return child
+        try:
+            with open(path) as file:
+                pid = int(file.read())
+        except (OSError, ValueError):
+            pid = None
+        if pid is not None and (exclude is None or pid != exclude.pid):
+            for child in psutil.Process(int(watchdog_pid)).children():
+                if child.pid == pid:
+                    return child
         time.sleep(0.1)
     return None
 
@@ -400,10 +411,10 @@ def test_running_reread_pair(tt_cmd, tmp_path):
         pid = status_out[target]["PID"]
 
         # The instance exits; restart: always starts it again.
-        tarantool = wait_tarantool(pid)
+        tarantool = wait_tarantool(pid, run_dir)
         assert tarantool is not None
         tarantool.terminate()
-        restarted = wait_tarantool(pid, exclude=tarantool, timeout=20)
+        restarted = wait_tarantool(pid, run_dir, exclude=tarantool, timeout=20)
         assert restarted is not None
 
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_dir)
