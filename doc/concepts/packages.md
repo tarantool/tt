@@ -89,24 +89,25 @@ backend makes what its block asks for, before the layout, and one
 component may make all of it:
 
 - a **module**, into `.rocks/lib/tarantool/<namespace>/`: a native module
-  of `c`, `lua-c`, `cargo` with `module`, or of `cmake`, `make` and
+  of `c`, `lua-c`, `cargo` or `zig` with `module`, or of `cmake`, `make` and
   `shell` in `output`;
 - a **data file**, into `.rocks/share/tarantool/<namespace>/`: a
   WebAssembly component, say, see
   [Run WebAssembly components](../how-to/wasm-components.md), an entry of
   `output` with `to = "share"`;
-- a **program**, into `.rocks/bin/`: of `go`, `cargo` with `bin`, or an
+- a **program**, into `.rocks/bin/`: of `go`, `cargo` or `zig` with `bin`, or an
   entry of `output` with `to = "bin"`. An
   [external process](../how-to/external-processes.md) of the application
   runs it.
 
-[Build a module in Rust](../how-to/rust-modules.md) describes `cargo`. The
+[Build a module in Rust](../how-to/rust-modules.md) describes `cargo`, and
+[Build a module in Zig](../how-to/zig-modules.md) `zig`. The
 `kind` of a component, `"module"` or `"executable"`, is deprecated: tt
 checks what it says against what the build makes.
 
 A native module is `<module>.so` in `.rocks/lib/tarantool/<namespace>/`, and
 `<module>.dylib` on macOS, where Tarantool looks for no other name: the `c`,
-`lua-c` and `cargo` backends name it so, `cmake` copies a `.so` it built as
+`lua-c`, `cargo` and `zig` backends name it so, `cmake` copies a `.so` it built as
 `.dylib` there, and a `.dylib` a component lays out goes there as a `.so`
 does.
 

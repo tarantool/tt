@@ -67,6 +67,10 @@ The backends that build programs:
   unless `profile` says otherwise, in `_build/cargo/`; `package`,
   `features`. A block that names `module` too builds the module of the
   library as well; see [Build a module in Rust](rust-modules.md).
+- `zig`: `zig build` of the `build.zig` of `cwd`, the program `bin` taken
+  from what it installed into its prefix, `bin/`; `steps`, `optimize`,
+  `options`. A block that names `module` too takes the module as well; see
+  [Build a module in Zig](zig-modules.md).
 - `cmake`: the CMake project of `cwd`, built out of the source in
   `_build/component/<component>/`, its programs listed in `output` with
   `to = "bin"`, relative to the build tree; `variables`, `targets`,

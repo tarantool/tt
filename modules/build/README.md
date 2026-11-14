@@ -1,7 +1,7 @@
 # The build module
 
 The build backends of tt: `make` and `shell`, which the hooks of a package
-run with, `c` and `lua-c`, `cargo`, `cmake` and `go`. A component whose
+run with, `c` and `lua-c`, `cargo`, `cmake`, `go` and `zig`. A component whose
 `[components.<name>.build]` block names one of them is built by it. It is a
 tt module: `build.New` is its constructor, which gives tt the backends
 through `sdk.Module.Backends`, and it is one of the standard modules of the
@@ -23,6 +23,7 @@ and its tests run it through `sdk/build/buildtest`.
 - `cargo` - Rust crates: a module, a program or both.
 - `cmake` - CMake projects, built out of the source.
 - `gobuild` - Go programs.
+- `zig` - zig build of a `build.zig`: a module, a program or both.
 
 The fields of each backend are described in
 [the reference of the application manifest](../../doc/reference/app-manifest.md);
@@ -31,9 +32,19 @@ how to write a backend of your own, in
 
 The tests that compile against Tarantool are behind the `integration` build
 tag. They need a `tarantool` in `PATH` with its headers under its prefix,
-`<prefix>/include/tarantool`, a C compiler, cmake and cargo, and skip what
-they cannot run:
+`<prefix>/include/tarantool`, a C compiler, cmake, cargo and zig 0.16.0,
+and skip what they cannot run:
 
 ```sh
 go test -tags integration ./...
+```
+
+The zig test of a project of
+[zig-tarantool](https://git.srht.bigb.es/~bigbes/zig-tarantool) builds it
+against a checkout of zig-tarantool that has the helpers of its
+`build.zig`, `addModule`, `installModule` and `addExecutable`, which
+`TT_TEST_ZIG_TARANTOOL` names; without one, the test is skipped:
+
+```sh
+TT_TEST_ZIG_TARANTOOL=/path/to/zig-tarantool go test -tags integration ./zig/
 ```

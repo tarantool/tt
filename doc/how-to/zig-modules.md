@@ -1,0 +1,259 @@
+# Build a module in Zig
+
+A component built by zig makes a native module of Tarantool: a library,
+which the code of the application loads with `require`, and which holds the
+C functions of `box.schema.func.create`. The same component may make a
+program too, from the same `build.zig`.
+[zig-tarantool](https://git.srht.bigb.es/~bigbes/zig-tarantool) gives the
+Zig code the API of Tarantool, and the `build.zig` helpers that build a
+module and a program.
+
+The `zig` backend is one of the standard module `build` of tt, which the
+official tt and every distribution that takes the standard modules have:
+`tt version --modules` lists `build` in a tt that has it.
+
+## Get zig and zig-tarantool
+
+zig is yours to install: tt does not install it, and looks for `zig` on
+`PATH`, `.tarantool/bin` of the project first. zig-tarantool and the
+examples here need zig 0.16.0.
+
+The helpers of `build.zig` this page uses - `addModule`, `installModule`
+and `addExecutable` - are newer than the published versions of
+zig-tarantool: until a version has them, the package depends on a
+checkout of zig-tarantool that has them, by its path. Here it is beside the
+project, in `zig-tarantool/` next to `myapp/`, and its `build.zig` declares
+the helpers:
+
+```console
+$ grep -c 'pub fn addModule' ../zig-tarantool/build.zig
+1
+```
+
+Once a published version has them, `zig fetch --save=tarantool <url>` in
+the directory of the component pins it by a `.url` and a `.hash` instead.
+
+## Write the package
+
+In `libs/hello/` of a package named `myapp`, `build.zig.zon` declares the
+dependency, named `tarantool`, by its path from there:
+
+```zig
+.{
+    .name = .hello,
+    .version = "0.1.0",
+    .fingerprint = 0x3610a6861c561281,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .tarantool = .{ .path = "../../../zig-tarantool" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}
+```
+
+The fingerprint is that of a new package: zig says what to put when it is
+missing, `error: missing top-level 'fingerprint' field; suggested value:
+0x...`.
+
+`build.zig` builds the module `hello` and the program `hello-client`:
+
+```zig
+const std = @import("std");
+const tarantool = @import("tarantool");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // zig-out/lib/hello.so, hello.dylib on macOS.
+    const hello = tarantool.addModule(b, .{
+        .name = "hello",
+        .root_source_file = b.path("src/hello.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    tarantool.installModule(b, hello);
+
+    // zig-out/bin/hello-client.
+    const client = tarantool.addExecutable(b, .{
+        .name = "hello-client",
+        .root_source_file = b.path("src/client.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(client);
+}
+```
+
+`addModule` makes a library whose symbols of Tarantool are resolved when
+Tarantool loads it, and `installModule` installs it as `lib/hello.so`, the
+name Tarantool loads, `lib/hello.dylib` on macOS.
+
+`src/hello.zig`, with a C function, `add`, and a Lua module of one
+function, `mul`:
+
+```zig
+const t = @import("tarantool");
+
+/// The C function myapp.hello.add.
+fn add(a: i64, b: i64) i64 {
+    return a + b;
+}
+
+/// mul of the Lua module, require('myapp.hello').
+fn mul(a: i64, b: i64) i64 {
+    return a * b;
+}
+
+comptime {
+    t.proc.exportProc("add", add);
+    t.lua.exportModule("myapp_hello", .{ .mul = mul });
+}
+```
+
+and `src/client.zig`, a program that calls `add` over the network:
+
+```zig
+const std = @import("std");
+const client = @import("tarantool-client");
+
+pub fn main(init: std.process.Init) !void {
+    const address = init.environ_map.get("TT_URI") orelse "127.0.0.1:3301";
+    var conn = try client.Connection.connect(init.gpa, init.io, .{
+        .address = address,
+        .user = "guest",
+        .password = "",
+    });
+    defer conn.close();
+
+    const sum = try conn.call("myapp.hello.add", .{ 20, 22 }, i64);
+    std.debug.print("20 + 22 = {d}\n", .{sum});
+}
+```
+
+## Declare the component
+
+The block names the module and the program the build makes:
+
+```toml
+[components.hello]
+path = "libs/hello"
+
+[components.hello.build]
+backend = "zig"
+module = "hello"
+bin = "hello-client"
+```
+
+```console
+$ tt package build
+$ find .rocks/bin .rocks/lib -name 'hello*'
+.rocks/bin/hello-client
+.rocks/lib/tarantool/myapp/hello.so
+```
+
+The build runs, in the directory of the component,
+
+```console
+zig build -p _build/component/hello/zig-out --cache-dir _build/component/hello/zig-cache --release=safe
+```
+
+which installs into a prefix of the build's own, out of the sources, and
+keeps the cache of the project there too; `tt -V package build` shows the
+line. tt takes the module from `lib/` of the prefix, `hello.so` or
+`hello.dylib` as `installModule` installs it, or `libhello.so` or
+`libhello.dylib` as `b.installArtifact` installs a library, and copies it
+as `<module>.so`, `<module>.dylib` on macOS, where Tarantool looks for that
+name. The program comes from `bin/` of the prefix, into `.rocks/bin/`,
+where an instance description `{binary: hello-client}` finds it; see
+[Run an external process](external-processes.md). `module` alone builds the
+module only, `bin` alone the program only, and a block with neither is an
+error. A dotted module, `module = "codec.fast"`, is the file
+`lib/codec/fast.so` of the prefix, as `installModule` installs a module of
+that name, and `codec/fast.so` in the namespace of the component.
+
+A module or a program the build did not install fails it, saying what it
+installed:
+
+```console
+$ tt package build
+   ⨯ building component "hello": zig build installed no module "hullo": .../_build/component/hello/zig-out/lib has none of hullo.so, hullo.dylib, libhullo.so, libhullo.dylib (it installed hello.so); install it with installModule of zig-tarantool, or name the step that installs it in steps
+```
+
+A `zig-out/` of the component, which `zig build` run there by hand leaves,
+is not laid out, and neither are the `.zig` sources: a `*.lua` file of the
+component is laid out as in any component.
+
+The other fields of the block:
+
+- `steps` are the steps of `zig build` run, its default step, `install`,
+  when there are none: a `build.zig` that installs the module from another
+  step names it, `steps = ["modules"]`.
+- `optimize` is the mode the build is made in, `ReleaseSafe` by default:
+  `Debug`, `ReleaseSafe`, `ReleaseFast` or `ReleaseSmall`. tt passes it as
+  `--release=safe`, `fast` or `small`, and `Debug` as no flag, which a
+  `build.zig` takes whether or not it declares `-Doptimize`; one whose
+  `standardOptimizeOption` gets it builds in that mode.
+- `options` are the options the `build.zig` declares with `b.option`,
+  given as `-D<name>=<value>`, each a string: `options = { tls = "true" }`
+  for `b.option(bool, "tls", ...)`. `optimize` is not one of them, as the
+  field says it.
+- `incremental = true` skips the build when its block, the files of the
+  component, the version of zig and `build.zig` and `build.zig.zon` of
+  `cwd` are those of the last one. A change of a path dependency outside
+  the component is not seen: `--rebuild` builds anyway.
+- `static = true` checks that the program needs no shared library, and the
+  module none but those of the C library. A block that builds a program
+  alone builds it for `<arch>-linux-musl`, `-Dtarget`, when the `build.zig`
+  takes `-Dtarget` and `options` names no `target`: a program that links
+  the C library links musl in. A block of a module and a program builds
+  both for the target of the module. A program of `addExecutable` links no
+  C library and is static as it is.
+
+## Call it
+
+`app.lua` in the project:
+
+```lua
+local hello = require('myapp.hello')
+assert(hello.mul(6, 7) == 42)
+
+box.cfg({listen = '127.0.0.1:3301'})
+box.schema.func.create('myapp.hello.add', {language = 'C', if_not_exists = true})
+box.schema.user.grant('guest', 'execute', 'function', 'myapp.hello.add',
+    {if_not_exists = true})
+assert(box.func['myapp.hello.add']:call({20, 22}) == 42)
+```
+
+Run it in one terminal, where Tarantool goes on serving after the script,
+and the program in another:
+
+```console
+$ tt run app.lua
+```
+
+```console
+$ .rocks/bin/hello-client
+20 + 22 = 42
+```
+
+- `require('<namespace>.<module>')` calls the function
+  `luaopen_<namespace>_<module>` of the library, dots made `_`: the module
+  `exportModule` exports as `myapp_hello`. With `namespace = ""` the module
+  is `require('hello')`, exported as `hello`.
+- A C function is named `<module>.<function>`: Tarantool takes the module
+  from the name up to its last dot, `myapp.hello`, and the function from
+  the rest, `add`, which `exportProc` exports.
+
+The archive of `tt package pack` carries the module and the program, built
+for the machine it is packed on, and the instances of an installed version
+load and run them as in the project.
+
+## The toolchain
+
+zig fetches the dependencies of `build.zig.zon` itself, as it builds, into
+its global cache: `tt package fetch` does not run the build, and
+`tt package build --locked` keeps the lock of tt, not zig off the network.
+The hashes of `build.zig.zon` pin what zig fetches. The module links
+against the C library of the machine it is built on: build it on the
+oldest system it runs on.
