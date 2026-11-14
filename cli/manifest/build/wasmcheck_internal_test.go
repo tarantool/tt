@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	sdkbuild "github.com/tarantool/tt/sdk/build"
 )
 
 func writeWasm(t *testing.T, name string, data []byte) string {
@@ -45,5 +47,49 @@ func TestCheckWasmFilesRejectsOthers(t *testing.T) {
 	} {
 		_, err := checkWasmFiles([]string{writeWasm(t, name, data)})
 		require.ErrorIs(t, err, errNotWasm, name)
+	}
+}
+
+// TestCheckWasmFilesAsAFileCheck checks that the check of the .wasm files
+// is a file check of a module as it stands: checkWasmFiles of one file at a
+// time, given to checkFiles, says of any list of files what checkWasmFiles
+// says of it - the same warnings, in the same order, and the same first
+// error, with the warnings dropped - so that the module wasm can provide it
+// as its FileCheck with no more of the core.
+func TestCheckWasmFilesAsAFileCheck(t *testing.T) {
+	t.Parallel()
+
+	check := sdkbuild.FileCheck{Suffix: wasmSuffix, Check: func(path string) (string, error) {
+		warnings, err := checkWasmFiles([]string{path})
+		if err != nil || len(warnings) == 0 {
+			return "", err
+		}
+
+		return warnings[0], nil
+	}}
+
+	component := writeWasm(t, "app.wasm", []byte("\x00asm\x0d\x00\x01\x00rest"))
+	module := writeWasm(t, "core.wasm", []byte("\x00asm\x01\x00\x00\x00rest"))
+	other := writeWasm(t, "notes.txt", []byte("not checked"))
+	text := writeWasm(t, "text.wasm", []byte("hello, this is not wasm"))
+	short := writeWasm(t, "short.wasm", []byte("\x00as"))
+
+	for _, files := range [][]string{
+		{component, other},
+		{module, component, module},
+		{module, text, module},
+		{other, short, text},
+		nil,
+	} {
+		want, wantErr := checkWasmFiles(files)
+		got, err := checkFiles([]sdkbuild.FileCheck{check}, files)
+
+		assert.Equal(t, want, got, files)
+
+		if wantErr == nil {
+			require.NoError(t, err, files)
+		} else {
+			require.EqualError(t, err, wantErr.Error(), files)
+		}
 	}
 }

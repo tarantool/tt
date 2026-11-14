@@ -47,8 +47,9 @@ type Module struct {
 	// its own, and those of tt are the standard module build's (make,
 	// shell, c, lua-c, cargo, cmake and go).
 	Backends []build.Backend
-	// FileChecks check the files the build of any component lays out, by
-	// their suffix.
+	// FileChecks check the files of a package by their suffix, whatever
+	// component made them: what the layout of a component copies and the
+	// data files a build makes ([build.FileCheck]).
 	FileChecks []build.FileCheck
 }
 
