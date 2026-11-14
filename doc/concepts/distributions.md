@@ -8,7 +8,8 @@ commands come from modules. There are two kinds of them.
 
 A tt module is a Go module compiled into tt. Its package exports a
 constructor, `func New(sdk.Services) []sdk.Mount`, that returns the commands
-it adds. tt itself is the core with its **standard modules**: `builtin`,
+it adds, or `func New(sdk.Services) sdk.Module`, that returns the build
+backends and the checks of the files of a package it adds as well. tt itself is the core with its **standard modules**: `builtin`,
 its own commands, and the modules of its repository the core's package
 `standard` lists, `aeon`, `build`, `emmylua` and `wasm`. `build` has the
 build backends of tt: the core has none of its own. `wasm` has `tt wasm`

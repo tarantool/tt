@@ -2,7 +2,8 @@
 
 A tt module is a Go module that is compiled into tt rather than run next to
 it: its package exports a constructor, `func New(sdk.Services) []sdk.Mount`,
-that returns the commands it adds (see [Write a tt module](write-a-module.md)
+that returns the commands it adds, or `func New(sdk.Services) sdk.Module`,
+that returns its build backends and checks of the files of a package too (see [Write a tt module](write-a-module.md)
 and [the SDK](https://github.com/tarantool/tt/blob/v3/sdk/README.md)). A
 distribution of tt is the tt core and a set of such modules built into one
 binary, described by `tt.manifest.toml`:

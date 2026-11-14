@@ -58,8 +58,9 @@ tt test
     `shell` backend. A native module can be
     [written in Rust](how-to/rust-modules.md) or
     [in Zig](how-to/zig-modules.md);
-  + programs for external processes with the `go`, `cargo`, `zig` or `cmake`
-    backend.
+  + programs for external processes with the `go`, `cargo`, `zig`, `cmake`,
+    `make` or `shell` backend; one component may build a module and a
+    program at once.
 - The package version comes from `VERSION` or the nearest git tag. Read it in
   code with `require('<name>.version').version`.
 - `tt run` runs the project's Tarantool and passes arguments through unchanged.
