@@ -342,6 +342,68 @@ func TestHarnessChecksWhatTheBuildMade(t *testing.T) {
 	require.NoError(t, harness.Run(t.Context(), dataBuild{}))
 }
 
+// versionBuild records TT_VERSION in its Preflight and in its Run, as the
+// Env and as its command sees it.
+type versionBuild struct {
+	seen *[]string
+}
+
+func (b versionBuild) Preflight(_ context.Context, c *build.Context) error {
+	*b.seen = append(*b.seen, "preflight "+c.Env["TT_VERSION"])
+
+	return nil
+}
+
+func (b versionBuild) Run(ctx context.Context, c *build.Context) error {
+	out, err := c.Output(c.Command(ctx, "sh", "-c",
+		`printf '%s|%s|%s' "$TT_VERSION" "${TT_TARANTOOL_PREFIX-unset}" `+
+			`"${TT_TARANTOOL_INCLUDE_DIR-unset}"`))
+
+	*b.seen = append(*b.seen, "run "+c.Env["TT_VERSION"]+" "+string(out))
+
+	return err
+}
+
+// TestHarnessEnvironment: a build of a harness sees the TT_* variables a
+// build of the core sees - TT_VERSION, empty in its Preflight as the core
+// runs it before the version is known, and those of the Tarantool the test
+// tells it, in the Context and the toolchain too.
+func TestHarnessEnvironment(t *testing.T) {
+	t.Parallel()
+
+	var seen []string
+
+	harness := buildtest.New(t, touch(), component())
+
+	require.NoError(t, harness.Run(t.Context(), versionBuild{seen: &seen}))
+	assert.Equal(t, []string{
+		"preflight ", "run " + buildtest.Version + " " + buildtest.Version + "|unset|unset",
+	}, seen)
+
+	seen = nil
+
+	harness.Context.Env["TT_VERSION"] = "1.2.3"
+	harness.SetTarantool(build.Tarantool{
+		Prefix: "/opt/tarantool", IncludeDir: "/opt/tarantool/include/tarantool",
+		Version: "3.4.0",
+	})
+
+	require.NoError(t, harness.Run(t.Context(), versionBuild{seen: &seen}))
+	assert.Equal(t, []string{
+		"preflight ",
+		"run 1.2.3 1.2.3|/opt/tarantool|/opt/tarantool/include/tarantool",
+	}, seen)
+	assert.Equal(t, "3.4.0", harness.Context.Tarantool.Version)
+	assert.Equal(t, "/opt/tarantool/include/tarantool", harness.Context.Toolchain.IncludeDir)
+
+	// A Tarantool tt knows no headers of: no TT_TARANTOOL_INCLUDE_DIR.
+	harness.SetTarantool(build.Tarantool{Prefix: "/opt/t", IncludeDir: "", Version: ""})
+
+	assert.Equal(t, "/opt/t", harness.Context.Env["TT_TARANTOOL_PREFIX"])
+	assert.NotContains(t, harness.Context.Env, "TT_TARANTOOL_INCLUDE_DIR")
+	assert.Equal(t, "/opt/t/include/tarantool", harness.Context.Toolchain.IncludeDir)
+}
+
 // dataBuild makes a data file.
 type dataBuild struct{}
 

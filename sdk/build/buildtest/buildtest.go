@@ -156,6 +156,21 @@ func validate(backend build.Backend, component build.Component, block Block) (bu
 // dirPerm is the mode of the directories of a harness.
 const dirPerm = 0o750
 
+// Version is TT_VERSION of the builds of a harness: the version the core
+// gives a package of no tag and no VERSION file in a repository with no
+// commit. A test sets another in the Env of the Context.
+const Version = "0.0.0-dev.0"
+
+// The variables of the environment of a build the Context of a harness
+// keeps in step with its facts.
+const (
+	versionKey      = "TT_VERSION"
+	prefixKey       = "TT_TARANTOOL_PREFIX"
+	includeDirKey   = "TT_TARANTOOL_INCLUDE_DIR"
+	headersSubdir   = "include"
+	tarantoolSubdir = "tarantool"
+)
+
 // errNoHook reports a harness of hooks of a backend that runs none.
 var errNoHook = errors.New("the backend runs no hook")
 
@@ -184,8 +199,12 @@ type Harness struct {
 // <tmp>/output, <tmp>/share, <tmp>/bin and <tmp>/state are the other
 // directories of the build. All of them but the tree exist. The target is
 // the machine the test runs on, the toolchain is cc of CC with the flags of
-// the target, and no Tarantool is known. A backend the core would refuse
-// ([build.Backend.Validate]) fails the test.
+// the target, and no Tarantool is known ([Harness.SetTarantool] tells one).
+// The Env has the TT_* variables the core sets for the build of a
+// component: TT_OUTPUT_DIR, TT_PROJECT_ROOT, TT_PACKAGE, TT_COMPONENT_NAME,
+// TT_VERSION ([Version]), TT_PLATFORM_OS, TT_PLATFORM_ARCH and
+// TT_BUILD_DIR. A backend the core would refuse ([build.Backend.Validate])
+// fails the test.
 func New(tb testing.TB, backend build.Backend, component build.Component) *Harness {
 	tb.Helper()
 
@@ -243,6 +262,7 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 			"TT_PLATFORM_OS":    target.OS,
 			"TT_PLATFORM_ARCH":  target.Arch,
 			"TT_BUILD_DIR":      dirs.Work,
+			versionKey:          Version,
 		},
 		Fresh:  false,
 		Locked: false,
@@ -259,9 +279,9 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 // the project, the working directory of the hook, with its .tarantool/bin
 // and .rocks, and <tmp>/state the state of its build; there is no
 // component, no work directory and no output, and the environment has no
-// TT_OUTPUT_DIR, TT_COMPONENT_NAME and TT_BUILD_DIR. A backend the core
-// would refuse, or one that runs no hook ([build.Backend.Hook]), fails the
-// test.
+// TT_OUTPUT_DIR, TT_COMPONENT_NAME and TT_BUILD_DIR, the others of New.
+// A backend the core would refuse, or one that runs no hook
+// ([build.Backend.Hook]), fails the test.
 func NewHook(tb testing.TB, backend build.Backend) *Harness {
 	tb.Helper()
 
@@ -310,6 +330,7 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 			"TT_PACKAGE":       "demo",
 			"TT_PLATFORM_OS":   target.OS,
 			"TT_PLATFORM_ARCH": target.Arch,
+			versionKey:         Version,
 		},
 		Fresh:  false,
 		Locked: false,
@@ -356,13 +377,41 @@ func toolchain(target build.Target) build.Toolchain {
 	}
 }
 
+// SetTarantool tells the build the Tarantool it is built against, as the
+// core tells it: the Tarantool of the Context, the headers of the C
+// toolchain under its prefix ([build.Toolchain.IncludeDir]), and
+// TT_TARANTOOL_PREFIX and TT_TARANTOOL_INCLUDE_DIR of the Env, each set
+// only when tarantool has it.
+func (h *Harness) SetTarantool(tarantool build.Tarantool) {
+	facts := h.Context
+
+	facts.Tarantool = tarantool
+	facts.Toolchain.IncludeDir = ""
+
+	if tarantool.Prefix != "" {
+		facts.Toolchain.IncludeDir = filepath.Join(tarantool.Prefix, headersSubdir,
+			tarantoolSubdir)
+	}
+
+	for key, value := range map[string]string{
+		prefixKey: tarantool.Prefix, includeDirKey: tarantool.IncludeDir,
+	} {
+		if value == "" {
+			delete(facts.Env, key)
+		} else {
+			facts.Env[key] = value
+		}
+	}
+}
+
 // Run runs bld, a build of the backend of the harness, as the core runs a
 // build: bld is checked ([build.Backend.ValidateBuild]), then its Preflight
-// runs, when it has one, then Run; then what Run left in the directories
-// of the types the backend does not produce fails the run, wrapping
-// [build.ErrNotProduced], as it fails a build of the core, and so does a
-// program a [build.ProgramNamer] names. The files output lists are not
-// copied, which the core does for [build.OutputCwd].
+// runs, when it has one, with TT_VERSION empty, as the core runs it before
+// the version of the package is known, then Run; then what Run left in the
+// directories of the types the backend does not produce fails the run,
+// wrapping [build.ErrNotProduced], as it fails a build of the core, and so
+// does a program a [build.ProgramNamer] names. The files output lists are
+// not copied, which the core does for [build.OutputCwd].
 func (h *Harness) Run(ctx context.Context, bld build.Build) error {
 	err := h.backend.ValidateBuild(bld)
 	if err != nil {
@@ -370,7 +419,7 @@ func (h *Harness) Run(ctx context.Context, bld build.Build) error {
 	}
 
 	if preflighter, ok := bld.(build.Preflighter); ok {
-		err = preflighter.Preflight(ctx, h.Context)
+		err = preflight(ctx, h.Context, preflighter)
 		if err != nil {
 			return fmt.Errorf("preflight: %w", err)
 		}
@@ -392,6 +441,19 @@ func (h *Harness) Run(ctx context.Context, bld build.Build) error {
 	}
 
 	return checkProduced(h.backend, bld, h.Context.Dirs, before, after)
+}
+
+// preflight runs the Preflight of preflighter in facts with TT_VERSION of
+// the Env empty, and then puts it back.
+func preflight(ctx context.Context, facts *build.Context, preflighter build.Preflighter) error {
+	version, set := facts.Env[versionKey]
+	if set {
+		facts.Env[versionKey] = ""
+
+		defer func() { facts.Env[versionKey] = version }()
+	}
+
+	return preflighter.Preflight(ctx, facts)
 }
 
 // fileStamp tells a file that a build wrote from one it left alone.
