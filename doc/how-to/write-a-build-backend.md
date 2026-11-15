@@ -297,7 +297,7 @@ component and build.
 | `Locked` | set by `--locked`: a tool of the build must not move a version either; `LockedVersion` returns the version the lock pins a rock at |
 | `Static` | `static` of the block |
 | `Hook` | set for the build of a lifecycle hook |
-| `Log`, `Warn` | the logger of the build, and a function that shows a warning |
+| `Log`, `Warn` | the logger of the build, tt's with `backend=<name>`, whose debug records `tt -V` shows, and a function that shows a warning |
 
 The directories, all absolute, for a component of the package:
 
@@ -485,7 +485,7 @@ skipped build does not call `Run`, and `--rebuild` skips nothing:
 $ tt -V package build
    ...
    · running envsubst --version dir=/home/me/myapp/config
-   · component is up to date library=go-luarocks component=config
+   · component is up to date component=config
 ```
 
 A backend without `Incremental` refuses the field:

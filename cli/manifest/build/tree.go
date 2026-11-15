@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"os"
 	"slices"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/tree"
 
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
@@ -72,10 +72,10 @@ func repairTree(ctx context.Context, cfg luarocks.Config, warn func(string)) err
 // to; and any other rock, such as the luatest tt test installs when the
 // manifest declares none, which a build would otherwise remove only for the
 // next tt test to fetch it again. extra pins more rocks, at the versions a
-// caller resolved for them. log is told of each version removed.
+// caller resolved for them. logRemoved is told of each version removed.
 func pruneTree(
 	ctx context.Context, cfg luarocks.Config, projectDir string, lock *manifest.Lock,
-	extra []manifest.LockDependency, log func(string),
+	extra []manifest.LockDependency, logRemoved func(string),
 ) error {
 	_, err := os.Stat(cfg.Tree)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -105,9 +105,10 @@ func pruneTree(
 		return fmt.Errorf("pruning the rocks tree %s: %w", cfg.Tree, err)
 	}
 
-	if log != nil {
+	if logRemoved != nil {
 		for _, ref := range removed {
-			log(fmt.Sprintf("removed %s %s, which the lock does not pin", ref.Name, ref.Version))
+			logRemoved(fmt.Sprintf("removed %s %s, which the lock does not pin",
+				ref.Name, ref.Version))
 		}
 	}
 
@@ -167,12 +168,9 @@ func keepRocks(
 	}, nil
 }
 
-// logInfo returns a log function writing to logger at the info level, nil
-// for a nil logger.
-func logInfo(logger *slog.Logger) func(string) {
-	if logger == nil {
-		return nil
-	}
-
-	return func(msg string) { logger.Info(msg) }
+// logPruned logs what pruneTree removed: a record of tt's own, at the debug
+// level tt -V shows, as the logger of go-luarocks has the records of the
+// library it gets at info.
+func logPruned(msg string) {
+	log.Debug(msg)
 }

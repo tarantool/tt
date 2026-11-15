@@ -117,7 +117,7 @@ func EnsureDevRocks(
 		return err
 	}
 
-	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, closure, logInfo(opts.Logger))
+	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, closure, logPruned)
 }
 
 // notInstalled narrows a resolved closure to the rocks the project tree does
