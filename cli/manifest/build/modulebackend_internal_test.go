@@ -907,6 +907,81 @@ func TestRun_outputOfEveryType(t *testing.T) {
 	}
 }
 
+// copyBuild writes the file the output of its block lists, relative to the
+// working directory of the build, and leaves it to the core to copy
+// (sdkbuild.OutputCwd).
+type copyBuild struct {
+	output []sdkbuild.OutputFile
+}
+
+// Run writes each file of output into the working directory.
+func (b copyBuild) Run(_ context.Context, c *sdkbuild.Context) error {
+	for _, file := range b.output {
+		path := filepath.Join(c.Dirs.Cwd, file.Path)
+
+		err := os.MkdirAll(filepath.Dir(path), 0o755)
+		if err == nil {
+			err = os.WriteFile(path, []byte("\x00asm\x01\x00\x00\x00"), 0o600)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// dataBackend is a backend of data files only, named name, whose builds
+// write what the output of their block lists for the core to copy.
+func dataBackend(name string) sdkbuild.Backend {
+	return sdkbuild.Backend{
+		Name:     name,
+		Produces: []sdkbuild.Result{sdkbuild.Data},
+		Config:   func() any { return new(struct{}) },
+		New: func(_ any, _ sdkbuild.Component, common sdkbuild.Common) (sdkbuild.Build, error) {
+			return copyBuild{output: common.Output}, nil
+		},
+		Incremental:    false,
+		OutputFrom:     sdkbuild.OutputCwd,
+		Exclude:        nil,
+		NoSourceLayout: true,
+		Hook:           false,
+	}
+}
+
+// TestRun_outputOfABackendOfData checks that a file output names alone, a
+// string with no to, is a data file of a backend that makes data files
+// only: it goes to share/ of the namespace, from the working directory of
+// the build, and is recorded as data.
+func TestRun_outputOfABackendOfData(t *testing.T) {
+	t.Parallel()
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("wasm", []sdkbuild.Backend{dataBackend("wasm")}, nil))
+
+	dir := setupProject(t, manifestHead+"\n[components.calc]\npath = 'components/calc'\n\n"+
+		"[components.calc.build]\nbackend = 'wasm'\noutput = 'dist/calc.wasm'\n",
+		map[string]string{"components/calc/main.py": "def add(a, b): return a + b\n"})
+
+	opts := dryOptions(dir)
+
+	opts.Backends = backends
+
+	_, err := RunResult(context.Background(), opts)
+	require.NoError(t, err)
+
+	stage := packageStage(dir, "default")
+
+	assert.FileExists(t, filepath.Join(dir, "components", "calc", "dist", "calc.wasm"))
+	assert.FileExists(t, filepath.Join(stage, "lua", "my-app", "calc.wasm"))
+	assert.FileExists(t, filepath.Join(dir, rocksDirName, "share", "tarantool", "my-app",
+		"calc.wasm"))
+	assert.NoFileExists(t, filepath.Join(stage, "lib", "my-app", "calc.wasm"))
+	assert.Equal(t, madeFiles{Modules: nil, Data: []string{"calc.wasm"}, Programs: nil},
+		recordOf(t, dir)["calc"])
+}
+
 // requireMake skips the test where make is not installed.
 func requireMake(t *testing.T) {
 	t.Helper()

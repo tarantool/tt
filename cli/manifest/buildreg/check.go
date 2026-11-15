@@ -68,7 +68,7 @@ func (r *Registry) CheckBuild(
 		}
 	}
 
-	bld, err := found.backend.New(cfg, component(target), common(block, target))
+	bld, err := found.backend.New(cfg, component(target), common(found.backend, block, target))
 	if err == nil {
 		err = found.backend.ValidateBuild(bld)
 	}
@@ -111,7 +111,7 @@ func (r *Registry) Build(
 		return build.Backend{}, nil, validationError(field, err)
 	}
 
-	bld, err := found.backend.New(cfg, component(target), common(block, target))
+	bld, err := found.backend.New(cfg, component(target), common(found.backend, block, target))
 	if err == nil {
 		err = found.backend.ValidateBuild(bld)
 	}
@@ -148,30 +148,40 @@ func Expects(kind string) []build.Result {
 	}
 }
 
-// common is what a backend is told of the fields every build block has,
-// the block building target.
-func common(block manifest.Build, target manifest.BuildTarget) build.Common {
-	var output []build.OutputFile
-
-	if block.Output != nil {
-		output = make([]build.OutputFile, 0, len(block.Output))
-	}
-
-	for _, entry := range block.Output {
-		output = append(output, build.OutputFile{
-			Path: entry.Path, To: OutputType(entry, target.Kind),
-		})
-	}
-
+// common is what backend is told of the fields every build block has, the
+// block building target.
+func common(backend build.Backend, block manifest.Build, target manifest.BuildTarget) build.Common {
 	return build.Common{
-		Cwd: block.Cwd, Env: block.Env, Output: output, Static: block.StaticValue(),
+		Cwd: block.Cwd, Env: block.Env, Output: OutputFiles(backend, block.Output, target.Kind),
+		Static: block.StaticValue(),
 	}
 }
 
-// OutputType returns the type of the file of output entry of a component of
-// the deprecated kind: where the entry says it goes, or, for an entry that
-// says nothing, a module - a program for kind = "executable".
-func OutputType(entry manifest.OutputEntry, kind string) build.Result {
+// OutputFiles returns the files of output, the output of a build block of
+// backend for a component of the deprecated kind, each with its type
+// (OutputType); nil for none.
+func OutputFiles(backend build.Backend, output manifest.OutputList, kind string) []build.OutputFile {
+	if output == nil {
+		return nil
+	}
+
+	files := make([]build.OutputFile, 0, len(output))
+	for _, entry := range output {
+		files = append(files, build.OutputFile{
+			Path: entry.Path, To: OutputType(entry, kind, backend.Produces),
+		})
+	}
+
+	return files
+}
+
+// OutputType returns the type of the file of output entry of a build block
+// of a backend that produces the types produces, for a component of the
+// deprecated kind: where the entry says it goes; for an entry that says
+// nothing, a program for kind = "executable", the one type of a backend
+// that produces one - a data file of a backend of data files - and a module
+// otherwise.
+func OutputType(entry manifest.OutputEntry, kind string, produces []build.Result) build.Result {
 	switch entry.To {
 	case manifest.OutputToShare:
 		return build.Data
@@ -181,11 +191,14 @@ func OutputType(entry manifest.OutputEntry, kind string) build.Result {
 		return build.Module
 	}
 
-	if kind == manifest.KindExecutable {
+	switch {
+	case kind == manifest.KindExecutable:
 		return build.Program
+	case len(produces) == 1:
+		return produces[0]
+	default:
+		return build.Module
 	}
-
-	return build.Module
 }
 
 // owners returns the names of the backends that have the field key of a
@@ -287,7 +300,7 @@ func checkResults(
 	target manifest.BuildTarget,
 ) error {
 	for index, entry := range block.Output {
-		result := OutputType(entry, target.Kind)
+		result := OutputType(entry, target.Kind, backend.Produces)
 		if slices.Contains(backend.Produces, result) {
 			continue
 		}

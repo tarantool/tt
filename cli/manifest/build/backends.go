@@ -109,12 +109,7 @@ func (b builder) component(name string) (componentRun, error) {
 		outputDir = dirs.Programs
 	}
 
-	outputs := make([]sdkbuild.OutputFile, 0, len(component.Build.Output))
-	for _, entry := range component.Build.Output {
-		outputs = append(outputs, sdkbuild.OutputFile{
-			Path: entry.Path, To: buildreg.OutputType(entry, component.Kind),
-		})
-	}
+	outputs := buildreg.OutputFiles(backend, component.Build.Output, component.Kind)
 
 	env := environment{
 		block:       component.Build.Env,
