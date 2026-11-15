@@ -259,7 +259,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   data files their builds make, whatever backend made them. The preflight,
   the inputs of an incremental build and a file check are given the context
   of the build, and a build whose method of one of them has another
-  signature, which tt would never call, fails the check of the manifest. A
+  signature, which tt would never call, fails the check of the manifest.
+  `LockedVersion` of the Context answers during the preflight, which runs
+  before the lock is resolved, from `app.manifest.lock` when it is fresh,
+  and pins nothing when it is stale or missing. A
   build that leaves a file of a type its backend does not produce - a
   module of a backend of data files - fails with exit code 2, where the
   file was installed and recorded as made.
