@@ -182,7 +182,7 @@ func TestBuildsAModuleAndAProgram(t *testing.T) {
 	t.Parallel()
 	requireZig(t)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	dirs := harness.Context.Dirs
 	ext := harness.Context.Target.ModuleExt()
 
@@ -212,7 +212,7 @@ func TestBuildsAStaticProgram(t *testing.T) {
 		t.Skip("a static program is built for linux only")
 	}
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	dirs := harness.Context.Dirs
 
 	writeFiles(t, dirs.Component, plainProject(true))
@@ -320,7 +320,7 @@ func TestBuildsAModuleAndAProgramOfZigTarantool(t *testing.T) {
 	requireZig(t)
 
 	checkout := requireZigTarantool(t)
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	dirs := harness.Context.Dirs
 	ext := harness.Context.Target.ModuleExt()
 

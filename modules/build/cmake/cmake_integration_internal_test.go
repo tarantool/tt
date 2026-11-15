@@ -140,7 +140,7 @@ func TestCompilesAgainstTarantoolHeaders(t *testing.T) {
 	}
 
 	answer := module()
-	harness := buildtest.New(t, answer)
+	harness := buildtest.New(t, Backend(), answer)
 	facts := harness.Context
 
 	facts.Tarantool.Prefix = tarantool.prefix

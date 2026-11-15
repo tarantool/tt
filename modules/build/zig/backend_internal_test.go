@@ -303,7 +303,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a static program for darwin", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = darwin
@@ -319,7 +319,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a static module for darwin", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = darwin
@@ -331,7 +331,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a missing tool", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 
 		harness.Context.Env["PATH"] = t.TempDir()
 
@@ -344,7 +344,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a tool of the project", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 
 		harness.Context.Env["PATH"] = t.TempDir()
 		writeTool(t, harness.Context.Dirs.Tools, "")
@@ -361,7 +361,7 @@ func TestPreflight(t *testing.T) {
 func TestRunCopiesTheModuleAndTheProgram(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	facts := harness.Context
 	log := fakeZig(t, harness)
 
@@ -407,7 +407,7 @@ func TestRunOfAnOptimizationMode(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
 
-			harness := buildtest.New(t, component())
+			harness := buildtest.New(t, Backend(), component())
 			log := fakeZig(t, harness)
 
 			require.NoError(t, harness.Run(t.Context(), validate(t, component(),
@@ -440,7 +440,7 @@ func TestRunFindsTheModule(t *testing.T) {
 		t.Run(module, func(t *testing.T) {
 			t.Parallel()
 
-			harness := buildtest.New(t, component())
+			harness := buildtest.New(t, Backend(), component())
 			facts := harness.Context
 
 			fakeZig(t, harness)
@@ -465,7 +465,7 @@ func TestRunFindsTheModule(t *testing.T) {
 func TestRunOfWhatZigDidNotInstall(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	prefix := filepath.Join(harness.Context.Dirs.Work, "zig-out")
 
 	fakeZig(t, harness)
@@ -491,7 +491,7 @@ func TestRunOfWhatZigDidNotInstall(t *testing.T) {
 func TestRunOfAFailedBuild(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	fakeZig(t, harness)
 
 	harness.Context.Env["FAKE_FAIL"] = "1"
@@ -539,7 +539,7 @@ func TestRunOfAStaticProgram(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			harness := buildtest.New(t, component())
+			harness := buildtest.New(t, Backend(), component())
 			log := fakeZig(t, harness)
 
 			if test.noTarget {
@@ -571,7 +571,7 @@ func TestRunOfAStaticProgram(t *testing.T) {
 func TestInputs(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	fakeZig(t, harness)
 
 	bld := validate(t, component(), map[string]any{"module": "hello"}, false)

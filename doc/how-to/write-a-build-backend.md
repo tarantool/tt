@@ -592,7 +592,7 @@ func TestBuild(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component)
+	harness := buildtest.New(t, template.Backend(), component)
 	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, "defaults.lua.in"),
 		[]byte("return { port = ${PORT}, package = '${TT_PACKAGE}' }\n"), 0o600))
 	require.NoError(t, harness.Run(t.Context(), bld))
@@ -627,7 +627,7 @@ func TestNoEnvsubst(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component)
+	harness := buildtest.New(t, template.Backend(), component)
 	harness.Context.Env["PATH"] = t.TempDir()
 
 	require.ErrorIs(t, harness.Run(t.Context(), bld), build.ErrNoTool)
@@ -662,12 +662,15 @@ ok  	example.com/tt-template	0.010s
   `Incremental`, and `Rest`, the fields of the backend as a TOML decoder
   makes them - strings, `int64`, `float64`, `bool`, `[]any` and
   `map[string]any`.
-- `buildtest.Validate` checks the block in the core's order and returns the
-  build or the first error, a `*build.FieldError` for a field. The tt of a
-  test has no other backend, so a key the configuration has no place for is
-  an `unknown field` here, where the core may say that another backend has
-  it.
-- `buildtest.New` makes a `Context` on directories of `t.TempDir()`:
+- `buildtest.Validate` checks the backend as the core checks it before it
+  adds it, with the same function, `build.Backend.Validate`: what the core
+  refuses (see [What the core refuses](#what-the-core-refuses)) fails the
+  test. Then it checks the block in the core's order and returns the build
+  or the first error, a `*build.FieldError` for a field. The tt of a test
+  has no other backend, so a key the configuration has no place for is an
+  `unknown field` here, where the core may say that another backend has it.
+- `buildtest.New(t, backend, component)` makes a `Context` for the builds
+  of `backend` on directories of `t.TempDir()`:
   `<tmp>/project` with the component in it, and `work`, `output`, `share`,
   `bin` and `state` beside it. The target is the machine the test runs on,
   the toolchain is `cc` or `CC`, and no Tarantool is known. `Env` has
@@ -677,8 +680,8 @@ ok  	example.com/tt-template	0.010s
 - `harness.Run` runs `Preflight`, when the build has one, then `Run`.
   `Printed` returns what the commands printed, `Warnings` the warnings of
   the build, and `Locked` sets the versions `LockedVersion` answers.
-- `buildtest.ValidateHook` and `buildtest.NewHook` do the same for a
-  backend that runs hooks.
+- `buildtest.ValidateHook` and `buildtest.NewHook(t, backend)` do the same
+  for a backend that runs hooks.
 
 ## Build it into tt
 
@@ -786,6 +789,10 @@ starts. It refuses those that are not well formed, naming the module:
   struct, or whose struct has a field the decoder cannot fill, two fields of
   one key, or a field of a common key such as `env`;
 - a `FileCheck` with no `Suffix` or no `Check`.
+
+`build.Backend.Validate` and `build.FileCheck.Validate` are these checks
+but the one of a name another module provides; the core and `buildtest`
+both call them, so a backend whose tests pass is one the core takes.
 
 Every refusal is reported at once, and the binary then fails on every
 command line. `tt binary build tt` runs `tt version` of the binary it built,

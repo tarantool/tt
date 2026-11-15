@@ -209,7 +209,7 @@ func TestPreflightNamesTheMissingTool(t *testing.T) {
 	bld, err := buildtest.Validate(Backend(), module(), block([]string{"a.so"}, nil))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, module())
+	harness := buildtest.New(t, Backend(), module())
 
 	harness.Context.Env["PATH"] = t.TempDir()
 

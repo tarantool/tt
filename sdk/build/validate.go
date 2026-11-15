@@ -4,16 +4,137 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
+	"strings"
 )
 
 // This file checks that what a module provides is well formed: the core
-// checks every Build a backend makes, and buildtest checks the same with the
-// same functions, so that a backend its tests pass is one the core takes.
+// checks a backend and a file check before it adds them, and every Build a
+// backend makes; buildtest checks the same with the same functions, so that
+// a backend its tests pass is one the core takes.
 
-// ErrBackend reports a Build of a backend that is not well formed
-// ([Backend.ValidateBuild]).
-var ErrBackend = errors.New("invalid build backend")
+var (
+	// ErrBackend reports a backend that is not well formed
+	// ([Backend.Validate]), or a Build of it that is not
+	// ([Backend.ValidateBuild]).
+	ErrBackend = errors.New("invalid build backend")
+	// ErrFileCheck reports a file check that is not well formed
+	// ([FileCheck.Validate]).
+	ErrFileCheck = errors.New("invalid file check")
+)
+
+// CommonFields returns the keys of the fields every build block has,
+// whatever its backend - those of [Common], incremental and backend:
+// backend, cwd, env, output, incremental and static. They are the core's,
+// and the configuration of no backend has one ([Backend.Config]).
+func CommonFields() []string {
+	return []string{"backend", "cwd", "env", "output", "incremental", "static"}
+}
+
+// nameRe is the shape of the name of a backend: the shape of the names of a
+// manifest.
+var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+var (
+	// errProduces reports the result types of a backend that are not well
+	// formed.
+	errProduces = errors.New("the Produces must name module, data or program, once each")
+	// errExclude reports an empty pattern of the exclusions of a backend.
+	errExclude = errors.New("an empty pattern in Exclude")
+	// errOutputFrom reports an OutputFrom of no meaning.
+	errOutputFrom = errors.New("OutputFrom is none of OutputNone, OutputCwd and OutputBackend")
+)
+
+// Validate checks that b is well formed, as the core checks a backend a
+// module provides before it adds it, and as buildtest checks the backend
+// of a test: its Name has the shape of a name, it has New, its Config
+// returns what the decoder can fill and has none of [CommonFields], its
+// Produces name one of [Results] at least and each at most once, its
+// OutputFrom is one of the three, and no pattern of its Exclude is empty.
+// That no other backend of the tt has its name is the core's to check. The
+// error wraps [ErrBackend] and names the backend; one of the configuration
+// wraps [ErrConfig] too.
+func (b Backend) Validate() error {
+	if !nameRe.MatchString(b.Name) {
+		return fmt.Errorf("%w %q: the name must match [a-z][a-z0-9-]*", ErrBackend, b.Name)
+	}
+
+	if b.New == nil {
+		return fmt.Errorf("%w %q: no New", ErrBackend, b.Name)
+	}
+
+	err := checkProduces(b.Produces)
+	if err == nil {
+		err = checkOutputFrom(b.OutputFrom)
+	}
+
+	if err == nil && slices.Contains(b.Exclude, "") {
+		err = errExclude
+	}
+
+	if err != nil {
+		return fmt.Errorf("%w %q: %w", ErrBackend, b.Name, err)
+	}
+
+	fields, err := b.Fields()
+	if err != nil {
+		return fmt.Errorf("%w %q: %w", ErrBackend, b.Name, err)
+	}
+
+	for _, field := range fields {
+		if slices.Contains(CommonFields(), field) {
+			return fmt.Errorf("%w %q: %s is a field of every build block, not one of a backend",
+				ErrBackend, b.Name, field)
+		}
+	}
+
+	return nil
+}
+
+// checkProduces checks the types of what a backend makes.
+func checkProduces(produces []Result) error {
+	if len(produces) == 0 {
+		return errProduces
+	}
+
+	for i, result := range produces {
+		if !slices.Contains(Results(), result) || slices.Contains(produces[:i], result) {
+			names := make([]string, 0, len(produces))
+			for _, result := range produces {
+				names = append(names, string(result))
+			}
+
+			return fmt.Errorf("%w, not %q", errProduces, strings.Join(names, ", "))
+		}
+	}
+
+	return nil
+}
+
+// checkOutputFrom checks where the output of a backend comes from.
+func checkOutputFrom(from OutputFrom) error {
+	switch from {
+	case OutputNone, OutputCwd, OutputBackend:
+		return nil
+	default:
+		return fmt.Errorf("%w: %d", errOutputFrom, from)
+	}
+}
+
+// Validate checks that c is well formed, as the core checks a file check a
+// module provides before it adds it: it has a Suffix and a Check. The error
+// wraps [ErrFileCheck].
+func (c FileCheck) Validate() error {
+	switch {
+	case c.Suffix == "":
+		return fmt.Errorf("%w: no Suffix", ErrFileCheck)
+	case c.Check == nil:
+		return fmt.Errorf("%w of %q: no Check", ErrFileCheck, c.Suffix)
+	}
+
+	return nil
+}
 
 // optionalInterfaces are the optional interfaces of a Build, each by the
 // name of its method.

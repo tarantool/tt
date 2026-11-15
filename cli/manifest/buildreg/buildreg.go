@@ -12,13 +12,10 @@ package buildreg
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
-	"strings"
 	"sync/atomic"
 
 	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // Registry holds the build backends and the file checks of a tt. It is
@@ -46,21 +43,20 @@ func New() *Registry {
 }
 
 var (
-	// ErrBackend reports a backend a module cannot provide.
-	ErrBackend = errors.New("invalid build backend")
-	// ErrFileCheck reports a file check a module cannot provide.
-	ErrFileCheck = errors.New("invalid file check")
+	// ErrBackend reports a backend a module cannot provide: one that is not
+	// well formed (build.Backend.Validate), or named as another.
+	ErrBackend = build.ErrBackend
+	// ErrFileCheck reports a file check a module cannot provide
+	// (build.FileCheck.Validate).
+	ErrFileCheck = build.ErrFileCheck
 )
-
-// nameRe is the shape of the name of a backend: the shape of the names of a
-// manifest.
-var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // Add registers the backends and the file checks the module named module
 // provides. A backend is refused, and so is a file check, that is not well
-// formed - see the errors - and a backend named as another one of the
-// registry is; the rest are added. The error names the module and joins the
-// error of each one refused.
+// formed - build.Backend.Validate and build.FileCheck.Validate, which
+// buildtest checks a backend with too - and a backend named as another one
+// of the registry is; the rest are added. The error names the module and
+// joins the error of each one refused.
 func (r *Registry) Add(module string, backends []build.Backend, checks []build.FileCheck) error {
 	var errs []error
 
@@ -76,7 +72,7 @@ func (r *Registry) Add(module string, backends []build.Backend, checks []build.F
 	}
 
 	for _, check := range checks {
-		err := checkFileCheck(check)
+		err := check.Validate()
 		if err != nil {
 			errs = append(errs, fmt.Errorf("module %q: %w", module, err))
 
@@ -87,59 +83,6 @@ func (r *Registry) Add(module string, backends []build.Backend, checks []build.F
 	}
 
 	return errors.Join(errs...)
-}
-
-var (
-	// errProduces reports the result types of a backend that are not well
-	// formed.
-	errProduces = errors.New("the Produces must name module, data or program, once each")
-	// errExclude reports an empty pattern of the exclusions of a backend.
-	errExclude = errors.New("an empty pattern in Exclude")
-)
-
-// checkProduces checks the types of what a backend makes.
-func checkProduces(produces []build.Result) error {
-	if len(produces) == 0 {
-		return errProduces
-	}
-
-	for i, result := range produces {
-		if !slices.Contains(build.Results(), result) || slices.Contains(produces[:i], result) {
-			names := make([]string, 0, len(produces))
-			for _, result := range produces {
-				names = append(names, string(result))
-			}
-
-			return fmt.Errorf("%w, not %q", errProduces, strings.Join(names, ", "))
-		}
-	}
-
-	return nil
-}
-
-// errOutputFrom reports an OutputFrom of no meaning.
-var errOutputFrom = errors.New("OutputFrom is none of OutputNone, OutputCwd and OutputBackend")
-
-// checkOutputFrom checks where the output of a backend comes from.
-func checkOutputFrom(from build.OutputFrom) error {
-	switch from {
-	case build.OutputNone, build.OutputCwd, build.OutputBackend:
-		return nil
-	default:
-		return fmt.Errorf("%w: %d", errOutputFrom, from)
-	}
-}
-
-// checkFileCheck checks a file check before it is added.
-func checkFileCheck(check build.FileCheck) error {
-	switch {
-	case check.Suffix == "":
-		return fmt.Errorf("%w: no Suffix", ErrFileCheck)
-	case check.Check == nil:
-		return fmt.Errorf("%w of %q: no Check", ErrFileCheck, check.Suffix)
-	}
-
-	return nil
 }
 
 // Backend returns the backend name and the name of the module that provides
@@ -170,11 +113,14 @@ func (r *Registry) FileChecks() []build.FileCheck {
 	return slices.Clone(r.checks)
 }
 
-// check checks backend, of module, before it is added.
+// check checks backend, of module, before it is added: that it is well
+// formed (build.Backend.Validate) and that no backend of the registry has
+// its name.
 func (r *Registry) check(module string, backend build.Backend) (entry, error) {
-	if !nameRe.MatchString(backend.Name) {
-		return entry{}, fmt.Errorf("%w %q: the name must match [a-z][a-z0-9-]*",
-			ErrBackend, backend.Name)
+	err := backend.Validate()
+	if err != nil {
+		// Validate names the backend; Add names the module.
+		return entry{}, err
 	}
 
 	if other, ok := r.lookup(backend.Name); ok {
@@ -182,33 +128,9 @@ func (r *Registry) check(module string, backend build.Backend) (entry, error) {
 			ErrBackend, backend.Name, other.module)
 	}
 
-	if backend.New == nil {
-		return entry{}, fmt.Errorf("%w %q: no New", ErrBackend, backend.Name)
-	}
-
-	err := checkProduces(backend.Produces)
-	if err == nil {
-		err = checkOutputFrom(backend.OutputFrom)
-	}
-
-	if err == nil && slices.Contains(backend.Exclude, "") {
-		err = errExclude
-	}
-
-	if err != nil {
-		return entry{}, fmt.Errorf("%w %q: %w", ErrBackend, backend.Name, err)
-	}
-
 	fields, err := backend.Fields()
 	if err != nil {
 		return entry{}, fmt.Errorf("%w %q: %w", ErrBackend, backend.Name, err)
-	}
-
-	for _, field := range fields {
-		if slices.Contains(manifest.CommonBuildFields(), field) {
-			return entry{}, fmt.Errorf("%w %q: %s is a field of every build block, "+
-				"not one of a backend", ErrBackend, backend.Name, field)
-		}
 	}
 
 	return entry{backend: backend, module: module, fields: fields}, nil

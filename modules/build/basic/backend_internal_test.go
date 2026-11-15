@@ -261,7 +261,7 @@ func TestMakeRunsTargetIntoOutputDir(t *testing.T) {
 		block(map[string]any{"make_target": "build"}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Make(), component())
 	facts := harness.Context
 
 	makefile := "build:\n\tprintf x > $(TT_OUTPUT_DIR)/mod.so\n"
@@ -282,7 +282,7 @@ func TestMakeCustomEntrypointAndFlags(t *testing.T) {
 		}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Make(), component())
 	facts := harness.Context
 
 	makefile := "build:\n\tprintf x > $(TT_OUTPUT_DIR)/$(NAME).so\n"
@@ -303,7 +303,7 @@ func TestShellWritesToOutputDir(t *testing.T) {
 		}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Shell(), component())
 
 	require.NoError(t, harness.Run(t.Context(), bld))
 
@@ -322,7 +322,7 @@ func TestShellRunsInCwd(t *testing.T) {
 			output("artifact.so", build.Module)))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Shell(), component())
 
 	require.NoError(t, harness.Run(t.Context(), bld))
 	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Cwd, "artifact.so"))
@@ -337,7 +337,7 @@ func TestShellNonZeroExitIsError(t *testing.T) {
 		block(map[string]any{"command": "sh", "args": []any{"-c", "echo boom >&2; exit 1"}}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Shell(), component())
 
 	require.Error(t, harness.Run(t.Context(), bld))
 	assert.Contains(t, harness.Printed(), "boom")
@@ -351,7 +351,7 @@ func TestMakeNonZeroExitIsError(t *testing.T) {
 		block(map[string]any{"make_target": "build"}))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Make(), component())
 
 	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, "Makefile"),
 		[]byte("build:\n\texit 3\n"), 0o600))
@@ -374,7 +374,7 @@ func TestShellHook(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	harness := buildtest.NewHook(t)
+	harness := buildtest.NewHook(t, Shell())
 
 	require.NoError(t, harness.Run(t.Context(), bld))
 
@@ -394,7 +394,7 @@ func TestMakeHook(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	harness := buildtest.NewHook(t)
+	harness := buildtest.NewHook(t, Make())
 	project := harness.Context.Dirs.Project
 
 	makefile := "gen:\n\t" + `@echo "$${TT_PACKAGE}:$${TT_OUTPUT_DIR-unset}:` +

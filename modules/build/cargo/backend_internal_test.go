@@ -257,7 +257,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a static program for darwin", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, program())
+		harness := buildtest.New(t, Backend(), program())
 		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = darwin
@@ -272,7 +272,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a static module for darwin", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, module())
+		harness := buildtest.New(t, Backend(), module())
 		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = darwin
@@ -284,7 +284,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a platform cargo has no target for", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, program())
+		harness := buildtest.New(t, Backend(), program())
 		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = build.Target{OS: "linux", Arch: "s390x"}
@@ -296,7 +296,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a missing tool", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, program())
+		harness := buildtest.New(t, Backend(), program())
 
 		harness.Context.Env["PATH"] = t.TempDir()
 
@@ -308,7 +308,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a tool of the project", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, program())
+		harness := buildtest.New(t, Backend(), program())
 
 		harness.Context.Env["PATH"] = t.TempDir()
 		writeTool(t, harness.Context.Dirs.Tools, "")
@@ -365,7 +365,7 @@ func readLines(t *testing.T, path string) []string {
 func TestRunCopiesTheBinary(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, program())
+	harness := buildtest.New(t, Backend(), program())
 	facts := harness.Context
 	log := fakeCargo(t, harness)
 
@@ -399,7 +399,7 @@ func TestRunCopiesTheLibraryAndTheBinary(t *testing.T) {
 	t.Parallel()
 
 	for _, static := range []bool{false, true} {
-		harness := buildtest.New(t, both())
+		harness := buildtest.New(t, Backend(), both())
 		facts := harness.Context
 		log := fakeCargo(t, harness)
 
@@ -435,7 +435,7 @@ func TestRunCopiesTheLibraryAndTheBinary(t *testing.T) {
 func TestRunCopiesTheLibrary(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, module())
+	harness := buildtest.New(t, Backend(), module())
 	facts := harness.Context
 	log := fakeCargo(t, harness)
 
@@ -473,7 +473,7 @@ func TestRunKeepsTheTargetDirOfTheEnvironment(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			harness := buildtest.New(t, program())
+			harness := buildtest.New(t, Backend(), program())
 			log := fakeCargo(t, harness)
 			mine := t.TempDir()
 
@@ -507,7 +507,7 @@ func TestRunOfAStaticBinaryNamesTheTarget(t *testing.T) {
 		t.Skip("a static program is built for linux only")
 	}
 
-	harness := buildtest.New(t, program())
+	harness := buildtest.New(t, Backend(), program())
 	fakeCargo(t, harness)
 
 	harness.Context.Env["FAKE_FAIL"] = "1"
@@ -525,7 +525,7 @@ func TestRunOfAStaticBinaryNamesTheTarget(t *testing.T) {
 func TestRunOfAnUnknownBinIsAnError(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, program())
+	harness := buildtest.New(t, Backend(), program())
 	fakeCargo(t, harness)
 
 	err := harness.Run(t.Context(), validate(t, program(), map[string]any{"bin": "missing"},
@@ -582,7 +582,7 @@ func writeFiles(t *testing.T, dir string, files map[string]string) {
 func crateHarness(t *testing.T, component build.Component) *buildtest.Harness {
 	t.Helper()
 
-	harness := buildtest.New(t, component)
+	harness := buildtest.New(t, Backend(), component)
 
 	noTargetDir(harness)
 
