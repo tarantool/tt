@@ -10,17 +10,19 @@ on:
       - v3
     paths:
       - 'doc/**'
-      - 'mkdocs.yml'
+      - 'zensical*.toml'
       - 'core/testdata/help.golden'
       - 'cli/cmd/clidoc/**'
+      - 'ci/doc_site.py'
       - 'ci/doc_translations.py'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
       - 'doc/**'
-      - 'mkdocs.yml'
+      - 'zensical*.toml'
       - 'core/testdata/help.golden'
       - 'cli/cmd/clidoc/**'
+      - 'ci/doc_site.py'
       - 'ci/doc_translations.py'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
@@ -59,7 +61,8 @@ jobs:
           python3 -m pip install -r doc/requirements.txt
 
       # Fails on a broken link or anchor, and on a page the nav omits, such
-      # as the reference of a new command.
+      # as the reference of a new command. Warns about a link of an English
+      # page to a section its translation does not have yet.
       - name: Build the site
         run: mage docs:build
 

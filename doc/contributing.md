@@ -103,20 +103,20 @@ $ mage codespell
 
 ## The documentation
 
-The site is built from `doc/` with MkDocs and Material for MkDocs
-(`mkdocs.yml`, `doc/requirements.txt`) and published from the `v3` branch
+The site is built from `doc/` with [Zensical](https://zensical.org/)
+(`zensical.toml`, `doc/requirements.txt`) and published from the `v3` branch
 to <https://tarantool.github.io/tt/>.
 
 ```console
 $ pip install -r doc/requirements.txt
-$ mage docs:serve    # http://127.0.0.1:8000/tt/, reloads on changes
+$ mage docs:serve    # http://127.0.0.1:8000/tt/, rebuilds on changes
 $ mage docs:build    # site/, failing on a broken link
 ```
 
 The [command reference](reference/commands/index.md) is generated from the
 help of tt by `mage docs:reference`: edit the help of a command, not its
 page. A new top-level command needs its page added to the nav of
-`mkdocs.yml`; the build fails until it is.
+`zensical.toml`; the build fails until it is.
 
 ### Translations
 
@@ -125,12 +125,25 @@ and the Russian one under `/ru/`. A translation of a page lives next to it,
 with the locale before the extension: `get-started/install.ru.md`
 translates `get-started/install.md`. The Russian site shows the English page
 wherever there is no translation, so a page can be translated at any time
-and the nav of `mkdocs.yml` lists the English pages only; the titles the nav
-sets explicitly are translated in `nav_translations` of the `i18n` plugin.
+and the nav of `zensical.toml` lists the English pages only. The titles the
+nav sets explicitly and the description of the site are translated in
+`zensical.ru.toml`, beside `zensical.toml`.
 A translation keeps the headings of the English page and pins their anchors
 to the English ones, `## Сборка из исходников {#build-from-source}`, so that
 the links to a section work in both languages; a first-level heading needs
 none. The command reference stays in English.
+
+Zensical builds a site in one language, so `ci/doc_site.py`, which
+`mage docs:build` and `mage docs:serve` run, builds the Russian one from a
+copy of `doc/` in `.zensical/ru/doc/`, where a page is its translation when
+it has one, and from `zensical.toml` with the changes of `zensical.ru.toml`,
+and puts it in `site/ru/`. The build fails on a broken link of
+either site, and on a link of a translated page to an anchor the Russian
+site does not have. An English page shown in the Russian site may link to a
+section the translation has not caught up with yet: that is a warning, as
+a stale translation is. `mage docs:serve` reloads an English page in the
+browser on a change and rebuilds the Russian site within a few seconds,
+which a reload of the page shows.
 
 A term is translated as [the glossary](translations/glossary.md) fixes it,
 which also holds the punctuation and the phrases the translations avoid.
