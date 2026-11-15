@@ -425,6 +425,32 @@ type BuildContextOptions struct {
 	Args []string
 }
 
+// CleanOptions are what [Project.Clean] cleans, as tt package clean chooses
+// it.
+type CleanOptions struct {
+	// Components narrow the clean to these components of the manifest; none
+	// cleans the whole project. tt wasm clean calc is
+	// Components: []string{"calc"}.
+	Components []string
+	// DryRun removes nothing and runs no Clean of a backend and no hook, as
+	// --dry-run does: the result says what a clean would remove and run.
+	DryRun bool
+}
+
+// CleanResult is what [Project.Clean] removed and ran, or would have with
+// [CleanOptions.DryRun].
+type CleanResult struct {
+	// Removed are the files and directories removed, as absolute paths:
+	// those of _build/, then the files of the rock of the package in
+	// .rocks/.
+	Removed []string
+	// Cleaned are the components whose backend's Clean ran
+	// ([build.Cleaner]), in name order.
+	Cleaned []string
+	// Hook reports that [hooks.clean] of the manifest ran.
+	Hook bool
+}
+
 // IndexOptions are how [Rocks.Index] indexes a rock server.
 type IndexOptions struct {
 	// IfIndexed writes the rock index only into a directory that has one

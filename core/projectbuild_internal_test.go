@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -245,4 +246,120 @@ func TestProjectBuildContext(t *testing.T) {
 
 	_, _, err = project.BuildContext(t.Context(), sdk.BuildContextOptions{Component: "nope"})
 	require.ErrorContains(t, err, `"nope" is not a component of the selected product`)
+}
+
+// TestProjectClean checks that after Clean of a component its next build
+// runs, as tt wasm clean NAME needs: a module that removed the files it
+// recorded, dist/calc.wasm here, would otherwise have the incremental build
+// skip the component, its inputs unchanged, and the file stay missing.
+//
+//nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
+func TestProjectClean(t *testing.T) {
+	dir, project := packageProject(t, wasmProject)
+	withWasmBackend(t)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "components", "calc"), 0o755))
+
+	dist := filepath.Join(dir, "components", "calc", "dist", "calc.wasm")
+	wasm := filepath.Join(dir, ".rocks", "share", "tarantool", "app", "calc.wasm")
+	work := filepath.Join(dir, "_build", "component", "calc")
+	calc := sdk.CleanOptions{Components: []string{"calc"}, DryRun: false}
+
+	_, err := project.Build(t.Context(), sdk.BuildOptions{Components: []string{"calc"}})
+	require.NoError(t, err)
+	require.FileExists(t, dist)
+
+	dry, err := project.Clean(t.Context(), sdk.CleanOptions{Components: calc.Components,
+		DryRun: true})
+	require.NoError(t, err)
+	assert.Contains(t, dry.Removed, work)
+	assert.Contains(t, dry.Removed, wasm)
+	assert.FileExists(t, wasm, "a dry run removes nothing")
+
+	// The module removes what it recorded, then the core's state of calc.
+	require.NoError(t, os.Remove(dist))
+
+	cleaned, err := project.Clean(t.Context(), calc)
+	require.NoError(t, err)
+	assert.Equal(t, dry.Removed, cleaned.Removed)
+	assert.NoFileExists(t, wasm)
+	assert.NoDirExists(t, work)
+
+	result, err := project.Build(t.Context(), sdk.BuildOptions{Components: []string{"calc"}})
+	require.NoError(t, err)
+	assert.False(t, result.Components["calc"].UpToDate, "a component cleaned is built")
+	assert.FileExists(t, dist)
+	assert.FileExists(t, wasm)
+
+	_, err = project.Clean(t.Context(), sdk.CleanOptions{Components: []string{"nope"},
+		DryRun: false})
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+	assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(err))
+
+	// tt package clean cleans the whole project: _build/ but the lock, and
+	// the rock of the package.
+	pkg := cmd.NewPackageCmd()
+	pkg.SetArgs([]string{"clean"})
+	require.NoError(t, pkg.Execute())
+
+	entries, err := os.ReadDir(filepath.Join(dir, "_build"))
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "tt.lock", entries[0].Name())
+	assert.NoFileExists(t, wasm)
+	assert.FileExists(t, filepath.Join(dir, "app.manifest.lock"))
+}
+
+// TestProjectLock checks that the methods of Project work under the lock
+// Lock takes when given its context, and that another goroutine waits for
+// its release.
+//
+//nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
+func TestProjectLock(t *testing.T) {
+	dir, project := packageProject(t, wasmProject)
+	withWasmBackend(t)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "components", "calc"), 0o755))
+
+	ctx, release, err := project.Lock(t.Context())
+	require.NoError(t, err)
+
+	// Under the lock: an edit, a build and a clean, which would wait for the
+	// lock forever with another context.
+	require.NoError(t, project.UpdateComponent(ctx, sdk.ComponentUpdate{
+		Name: "calc", Fields: nil, Build: []sdk.BuildField{{Key: "language", Value: "rust"}},
+		Remove: nil,
+	}))
+
+	_, err = project.Build(ctx, sdk.BuildOptions{Components: []string{"calc"}})
+	require.NoError(t, err)
+
+	_, err = project.Clean(ctx, sdk.CleanOptions{Components: []string{"calc"}, DryRun: false})
+	require.NoError(t, err)
+
+	nested, nestedRelease, err := project.Lock(ctx)
+	require.NoError(t, err)
+	nestedRelease()
+
+	_, err = project.Build(nested, sdk.BuildOptions{Components: []string{"calc"}})
+	require.NoError(t, err, "the release of a nested lock releases nothing")
+
+	// Another goroutine, with its own context, waits for the release.
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := project.Clean(context.Background(), sdk.CleanOptions{Components: nil,
+			DryRun: false})
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("the clean did not wait for the lock: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	release()
+	require.NoError(t, <-done)
+	assert.NoDirExists(t, filepath.Join(dir, "_build", "component"))
 }

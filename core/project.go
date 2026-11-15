@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
@@ -232,6 +233,33 @@ func (project) BuildContext(
 	}
 
 	return facts, bld, nil
+}
+
+// Clean removes what the builds of Root made, as tt package clean does:
+// cmd.CleanProject, its result told in the SDK's terms. A component the
+// manifest does not declare is sdk.ErrNotFound as well.
+func (project) Clean(ctx context.Context, opts sdk.CleanOptions) (sdk.CleanResult, error) {
+	result, err := cmd.CleanProject(ctx, opts)
+	if err != nil {
+		return sdk.CleanResult{}, manifestError(err)
+	}
+
+	cleaned := sdk.CleanResult{
+		Removed: slices.Clone(result.Removed),
+		Cleaned: slices.Clone(result.Cleaned),
+		Hook:    result.Hook,
+	}
+
+	for _, rock := range result.Rocks {
+		cleaned.Removed = append(cleaned.Removed, rock.Files...)
+	}
+
+	return cleaned, nil
+}
+
+// Lock takes the lock of Root: cmd.LockProject.
+func (project) Lock(ctx context.Context) (context.Context, func(), error) {
+	return cmd.LockProject(ctx)
 }
 
 // StateDir returns .tarantool of Root.

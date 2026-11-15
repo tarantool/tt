@@ -145,6 +145,15 @@ type Integrity interface {
 // the package the app.manifest.toml of the project describes, managed as tt
 // package manages it.
 //
+// The methods that change the project - AddComponent, UpdateComponent,
+// RemoveComponent, Resolve, AddDependency, RemoveDependency, Install, Build
+// and Clean - hold the lock of the project while they do, as the tt package
+// commands hold it ([Project.Lock]): two of them, of two tt processes or of
+// two goroutines, never change it at once, and one waits for the other,
+// saying so. Given a ctx that carries the lock, the context [Project.Lock]
+// returns, they work under it rather than wait. Manifest, ReadLock,
+// BuildContext and the others read, and take no lock.
+//
 // Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Project,
 // as they implement Services.
 //
@@ -302,6 +311,43 @@ type Project interface {
 	// error.
 	BuildContext(ctx context.Context, opts BuildContextOptions) (
 		*build.Context, build.Build, error)
+	// Clean removes what the builds of Root made, as tt package clean does:
+	// for each component it cleans whose build is a [build.Cleaner], what
+	// that Clean removes, run first; for a clean of the whole project the
+	// clean hook of the manifest, [hooks.clean], then all of _build/ but the
+	// lock; for a clean of components their directories of intermediate
+	// files, records and files in the stages; and either way the rock of the
+	// package in .rocks/, which the next build installs again. The rocks of
+	// the dependencies, the manifest, the lock and every file of the sources
+	// stay. tt wasm clean calc, which removes the files the module recorded
+	// itself, cleans the core's state of calc with
+	// Components: []string{"calc"}, so that the next build of calc builds it
+	// rather than skip it as up to date. A component the manifest does not
+	// declare is an error that wraps ErrNotFound; a Clean or a hook that
+	// fails is one with ExitSystem, before anything is removed.
+	Clean(ctx context.Context, opts CleanOptions) (CleanResult, error)
+	// Lock takes the lock of Root that the tt package commands and the
+	// methods of Project that change the project hold, for an operation of
+	// a module of several steps on the project, such as tt wasm bind, which
+	// writes .tt-wasm/ and the component and then builds it. It waits while
+	// another tt holds the lock, or another goroutine of this one with
+	// another context, saying once in the log whose it is, until ctx is
+	// done, which is the error then.
+	//
+	// It returns the context that carries the lock, and its release, which
+	// may be called more than once. The methods of Project given that
+	// context, or one derived from it, work under the lock rather than wait
+	// for it: one given another context waits for the release, forever if
+	// the caller holds it. A command Lock is given a ctx that carries the
+	// lock already takes nothing, and its release releases nothing. A tt a
+	// command runs while it holds the lock, such as one a shell backend
+	// runs on the same project, works under it too: the lock is handed down
+	// in the environment, TT_PROJECT_LOCK.
+	//
+	// The lock is an flock(2) of _build/tt.lock of Root, which the kernel
+	// drops when tt exits, however it exits. A project without
+	// app.manifest.toml gets no lock, and Lock returns ctx as it is.
+	Lock(ctx context.Context) (context.Context, func(), error)
 }
 
 // Rocks are the rock servers tt writes, as tt package index writes one.
