@@ -177,6 +177,40 @@ func TestValidateErrors(t *testing.T) {
 	}
 }
 
+// TestValidateOfABackendTheCoreRefuses: a backend the core would refuse to
+// add is refused whatever the block, as tt would not start with it.
+func TestValidateOfABackendTheCoreRefuses(t *testing.T) {
+	t.Parallel()
+
+	common := touch()
+
+	common.Config = func() any {
+		return &struct {
+			Output string `toml:"output"`
+		}{}
+	}
+
+	none := touch()
+
+	none.Produces = nil
+
+	for _, test := range []struct {
+		backend build.Backend
+		msg     string
+	}{
+		{common, `invalid build backend "touch": output is a field of every build block, ` +
+			`not one of a backend`},
+		{none, `invalid build backend "touch": the Produces must name module, data or ` +
+			`program, once each`},
+	} {
+		_, err := buildtest.Validate(test.backend, component(), buildtest.Block{
+			Rest: map[string]any{"file": "a"},
+		})
+		require.ErrorIs(t, err, build.ErrBackend)
+		require.EqualError(t, err, test.msg)
+	}
+}
+
 func TestValidateHook(t *testing.T) {
 	t.Parallel()
 
@@ -203,7 +237,11 @@ func TestValidateHook(t *testing.T) {
 func TestNewHook(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.NewHook(t)
+	hook := touch()
+
+	hook.Hook = true
+
+	harness := buildtest.NewHook(t, hook)
 	facts := harness.Context
 
 	assert.True(t, facts.Hook)
@@ -228,7 +266,7 @@ func TestNewHook(t *testing.T) {
 func TestHarness(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, touch(), component())
 
 	harness.Locked["sdk"] = "3.1.0"
 
@@ -252,7 +290,7 @@ func TestHarness(t *testing.T) {
 func TestHarnessBin(t *testing.T) {
 	t.Parallel()
 
-	facts := buildtest.New(t, component()).Context
+	facts := buildtest.New(t, touch(), component()).Context
 
 	// The script is copied into place with no fork of the parallel tests
 	// in between, which would hold it open for writing (ETXTBSY).
@@ -287,7 +325,7 @@ func TestHarnessOnlyThePathOfTheBuild(t *testing.T) {
 	_, err := exec.LookPath("sh")
 	require.NoError(t, err)
 
-	facts := buildtest.New(t, component()).Context
+	facts := buildtest.New(t, touch(), component()).Context
 
 	facts.Env["PATH"] = t.TempDir()
 

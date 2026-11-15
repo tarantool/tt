@@ -18,11 +18,12 @@ import (
 
 // hostHarness is a harness of a module component whose toolchain has the
 // headers of the host's Tarantool, includeDir, with the sources of sources
-// in its working directory.
+// in its working directory. It is a harness of c, whose builds are those of
+// lua-c, both making modules.
 func hostHarness(t *testing.T, includeDir string, sources map[string]string) *buildtest.Harness {
 	t.Helper()
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, C(), component())
 
 	harness.Context.Toolchain.IncludeDir = includeDir
 

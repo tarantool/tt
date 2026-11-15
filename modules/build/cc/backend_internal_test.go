@@ -221,7 +221,7 @@ func TestMissingHeaders(t *testing.T) {
 	bld, err := buildtest.Validate(C(), component(), block(module(nil), nil))
 	require.NoError(t, err)
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, C(), component())
 
 	harness.Context.Toolchain.CC = "/nonexistent/cc"
 	harness.Context.Toolchain.IncludeDir = ""
@@ -264,7 +264,7 @@ func TestRun(t *testing.T) {
 			block(map[string]any{"module": "a.b", "sources": []any{"a.c"}}, nil))
 		require.NoError(t, err)
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, LuaC(), component())
 		facts := harness.Context
 
 		require.NoError(t, os.WriteFile(filepath.Join(facts.Dirs.Tools, "fakecc"), []byte(fakeCC),

@@ -179,7 +179,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("static for darwin", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 		writeTool(t, harness.Context.Dirs.Tools, "go", "")
 
 		harness.Context.Target = build.Target{OS: "darwin", Arch: "arm64"}
@@ -200,7 +200,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a missing tool", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 
 		harness.Context.Env["PATH"] = t.TempDir()
 
@@ -212,7 +212,7 @@ func TestPreflight(t *testing.T) {
 	t.Run("a tool of the project", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 
 		harness.Context.Env["PATH"] = t.TempDir()
 		writeTool(t, harness.Context.Dirs.Tools, "go", "")
@@ -230,7 +230,7 @@ func TestPreflight(t *testing.T) {
 func TestRunSelectsTheTarget(t *testing.T) {
 	t.Parallel()
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	facts := harness.Context
 	log := filepath.Join(facts.Dirs.State, "go")
 
@@ -286,7 +286,7 @@ func goHarness(t *testing.T, cgo bool) *buildtest.Harness {
 			"import \"fmt\"\n\nfunc main() { fmt.Println(\"gw\", C.answer()) }\n"
 	}
 
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 	dir := harness.Context.Dirs.Component
 
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "cmd", "gw"), 0o750))

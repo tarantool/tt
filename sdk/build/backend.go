@@ -55,7 +55,9 @@ const (
 //
 // The core calls Config and New when it checks a manifest - by every
 // command that reads one, before anything is built - and may call them more
-// than once for one block, so neither may have side effects.
+// than once for one block, so neither may have side effects. A backend that
+// is not well formed ([Backend.Validate]) is refused when tt starts, and
+// buildtest refuses it alike.
 type Backend struct {
 	// Name is the value of backend in a build block that selects it: a
 	// lowercase letter, then lowercase letters, digits and dashes. No two

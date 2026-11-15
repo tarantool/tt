@@ -131,7 +131,7 @@ func TestJobs(t *testing.T) {
 
 	// The level the env of the build sets is in the environment of its
 	// commands, which is where the backend reads it.
-	harness := buildtest.New(t, component())
+	harness := buildtest.New(t, Backend(), component())
 
 	harness.Context.Env[parallelLevel] = "2"
 
@@ -208,7 +208,7 @@ func TestCopyOutputs(t *testing.T) {
 	t.Run("names every missing file", func(t *testing.T) {
 		t.Parallel()
 
-		harness := buildtest.New(t, component())
+		harness := buildtest.New(t, Backend(), component())
 		tree := harness.Context.Dirs.Work
 
 		writeFiles(t, tree, map[string]string{"lib/m.so": "so"})
@@ -239,7 +239,7 @@ func TestCopyOutputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			harness := buildtest.New(t, component())
+			harness := buildtest.New(t, Backend(), component())
 
 			harness.Context.Target.OS = tt.goos
 			writeFiles(t, harness.Context.Dirs.Work, map[string]string{"lib/m.so": "so"})
@@ -313,7 +313,7 @@ const answerC = "#include <module.h>\nint answer(void) { return TT_ANSWER; }\n"
 func answerHarness(t *testing.T) *buildtest.Harness {
 	t.Helper()
 
-	harness := buildtest.New(t, build.Component{
+	harness := buildtest.New(t, Backend(), build.Component{
 		Name: "answer", Path: "answer", Namespace: "demo", Package: "", Expects: nil,
 	})
 

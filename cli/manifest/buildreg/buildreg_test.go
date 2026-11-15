@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/buildtest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
@@ -124,8 +126,47 @@ func TestAddRefused(t *testing.T) {
 
 			// The well-formed one is added all the same.
 			assert.Equal(t, []string{"cargo-zig"}, registry.Names())
+
+			// buildtest refuses what the registry refuses, with the same
+			// error: a backend whose tests pass is one tt takes.
+			_, testErr := buildtest.Validate(refused, build.Component{
+				Name: "a", Path: "a", Namespace: "demo", Package: "demo", Expects: nil,
+			}, buildtest.Block{Common: build.Common{}, Incremental: false, Rest: nil})
+			require.ErrorIs(t, testErr, buildreg.ErrBackend)
+			assert.Equal(t, `module "zig": `+testErr.Error(), err.Error())
 		})
 	}
+}
+
+// TestBuildtestTakesWhatTheRegistryTakes: a backend the registry takes is
+// one buildtest takes, and both refuse no file check the other takes.
+func TestBuildtestTakesWhatTheRegistryTakes(t *testing.T) {
+	t.Parallel()
+
+	taken := backend("zig")
+
+	require.NoError(t, buildreg.New().Add("zig", []build.Backend{taken}, nil))
+
+	_, err := buildtest.Validate(taken, build.Component{
+		Name: "a", Path: "a", Namespace: "demo", Package: "demo", Expects: nil,
+	}, buildtest.Block{Common: build.Common{}, Incremental: false, Rest: nil})
+	require.NoError(t, err)
+
+	for _, check := range []build.FileCheck{fileCheck(""), {Suffix: ".wasm", Check: nil}} {
+		err := buildreg.New().Add("wasm", nil, []build.FileCheck{check})
+		require.ErrorIs(t, err, buildreg.ErrFileCheck)
+		assert.Equal(t, `module "wasm": `+check.Validate().Error(), err.Error())
+	}
+}
+
+// TestCommonFields: the keys of the fields every build block has are the
+// same for the manifest, which decodes them, and for the SDK, which keeps
+// them out of the configuration of a backend. The manifest does not depend
+// on the SDK, so the two lists are tied here.
+func TestCommonFields(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, manifest.CommonBuildFields(), build.CommonFields())
 }
 
 func TestAddTwice(t *testing.T) {
