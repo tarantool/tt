@@ -677,7 +677,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   its `examples/kv/init.lua` say, were laid out into
   `.rocks/share/tarantool/<package>/zig-pkg/` and the archive. The build
   gives zig 0.17 and later `--pkg-dir _build/component/<component>/zig-pkg`,
-  unless the `env` of the block sets `ZIG_LOCAL_PKG_DIR`, and the layout
+  unless `ZIG_LOCAL_PKG_DIR` is set, by the user or the `env` of the
+  block, and the layout
   leaves out a `zig-pkg/` of the component, which `zig fetch --save` run
   there makes. zig 0.16, which refuses `--pkg-dir`, is given none.
 - A module renamed in the `build` block of a component, `module = "hello"`
