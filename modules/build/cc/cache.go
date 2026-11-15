@@ -420,10 +420,12 @@ type linkRecord struct {
 // linkKey is the key of the link of built: its command line, the compiler
 // that links and the environment it reads (linkEnv), the target, the
 // content of each object in their order, and that of the libraries of
-// libraries found in library_dirs, each a file it may link
-// (libraryFiles). A library found elsewhere - of the system, or by a
-// flag of ldflags - and a file a flag names, a version script say, are not
-// of the key: such a change is built by tt package build --rebuild.
+// libraries, each a file it may link (libraryArgs.files): the files of
+// libraries, the static libraries a build with static = true takes, and
+// what each library may be in library_dirs (libraryFiles). Another library
+// found elsewhere - of the system, or by a flag of ldflags - and a file a
+// flag names, a version script say, are not of the key: such a change is
+// built by tt package build --rebuild.
 func linkKey(built plan, target build.Target, identity string, env []string,
 	libraries []string, hashes *fileHashes,
 ) (string, error) {
@@ -472,6 +474,11 @@ func libraryFiles(config Config, goos, cwd string) []string {
 		}
 
 		for _, library := range concat(config.Libraries, overlay.Libraries) {
+			if isLibraryFile(library) {
+				// A file is of the key by its path (planLibraries).
+				continue
+			}
+
 			if file, ok := strings.CutPrefix(library, ":"); ok {
 				files = append(files, filepath.Join(dir, file))
 

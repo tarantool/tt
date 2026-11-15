@@ -226,4 +226,140 @@ func TestPkgConfigWithZlib(t *testing.T) {
 		harness.Context.Dirs.Modules).CombinedOutput()
 	require.NoError(t, err, string(printed))
 	assert.Equal(t, strings.TrimSpace(string(version)), strings.TrimSpace(string(printed)))
+
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	// With static = true the module takes libz.a, which the compiler
+	// finds: one built with -fPIC is linked in, and the link of one that is
+	// not, as that of Debian and Ubuntu, fails with the hint.
+	harness.Context.Static = true
+
+	bld, err := buildtest.Validate(LuaC(), flatComponent(), block(map[string]any{
+		"module": "zver", "sources": []any{"zver.c"}, "pkg_config": []any{"zlib"},
+	}, nil))
+	require.NoError(t, err)
+
+	err = harness.Run(t.Context(), bld)
+	if err != nil {
+		assert.Regexp(t, `hint: the static library /\S+/libz\.a was not built with -fPIC`,
+			err.Error())
+
+		return
+	}
+
+	for _, library := range neededLibraries(t, filepath.Join(harness.Context.Dirs.Modules,
+		"zver.so")) {
+		assert.NotContains(t, library, "libz.so")
+	}
+}
+
+// fooNoPIC is a source of the library foo whose code, compiled without
+// -fPIC, takes the address of its data absolutely, which a shared object
+// cannot hold.
+const fooNoPIC = "int foo_value = 42;\nint foo_answer(void) { return foo_value; }\n"
+
+// TestStaticLibraries builds the module of answerC against the library foo
+// of vendor/, with its static and shared libraries both there: without
+// static the linker takes libfoo.so, which the module then needs; with
+// static = true the build takes libfoo.a, with cc and with zig cc, and the
+// module needs no libfoo and loads in the host's Tarantool; a file of
+// libraries is linked as it is; and a static library built without -fPIC
+// fails the link with the hint naming it.
+func TestStaticLibraries(t *testing.T) {
+	t.Parallel()
+
+	requireLinux(t)
+
+	includeDir, tarantool := requireHostHeaders(t)
+
+	newHarness := func() *buildtest.Harness {
+		harness := hostHarness(t, includeDir, map[string]string{
+			"answer.c": answerC, "check.lua": answerCheck,
+		})
+		vendor := filepath.Join(harness.Context.Dirs.Cwd, "vendor")
+
+		sharedLibrary(t, vendor, "foo", "libfoo.so.1", fooC)
+		staticLibrary(t, vendor, "foo", fooC, "-fPIC")
+		staticLibrary(t, vendor, "np", fooNoPIC, "-fno-pic", "-fno-pie")
+
+		return harness
+	}
+
+	build := func(harness *buildtest.Harness, rest map[string]any, compiler string) error {
+		validated, err := buildtest.Validate(LuaC(), flatComponent(), block(rest, nil))
+		require.NoError(t, err)
+
+		bld, ok := validated.(ccBuild)
+		require.True(t, ok)
+
+		bld.lookupEnv = func(key string) (string, bool) {
+			if key != "CC" || compiler == "" {
+				return "", false
+			}
+
+			return compiler, true
+		}
+
+		return harness.Run(t.Context(), bld)
+	}
+
+	load := func(harness *buildtest.Harness) {
+		printed, err := exec.CommandContext(t.Context(), tarantool,
+			filepath.Join(harness.Context.Dirs.Cwd, "check.lua"),
+			harness.Context.Dirs.Modules).CombinedOutput()
+		require.NoError(t, err, string(printed))
+		assert.Equal(t, "42", strings.TrimSpace(string(printed)))
+	}
+
+	byName := map[string]any{
+		"module": "answer", "sources": []any{"answer.c"},
+		"library_dirs": []any{"vendor"}, "libraries": []any{"foo"},
+	}
+
+	harness := newHarness()
+	module := filepath.Join(harness.Context.Dirs.Modules, "answer.so")
+
+	require.NoError(t, build(harness, byName, ""), harness.Printed())
+	assert.Contains(t, neededLibraries(t, module), "libfoo.so.1", "the shared library")
+
+	compilers := []string{""}
+
+	if zig, err := exec.LookPath("zig"); err == nil {
+		compilers = append(compilers, zig+" cc")
+	}
+
+	for _, compiler := range compilers {
+		harness := newHarness()
+
+		harness.Context.Static = true
+
+		require.NoError(t, build(harness, byName, compiler), "CC=%q", compiler)
+		assert.NotContains(t, neededLibraries(t, filepath.Join(harness.Context.Dirs.Modules,
+			"answer.so")), "libfoo.so.1", "CC=%q", compiler)
+		load(harness)
+	}
+
+	byFile := map[string]any{
+		"module": "answer", "sources": []any{"answer.c"}, "libraries": []any{"vendor/libfoo.a"},
+	}
+
+	harness = newHarness()
+
+	require.NoError(t, build(harness, byFile, ""))
+	assert.NotContains(t, neededLibraries(t, filepath.Join(harness.Context.Dirs.Modules,
+		"answer.so")), "libfoo.so.1")
+	load(harness)
+
+	notPIC := map[string]any{
+		"module": "answer", "sources": []any{"answer.c"}, "libraries": []any{"vendor/libnp.a"},
+	}
+
+	for _, compiler := range compilers {
+		err := build(newHarness(), notPIC, compiler)
+		require.Error(t, err, "CC=%q", compiler)
+		assert.Contains(t, err.Error(), "hint: the static library vendor/libnp.a was not "+
+			"built with -fPIC", "CC=%q", compiler)
+	}
 }

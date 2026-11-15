@@ -263,12 +263,136 @@ func TestPkgConfigPlacement(t *testing.T) {
 			flags[len(flags)-3:], lang)
 	}
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), samplePkgFlags(),
-		linux.OS, true, false, []string{"/w/a.o"}, "/out/mymod.so")
+	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(),
+		libsOf(sampleConfig(), linux.OS, samplePkgFlags()), linux.OS, true, false,
+		[]string{"/w/a.o"}, "/out/mymod.so")
 	assert.Equal(t, []string{
 		"-lm", "-lz", "-llinlib", "-L/opt/ssl/lib", "-lssl", "-lcrypto", "-pthread",
 		"-Wl,-rpath,$ORIGIN", "-Wl,-rpath,/opt/lib", "-Wl,-rpath,$ORIGIN/lin", "-Wl,-z,now",
 	}, args[len(args)-11:])
+}
+
+// noLibs are the libraries of the link of a build of none.
+func noLibs() libraryArgs {
+	return libraryArgs{args: nil, files: nil}
+}
+
+// libsOf are the libraries of the link of config for goos in /src, pkg
+// those pkg-config gave, of a build without static = true.
+func libsOf(config Config, goos string, pkg pkgFlags) libraryArgs {
+	return planLibraries(config, goos, "/src", pkg, false, func([]string, string) string {
+		panic("a build without static = true looks for no static library")
+	})
+}
+
+// TestPlanLibraries pins the libraries of the link: -L of library_dirs,
+// then libraries in their order, a file entry as it is, then what
+// pkg-config gave; of a build with static = true, each library but those of
+// the C library taken from its static library where one is found, in
+// library_dirs, then the -L of pkg-config, then where the compiler finds
+// it, and the libraries of the key with it.
+func TestPlanLibraries(t *testing.T) {
+	t.Parallel()
+
+	config := moduleConfig("a.c")
+
+	config.LibraryDirs = []string{"vendor/lib", "/opt/lib"}
+	config.Libraries = []string{
+		"foo", "vendor/libbar.a", "libbaz.a", "../shared/libqux.so", ":libquux.a", "m", "gcc_s",
+		"System",
+	}
+
+	pkg := pkgFlags{cflags: nil, libs: []string{"-L/usr/ssl/lib", "-lssl", "-pthread", "-lz"}}
+
+	libs := planLibraries(config, "linux", "/src", pkg, false, nil)
+	assert.Equal(t, []string{
+		"-Lvendor/lib", "-L/opt/lib",
+		"-lfoo", "vendor/libbar.a", "libbaz.a", "../shared/libqux.so", "-l:libquux.a", "-lm",
+		"-lgcc_s", "-lSystem",
+		"-L/usr/ssl/lib", "-lssl", "-pthread", "-lz",
+	}, libs.args)
+	assert.Equal(t, concat(libraryFiles(config, "linux", "/src"), []string{
+		"/src/vendor/libbar.a", "/src/libbaz.a", "/shared/libqux.so",
+	}), libs.files)
+
+	var asked []string
+
+	find := func(dirs []string, name string) string {
+		asked = append(asked, name)
+
+		assert.Equal(t, []string{"/src/vendor/lib", "/opt/lib", "/usr/ssl/lib"}, dirs)
+
+		if name == "ssl" || name == "foo" {
+			return "/found/lib" + name + ".a"
+		}
+
+		return ""
+	}
+
+	libs = planLibraries(config, "linux", "/src", pkg, true, find)
+	assert.Equal(t, []string{"foo", "System", "ssl", "z"}, asked, "libc, libm and libgcc_s "+
+		"are linked as they are, libSystem only on darwin")
+	assert.Equal(t, []string{
+		"-Lvendor/lib", "-L/opt/lib",
+		"/found/libfoo.a", "vendor/libbar.a", "libbaz.a", "../shared/libqux.so", "-l:libquux.a",
+		"-lm", "-lgcc_s", "-lSystem",
+		"-L/usr/ssl/lib", "/found/libssl.a", "-pthread", "-lz",
+	}, libs.args)
+	assert.Equal(t, concat(libraryFiles(config, "linux", "/src"), []string{
+		"/found/libfoo.a", "/src/vendor/libbar.a", "/src/libbaz.a", "/shared/libqux.so",
+		"/found/libssl.a",
+	}), libs.files)
+
+	asked = nil
+
+	planLibraries(config, "darwin", "/src", pkg, true, find)
+	assert.Equal(t, []string{"foo", "ssl", "z"}, asked)
+}
+
+// TestIsLibraryFile pins which entries of libraries are files.
+func TestIsLibraryFile(t *testing.T) {
+	t.Parallel()
+
+	for _, entry := range []string{"libfoo.a", "vendor/libfoo.a", "/opt/lib/libfoo.so",
+		"./libfoo.so.1", "../x/libfoo.dylib"} {
+		assert.True(t, isLibraryFile(entry), entry)
+	}
+
+	for _, entry := range []string{"foo", "ssl", ":libfoo.a", ":libfoo.so.1", "stdc++"} {
+		assert.False(t, isLibraryFile(entry), entry)
+	}
+}
+
+// TestPieHint pins the hint of a link that fails for an object that is not
+// position-independent, as GNU ld and lld say it, and that another failure
+// gets none.
+func TestPieHint(t *testing.T) {
+	t.Parallel()
+
+	gnu := "/usr/bin/ld: /src/vendor/libfoo.a(foo.o): relocation R_X86_64_32 against " +
+		"`.rodata' can not be used when making a shared object; recompile with -fPIC\n" +
+		"/usr/bin/ld: failed to set dynamic section sizes: bad value\n" +
+		"collect2: error: ld returned 1 exit status"
+	lld := "ld.lld: error: relocation R_X86_64_32 cannot be used against local symbol; " +
+		"recompile with -fPIC\n>>> defined in /src/vendor/libfoo.a(foo.o)\n" +
+		">>> referenced by foo.c\n>>>               foo.o:(foo) in archive /src/vendor/libfoo.a"
+
+	for _, printed := range []string{gnu, lld} {
+		assert.Equal(t, "hint: the static library /src/vendor/libfoo.a was not built with "+
+			"-fPIC: a module is a shared object, which takes position-independent code only: "+
+			"build the library with -fPIC (CFLAGS=-fPIC, or "+
+			"-DCMAKE_POSITION_INDEPENDENT_CODE=ON of cmake), or link its shared library",
+			pieHint(printed))
+	}
+
+	assert.Contains(t, pieHint(gnu+"\n/usr/bin/ld: /lib/libbar.a(bar.o): relocation "+
+		"R_X86_64_32 against `.bss' can not be used when making a shared object; "+
+		"recompile with -fPIC"),
+		"hint: the static libraries /src/vendor/libfoo.a and /lib/libbar.a were not built")
+	assert.Contains(t, pieHint("/usr/bin/ld: foo.o: relocation R_X86_64_32 against `.rodata' "+
+		"can not be used when making a shared object; recompile with -fPIC"),
+		"hint: an object of the link was not built with -fPIC")
+	assert.Empty(t, pieHint("/usr/bin/ld: cannot find -lfoo: No such file or directory"))
 }
 
 // userEnvFlags is an environment with CFLAGS, CXXFLAGS and LDFLAGS set.
@@ -435,8 +559,9 @@ var (
 func TestLinkArgsLinuxPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(), noPkgFlags(), linux.OS,
-		true, false, []string{"/w/a.o", "/w/b.o"}, "/out/mymod.so")
+	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(),
+		libsOf(sampleConfig(), linux.OS, noPkgFlags()), linux.OS, true, false,
+		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.so")
 
 	want := []string{
 		// per-OS shared-link flag.
@@ -463,8 +588,9 @@ func TestLinkArgsLinuxPlacement(t *testing.T) {
 func TestLinkArgsDarwinPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(), noPkgFlags(), darwin.OS,
-		false, false, []string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
+	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(),
+		libsOf(sampleConfig(), darwin.OS, noPkgFlags()), darwin.OS, false, false,
+		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
 
 	want := []string{
 		// per-OS shared-link flag (bundle list on darwin).
@@ -487,8 +613,9 @@ func TestLinkArgsDarwinPlacement(t *testing.T) {
 func TestLinkArgsUserFlagsComeLast(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), linux.OS,
-		true, false, []string{"/w/a.o"}, "/out/mymod.so")
+	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(),
+		libsOf(sampleConfig(), linux.OS, noPkgFlags()), linux.OS, true, false,
+		[]string{"/w/a.o"}, "/out/mymod.so")
 
 	assert.Equal(t, "-Wl,-z,now", args[len(args)-1])
 
@@ -506,14 +633,14 @@ func TestLinkArgsStaticLibstdcxx(t *testing.T) {
 
 	objects := []string{"/w/a.o"}
 
-	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), noPkgFlags(),
-		linux.OS, true, true, objects, "/out/m.so")
+	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), noLibs(), linux.OS,
+		true, true, objects, "/out/m.so")
 	assert.Equal(t, []string{
 		"-shared", "-Wl,-Bsymbolic-functions", "-static-libstdc++", "-Wl,--exclude-libs,ALL",
 		"-o", "/out/m.so", "/w/a.o",
 	}, static)
 	assert.NotContains(t, linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(),
-		noPkgFlags(), linux.OS, true, false, objects, "/out/m.so"), "-static-libstdc++")
+		noLibs(), linux.OS, true, false, objects, "/out/m.so"), "-static-libstdc++")
 
 	gxx := []string{"c++"}
 
@@ -610,7 +737,7 @@ func TestPlanOf(t *testing.T) {
 	config.Cflags = []string{"-std=c11"}
 	config.Cxxflags = []string{"-std=c++17"}
 
-	built := planOf(config, tools, noEnvFlags(), noPkgFlags(), context(true))
+	built := planOf(config, tools, noEnvFlags(), noPkgFlags(), noLibs(), context(true))
 
 	require.Len(t, built.steps, 3)
 	assert.True(t, built.cxx)
@@ -644,12 +771,12 @@ func TestPlanOf(t *testing.T) {
 		built.link)
 
 	gcc := linuxToolchain()
-	gxx := planOf(config, gcc, noEnvFlags(), noPkgFlags(), context(true))
+	gxx := planOf(config, gcc, noEnvFlags(), noPkgFlags(), noLibs(), context(true))
 
 	assert.Equal(t, concat([]string{"c++", "-shared", "-Wl,-Bsymbolic-functions",
 		"-static-libstdc++", "-Wl,--exclude-libs,ALL", "-o", "/lib/m.so"}, objects), gxx.link)
 
-	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), noPkgFlags(), context(true))
+	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), noPkgFlags(), noLibs(), context(true))
 	assert.False(t, withoutCXX.cxx)
 	assert.Equal(t, []string{"zig", "cc", "-shared", "-o", "/lib/m.so"}, withoutCXX.link[:5])
 }

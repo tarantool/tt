@@ -175,7 +175,7 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 
 	flags := []flagList{
 		{"cflags", config.Cflags}, {"cxxflags", config.Cxxflags}, {"ldflags", config.Ldflags},
-		{"pkg_config", config.PkgConfig},
+		{"pkg_config", config.PkgConfig}, {"libraries", config.Libraries},
 	}
 	rpaths := []flagList{{"rpath", config.Rpath}}
 	oses := build.SupportedOS()
@@ -195,7 +195,8 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 			flagList{prefix + "cflags", overlay.Cflags},
 			flagList{prefix + "cxxflags", overlay.Cxxflags},
 			flagList{prefix + "ldflags", overlay.Ldflags},
-			flagList{prefix + "pkg_config", overlay.PkgConfig})
+			flagList{prefix + "pkg_config", overlay.PkgConfig},
+			flagList{prefix + "libraries", overlay.Libraries})
 		rpaths = append(rpaths, flagList{prefix + "rpath", overlay.Rpath})
 	}
 
@@ -294,7 +295,7 @@ func checkSources(sources []string) error {
 
 		if _, ok := languageOf(source); !ok {
 			return build.FieldErrorf(field, "%q is not a source tt compiles: want a name "+
-				"ending in %s; a prebuilt library goes into libraries and library_dirs",
+				"ending in %s; a prebuilt library goes into libraries, by name or as a file",
 				source, orList(sourceExtensions()))
 		}
 
@@ -416,13 +417,16 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
+	libs := planLibraries(b.config, c.Target.OS, c.Dirs.Cwd, pkg, c.Static,
+		staticFinder(ctx, c, linkerOf(b.config, tools)))
+
 	env := environFlags(b.lookupEnv)
-	identities := identify(ctx, c, planOf(b.config, tools, env, pkg, c).compilers())
+	identities := identify(ctx, c, planOf(b.config, tools, env, pkg, libs, c).compilers())
 
 	// The plan again, with the flags its compilers take.
-	probeReproducible(ctx, c, &tools, planOf(b.config, tools, env, pkg, c), identities)
+	probeReproducible(ctx, c, &tools, planOf(b.config, tools, env, pkg, libs, c), identities)
 
-	built := planOf(b.config, tools, env, pkg, c)
+	built := planOf(b.config, tools, env, pkg, libs, c)
 
 	err = writeCompileCommands(c.Dirs.Work, c.Dirs.Cwd, built.steps)
 	if err != nil {
@@ -454,7 +458,7 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	return run.link(ctx, libraryFiles(b.config, c.Target.OS, c.Dirs.Cwd))
+	return run.link(ctx, libs.files)
 }
 
 // runner runs the compiles and the link of a plan, each unless it is up to
@@ -546,7 +550,7 @@ func (r runner) compile(ctx context.Context, step compileStep) error {
 }
 
 // link links the module unless it is up to date, libraries being the files
-// of the libraries of the build that are of the key (libraryFiles). A
+// of the libraries of the build that are of the key (libraryArgs.files). A
 // module up to date is touched, so that the core takes it as made by this
 // build too.
 func (r runner) link(ctx context.Context, libraries []string) error {
@@ -578,7 +582,7 @@ func (r runner) link(ctx context.Context, libraries []string) error {
 		return err
 	}
 
-	err = c.Run(c.Command(ctx, r.built.link[0], r.built.link[1:]...))
+	err = runLink(ctx, c, r.built.link)
 	if err != nil {
 		return err
 	}
