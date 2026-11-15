@@ -16,16 +16,18 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// hostHarness is a harness of a module component whose toolchain has the
-// headers of the host's Tarantool, includeDir, with the sources of sources
-// in its working directory. It is a harness of c, whose builds are those of
-// lua-c, both making modules.
+// hostHarness is a harness of a module component built against the host's
+// Tarantool, whose headers are includeDir, <prefix>/include/tarantool, with
+// the sources of sources in its working directory. It is a harness of c,
+// whose builds are those of lua-c, both making modules.
 func hostHarness(t *testing.T, includeDir string, sources map[string]string) *buildtest.Harness {
 	t.Helper()
 
 	harness := buildtest.New(t, C(), component())
 
-	harness.Context.Toolchain.IncludeDir = includeDir
+	harness.SetTarantool(build.Tarantool{
+		Prefix: filepath.Dir(filepath.Dir(includeDir)), IncludeDir: includeDir, Version: "",
+	})
 
 	for name, body := range sources {
 		require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, name),

@@ -427,14 +427,13 @@ func TestHarnessEnvironment(t *testing.T) {
 		"run 1.2.3 1.2.3|/opt/tarantool|/opt/tarantool/include/tarantool",
 	}, seen)
 	assert.Equal(t, "3.4.0", harness.Context.Tarantool.Version)
-	assert.Equal(t, "/opt/tarantool/include/tarantool", harness.Context.Toolchain.IncludeDir)
 
 	// A Tarantool tt knows no headers of: no TT_TARANTOOL_INCLUDE_DIR.
 	harness.SetTarantool(build.Tarantool{Prefix: "/opt/t", IncludeDir: "", Version: ""})
 
 	assert.Equal(t, "/opt/t", harness.Context.Env["TT_TARANTOOL_PREFIX"])
 	assert.NotContains(t, harness.Context.Env, "TT_TARANTOOL_INCLUDE_DIR")
-	assert.Equal(t, "/opt/t/include/tarantool", harness.Context.Toolchain.IncludeDir)
+	assert.Equal(t, "/opt/t", harness.Context.Tarantool.Prefix)
 }
 
 // dataBuild makes a data file.

@@ -177,9 +177,8 @@ func cleanedComponents(man *manifest.Manifest, names []string) ([]string, error)
 // projectCleaner makes the Contexts of the Clean of the backends and of the
 // clean hook of the package of a project, as a build of it would.
 type projectCleaner struct {
-	opts    Options
-	man     *manifest.Manifest
-	adapter *rocks.Adapter
+	opts Options
+	man  *manifest.Manifest
 	// version is the version of the package, derived when first asked for;
 	// derived is set then.
 	version version.Version
@@ -196,14 +195,8 @@ func newProjectCleaner(opts Options, man *manifest.Manifest) *projectCleaner {
 	opts.Locked = false
 
 	return &projectCleaner{
-		opts: opts,
-		man:  man,
-		adapter: rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
-			Tree:       filepath.Join(opts.ProjectDir, rocksDirName),
-			WorkingDir: opts.ProjectDir,
-			Servers:    nil,
-			Logger:     opts.Logger,
-		})),
+		opts:    opts,
+		man:     man,
 		version: version.Version{},
 		derived: false,
 	}
@@ -227,7 +220,7 @@ func (p *projectCleaner) builder(product string) builder {
 
 	proj.pinned = freshPins(p.opts.ProjectDir, p.man, product)
 
-	return newBuilder(p.opts, proj, p.adapter, packageStage(p.opts.ProjectDir, product), p.version)
+	return newBuilder(p.opts, proj, packageStage(p.opts.ProjectDir, product), p.version)
 }
 
 // productOf returns the product the Context of the Clean of the component

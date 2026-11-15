@@ -12,8 +12,6 @@ import (
 	"slices"
 	"strings"
 
-	lrbuild "github.com/tarantool/go-luarocks/build"
-
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/scope"
@@ -334,21 +332,6 @@ func (h host) LockedVersion(rock string) (string, bool) {
 // failure showed, comes before it.
 func logCommand(cmd *exec.Cmd) {
 	log.Debug("running "+strings.Join(cmd.Args, " "), "dir", cmd.Dir)
-}
-
-// toolchain is how tt compiles a C module, as flags of the rocks adapter
-// have it: the compiler, the flags of the link of a module, whether a
-// library directory gets an rpath, and the headers of Tarantool under its
-// prefix. Their CFLAGS and LDFLAGS are not taken: they mix tt's defaults
-// with the environment, which the c and lua-c backends put last
-// themselves.
-func toolchain(flags lrbuild.Flags) sdkbuild.Toolchain {
-	return sdkbuild.Toolchain{
-		CC:         flags.CC,
-		LibFlag:    slices.Clone(flags.LIBFLAG),
-		Rpath:      flags.GccRpath,
-		IncludeDir: flags.LuaIncDir,
-	}
 }
 
 // pinnedVersions are the versions closure pins, by rock.

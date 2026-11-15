@@ -218,16 +218,18 @@ func TestWants(t *testing.T) {
 func TestMissingHeaders(t *testing.T) {
 	t.Parallel()
 
-	bld, err := buildtest.Validate(C(), component(), block(module(nil), nil))
+	validated, err := buildtest.Validate(C(), component(), block(module(nil), nil))
 	require.NoError(t, err)
 
+	bld, ok := validated.(ccBuild)
+	require.True(t, ok)
+
+	bld.lookupEnv = func(key string) (string, bool) { return "/nonexistent/cc", key == "CC" }
+
+	// The harness knows no Tarantool, and so no prefix of its headers.
 	harness := buildtest.New(t, C(), component())
 
-	harness.Context.Toolchain.CC = "/nonexistent/cc"
-	harness.Context.Toolchain.IncludeDir = ""
-
-	preflighter, ok := bld.(build.Preflighter)
-	require.True(t, ok)
+	preflighter := build.Preflighter(bld)
 
 	err = preflighter.Preflight(t.Context(), harness.Context)
 	require.ErrorIs(t, err, ErrMissingHeaders)
@@ -238,7 +240,7 @@ func TestMissingHeaders(t *testing.T) {
 	require.ErrorIs(t, err, ErrMissingHeaders)
 	assert.Empty(t, harness.Printed())
 
-	harness.Context.Toolchain.IncludeDir = "/tt/include"
+	harness.SetTarantool(build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""})
 	require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
 }
 
@@ -256,8 +258,14 @@ done
 // working directory, with the module of the extension of the target in the
 // output directory: .so, or .dylib on darwin, a dotted module a flat file.
 func TestRun(t *testing.T) {
+	t.Setenv("CC", "fakecc")
 	t.Setenv("CFLAGS", "")
 	t.Setenv("LDFLAGS", "")
+
+	link := map[string][]string{
+		"linux":  {"-shared"},
+		"darwin": {"-bundle", "-undefined", "dynamic_lookup", "-all_load"},
+	}
 
 	for _, goos := range []string{"linux", "darwin"} {
 		bld, err := buildtest.Validate(LuaC(), component(),
@@ -270,9 +278,7 @@ func TestRun(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(facts.Dirs.Tools, "fakecc"), []byte(fakeCC),
 			0o700))
 
-		facts.Toolchain = build.Toolchain{
-			CC: "fakecc", LibFlag: []string{"-shared"}, Rpath: true, IncludeDir: "/tt/include",
-		}
+		harness.SetTarantool(build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""})
 		facts.Target.OS = goos
 
 		require.NoError(t, harness.Run(t.Context(), bld))
@@ -282,8 +288,9 @@ func TestRun(t *testing.T) {
 
 		args, err := os.ReadFile(filepath.Join(facts.Dirs.Work, "args"))
 		require.NoError(t, err)
-		assert.Equal(t, strings.Join([]string{
-			"-fPIC", "-I/tt/include", "-shared", "-o", out, "a.c",
-		}, "\n")+"\n", string(args))
+
+		want := append([]string{"-fPIC", "-I/tt/include/tarantool"}, link[goos]...)
+
+		assert.Equal(t, strings.Join(append(want, "-o", out, "a.c"), "\n")+"\n", string(args))
 	}
 }

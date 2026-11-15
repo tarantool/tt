@@ -6,8 +6,11 @@
 // is not the driver's concern.
 //
 // The compiler, the flags that link a module and the headers of Tarantool
-// are the toolchain the core gives the build (build.Toolchain); the flags
-// of the component come from its block, and CFLAGS and LDFLAGS from the
+// are the toolchain of the build, which the driver derives from the
+// Context, as go-luarocks derives that of a builtin rock (toolchainOf):
+// CC of the environment tt runs in, the flags of the target, the headers
+// under the prefix of the Tarantool of the build. The flags of the
+// component come from its block, and CFLAGS and LDFLAGS from the
 // environment tt runs in, last.
 //
 // The package depends on the standard library and the contract of a build
@@ -34,9 +37,9 @@ const (
 	LuaCName = "lua-c"
 )
 
-// ErrMissingHeaders reports that the build knows no headers of Tarantool
-// (build.Toolchain.IncludeDir), so a c or lua-c component cannot be
-// compiled.
+// ErrMissingHeaders reports that the build knows no headers of Tarantool,
+// as it knows no prefix of it (build.Tarantool.Prefix), so a c or lua-c
+// component cannot be compiled.
 var ErrMissingHeaders = errors.New(
 	"tarantool development headers not found: cannot compile c/lua-c component")
 
@@ -168,7 +171,7 @@ func newBuild(name string, cfg any, common build.Common) (build.Build, error) {
 		}
 	}
 
-	return ccBuild{config: *config}, nil
+	return ccBuild{config: *config, lookupEnv: os.LookupEnv}, nil
 }
 
 // flagList is a list of flags of a build, with the name of its field.
@@ -201,13 +204,16 @@ var envVars = []struct {
 // ccBuild is a checked c or lua-c build block.
 type ccBuild struct {
 	config Config
+	// lookupEnv reads the environment tt runs in, for CC, CFLAGS and
+	// LDFLAGS: os.LookupEnv outside tests.
+	lookupEnv func(string) (string, bool)
 }
 
 // Preflight checks that the build has the headers of a Tarantool to compile
 // against: a tt with no Tarantool builds what needs none, and the build
 // would otherwise fail only once its turn came, saying nothing of why.
 func (b ccBuild) Preflight(_ context.Context, c *build.Context) error {
-	if c.Toolchain.IncludeDir == "" {
+	if toolchainOf(c, b.lookupEnv).includeDir == "" {
 		return fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
 	}
 
@@ -224,10 +230,52 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
+	tools := toolchainOf(c, b.lookupEnv)
 	out := filepath.Join(c.Dirs.Output, b.config.Module+c.Target.ModuleExt())
-	args := ccArgs(b.config, c.Toolchain, environFlags(os.LookupEnv), out, c.Target.OS)
+	args := ccArgs(b.config, tools, environFlags(b.lookupEnv), out, c.Target.OS)
 
-	return c.Run(c.Command(ctx, c.Toolchain.CC, args...))
+	return c.Run(c.Command(ctx, tools.cc, args...))
+}
+
+// toolchain is how tt compiles a C module Tarantool loads, as go-luarocks
+// compiles one of a builtin rock.
+type toolchain struct {
+	// cc is the C compiler: CC of the environment tt runs in, cc by
+	// default.
+	cc string
+	// libFlag are the flags that link a module Tarantool loads: -shared,
+	// or -bundle -undefined dynamic_lookup -all_load on darwin, whose
+	// loader resolves the symbols of Tarantool when it loads the module.
+	libFlag []string
+	// rpath reports whether each -L<dir> is followed by -Wl,-rpath,<dir>:
+	// not on darwin.
+	rpath bool
+	// includeDir is the directory of the headers of Tarantool under its
+	// prefix, include/tarantool, as the compiler is given it whether or not
+	// module.h is there; empty when the build knows no prefix.
+	includeDir string
+}
+
+// toolchainOf returns the toolchain of the build of c, CC read with lookup.
+func toolchainOf(c *build.Context, lookup func(string) (string, bool)) toolchain {
+	tools := toolchain{
+		cc: "cc", libFlag: []string{"-shared"}, rpath: true, includeDir: "",
+	}
+
+	if compiler, _ := lookup("CC"); compiler != "" {
+		tools.cc = compiler
+	}
+
+	if c.Target.OS == "darwin" {
+		tools.libFlag = []string{"-bundle", "-undefined", "dynamic_lookup", "-all_load"}
+		tools.rpath = false
+	}
+
+	if c.Tarantool.Prefix != "" {
+		tools.includeDir = filepath.Join(c.Tarantool.Prefix, "include", "tarantool")
+	}
+
+	return tools
 }
 
 // initialArgsCap pre-sizes the cc argument slice to avoid early regrows.
@@ -284,7 +332,7 @@ func environFlags(lookup func(string) (string, bool)) envFlags {
 // rpaths. out is the path of the module; sources are given as they are and
 // resolved against the working directory by the compiler. It is a pure
 // function so the argv is testable without a compiler or Tarantool headers.
-func ccArgs(config Config, toolchain build.Toolchain, env envFlags, out, goos string) []string {
+func ccArgs(config Config, tools toolchain, env envFlags, out, goos string) []string {
 	overlay := config.Platforms[goos]
 
 	defines := concat(config.Defines, overlay.Defines)
@@ -303,8 +351,8 @@ func ccArgs(config Config, toolchain build.Toolchain, env envFlags, out, goos st
 	args = append(args, overlay.Cflags...)
 	args = append(args, env.cflags...)
 
-	if toolchain.IncludeDir != "" {
-		args = append(args, "-I"+toolchain.IncludeDir)
+	if tools.includeDir != "" {
+		args = append(args, "-I"+tools.includeDir)
 	}
 
 	for _, d := range defines {
@@ -315,7 +363,7 @@ func ccArgs(config Config, toolchain build.Toolchain, env envFlags, out, goos st
 		args = append(args, "-I"+inc)
 	}
 
-	args = append(args, toolchain.LibFlag...)
+	args = append(args, tools.libFlag...)
 	args = append(args, config.Ldflags...)
 	args = append(args, overlay.Ldflags...)
 	args = append(args, "-o", out)
@@ -323,7 +371,7 @@ func ccArgs(config Config, toolchain build.Toolchain, env envFlags, out, goos st
 
 	for _, dir := range libraryDirs {
 		args = append(args, "-L"+dir)
-		if toolchain.Rpath {
+		if tools.rpath {
 			args = append(args, "-Wl,-rpath,"+dir)
 		}
 	}

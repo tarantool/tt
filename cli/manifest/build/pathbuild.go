@@ -55,8 +55,7 @@ type pathManifests struct {
 	// opts are the options of the consumer's build: its ProjectDir, the sinks
 	// of its diagnostics and the switches of the component builds.
 	opts Options
-	// adapter is the consumer's: the toolchain flags of the backends and the
-	// tree the rocks are installed into.
+	// adapter is the consumer's: the tree the rocks are installed into.
 	adapter *rocks.Adapter
 	// pinned holds the versions the consumer's lock pins, which the rock of a
 	// dependency declares its own dependencies at.
@@ -172,7 +171,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 
 	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
 
-	err = newBuilder(p.opts, proj, p.adapter, stage, version.Version{}).preflight(ctx, components)
+	err = newBuilder(p.opts, proj, stage, version.Version{}).preflight(ctx, components)
 	if err != nil {
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
@@ -193,7 +192,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 			build.what, dep.Name, rockVersion, dep.Version, build.stale)
 	}
 
-	_, err = buildComponents(ctx, p.opts, proj, p.adapter, stage, components, ver)
+	_, err = buildComponents(ctx, p.opts, proj, stage, components, ver)
 	if err != nil {
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}

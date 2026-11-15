@@ -22,7 +22,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
-	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
@@ -342,11 +341,8 @@ tool = '` + tool + `'
 
 		proj := project{dir: dir, stateDir: t.TempDir(), man: man, product: "default"}
 		components := slices.Sorted(maps.Keys(man.Components))
-		adapter := rocks.New(rocks.BuildConfig(rocks.TarantoolInfo{}, rocks.ConfigOptions{
-			Tree: filepath.Join(dir, rocksDirName), WorkingDir: dir,
-		}))
 		builder := newBuilder(Options{ProjectDir: dir, Backends: buildregtest.Registry()}, proj,
-			adapter, packageStage(dir, "default"), version.Version{})
+			packageStage(dir, "default"), version.Version{})
 
 		require.ErrorIs(t, builder.preflight(t.Context(), components), sdkbuild.ErrNoTool)
 

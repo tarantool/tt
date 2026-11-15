@@ -2,11 +2,9 @@ package build
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
@@ -47,18 +45,11 @@ func ComponentContext(opts Options, component string) (*sdkbuild.Context, sdkbui
 		return nil, nil, fmt.Errorf("deriving version: %w", err)
 	}
 
-	adapter := rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
-		Tree:       filepath.Join(opts.ProjectDir, rocksDirName),
-		WorkingDir: opts.ProjectDir,
-		Servers:    nil,
-		Logger:     opts.Logger,
-	}))
-
 	proj := packageProject(opts.ProjectDir, man, productName)
 
 	proj.pinned = freshPins(opts.ProjectDir, man, productName)
 
-	run, err := newBuilder(opts, proj, adapter, packageStage(opts.ProjectDir, productName),
+	run, err := newBuilder(opts, proj, packageStage(opts.ProjectDir, productName),
 		ver).component(component)
 	if err != nil {
 		return nil, nil, sdk.Errorf(sdk.ExitFailure, "component %q: %w", component, err)

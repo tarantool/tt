@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -14,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	lrbuild "github.com/tarantool/go-luarocks/build"
 	"github.com/tarantool/go-luarocks/client"
 
 	sdkbuild "github.com/tarantool/tt/sdk/build"
@@ -392,29 +390,6 @@ func TestRunLogsTheCommand(t *testing.T) {
 	assert.Equal(t, slog.LevelDebug, found[0].Level)
 	assert.Equal(t, "running sh -c exit 0", found[0].Message)
 	assert.Equal(t, dir, found[0].Map()["dir"])
-}
-
-// TestToolchain: the toolchain of a C module is the one go-luarocks derives
-// for the host, but its CFLAGS and LDFLAGS, which the c and lua-c backends
-// take from the environment themselves.
-func TestToolchain(t *testing.T) {
-	t.Parallel()
-
-	flags := lrbuild.Flags{
-		CC: "clang", CFLAGS: []string{"-Ostale"}, LDFLAGS: []string{"-Wl,--stale"},
-		LIBFLAG: []string{"-shared"}, LuaIncDir: "/tt/include", Ext: ".so", GccRpath: true,
-	}
-
-	assert.Equal(t, sdkbuild.Toolchain{
-		CC: "clang", LibFlag: []string{"-shared"}, Rpath: true, IncludeDir: "/tt/include",
-	}, toolchain(flags))
-
-	host := toolchain(lrbuild.DeriveFlags(rocks.BuildConfig(
-		rocks.TarantoolInfo{Executable: "", Prefix: "/opt/tarantool", Version: ""},
-		rocks.ConfigOptions{Tree: "/app/.rocks", WorkingDir: "/app", Servers: nil, Logger: nil})))
-	assert.Equal(t, "/opt/tarantool/include/tarantool", host.IncludeDir)
-	assert.Equal(t, runtime.GOOS != "darwin", host.Rpath)
-	assert.NotEmpty(t, host.LibFlag)
 }
 
 // TestPinnedVersions: the versions a build reads from the lock are those of

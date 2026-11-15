@@ -10,24 +10,59 @@ import (
 	"github.com/tarantool/tt/sdk/build"
 )
 
-// linuxToolchain is the toolchain of a build for linux, as the core derives
-// it there: -shared and an rpath for every library directory, so that
-// placement can be asserted without depending on the host OS.
-func linuxToolchain() build.Toolchain {
-	return build.Toolchain{
-		CC: "cc", LibFlag: []string{"-shared"}, Rpath: true, IncludeDir: "/tt/include",
+// linuxToolchain is the toolchain of a build for linux, as toolchainOf
+// derives it there: -shared and an rpath for every library directory, so
+// that placement can be asserted without depending on the host OS.
+func linuxToolchain() toolchain {
+	return toolchain{
+		cc: "cc", libFlag: []string{"-shared"}, rpath: true, includeDir: "/tt/include",
 	}
 }
 
 // darwinToolchain is the toolchain of a build for darwin: the -bundle flags
 // and no rpath.
-func darwinToolchain() build.Toolchain {
-	return build.Toolchain{
-		CC:         "cc",
-		LibFlag:    []string{"-bundle", "-undefined", "dynamic_lookup", "-all_load"},
-		Rpath:      false,
-		IncludeDir: "/tt/include",
+func darwinToolchain() toolchain {
+	return toolchain{
+		cc:         "cc",
+		libFlag:    []string{"-bundle", "-undefined", "dynamic_lookup", "-all_load"},
+		rpath:      false,
+		includeDir: "/tt/include",
 	}
+}
+
+// TestToolchainOf pins the toolchain of a build: CC of the environment, cc
+// without one; the flags of the target; the headers under the prefix of the
+// Tarantool of the build, whether or not module.h is there, and none
+// without a prefix.
+func TestToolchainOf(t *testing.T) {
+	t.Parallel()
+
+	noEnv := func(string) (string, bool) { return "", false }
+	clang := func(key string) (string, bool) { return "clang", key == "CC" }
+
+	linux := build.NewContext(build.Context{
+		Target:    build.Target{OS: "linux", Arch: "amd64"},
+		Tarantool: build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""},
+	}, nil)
+
+	want := linuxToolchain()
+	want.includeDir = "/tt/include/tarantool"
+
+	assert.Equal(t, want, toolchainOf(linux, func(string) (string, bool) { return "", true }))
+
+	want.cc = "clang"
+
+	assert.Equal(t, want, toolchainOf(linux, clang))
+
+	darwin := build.NewContext(build.Context{
+		Target:    build.Target{OS: "darwin", Arch: "arm64"},
+		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
+	}, nil)
+
+	want = darwinToolchain()
+	want.includeDir = ""
+
+	assert.Equal(t, want, toolchainOf(darwin, noEnv))
 }
 
 // noEnvFlags is an environment with neither CFLAGS nor LDFLAGS set.
@@ -199,11 +234,11 @@ func TestCcArgsEmptyCFLAGSDropsTheDefault(t *testing.T) {
 func TestCcArgsWithoutIncludeDir(t *testing.T) {
 	t.Parallel()
 
-	toolchain := linuxToolchain()
+	tools := linuxToolchain()
 
-	toolchain.IncludeDir = ""
+	tools.includeDir = ""
 
-	args := ccArgs(moduleConfig("m.c"), toolchain, noEnvFlags(), "/out/m.so", "linux")
+	args := ccArgs(moduleConfig("m.c"), tools, noEnvFlags(), "/out/m.so", "linux")
 	assert.Equal(t, []string{"-O2", "-fPIC", "-shared", "-o", "/out/m.so", "m.c"}, args)
 }
 
