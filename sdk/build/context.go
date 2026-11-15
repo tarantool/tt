@@ -158,6 +158,13 @@ type Context struct {
 	Locked bool
 	// Static is the static of the build block ([Common.Static]).
 	Static bool
+	// Args are the arguments the command that started the build passed
+	// through to the build of this component, for its tool: those after --
+	// of tt wasm build calc -- -opt=2, which a module hands the core with
+	// sdk.BuildOptions.Args. None in a build of tt package build. They are
+	// inputs of an incremental build: a build with other Args is not
+	// skipped.
+	Args []string
 	// Hook is set for the build of a lifecycle hook ([Backend.Hook]), which
 	// runs around the builds of all the components rather than for one:
 	// Component is the zero one, Dirs has no Component, Work, Output, Share

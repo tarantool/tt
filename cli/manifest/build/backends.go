@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
@@ -140,6 +142,7 @@ func (b builder) component(name string) (componentRun, error) {
 		Fresh:     b.opts.Rebuild,
 		Locked:    b.opts.Locked,
 		Static:    component.Build.StaticValue(),
+		Args:      slices.Clone(b.opts.Args),
 		Hook:      false,
 		Log:       buildLogger(backend.Name),
 		Warn:      b.warn,
@@ -263,10 +266,13 @@ func (b builder) preflight(ctx context.Context, components []string) error {
 // and what last, the record of the stage, says it wrote there.
 func (b builder) runBackends(
 	ctx context.Context, components []string, last stageRecord,
-) (map[string]madeFiles, map[string][]string, error) {
-	results := readResults(b.proj.stateDir, b.opts.Warn)
-	written := map[string][]string{}
-	built := false
+) (backendRuns, error) {
+	runs := backendRuns{
+		results:  readResults(b.proj.stateDir, b.opts.Warn),
+		written:  map[string][]string{},
+		built:    nil,
+		upToDate: map[string]bool{},
+	}
 
 	for _, name := range components {
 		if b.proj.man.Components[name].Build == nil {
@@ -275,39 +281,60 @@ func (b builder) runBackends(
 
 		run, err := b.component(name)
 		if err != nil {
-			return nil, nil, fmt.Errorf("component %q: %w", name, err)
+			return backendRuns{}, fmt.Errorf("component %q: %w", name, err)
 		}
 
 		dirs := run.context.Dirs
 
 		err = prepareBuildDir(dirs.Work, b.opts.Rebuild)
 		if err != nil {
-			return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+			return backendRuns{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
+				name, err)
 		}
 
-		recorded := results[name].join(madeIn(dirs, joinDir(b.stage,
+		recorded := runs.results[name].join(madeIn(dirs, joinDir(b.stage,
 			last.Components[name].Written)))
 
-		made, err := b.runComponent(ctx, run, recorded)
+		made, skipped, err := b.runComponent(ctx, run, recorded)
 		if err != nil {
-			return nil, nil, err
+			return backendRuns{}, err
 		}
 
-		results[name] = made
-		written[name] = made.paths(dirs)
-		built = true
+		runs.results[name] = made
+		runs.written[name] = made.paths(dirs)
+		runs.built = append(runs.built, name)
+		runs.upToDate[name] = skipped
 	}
 
-	if !built {
-		return keepDeclared(b.proj.man, results), written, nil
+	if len(runs.built) == 0 {
+		runs.results = keepDeclared(b.proj.man, runs.results)
+
+		return runs, nil
 	}
 
-	results, err := writeResults(b.proj.stateDir, b.proj.man, results)
+	results, err := writeResults(b.proj.stateDir, b.proj.man, runs.results)
 	if err != nil {
-		return nil, nil, err
+		return backendRuns{}, err
 	}
 
-	return results, written, nil
+	runs.results = results
+
+	return runs, nil
+}
+
+// backendRuns are what the builds of the components of a run did
+// (builder.runBackends).
+type backendRuns struct {
+	// results are the record of what every component made, those built
+	// this time as they made it.
+	results map[string]madeFiles
+	// written are the absolute paths of the files of the stage the build of
+	// each component built or skipped left there.
+	written map[string][]string
+	// built are the components built or skipped, in the order they were.
+	built []string
+	// upToDate are those of built that were skipped as up to date.
+	upToDate map[string]bool
 }
 
 // runComponent runs the build of a component and returns what it made, by
@@ -319,10 +346,10 @@ func (b builder) runBackends(
 // what it made and the files of the component the layout takes. Those, and
 // the modules it made, are the files of a static one the build checks
 // (checkStaticModule), before the record is written: a module that fails the
-// check is built again.
+// check is built again. It reports whether the build was skipped.
 func (b builder) runComponent(
 	ctx context.Context, run componentRun, recorded madeFiles,
-) (madeFiles, error) {
+) (madeFiles, bool, error) {
 	incremental := run.component.Build.IncrementalValue()
 	static := run.component.Build.StaticValue()
 
@@ -336,11 +363,11 @@ func (b builder) runComponent(
 
 		state, skipped, err = b.skipUnchanged(ctx, run)
 		if err != nil {
-			return madeFiles{}, err
+			return madeFiles{}, false, err
 		}
 
 		if skipped {
-			return state.last.made(), nil
+			return state.last.made(), true, nil
 		}
 	}
 
@@ -353,7 +380,7 @@ func (b builder) runComponent(
 	}
 
 	if err != nil || !incremental && !static {
-		return made, err
+		return made, false, err
 	}
 
 	compAbsPath := run.context.Dirs.Component
@@ -363,7 +390,7 @@ func (b builder) runComponent(
 	if laysOut(run.component, run.backend) {
 		laidOut, err = laidOutFiles(run.component, compAbsPath, run.backend.Exclude)
 		if err != nil {
-			return madeFiles{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
+			return madeFiles{}, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
 				run.name, err)
 		}
 	}
@@ -372,7 +399,7 @@ func (b builder) runComponent(
 		err = checkStaticModule(b.opts, run.name, moduleFiles(run.context.Dirs.Output,
 			made.Modules, compAbsPath, laidOut))
 		if err != nil {
-			return madeFiles{}, err
+			return madeFiles{}, false, err
 		}
 	}
 
@@ -385,12 +412,12 @@ func (b builder) runComponent(
 			LaidOut:  laidOut,
 		})
 		if err != nil {
-			return madeFiles{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name,
-				err)
+			return madeFiles{}, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
+				run.name, err)
 		}
 	}
 
-	return made, nil
+	return made, false, nil
 }
 
 // runWritingBackend runs the backend of a component and returns what it
@@ -584,6 +611,12 @@ func (b builder) inputs(ctx context.Context, run componentRun) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("the inputs of the build: %w", err)
 		}
+	}
+
+	// The arguments a command passed through (Options.Args) are an input:
+	// a build with others is not skipped, nor one without them after it.
+	if len(run.context.Args) > 0 {
+		extra = append(extra, "args: "+strings.Join(run.context.Args, "\x00"))
 	}
 
 	return componentInputs(b.proj.dir, run.context.Dirs.Component, *run.component.Build, extra)

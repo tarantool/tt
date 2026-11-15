@@ -99,6 +99,7 @@ type lockProbe struct {
 
 func (p lockProbe) Preflight(_ context.Context, c *sdkbuild.Context) error {
 	version, ok := c.LockedVersion("wasm")
+
 	*p.locked = append(*p.locked, fmt.Sprintf("%s %t", version, ok))
 
 	return errProbed
@@ -134,9 +135,11 @@ func TestRun_preflightReadsAFreshLock(t *testing.T) {
 	lock := &manifest.Lock{
 		LockVersion: manifest.LockVersion, ManifestVersion: "0.1", GeneratedBy: "tt test",
 		ManifestHash: man.Hash(),
-		Products: map[string]manifest.LockProduct{"default": {Dependencies: []manifest.LockDependency{
-			{Name: "wasm", Version: "0.1.0-1", Source: "registry"},
-		}}},
+		Products: map[string]manifest.LockProduct{"default": {
+			Dependencies: []manifest.LockDependency{
+				{Name: "wasm", Version: "0.1.0-1", Source: "registry"},
+			},
+		}},
 	}
 
 	data, err := lock.Marshal()

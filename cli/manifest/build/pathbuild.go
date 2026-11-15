@@ -69,6 +69,10 @@ type pathManifests struct {
 func newPathManifests(
 	opts Options, adapter *rocks.Adapter, closures ...[]manifest.LockDependency,
 ) pathManifests {
+	// The components and the arguments of the consumer's build are of its
+	// own components, not of those of a dependency.
+	opts.Component, opts.Components, opts.Args = "", nil, nil
+
 	return pathManifests{opts: opts, adapter: adapter, pinned: pinnedClosure(closures...)}
 }
 

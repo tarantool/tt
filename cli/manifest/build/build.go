@@ -40,6 +40,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/tarantool/go-luarocks/client"
@@ -67,6 +68,15 @@ type Options struct {
 	// Component narrows the build to a single component of the product; empty
 	// builds every component of the product.
 	Component string
+	// Components narrow the build to these components of the product, with
+	// Component, built in the order of the product; none, and no Component,
+	// builds every component of the product.
+	Components []string
+	// Args are the arguments a command passes through to the build of the
+	// one component Component and Components name, the Args of its Context
+	// (sdkbuild.Context.Args), which its inputs hash too; with any, the run
+	// is to name exactly one. A path dependency is built with none.
+	Args []string
 	// Locked gates the lock: a stale lock is a hard error instead of being
 	// re-resolved and rewritten. Ignored by fetch.
 	Locked bool
@@ -168,6 +178,23 @@ type Result struct {
 	// dependencies. A component the run did not build is reported as its
 	// last build recorded it, if at all. A fetch run reports none.
 	Programs map[string][]string
+	// Built are the components with a build block the run built, or found
+	// up to date, by name: what each made, where the rock of the package
+	// installed it. A fetch run reports none.
+	Built map[string]Built
+}
+
+// Built is what the build of a component made, by type, as absolute paths in
+// the tree the build installed the package into: the modules in
+// lib/tarantool/<namespace>/, the data files in share/tarantool/<namespace>/
+// and the programs in bin/ of .rocks.
+type Built struct {
+	Modules  []string
+	Data     []string
+	Programs []string
+	// UpToDate reports an incremental build that was skipped: its inputs
+	// were those of its last build, and what that build made was there.
+	UpToDate bool
 }
 
 // Run executes the build (or fetch) described by opts, discarding the result.
@@ -413,9 +440,16 @@ func runBuild(
 	ctx context.Context, opts Options, man *manifest.Manifest,
 	adapter *rocks.Adapter, tree, productName string, product manifest.Product,
 ) (*Result, error) {
-	components, err := selectComponents(product, opts.Component)
+	components, err := selectComponents(product, append(slices.Clone(opts.Components),
+		opts.Component)...)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(opts.Args) > 0 && len(components) != 1 {
+		return nil, sdk.Errorf(sdk.ExitFailure, "%w: the arguments of a build go to the "+
+			"build of one component, and the run builds %d", errArgsOfComponents,
+			len(components))
 	}
 
 	proj := packageProject(opts.ProjectDir, man, productName)
@@ -424,6 +458,7 @@ func runBuild(
 	// The preflight comes before the lock is gated, to fail before a hook
 	// and the resolution run: it reads the versions of a lock on disk that
 	// is fresh, and none of another.
+	//nolint:contextcheck // The hash of a path dependency asks git, which takes no context.
 	proj.pinned = freshPins(opts.ProjectDir, man, productName)
 
 	err = newBuilder(opts, proj, adapter, stage, version.Version{}).preflight(ctx, components)
@@ -470,7 +505,7 @@ func runBuild(
 
 	proj.pinned = pinnedClosure(prod.Dependencies, lock.DevDependencies)
 
-	programs, err := buildComponents(ctx, opts, proj, adapter, stage, components, ver)
+	built, err := buildComponents(ctx, opts, proj, adapter, stage, components, ver)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +527,8 @@ func runBuild(
 		Product:  productName,
 		Tree:     tree,
 		Stage:    stage,
-		Programs: programs,
+		Programs: built.programs,
+		Built:    built.installed(proj, tree),
 	}, nil
 }
 
@@ -546,28 +582,31 @@ func (proj project) versionLuaNamespace() string {
 // the backends of components (runBackends), their layout (layoutComponents),
 // the file checks of the modules (checkFiles) and version.lua. Then it
 // removes from the stage what no component put there (settleStage). It
-// returns the programs of the components that made any, from the record
+// returns what the components built (componentBuilds), from the record
 // runBackends returns.
 func buildComponents(
 	ctx context.Context, opts Options, proj project, adapter *rocks.Adapter,
 	stage string, components []string, ver version.Version,
-) (map[string][]string, error) {
+) (componentBuilds, error) {
 	last, settle, err := openStage(opts, proj, stage, components)
 	if err != nil {
-		return nil, err
+		return componentBuilds{}, err
 	}
 
-	results, written, err := newBuilder(opts, proj, adapter, stage, ver).runBackends(ctx,
-		components, last)
+	runs, err := newBuilder(opts, proj, adapter, stage, ver).runBackends(ctx, components, last)
 	if err != nil {
-		return nil, err
+		return componentBuilds{}, err
 	}
 
-	programs := programsOf(results)
+	results, written := runs.results, runs.written
+	builds := componentBuilds{
+		programs: programsOf(results), results: results, built: runs.built,
+		upToDate: runs.upToDate,
+	}
 
 	laidOut, err := layoutComponents(proj.dir, stage, proj.man, components, opts.backends())
 	if err != nil {
-		return nil, err
+		return componentBuilds{}, err
 	}
 
 	var allLaidOut []string
@@ -579,7 +618,7 @@ func buildComponents(
 	checkWarnings, err := checkFiles(ctx, opts.backends().FileChecks(),
 		checkedFiles(proj, stage, components, laidOut, results))
 	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
+		return componentBuilds{}, sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
 
 	opts.emit(checkWarnings)
@@ -589,11 +628,11 @@ func buildComponents(
 	err = writeVersionLua(stage, proj.versionLuaNamespace(), generate, ver, opts.builtAt(),
 		allLaidOut)
 	if err != nil {
-		return nil, err
+		return componentBuilds{}, err
 	}
 
 	if !settle {
-		return programs, nil
+		return builds, nil
 	}
 
 	var generated []string
@@ -606,10 +645,45 @@ func buildComponents(
 		components: components, written: written, laidOut: laidOut, generated: generated,
 	})
 	if err != nil {
-		return nil, err
+		return componentBuilds{}, err
 	}
 
-	return programs, nil
+	return builds, nil
+}
+
+// componentBuilds are what the component steps of a build did
+// (buildComponents).
+type componentBuilds struct {
+	// programs are the programs of every component whose build made any,
+	// by component, from the record.
+	programs map[string][]string
+	// results are the record: what the build of every component made.
+	results map[string]madeFiles
+	// built are the components the run built or found up to date, in the
+	// order they were built.
+	built []string
+	// upToDate are those of built whose incremental build was skipped.
+	upToDate map[string]bool
+}
+
+// installed returns what the components the run built made, where the
+// rock of the package of proj installed it in tree (Result.Built).
+func (b componentBuilds) installed(proj project, tree string) map[string]Built {
+	installed := make(map[string]Built, len(b.built))
+
+	for _, name := range b.built {
+		namespace := proj.man.ComponentTarget(name).Namespace
+		made := b.results[name]
+
+		installed[name] = Built{
+			Modules:  joinDir(filepath.Join(tree, "lib", "tarantool", namespace), made.Modules),
+			Data:     joinDir(filepath.Join(tree, "share", "tarantool", namespace), made.Data),
+			Programs: joinDir(filepath.Join(tree, "bin"), made.Programs),
+			UpToDate: b.upToDate[name],
+		}
+	}
+
+	return installed
 }
 
 // layoutComponents lays every selected component out under its namespace in
