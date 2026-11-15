@@ -62,9 +62,23 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
+
+// lockProject takes the lock of the project of opts for a command that
+// rewrites its manifest or its lock (projectlock.Acquire), from before it
+// reads them to after it wrote them: the context that carries the lock, and
+// its release.
+func lockProject(ctx context.Context, opts Options) (context.Context, func(), error) {
+	locked, release, err := projectlock.Acquire(ctx, opts.ProjectDir)
+	if err != nil {
+		return ctx, release, stateErrorf("%w", err)
+	}
+
+	return locked, release, nil
+}
 
 // rocksDirName is the project-scope tree root the rocks adapter is bound to.
 // Nothing here materializes into it; the adapter needs a tree to be configured

@@ -27,6 +27,7 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
 
+	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -136,6 +137,19 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	opts.Scope = scope
+
+	// An install into the project changes its .rocks/ under the lock of the
+	// project, as a build does.
+	if scope == ScopeProject {
+		var release func()
+
+		ctx, release, err = projectlock.Acquire(ctx, opts.ProjectDir)
+		if err != nil {
+			return nil, stateErrorf("%w", err)
+		}
+
+		defer release()
+	}
 
 	result := &Result{Installed: nil, Failed: nil}
 

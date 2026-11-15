@@ -37,6 +37,13 @@ func Add(
 func addWith(
 	ctx context.Context, opts Options, res resolver, name, constraint string, dev bool,
 ) (*Result, error) {
+	ctx, release, err := lockProject(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
+
 	proj, err := load(opts)
 	if err != nil {
 		return nil, err
@@ -87,6 +94,13 @@ func AddFromRegistry(
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, release, err := lockProject(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
 
 	proj, err := load(opts)
 	if err != nil {
@@ -160,6 +174,13 @@ func Remove(ctx context.Context, opts Options, name string) (*Result, error) {
 func removeWith(
 	ctx context.Context, opts Options, res resolver, name string,
 ) (*Result, error) {
+	ctx, release, err := lockProject(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
+
 	proj, err := load(opts)
 	if err != nil {
 		return nil, err
@@ -242,6 +263,13 @@ func Update(ctx context.Context, opts Options, name string) (*Result, error) {
 func updateWith(
 	ctx context.Context, opts Options, res resolver, name string,
 ) (*Result, error) {
+	ctx, release, err := lockProject(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
+
 	proj, err := load(opts)
 	if err != nil {
 		return nil, err
@@ -287,6 +315,13 @@ func Resolve(ctx context.Context, opts Options) (*Result, error) {
 
 // resolveWith is Resolve against an injected resolver.
 func resolveWith(ctx context.Context, opts Options, res resolver) (*Result, error) {
+	ctx, release, err := lockProject(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
+
 	proj, err := load(opts)
 	if err != nil {
 		return nil, err

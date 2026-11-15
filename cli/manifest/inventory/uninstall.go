@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
@@ -113,6 +114,15 @@ func Uninstall(ctx context.Context, opts UninstallOptions) (*UninstallResult, er
 		//nolint:contextcheck // The scope roots ask uname and take no context.
 		return uninstallApp(opts, scope)
 	}
+
+	// An uninstall from the project changes its .rocks/ under the lock of
+	// the project, as a build does.
+	ctx, release, err := projectlock.Acquire(ctx, opts.ProjectDir)
+	if err != nil {
+		return nil, stateErrorf("%w", err)
+	}
+
+	defer release()
 
 	lay := state.ProjectLayout(opts.ProjectDir)
 

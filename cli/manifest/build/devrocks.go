@@ -33,12 +33,20 @@ import (
 //
 // The build must have run first: the lock is read, never written, so a project
 // that has never resolved is an error here rather than a silent resolution.
+// It holds the lock of the project as RunResult does.
 func EnsureDevRocks(
 	ctx context.Context, opts Options, extra map[string]manifest.Dependency,
 ) error {
 	if len(extra) == 0 {
 		return nil
 	}
+
+	ctx, release, err := lockProject(ctx, opts.ProjectDir)
+	if err != nil {
+		return err
+	}
+
+	defer release()
 
 	man, err := readManifest(opts.ProjectDir, opts)
 	if err != nil {

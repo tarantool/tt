@@ -32,6 +32,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
+	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 )
 
 // Options configures one pack run. The build-facing fields mirror
@@ -99,11 +100,22 @@ type Result struct {
 // is packed with nothing built (runBuild). It returns an
 // *sdk.ExitError for failures carrying a dedicated exit code; cli/exitcode
 // maps any error to a process exit code.
+//
+// The pack holds the lock of the project (projectlock) from the build to the
+// last file it writes, so that no other tt changes .rocks/ or the stage it
+// packs from in between.
 func Run(ctx context.Context, opts Options) (*Result, error) {
 	err := checkFormats(opts)
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, release, err := projectlock.Acquire(ctx, opts.ProjectDir)
+	if err != nil {
+		return nil, stateErrorf("%w", err)
+	}
+
+	defer release()
 
 	if opts.Signer != nil && opts.WithoutDeps {
 		return nil, stateErrorf("%w", errSignedWithoutDeps)
