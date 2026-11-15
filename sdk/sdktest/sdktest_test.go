@@ -746,6 +746,49 @@ func TestServicesProjectBuild(t *testing.T) {
 	assert.Same(t, facts, got)
 }
 
+// TestServicesProjectCleanAndLock checks that Clean records its calls and
+// runs what WithClean gave, and that Lock counts the locks it takes, none
+// with the context of a lock held, and their releases.
+func TestServicesProjectCleanAndLock(t *testing.T) {
+	t.Parallel()
+
+	services := sdktest.New(t, sdktest.WithClean(func(opts sdk.CleanOptions) (
+		sdk.CleanResult, error,
+	) {
+		return sdk.CleanResult{Removed: []string{"/p/_build/component/" + opts.Components[0]}}, nil
+	}))
+	services.Start()
+
+	ctx, release, err := services.Project().Lock(t.Context())
+	require.NoError(t, err)
+
+	_, nestedRelease, err := services.Project().Lock(ctx)
+	require.NoError(t, err)
+	nestedRelease()
+
+	taken, held := services.Locks()
+	assert.Equal(t, 1, taken)
+	assert.Equal(t, 1, held)
+
+	result, err := services.Project().Clean(ctx, sdk.CleanOptions{Components: []string{"calc"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/p/_build/component/calc"}, result.Removed)
+	assert.Equal(t, []sdk.CleanOptions{{Components: []string{"calc"}}}, services.Cleans())
+
+	release()
+	release()
+
+	taken, held = services.Locks()
+	assert.Equal(t, 1, taken)
+	assert.Zero(t, held)
+
+	none := sdktest.New(t, sdktest.WithNoManifest())
+	none.Start()
+
+	_, err = none.Project().Clean(t.Context(), sdk.CleanOptions{})
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+}
+
 // TestServicesProjectPrepareEnvironment checks that PrepareEnvironment
 // counts its calls and writes nothing.
 func TestServicesProjectPrepareEnvironment(t *testing.T) {

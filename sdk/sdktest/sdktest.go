@@ -15,16 +15,18 @@
 // files or storages. The project reads, edits, builds and installs no file:
 // its manifest is the one [WithManifest] and [WithDeclared] give, which
 // AddDependency, RemoveDependency, AddComponent, UpdateComponent and
-// RemoveComponent change as the core would, and they, Resolve, Build,
+// RemoveComponent change as the core would, and they, Resolve, Build, Clean,
 // Install, PrepareEnvironment and the Index of the rock servers record their
 // calls ([Services.AddedDependencies], [Services.RemovedDependencies],
 // [Services.AddedComponents], [Services.UpdatedComponents],
 // [Services.RemovedComponents], [Services.Resolves], [Services.Builds],
-// [Services.Installs], [Services.PreparedEnvironments], [Services.Indexed])
-// and answer as [WithMoves], [WithAddDependencyError], [WithResolveError],
-// [WithLock], [WithBuild], [WithBuildContext], [WithInstall] and [WithIndex]
-// say. [Services.Exit] does not end the test binary: under [Services.Run] it
-// ends the command, and the [Result] says so.
+// [Services.Cleans], [Services.Installs], [Services.PreparedEnvironments],
+// [Services.Indexed]) and answer as [WithMoves], [WithAddDependencyError],
+// [WithResolveError], [WithLock], [WithBuild], [WithBuildContext],
+// [WithClean], [WithInstall] and [WithIndex] say. Project.Lock waits for
+// nothing; [Services.Locks] counts the locks it took and those not
+// released. [Services.Exit] does not end the test binary: under
+// [Services.Run] it ends the command, and the [Result] says so.
 package sdktest
 
 import (
@@ -94,6 +96,8 @@ type options struct {
 	build     func(opts sdk.BuildOptions) (sdk.BuildResult, error)
 	// buildContext answers Project.BuildContext.
 	buildContext func(opts sdk.BuildContextOptions) (*build.Context, build.Build, error)
+	// clean answers Project.Clean.
+	clean func(opts sdk.CleanOptions) (sdk.CleanResult, error)
 }
 
 // Option configures the Services New returns.
@@ -174,6 +178,15 @@ func WithBuildContext(
 	buildContext func(opts sdk.BuildContextOptions) (*build.Context, build.Build, error),
 ) Option {
 	return func(o *options) { o.buildContext = buildContext }
+}
+
+// WithClean makes Project.Clean call clean with the options it was given and
+// return what clean returns: a module's test removes there what the clean of
+// its component would, or fails it. Without it Clean removes nothing and
+// returns an empty result; it records the call either way
+// (Services.Cleans).
+func WithClean(clean func(opts sdk.CleanOptions) (sdk.CleanResult, error)) Option {
+	return func(o *options) { o.clean = clean }
 }
 
 // WithIndex makes Rocks().Index call index with the directory and the
@@ -296,6 +309,11 @@ type Services struct {
 	resolves []sdk.ResolveOptions
 	// builds are the calls of Project.Build, in order.
 	builds []sdk.BuildOptions
+	// cleans are the calls of Project.Clean, in order.
+	cleans []sdk.CleanOptions
+	// locks counts the calls of Project.Lock that took the lock, and held
+	// those not released yet.
+	locks, held int
 	// installs are the calls of Project.Install, in order.
 	installs []sdk.InstallOptions
 	// environments counts the calls of Project.PrepareEnvironment.
@@ -340,6 +358,7 @@ func New(tb testing.TB, opts ...Option) *Services {
 		index:     nil,
 		lock:      nil,
 		build:     nil,
+		clean:     nil,
 
 		buildContext: nil,
 	}
@@ -410,9 +429,12 @@ func New(tb testing.TB, opts ...Option) *Services {
 		dropped:      nil,
 		resolves:     nil,
 		builds:       nil,
+		cleans:       nil,
 		installs:     nil,
 		environments: 0,
 		indexed:      nil,
+		locks:        0,
+		held:         0,
 	}
 }
 
@@ -713,6 +735,26 @@ func (s *Services) Builds() []sdk.BuildOptions {
 	return slices.Clone(s.builds)
 }
 
+// Cleans returns the options Project.Clean was given so far, in order, the
+// failed calls included.
+func (s *Services) Cleans() []sdk.CleanOptions {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.cleans)
+}
+
+// Locks returns how many times Project.Lock took the lock of the project so
+// far - a call given the context of a lock already held takes none - and
+// how many of them are not released yet, in that order: a test of a command
+// checks that it took the lock around its work and released it.
+func (s *Services) Locks() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.locks, s.held
+}
+
 // PreparedEnvironments returns how many times Project.PrepareEnvironment was
 // called so far.
 func (s *Services) PreparedEnvironments() int {
@@ -994,6 +1036,58 @@ func (s *Services) runBuild(opts sdk.BuildOptions) (sdk.BuildResult, error) {
 	}
 
 	return sdk.BuildResult{Product: product, Version: "", Components: nil}, nil
+}
+
+// runClean records opts and runs what WithClean gave.
+func (s *Services) runClean(opts sdk.CleanOptions) (sdk.CleanResult, error) {
+	s.mu.Lock()
+
+	opts.Components = slices.Clone(opts.Components)
+	s.cleans = append(s.cleans, opts)
+
+	noMan := s.opts.noMan
+
+	s.mu.Unlock()
+
+	switch {
+	case noMan:
+		return sdk.CleanResult{}, errNoManifest
+	case s.opts.clean != nil:
+		return s.opts.clean(opts)
+	}
+
+	return sdk.CleanResult{Removed: nil, Cleaned: nil, Hook: false}, nil
+}
+
+// lockKey is the key of the context value that carries the lock of the
+// fake project.
+type lockKey struct{}
+
+// lock takes the lock of the project, unless ctx carries it, and counts it.
+func (s *Services) lock(ctx context.Context) (context.Context, func()) {
+	if ctx.Value(lockKey{}) != nil {
+		return ctx, func() {}
+	}
+
+	s.countLock(1)
+
+	var once sync.Once
+
+	return context.WithValue(ctx, lockKey{}, true), func() {
+		once.Do(func() { s.countLock(-1) })
+	}
+}
+
+// countLock counts a lock taken, change 1, or released, change -1.
+func (s *Services) countLock(change int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if change > 0 {
+		s.locks++
+	}
+
+	s.held += change
 }
 
 // setBuildFields sets the fields of a build block, as the core reads them
@@ -1347,6 +1441,19 @@ func (f fakeProject) BuildContext(
 	}
 
 	return f.services.opts.buildContext(opts)
+}
+
+// Clean records opts and runs what WithClean gave.
+func (f fakeProject) Clean(_ context.Context, opts sdk.CleanOptions) (sdk.CleanResult, error) {
+	return f.services.runClean(opts)
+}
+
+// Lock counts the lock and returns the context that carries it; nothing
+// waits, there being nothing else to wait for (Services.Locks).
+func (f fakeProject) Lock(ctx context.Context) (context.Context, func(), error) {
+	locked, release := f.services.lock(ctx)
+
+	return locked, release, nil
 }
 
 // RemoveDependency records name and removes it from the manifest of the

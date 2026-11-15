@@ -44,6 +44,20 @@ func ProjectRootDir() (string, error) {
 	return projectRootDir()
 }
 
+// LockProject takes the lock of the project tt works on (projectRootDir), as
+// the commands that change a project take it (projectlock.Acquire): the
+// context that carries it, which the other functions here are to be given
+// so that they do not wait for it again, and its release. It is
+// sdk.Project.Lock of the core.
+func LockProject(ctx context.Context) (context.Context, func(), error) {
+	projectDir, err := projectRootDir()
+	if err != nil {
+		return ctx, func() {}, err
+	}
+
+	return projectlock.Acquire(ctx, projectDir)
+}
+
 // AddDependency declares dep in the manifest of the project tt works on
 // (projectRootDir, the project the working directory is in, as tt package
 // add finds it) and re-resolves the lock, holding every version it already
@@ -343,6 +357,24 @@ func BuildProject(ctx context.Context, opts sdk.BuildOptions) (*build.Result, er
 		registries: opts.Registries,
 		showOutput: opts.ShowOutput,
 		args:       opts.Args,
+	})
+}
+
+// CleanProject removes what the builds of the project tt works on made, as
+// tt package clean does (build.Clean), what opts says. It is
+// sdk.Project.Clean of the core. A component the manifest does not declare
+// is an error wrapping manifest.ErrNoComponent.
+func CleanProject(ctx context.Context, opts sdk.CleanOptions) (*build.CleanResult, error) {
+	ctx, stop := packageContextOf(ctx)
+	defer stop()
+
+	projectDir, err := projectRootDir()
+	if err != nil {
+		return nil, err
+	}
+
+	return cleanProjectIn(ctx, projectDir, build.CleanOptions{
+		Components: opts.Components, DryRun: opts.DryRun,
 	})
 }
 
