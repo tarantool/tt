@@ -442,7 +442,11 @@ A `build.Preflighter` checks what the build needs before any component is
 built, so that a missing tool fails the build at once, not after the first
 long compile. `Preflight(ctx, c)` runs before the version of the package is
 known: the directories of the Context may not exist yet, and `TT_VERSION`
-is empty. `ctx` is that of the build: make the commands `Preflight` runs
+is empty. It runs before the lock is resolved, too: `c.LockedVersion(rock)`
+answers from `app.manifest.lock` when the lock is fresh, and says the rock
+is not pinned when the lock is stale or missing, which the build resolves
+afterwards; with `--locked` such a lock fails the build, so the answer is
+exact there. `ctx` is that of the build: make the commands `Preflight` runs
 with it, so that they stop when the build is cancelled. Wrap
 `build.ErrNoTool` for a tool that is not in `PATH`, so that
 a missing tool is told from a failed build. A failed `Preflight` fails the
