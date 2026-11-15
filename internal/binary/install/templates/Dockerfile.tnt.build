@@ -8,8 +8,10 @@ ENV DEBIAN_FRONTEND="noninteractive"
 RUN apt update && apt install -y git wget make build-essential zlib1g-dev \
 libreadline-dev libncurses5-dev libssl-dev libunwind-dev libicu-dev autoconf libtool
 # CMake publishes linux-x86_64 and linux-aarch64 archives, the names uname -m
-# gives on amd64 and arm64 hosts.
-RUN wget https://cmake.org/files/v3.28/cmake-3.28.6-linux-$(uname -m).tar.gz -qO- | \
+# gives on amd64 and arm64 hosts. They are taken from the releases of CMake on
+# GitHub, the same files cmake.org serves, which does not depend on the
+# certificate of cmake.org.
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.28.6/cmake-3.28.6-linux-$(uname -m).tar.gz -qO- | \
   tar -xz -C /usr/local --strip-components=1
 RUN mkdir /work/.tarantool && chown {{.uid}} /work /work/.tarantool
 COPY ./ ./
