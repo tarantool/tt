@@ -1,4 +1,4 @@
-# Структура файловой системы
+# Структура файловой системы {#filesystem-layout}
 
 ## Корень scope {#the-root-of-a-scope}
 
@@ -83,13 +83,15 @@ myapp/
 │       └── instances.yaml
 ├── .rocks/                    # зависимости и собранные компоненты (генерируется)
 │   ├── share/tarantool/<name>/
-│   └── bin/                   # исполняемые файлы компонентов
+│   └── bin/                   # программы, собранные компонентами
 ├── _build/pack/               # архивы, которые создаёт tt package pack (генерируется)
 ├── _build/rock/<product>/     # разложенные компоненты, устанавливаемые в .rocks/ (генерируется)
 ├── _build/rock/<product>.json # какой компонент положил туда каждый файл (генерируется)
+├── _build/results.json        # что собрал каждый компонент: модули, файлы данных, программы (генерируется)
 ├── _build/cache/              # хеши и артефакты предыдущих инкрементальных сборок (генерируется)
 ├── _build/component/<component>/ # TT_BUILD_DIR каждого компонента: дерево сборки cmake (генерируется)
 ├── _build/cargo/              # каталог target cargo-компонентов (генерируется)
+├── _build/tt.lock             # блокировка проекта, которую сохраняет tt package clean (генерируется)
 ├── .env/                      # activate.sh, deactivate.sh (генерируется)
 └── .tarantool/                # корень project scope (генерируется)
 ```
@@ -143,15 +145,16 @@ _runtime/tt/bin/tt
 
 В подписанном архиве также находятся файлы `hashes.json`, `env_hashes.json` и
 соответствующие файлы `.sig`; см.
-[Подпись пакетов](../how-to/sign-packages.md).
+[Sign packages](../how-to/sign-packages.md).
 
 ## Пользовательский кэш {#the-user-cache}
 
 `tt wasm` и `tt emmylua` хранят скачанное в подкаталоге `tt/`
 пользовательского кэша: `$XDG_CACHE_HOME`, по умолчанию `~/.cache`, на
 macOS - `~/Library/Caches`. Вне проектов `tt emmylua check`, `doc`, `fmt` и
-`ls` запускают программы рока `emmylua` оттуда и пишут туда свою
-конфигурацию, а не в текущий каталог:
+`ls` запускают программы rock-пакета `emmylua` оттуда и пишут туда свою
+конфигурацию, а не в текущий каталог (см.
+[Check and format Lua code with EmmyLua](../how-to/emmylua.md#outside-a-project)):
 
 ```text
 <user cache>/tt/emmylua/

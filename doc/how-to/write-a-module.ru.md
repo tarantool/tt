@@ -1,18 +1,18 @@
-# Написание модуля tt
+# Написание модуля tt {#write-a-tt-module}
 
-Модуль tt - это Go-модуль, скомпилированный в
+Модуль tt - это модуль Go, скомпилированный в
 [дистрибутив tt](build-distribution.md): его пакет экспортирует конструктор,
 возвращающий добавляемые им команды. Он построен на
 [SDK tt](https://github.com/tarantool/tt/blob/v3/sdk/README.md) и больше
-ничего из tt не импортирует. На этой странице с нуля пишется модуль `tt
-probe`, который выводит список инстансов приложения, отправляет ping инстансу
-и делает на нём снапшот, а затем тестируется и встраивается в tt. О том,
-как добавить команду отдельным исполняемым файлом, который tt запускает без
-пересборки, см. [Внешние модули](external-modules.md).
+ничего из tt не импортирует. На этой странице с нуля пишется модуль
+`tt probe`, который выводит список инстансов приложения, отправляет ping
+инстансу и делает на нём снапшот, а затем тестируется и встраивается в tt.
+О том, как вместо пересборки добавить команду отдельным исполняемым файлом,
+который запускает tt, см. [Внешние модули](external-modules.md).
 
 SDK находится в статусе alpha: его API может измениться в любом релизе tt.
 
-## Настройка Go-модуля {#set-up-the-go-module}
+## Настройка модуля Go {#set-up-the-go-module}
 
 ```sh
 mkdir tt-probe && cd tt-probe
@@ -36,36 +36,26 @@ require (
 )
 ```
 
-`9997ea8b` - это коммит `v3.0.0-alpha.2` (`git rev-parse
+`9997ea8b` - коммит релиза `v3.0.0-alpha.2` (`git rev-parse
 'v3.0.0-alpha.2^{commit}'` в клоне tt); берут коммит ядра, под которое
 строится модуль. Все модули SDK подключают по одному и тому же коммиту,
 включая `sdk/connect`, даже если модуль его не импортирует: в `go.mod`
 модуля `sdk` он прописан на `v0.0.0-0` - плейсхолдер, который разрешают
 только директивы `replace` в репозитории самого tt, а `go get` для одного
-лишь `sdk` падает с ошибкой `unknown revision sdk/connect/v0.0.0-0`. В
-`sdk/cluster` есть два таких плейсхолдера: для `sdk/connect` и `sdk/dial`.
+лишь `sdk` завершается с ошибкой `unknown revision sdk/connect/v0.0.0-0`.
+Плейсхолдер сортируется ниже любой псевдоверсии, поэтому коммит, переданный
+в `go get`, встаёт на его место. В `sdk/cluster` есть два таких
+плейсхолдера: для `sdk/connect` и `sdk/dial`. После `v3.0.0-alpha.2` модуль
+`sdk` аналогично требует `sdk/build` на плейсхолдере: передают также и
+`github.com/tarantool/tt/sdk/build@<commit>`.
 
 Сборка дистрибутива эти версии не использует: она собирает каждый модуль на
 SDK по коммиту его ядра, что бы ни требовал `go.mod` самого модуля. По этим
 версиям запускается `go test` модуля, поэтому их держат на коммите ядра:
 когда ядро обновляется, подтягивают модули SDK через `go get` на его новом
-коммите и выполняют `go mod tidy`.
-
-### Разработка против чекаута tt {#develop-against-a-checkout-of-tt}
-
-Чтобы собрать модуль на изменениях в SDK, которые ещё не запушены, модули
-SDK из локального чекаута tt добавляют в workspace Go. Файл `go.work` не
-коммитят в git:
-
-```sh
-go work init . ../tt/sdk ../tt/sdk/connect ../tt/sdk/dial
-go test ./...
-```
-
-и собирают дистрибутив на том же чекауте командой `tt binary build tt --core
-../tt` (см. [Сборка на другом ядре](build-distribution.md#building-on-another-core)).
-Сборка дистрибутива игнорирует `go.work`, а также директивы `replace` из
-`go.mod` модуля: Go применяет их только из главного модуля.
+коммите и выполняют `go mod tidy`. О том, как собрать модуль на ещё не
+отправленных в репозиторий изменениях SDK, см.
+[Совместная разработка с ядром](#develop-together-with-the-core).
 
 ## Написание конструктора {#write-the-constructor}
 
@@ -103,15 +93,23 @@ func New(services sdk.Services) []sdk.Mount {
 `New` представляет собой `sdk.Constructor`, `func(sdk.Services)
 []sdk.Mount`; сборка дистрибутива ищет его под этим именем в корневом
 пакете модуля, если в его манифесте не указано иное. tt вызывает его один
-раз на процесс, до того как tt сконфигурирован: из всех сервисов здесь
-разрешено вызывать только `Log`, а остальные вызывают panic с указанием
-модуля и метода. Команды используют сервисы в своих хуках, которые
+раз на процесс, до того как сам сконфигурирован: из всех сервисов здесь
+разрешено использовать только `Log`, а остальные вызывают panic с указанием
+модуля и метода. Команды обращаются к сервисам в своих хуках, которые
 выполняются позже. Конструктор объявляет команды и их флаги и ничего
 больше: он не читает ни файлы, ни переменные окружения.
 
-`Mount` - это команда и путь к её родительской команде: `""` означает
-корень, а `"replicaset"` помещает команду под `tt replicaset`. Группа по
-пути, которую не предоставляет ни один модуль, создаётся автоматически, без
+Модуль, который также предоставляет backend'ы сборки для поля `backend`
+в блоке сборки компонента или проверки файлов пакета, объявляет вместо
+этого `sdk.ModuleConstructor`, `func(sdk.Services) sdk.Module`:
+возвращаемый им `sdk.Module` содержит `Commands`, `Backends` и
+`FileChecks` для файлов пакета из `github.com/tarantool/tt/sdk/build`.
+tt вызывает его так же, как и `sdk.Constructor`, а в дистрибутиве оба вида
+модулей перечисляются одинаково.
+
+`Mount` - это команда и путь к её родителю: `""` означает корень, а
+`"replicaset"` помещает команду под `tt replicaset`. Группа по пути,
+которую не предоставляет ни один модуль, создаётся автоматически, без
 описания. Каждая команда создаётся заново, без родителя; ядро забирает её
 под своё управление сразу после возврата из конструктора.
 
@@ -196,32 +194,32 @@ func newInstancesCmd(services sdk.Services) *cobra.Command {
 ```
 
 - `sdk.AddAppFlags` объявляет флаги `--scope` и `--template` со справкой и
-  автодополнением, аналогичными командам для инстансов в tt, а
+  автодополнением, аналогичными командам tt для инстансов, а
   `sdk.AppSource(app).WithLookup(lookup)` находит приложение тем же
-  способом: проект, в котором запущен tt, если имя совпадает, иначе scope
-  системы. `sdk.SplitInstance` разделяет `APP:INSTANCE`.
-- `Services.ClusterConfig` возвращает кластерную конфигурацию источника так,
-  как её видит Tarantool 3, вместе с каталогом, относительно которого
-  отсчитываются относительные пути в ней (`Dir`); приложение без
-  конфигурации оборачивает `sdk.ErrNotFound`. `sdk.Instances` перечисляет
-  его инстансы, а `sdk.InstanceConfig` вычисляет конфигурацию одного из них.
-  `sdk.ParseClusterSource` разбирает аргумент, который также может быть
-  файлом кластерной конфигурации или URI хранилища конфигурации, как это
-  делает `tt cluster show`.
-- `output.BindFormat` объявляет флаг `-o/--format` с поддерживаемыми
-  командой форматами и форматом по умолчанию. `Services.Streams().Printer`
-  выводит результат в stdout: метод `Human` для формата для человека
-  (`table`), а само значение - в `json` и `yaml` по тегам `json` и `yaml`,
-  поэтому у каждого поля есть оба тега. В stdout попадает только результат;
-  логи и приглашения идут в stderr.
-- `Services.Log` - логер модуля: записи содержат атрибут `module=probe`, а
-  отладочные записи выводятся с ключом `tt -V`. `log.LibraryOf` создаёт
-  логер для библиотеки, понижая её записи Info до уровня Debug.
-- Ошибку, возвращённую из `RunE`, tt выводит один раз и выставляет код
-  завершения. `sdk.Usagef` и `sdk.WithUsage` помечают ошибку в вызове
-  команды: tt выводит сообщение, а затем подсказку по использованию
-  команды. Ошибка в `Args` или во флагах также выводится вместе со справкой
-  по использованию.
+  способом, что и они: проект, в котором запущен tt, если имя совпадает,
+  иначе системный scope. `sdk.SplitInstance` разделяет `APP:INSTANCE`.
+- `Services.ClusterConfig` возвращает кластерную конфигурацию источника в том
+  виде, как её видит Tarantool 3, вместе с каталогом, относительно которого
+  разрешаются относительные пути (`Dir`); если конфигурация отсутствует,
+  возвращается ошибка, оборачивающая `sdk.ErrNotFound`. `sdk.Instances`
+  перечисляет её инстансы, а `sdk.InstanceConfig` разрешает конфигурацию
+  одного из них. `sdk.ParseClusterSource` разбирает аргумент, который также
+  может быть файлом кластерной конфигурации или URI хранилища конфигурации,
+  как это делает `tt cluster show`.
+- `output.BindFormat` объявляет `-o/--format` с поддерживаемыми командой
+  форматами и форматом по умолчанию. `Services.Streams().Printer` выводит
+  результат в stdout: метод `Human` для человекочитаемого формата (`table`),
+  а само значение - для `json` и `yaml` согласно их тегам `json` и `yaml`,
+  поэтому у поля должны быть оба тега. stdout предназначен только для
+  результата работы; логи и интерактивные вопросы выводятся в stderr.
+- `Services.Log` - логгер модуля: записи содержат `module=probe`, а
+  отладочные сообщения отображаются при запуске с `tt -V`.
+  `log.LibraryOf` создаёт логгер для сторонней библиотеки, понижая её
+  записи уровня Info до уровня Debug.
+- Ошибка, возвращённая из `RunE`, выводится tt один раз и задаёт код выхода.
+  `sdk.Usagef` и `sdk.WithUsage` помечают ошибку в способе вызова команды:
+  tt выводит сообщение, а затем подсказку по использованию команды. Ошибки
+  в `Args` или флагах также выводятся вместе с подсказкой.
 
 ## Подключение к инстансу {#connect-to-an-instance}
 
@@ -412,51 +410,57 @@ func (f *connFlags) instanceListen(
 }
 ```
 
-SDK предоставляет составные части, а модуль собирает их воедино, включая
+SDK предоставляет составные части, а модуль объединяет их воедино, включая
 учётные данные:
 
-1. `connect.IsCredentialsURI` определяет URI с учётными данными,
-   `user:password@host:port` и его unix-формы, а
-   `connect.ParseCredentialsURI` извлекает их. `connect.IsBaseURI` проверяет
-   URI без них: `host:port`, `tcp://host:port`, `unix/:path`, `unix://path`
-   и путь, начинающийся с `/`, `./`, `../` или `~/`.
+1. `connect.IsCredentialsURI` сопоставляет URI с учётными данными,
+   `user:password@host:port` и его unix-формами, а
+   `connect.ParseCredentialsURI` извлекает их оттуда. `connect.IsBaseURI`
+   сопоставляет URI без них: `host:port`, `tcp://host:port`, `unix/:path`,
+   `unix://path` и путь, начинающийся с `/`, `./`, `../` или `~/`.
 2. Всё остальное здесь считается `APP:INSTANCE`: в качестве URI берётся
-   первая запись `iproto.listen` инстанса, а `Dir` делает пути к SSL-файлам
-   из её параметров абсолютными. В этом примере URI берётся как есть;
-   подстановка `{{ instance_name }}` и преобразование относительного пути к
-   сокету в абсолютный не выполняются.
-3. Приоритет учётных данных определяет сам модуль, в SDK он не зашит. В
-   примере логика повторяет `tt connect`: учётные данные в URI исключают
-   `-u` и `-p`; иначе используются `-u` и `-p`, а незаполненные значения
+   первая запись `iproto.listen` этого инстанса, а `Dir` превращает пути к
+   SSL-файлам из её параметров в абсолютные. В примере URI берётся как
+   написано; подстановка `{{ instance_name }}` и превращение относительного
+   пути к сокету в абсолютный не выполняются.
+3. Приоритет учётных данных выбирает сам модуль, SDK никаких правил не
+   навязывает. В примере логика повторяет `tt connect`: учётные данные в
+   URI исключают `-u` и `-p`; иначе используются `-u` и `-p`, а незаданные
    берутся из `TT_CLI_USERNAME` или `TT_CLI_PASSWORD`
-   (`connect.TarantoolUsernameEnv`, `connect.TarantoolPasswordEnv`). Описание
-   этих переменных в справке команды формирует
-   `connect.EnvTarantoolCredentialsHelp`.
-4. `connect.SplitURIQuery` отделяет query от URI, где передаются `transport`
-   и параметры `ssl_*`, а `connect.ParseBaseURI` возвращает сеть и адрес,
-   которые передаются в `dial.Opts.Address` в виде `network://address`.
-5. `dial.New` возвращает диалер для `tarantool.Connect` из go-tarantool.
-   Если параметр `Transport` пуст, выбирается SSL при наличии любого
-   SSL-поля, иначе plain; явный выбор задают значения `"plain"` и `"ssl"`,
-   остальное считается ошибкой. `Auth` используется только поверх SSL.
-   SSL-диалер представляет собой реализацию TLS на чистом Go, а в сборке с
-   тегом `openssl` - реализацию на OpenSSL.
+   (`connect.TarantoolUsernameEnv`, `connect.TarantoolPasswordEnv`).
+   Строка `connect.EnvTarantoolCredentialsHelp` описывает обе эти
+   переменные для вывода в справке команды.
+4. `connect.SplitURIQuery` отделяет строку параметров (query) от URI, куда
+   передаются `transport` и параметры `ssl_*`, а `connect.ParseBaseURI`
+   возвращает тип сети и адрес, которые `dial.Opts.Address` принимает в виде
+   `network://address`.
+5. `dial.New` возвращает dialer для `tarantool.Connect` из go-tarantool. При
+   пустом значении `Transport` выбирается SSL, если задано хотя бы одно
+   SSL-поле, и обычное соединение в противном случае; значения `"plain"` и
+   `"ssl"` задают выбор явно, любые другие вызывают ошибку. `Auth` задаёт
+   метод аутентификации: `tarantool.AutoAuth` (`dial.AuthAuto`) выбирает
+   метод сервера по SSL и chap-sha1 по обычному соединению, а
+   `dial.ParseAuth` распознаёт значения `auto`, `chap-sha1` и `pap-sha256`,
+   передаваемые параметром `auth_type` в URI. При pap-sha256 пароль
+   передаётся в открытом виде: по обычному соединению `dial.New` отклоняет
+   его с ошибкой `dial.ErrPapSha256Unencrypted`. SSL-dialer работает через
+   реализацию TLS на чистом Go, а в сборках с тегом `openssl` - через
+   OpenSSL.
 6. `log.RegisterSecret` скрывает пароль во всех записях лога. Результат
-   выполнения и приглашения к вводу не относятся к записям лога:
-   `log.RedactTarget` скрывает учётные данные цели при её выводе в них и в
-   тексте ошибок.
+   работы и вопросы к пользователю к логам не относятся: `log.RedactTarget`
+   скрывает учётные данные цели, выводимой в них и в тексте ошибок.
 
-`connect.CreateURIOpts` разбирает URL со схемой и хостом, такой как
+Функция `connect.CreateURIOpts` разбирает URL со схемой и хостом, например
 `https://user:pass@localhost:2379/prefix?timeout=5`, в структуру
 `connect.URIOpts`: эндпоинт, префикс, учётные данные, SSL-файлы и таймаут
-(по умолчанию 3 секунды). Функция предназначена для хранилищ конфигурации
-etcd и Tarantool, но не для URI iproto, у которых схемы нет;
-`connect.MakeURLHelp` формирует текст справки для такого аргумента с URL.
-Кластерная конфигурация из хранилища считывается через
-`Services.ClusterConfig` с источником `sdk.StorageSource`, который берёт
-учётные данные сначала из URI, затем из `sdk.Credentials`, затем из
+(по умолчанию 3 секунды). Она предназначена для хранилищ конфигураций etcd и
+Tarantool, а не для URI iproto, у которых нет схемы;
+`connect.MakeURLHelp` формирует справку для такого аргумента-URL.
+Кластерная конфигурация из хранилища читается методом
+`Services.ClusterConfig` для `sdk.StorageSource`, который берёт учётные
+данные сначала из URI, затем из `sdk.Credentials`, а после из
 `TT_CLI_ETCD_USERNAME` и `TT_CLI_ETCD_PASSWORD` (либо `TT_CLI_USERNAME` и
-`TT_CLI_PASSWORD` для хранилища конфигурации Tarantool).
+`TT_CLI_PASSWORD` для хранилища конфигураций Tarantool).
 
 ## Коды завершения и подтверждения {#exit-codes-and-confirmations}
 
@@ -587,26 +591,280 @@ func newSnapshotCmd(services sdk.Services) *cobra.Command {
 }
 ```
 
-tt завершается с кодом ошибки, которую возвращает команда (см.
-[Коды завершения](../reference/commands/errors.md)): 1 (`sdk.ExitFailure`)
-при любой ошибке, 2 (`sdk.ExitSystem`) при системном сбое, 3
-(`sdk.ExitPartial`) для операции, завершившейся успешно только на части
-целей. Код задаётся через `sdk.WithCode` и `sdk.Errorf`; код 1 никогда не
-перекрывает более специфический код глубже в цепочке. Кроме того, tt
-завершается с кодом 2 при сетевых ошибках, нехватке прав или места даже без
-явного кода; в примере код всё равно выставляется явно, чтобы его видели
-тесты.
+tt завершается с кодом ошибки, которую вернула команда (см.
+[Exit codes](../reference/commands/errors.md)): 1 (`sdk.ExitFailure`) при
+любой ошибке, 2 (`sdk.ExitSystem`) при системном сбое, 3 (`sdk.ExitPartial`)
+для операций, завершившихся успешно лишь на части целей. Код задаётся
+функциями `sdk.WithCode` и `sdk.Errorf`; код 1 никогда не перекрывает более
+специфичный код глубже по цепочке. tt также завершается с кодом 2 при
+ошибках сети, нехватке прав или места на диске даже без явно заданного кода;
+в примере код задаётся явно, чтобы его видели тесты.
 
-`Services.Confirm` задаёт вопрос "да/нет" в stderr и читает ответ из
-stdin. При флаге `tt --no-prompt` метод ничего не спрашивает и возвращает
-значение по умолчанию, поэтому значением по умолчанию выбирают безопасный
-ответ. Флаг вроде `--force` позволяет скриптам продолжать работу без
-вопросов.
+`Services.Confirm` задаёт вопрос, требующий ответа да или нет, в stderr и
+читает ответ из stdin. При запуске с `tt --no-prompt` он ничего не спрашивает
+и сразу возвращает значение по умолчанию, поэтому значением по умолчанию
+выбирают безопасный вариант. Флаг вроде `--force` позволяет скриптам
+выполнять действие без остановок.
 
-`Services.Exit` выводит сообщение об ошибке и завершает tt с соответствующим
-кодом; это нужно для кода, который не может вернуть ошибку напрямую,
-например для колбэков библиотек. Команда, способная вернуть ошибку, должна
-её возвращать.
+`Services.Exit` сообщает об ошибке и завершает tt с соответствующим кодом:
+это полезно для кода, который не может вернуть ошибку напрямую, например для
+функций обратного вызова в сторонних библиотеках. Команда, способная вернуть
+ошибку штатным образом, обязана её возвращать.
+
+## Работа с проектом {#work-on-the-project}
+
+`Services.Project` предоставляет проект, с которым работает команда, под
+управлением тех же механизмов, что и команды группы `tt package`. `Dir` -
+каталог запуска команды, а `Root` - проект, в котором она находится,
+найденный по тем же правилам, что и командами tt для проектов: ближайший
+каталог от `Dir` вверх с файлом `app.manifest.toml` или шаблоном инстанса,
+либо сам `Dir`, если ничего не найдено. Если проект расположен выше `Dir`,
+tt один раз сообщает в stderr, с каким проектом выполняется работа.
+Остальные методы оперируют каталогом `Root`.
+
+`scaffold.go` объявляет компонент проверок в манифесте:
+
+```go
+package probe
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/tarantool/tt/sdk"
+)
+
+func newScaffoldCmd(services sdk.Services) *cobra.Command {
+	return &cobra.Command{
+		Use:   "scaffold NAME",
+		Short: "Declare a component of probes in the package",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			project := services.Project()
+
+			// The check, the edit and the resolution are one change of the
+			// project: no other tt is to change it in between.
+			ctx, unlock, err := project.Lock(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			defer unlock()
+
+			manifest, err := project.Manifest()
+			if err != nil {
+				return err
+			}
+
+			if _, ok := manifest.Components[args[0]]; ok {
+				return sdk.Usagef("component %q is declared already", args[0])
+			}
+
+			err = project.AddComponent(ctx, sdk.Component{
+				Name:    args[0],
+				Comment: "Probes, declared by tt probe scaffold.",
+				Path:    args[0],
+				Include: []string{"*.lua"},
+			})
+			if err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintf(services.Streams().IO().Out,
+				"declared component %s\n", args[0])
+
+			_, err = project.Resolve(ctx, sdk.ResolveOptions{})
+
+			return err
+		},
+	}
+}
+```
+
+а `New` добавляет `newScaffoldCmd(services)` в список команд `tt probe`.
+Команда `tt probe scaffold checks` в проекте дописывает в конец файла
+`app.manifest.toml` через пустую строку:
+
+```toml
+# Probes, declared by tt probe scaffold. {#probes-declared-by-tt-probe-scaffold.}
+[components.checks]
+path = "checks"
+include = ["*.lua"]
+```
+
+затем выводит `declared component checks` и заново разрешает
+`app.manifest.lock`, как это делает `tt package resolve`, и всё это - под
+блокировкой проекта.
+
+- `Lock` захватывает блокировку проекта, которую удерживают изменяющие его
+  команды `tt package`, `_build/tt.lock`, и возвращает контекст с этой
+  блокировкой и функцию её снятия. Он ждёт, пока другой процесс tt удерживает
+  блокировку, сообщая об этом пользователю, пока контекст не завершится;
+  Ctrl-C прерывает ожидание. Методы, изменяющие проект - `AddComponent`,
+  `UpdateComponent`, `RemoveComponent`, `Resolve`, `AddDependency`,
+  `RemoveDependency`, `Install`, `Build` и `Clean` - сами захватывают
+  блокировку каждый для себя; если им передан контекст, возвращённый
+  `Lock`, они работают под уже захваченной блокировкой. Команда берёт
+  блокировку на время составного изменения из нескольких шагов, таких как
+  проверка и две правки в `scaffold` или `tt wasm bind`, который сначала
+  записывает собственные файлы, а затем выполняет сборку. Метод, которому
+  передан другой контекст, пока команда удерживает блокировку, будет ждать
+  её освобождения бесконечно, и то же самое произойдёт в другой горутине, как
+  если бы это был отдельный процесс tt: контекст необходимо передавать
+  дальше. Процесс tt, запускаемый командой для этого проекта, работает под её
+  блокировкой, путь к которой tt передаёт в `TT_PROJECT_LOCK`. Методы
+  `Manifest`, `ReadLock` и `BuildContext` выполняют только чтение и
+  блокировку не захватывают.
+- `Manifest` возвращает содержимое манифеста в точности как оно написано:
+  имя пакета, зависимости и зависимости для разработки, каждая со своей
+  версией, реестром и путем, а также компоненты, каждый со своим путем,
+  `include`, `exclude`, пространством имён и блоком сборки: `backend`, `cwd`,
+  `env`, `output`, `incremental`, `static`, а в `Fields` - поля backend'а в
+  том виде, как их прочитал декодер TOML. Метод
+  `ManifestBuild.Decode(backend)` декодирует их в структуру конфигурации
+  backend'а модуля с помощью декодера ядра; поле, для которого нет места в
+  структуре, приводит к ошибке: команда читает блок, собираемый её
+  backend'ом, точно так же, как его читает `tt package build`. Манифест
+  только разбирается, но не валидируется; отсутствие манифеста в проекте
+  вызывает ошибку, оборачивающую `sdk.ErrNotFound`.
+- `AddComponent` добавляет компонент - его комментарий, `path`, `include`
+  и блок сборки `sdk.ComponentBuild`, чьи `Backend` и `Fields` записываются в
+  исходном порядке (значением поля может быть строка, bool, целое число, их
+  срез или отображение, например `output = "dist/calc.wasm"` или
+  `env = { PROFILE = "release" }`) - после остального содержимого манифеста,
+  сохраняя все существующие строки и комментарии. Сформированный манифест
+  перед записью проверяется точно так же, как его проверяет
+  `tt package build`, с использованием backend'ов этого экземпляра tt: если
+  имя уже объявлено, проверка отклоняет компонент, а в проекте без
+  манифеста запись не выполняется. `UpdateComponent` изменяет поля
+  компонента или его блока сборки по месту их записи, добавляет
+  отсутствующие поля и удаляет указанные в `Remove`; `RemoveComponent`
+  удаляет компонент, его таблицы и объявляющие его ключи. Ни один из этих
+  трёх методов не обновляет локфайл и не требует наличия Tarantool: локфайл
+  после них остаётся устаревшим до вызова `Resolve` или следующего
+  `tt package build`. Поле, записанное внутри инлайн-таблицы, например
+  `build = { backend = "make" }`, не редактируется: текст ошибки называет
+  это поле.
+- `Resolve` разрешает зависимости по манифесту и обновляет локфайл, как это
+  делает `tt package resolve`, сохраняя все уже зафиксированные версии; при
+  отсутствии Tarantool процесс разрешения работает точно так же, как
+  `tt package build` без него. `ReadLock` возвращает зафиксированные в
+  локфайле версии по каждому продукту и признак его актуальности, ничего не
+  разрешая заново.
+- `AddDependency` объявляет rock в секции `[dependencies]` или, при флаге
+  `Dev`, в `[dev_dependencies]`, аналогично команде `tt package add`:
+  запись получает указанное ограничение версии и реестр (если он задан), а
+  результат изменений сообщает прежние значения. Команда, сохраняющая
+  написанную кем-то декларацию, сначала читает `Manifest` и вместо этого
+  вызывает `Resolve`, как делает `tt wasm prepare`. `RemoveDependency`
+  удаляет зависимость, как `tt package remove`, а `Install` заполняет
+  каталог `.rocks/` по локфайлу, как `tt package fetch`. Они и метод
+  `Resolve` принимают серверы пакетов rock, которые задаются флагом
+  `--registry` команды: модуль объявляет этот флаг самостоятельно со справкой
+  из `tt package`, доступной через `sdk.RegistryFlagUsage`. Описание
+  изменений перечисляет пакеты rock, чья зафиксированная версия изменилась;
+  структура `sdk.DependencyMove` форматируется так же, как её выводит
+  `tt package`: `name 1.0.0-1`, `name 1.0.0-1 -> 1.1.0-1` или
+  `name 1.0.0-1 -> (dropped)`.
+- `Build` собирает пакет или указанные в `Components` компоненты кодом
+  `tt package build`: вызов `Build(ctx, sdk.BuildOptions{Components:
+  []string{"calc"}})` эквивалентен выполнению команды
+  `tt package build calc` вместе с её хуками, блокировкой, раскладкой файлов
+  и проверками. Аргументы из `Args` пробрасываются в сборку этого
+  единственного компонента через `Context.Args` для используемого им
+  инструмента. Результат сообщает, что именно создал каждый компонент, по
+  типам артефактов, куда это было установлено в `.rocks`, и была ли
+  инкрементальная сборка актуальной. `BuildContext` возвращает
+  `build.Context`, в котором выполняется сборка компонента, и результат,
+  который его backend формирует по блоку сборки, ничего не собирая: команда
+  модуля backend'а запускает свои инструменты в том же окружении, какое
+  предоставляется процессу сборки.
+- `Clean` удаляет результаты сборки, аналогично `tt package clean`: вызов
+  `Clean(ctx, sdk.CleanOptions{Components: []string{"calc"}})`
+  эквивалентен `tt package clean calc`, запуская метод `Clean` backend'а
+  компонента `calc` ([build.Cleaner](write-a-build-backend.md#clean)) и
+  удаляя его дерево сборки, записи о сборке, файлы в каталоге stage и rock
+  пакета, чтобы следующий `Build` собрал его заново, даже если сборка была
+  инкрементальной и файлы не менялись. Результат содержит удалённые пути и
+  компоненты, чей backend выполнил очистку. Флаг `DryRun` отключает
+  фактическое удаление. Команда `tt wasm clean ИМЯ` удаляет записанные
+  модулем файлы, а затем под той же блокировкой `Lock` очищает связанное с
+  компонентом состояние ядра.
+- `ScopeDir` возвращает каталог `.tarantool` проекта - область установки
+  (scope) проекта, куда устанавливает файлы команда `tt binary`; его подкаталог
+  `bin/` идёт первым в переменной `PATH` процесса сборки
+  (`build.Dirs.Tools`). Это не место хранения служебного состояния сборки,
+  которое располагается в `_build/` (`build.Dirs.State`). Метод
+  `PrepareEnvironment` создаёт скрипты `.env/activate.sh` и `deactivate.sh`,
+  если они отсутствуют, аналогично первой установке через
+  `tt binary install` в проект - это полезно модулям, устанавливающим туда
+  свои инструменты.
+
+Метод `Services.Rocks().Index` превращает переданный каталог в rock-сервер
+находящихся в нём пакетов rock: он создаёт манифесты LuaRocks и
+`tt-rocks-index.json` так же, как `tt package index`. Модуль, упаковывающий
+пакеты rock для других, раздаёт их таким способом. Программы и исполняемые
+инструменты, которые записывает модуль (например, распакованные из архива),
+создаются через пакет `github.com/tarantool/tt/sdk/execfile`: он записывает
+файл без промежуточного fork процесса tt, чтобы его можно было сразу же
+запустить параллельно со стартом других процессов.
+
+В тестах проект из `sdktest` не обращается к файловой системе: его манифест
+задаётся через `sdktest.WithManifest`, метод `AddComponent` добавляет записи
+в него, `AddedComponents` возвращает переданные компоненты, `Resolves` -
+вызовы `Resolve`, а `Locks` - количество взятых блокировок `Lock` и число
+ещё не освобождённых; его `Lock` ничего не ждёт, а `Clean` фиксирует свои
+вызовы (`Cleans`) и отвечает в соответствии с настройкой
+`sdktest.WithClean`:
+
+```go
+func TestScaffold(t *testing.T) {
+	services := sdktest.New(t, sdktest.WithManifest(sdk.Manifest{
+		Components: map[string]sdk.ManifestComponent{"lua": {Path: "."}},
+	}))
+
+	got := services.Run(probe.New, "probe", "scaffold", "checks")
+
+	require.NoError(t, got.Err)
+	assert.Equal(t, "declared component checks\n", got.Stdout)
+	require.Len(t, services.AddedComponents(), 1)
+	assert.Equal(t, "checks", services.AddedComponents()[0].Path)
+	assert.Len(t, services.Resolves(), 1)
+
+	taken, held := services.Locks()
+	assert.Equal(t, 1, taken)
+	assert.Zero(t, held, "released")
+
+	again := sdktest.New(t, sdktest.WithManifest(sdk.Manifest{
+		Components: map[string]sdk.ManifestComponent{"checks": {Path: "checks"}},
+	}))
+
+	got = again.Run(probe.New, "probe", "scaffold", "checks")
+
+	var usage *sdk.UsageError
+	require.ErrorAs(t, got.Err, &usage)
+	assert.Empty(t, again.AddedComponents())
+}
+```
+
+## Предоставление backend'а сборки {#provide-a-build-backend}
+
+Модуль также может собирать компоненты пакета tt: компонент, в блоке сборки
+которого указано `backend = "template"`, собирается backend'ом с именем
+`template`, предоставляемым модулем - реализацией `build.Backend` из пакета
+`github.com/tarantool/tt/sdk/build` среди `Backends` его структуры
+`sdk.Module`. Модуль может также проверять файлы любого пакета, собираемого
+tt, независимо от создавшего их backend'а, через `build.FileCheck` в списке
+`FileChecks`. Собственные backend'ы tt тоже оформлены как модуль -
+стандартный модуль `build` в каталоге `modules/build` репозитория tt; у
+самого ядра собственных backend'ов нет.
+
+В руководстве [Write a build backend](write-a-build-backend.md) такой модуль
+пишется с нуля: поля блока сборки и их проверка, процесс сборки и его
+каталоги, типы создаваемых артефактов, инкрементальная сборка, проверки
+файлов, тесты с помощью `sdk/build/buildtest` и ограничения, накладываемые
+ядром.
 
 ## Тестирование модуля {#test-it}
 
@@ -722,17 +980,21 @@ func TestSnapshotNoPrompt(t *testing.T) {
 }
 ```
 
-`sdktest.Run` монтирует команды конструктора в корень, как это делает
-ядро, и запускает командную строку; `sdktest.New` сначала принимает
-параметры: `WithClusterConfig` задаёт источнику кластерную конфигурацию
-(любой другой источник вернёт ошибку ненахождения), `WithAnswers` задаёт
-ответы `Confirm`, `WithNoPrompt` заставляет `Confirm` возвращать fallback, а
-`WithTarantool`, `WithProject`, `WithStdin` и `WithIntegrity` настраивают
-остальные сервисы. `Result` содержит ошибку, stdout, stderr и записи лога;
-`ExitCode` возвращает код, присвоенный ошибке SDK, без применения правил
-ядра относительно сети и прав доступа. Принтеры sdktest сериализуют `json`,
-но не `yaml` (его сериализует ядро). Точка монтирования, которую отвергло бы
-ядро, приводит к провалу теста.
+`sdktest.Run` монтирует команды конструктора в корень, как это делает ядро,
+и выполняет команду; `sdktest.New` сначала принимает параметры:
+`WithClusterConfig` задаёт источнику кластерную конфигурацию (любая другая
+считается ненайденной), `WithAnswers` задаёт ответы для `Confirm`,
+`WithNoPrompt` настраивает `Confirm` на возвращение значения по умолчанию,
+а `WithTarantool`, `WithProject`, `WithStdin` и `WithIntegrity` задают
+остальные сервисы; `WithRoot`, `WithManifest` и `WithNoManifest` задают
+проект ([Работа с проектом](#work-on-the-project)). Структура `Result`
+содержит ошибку, stdout, stderr и записи лога; `ExitCode` возвращает код,
+который SDK присваивает ошибке без применения сетевых и связанных с правами
+правил ядра. Подключение, которое отклонило бы ядро, приводит к провалу
+теста. Для модуля с `sdk.ModuleConstructor` функции `sdktest.RunModule` и
+`services.RunModule` выполняют команды возвращаемого им `sdk.Module`, а
+также валят тест при обнаружении backend'а или проверки файлов, которые ядро
+отклонило бы при старте tt.
 
 ```console
 $ go mod tidy
@@ -742,7 +1004,7 @@ ok  	example.com/tt-probe	0.031s
 
 ## Встраивание в tt {#build-it-into-tt}
 
-Рядом с модулем создаётся `dist/tt.manifest.toml`:
+Рядом с модулем создаётся файл `dist/tt.manifest.toml`:
 
 ```toml
 manifest_version = "0.1"
@@ -750,6 +1012,9 @@ manifest_kind = "tt-distribution"
 
 [core]
 tt = "v3.0.0-alpha.2"
+
+[distribution]
+standard = false   # the core of v3.0.0-alpha.2 lists no standard modules
 
 [dependencies]
 probe = "../tt-probe"
@@ -773,51 +1038,204 @@ $ echo $?
 2
 ```
 
-Имя в секции `[dependencies]` становится именем модуля в tt: в выводе `tt
-version --modules`, в записях его логов и в ошибках, связанных с его
-командами. Файлы `tt.manifest.lock` и `tt.manifest.sum`, созданные при
-сборке, коммитят в репозиторий. После публикации модуля манифест ссылается
-на него по пути к модулю и версии: `probe =
-"example.com/tt-probe@v0.1.0"`. Все поля манифеста описаны в
-[tt.manifest.toml](../reference/tt-manifest.md).
+Имя в секции `[dependencies]` становится именем модуля в tt: в выводе
+`tt version --modules`, в записях лога и в ошибках, относящихся к его
+командам. Создаваемые сборкой файлы `tt.manifest.lock` и `tt.manifest.sum`
+сохраняют в git. После публикации модуля манифест указывает его путь и
+версию: `probe = "example.com/tt-probe@v0.1.0"`. Все поля манифеста описаны
+в [tt.manifest.toml](../reference/tt-manifest.md).
+
+## Совместная разработка с ядром {#develop-together-with-the-core}
+
+Для изменения в модуле может потребоваться изменение в SDK или ядре,
+которого ещё нет ни в одном доступном коммите tt. Оба изменения можно
+внести в локальный чекаут tt рядом с модулем, `../tt`, и сгенерировать с
+помощью tt файл workspace Go, собирающий модуль на этом чекауте:
+
+```console
+$ cd dist
+$ tt binary workspace --core ../tt
+/home/me/src/tt-probe/go.work
+```
+
+`tt binary workspace` читает `tt.manifest.toml` так же, как
+`tt binary build tt`, используя ядро из параметра `--core` или из
+`[core].path`, если в манифесте указан локальный чекаут. Сформированный
+`go.work` подключает каждый модуль из секции `[dependencies]`, заданный
+через путь, и подменяет директивами `replace` ядро и все модули Go из его
+репозитория (каждый `go.mod` внутри `sdk/` и стандартные модули) на их
+каталоги в чекауте без указания версий. После этого Go игнорирует версии,
+прописанные в `go.mod` модуля, включая ещё не отправленный коммит:
+
+```text
+// Written by tt binary workspace: the local modules of the distribution
+// ../dist/tt.manifest.toml on the SDK of the core ../tt,
+// whatever their go.mod requires. tt binary workspace --remove deletes it.
+// Keep it out of git.
+
+go 1.27.4
+
+use (
+	.
+)
+
+replace (
+	github.com/tarantool/tt/modules/aeon => ../tt/modules/aeon
+	github.com/tarantool/tt/modules/build => ../tt/modules/build
+	github.com/tarantool/tt/modules/emmylua => ../tt/modules/emmylua
+	github.com/tarantool/tt/modules/wasm => ../tt/modules/wasm
+	github.com/tarantool/tt/sdk => ../tt/sdk
+	github.com/tarantool/tt/sdk/backup => ../tt/sdk/backup
+	github.com/tarantool/tt/sdk/build => ../tt/sdk/build
+	github.com/tarantool/tt/sdk/cluster => ../tt/sdk/cluster
+	github.com/tarantool/tt/sdk/connect => ../tt/sdk/connect
+	github.com/tarantool/tt/sdk/dial => ../tt/sdk/dial
+	github.com/tarantool/tt/sdk/fetch => ../tt/sdk/fetch
+	github.com/tarantool/tt/sdk/integrity => ../tt/sdk/integrity
+	github.com/tarantool/tt/sdk/tuple => ../tt/sdk/tuple
+	github.com/tarantool/tt/v3 => ../tt
+)
+```
+
+Команда `go` ищет файл `go.work` вверх от текущего каталога, поэтому tt
+создаёт его там, где `go test` в каждом локальном модуле сможет его найти:
+рядом с манифестом для модулей из его каталога (модуль, в репозитории
+которого `tt.manifest.toml` лежит в корне с `path = "."`, либо дистрибутив с
+модулями в подкаталогах) и в каталоге каждого остального модуля, как у
+`tt-probe` здесь. Каждый такой файл использует все локальные модули
+дистрибутива. Директива `go` берётся самой новой среди всех их файлов
+`go.mod`; каталоги из секции `[replace]` манифеста также подменяются. Команда
+`tt binary workspace` выводит пути созданных файлов, а с флагом `--dry-run`
+показывает, что было бы записано.
+
+Цикл разработки выглядит следующим образом:
+
+1. Внести изменения в ядро в `../tt`: например, добавить функцию в `sdk`.
+2. Использовать её в коде модуля и запустить `go test ./...` в `tt-probe`:
+   модуль собирается на базе SDK из `../tt`.
+3. Собрать дистрибутив на том же чекауте: выполнить
+   `tt binary build tt --core ../tt` в каталоге `dist` (см.
+   [Сборка на другом ядре](build-distribution.md#building-on-another-core)).
+   Сборка не читает `go.work`: она выполняется с `GOWORK=off` на ядре,
+   заданном в `--core`, а хэш содержимого локального модуля исключает
+   `go.work` и `go.work.sum`, поэтому создание workspace не меняет локфайл.
+4. После того как изменения ядра отправлены в репозиторий в коммите `<commit>`,
+   удалить workspace и подключить SDK по этому коммиту, как описано в разделе
+   [Настройка модуля Go](#set-up-the-go-module); собрать на нём
+   дистрибутив с `[core] tt = "<commit>"`:
+
+```console
+$ cd ../dist
+$ tt binary workspace --remove
+/home/me/src/tt-probe/go.work
+$ cd ../tt-probe
+$ go get github.com/tarantool/tt/sdk@<commit> \
+    github.com/tarantool/tt/sdk/build@<commit> \
+    github.com/tarantool/tt/sdk/connect@<commit> \
+    github.com/tarantool/tt/sdk/dial@<commit>
+$ go mod tidy
+$ go test ./...
+ok  	example.com/tt-probe	0.005s
+```
+
+Параметр `--remove` удаляет файлы `go.work`, созданные tt, и связанные с ними
+`go.work.sum`; чекаут для этого не требуется, а в манифесте снова можно
+указать версию ядра. Файл `go.work`, созданный tt, перезаписывается им же;
+чужой файл (без первой строки-комментария tt) перезаписывается только с
+параметром `--force` и никогда не удаляется. В дистрибутиве для разработки
+можно указать чекаут прямо в манифесте, `[core] path = "../tt"`, и тогда
+обеим командам не потребуется передавать `--core`.
+
+Если модуль начинает импортировать модуль SDK, который не указан в его
+`go.mod` (например, добавленный изменением в ядре), его требуется добавить в
+зависимости, однако `go get` пытается найти версию в сети даже при наличии
+workspace, что до публикации коммита приведёт к ошибке. До отправки коммита
+добавьте зависимость на плейсхолдер вручную:
+
+```sh
+go mod edit -require=github.com/tarantool/tt/sdk/build@v0.0.0-0
+```
+
+Команда `go get` на шаге 4 подставит на его место настоящий коммит.
+
+`gopls` и построенные на нём редакторы подхватывают workspace, найденный
+командой `go`: команда `go env GOWORK` в каталоге модуля выводит путь к нему;
+после создания или удаления файла перезапустите языковой сервер. Файлы
+`go.work` и `go.work.sum` не сохраняют в git, добавляя их в `.gitignore`
+модуля: они содержат пути каталогов конкретной машины, а команда
+`go mod tidy` всё равно их игнорирует.
+
+Без tt такой же workspace создаётся командой `go` с отдельной директивой
+`-replace` для каждого модуля из чекаута: каждого `go.mod` внутри `sdk/` и
+модулей, которые `go.mod` самого tt подменяет каталогами. Список растёт
+вместе с SDK; `tt binary workspace` читает его напрямую из чекаута.
+
+```sh
+cd tt-probe
+go work init .
+go work edit \
+    -replace github.com/tarantool/tt/v3=../tt \
+    -replace github.com/tarantool/tt/modules/aeon=../tt/modules/aeon \
+    -replace github.com/tarantool/tt/modules/build=../tt/modules/build \
+    -replace github.com/tarantool/tt/modules/emmylua=../tt/modules/emmylua \
+    -replace github.com/tarantool/tt/modules/wasm=../tt/modules/wasm \
+    -replace github.com/tarantool/tt/sdk=../tt/sdk \
+    -replace github.com/tarantool/tt/sdk/backup=../tt/sdk/backup \
+    -replace github.com/tarantool/tt/sdk/build=../tt/sdk/build \
+    -replace github.com/tarantool/tt/sdk/cluster=../tt/sdk/cluster \
+    -replace github.com/tarantool/tt/sdk/connect=../tt/sdk/connect \
+    -replace github.com/tarantool/tt/sdk/dial=../tt/sdk/dial \
+    -replace github.com/tarantool/tt/sdk/fetch=../tt/sdk/fetch \
+    -replace github.com/tarantool/tt/sdk/integrity=../tt/sdk/integrity \
+    -replace github.com/tarantool/tt/sdk/tuple=../tt/sdk/tuple
+```
+
+Команда `go work use ../tt/sdk ...` вместо подмен работает только до тех
+пор, пока `go.mod` модуля требует SDK на коммите, который Go может скачать:
+команда `go` по-прежнему читает `go.mod` каждой версии, от которой зависит
+используемый модуль, а коммит, ещё не отправленный в репозиторий, вызывает
+ошибку `invalid version: unknown revision`. Подмена без версии ничего не
+скачивает и не читает.
 
 ## Что отклоняет ядро {#what-the-core-refuses}
 
-tt монтирует команды всех модулей до выполнения любой из них и отклоняет те,
-которые его дерево команд не может принять, указывая имя модуля; после этого
-бинарный файл завершается с ошибкой при любом запуске.
+tt монтирует команды всех модулей до запуска какой-либо из них и отклоняет
+команды, которые дерево не может принять, называя модуль; после этого
+бинарный файл завершается с ошибкой на любой командной строке.
 
-- Флаги: команда модуля не может объявлять флаги `-h`/`--help`,
-  `-C`/`--directory`, флаги корня (`-I`/`--internal`, `-V`/`--verbose`,
-  `--log-format`, `--no-prompt`, а в дистрибутиве с проверкой целостности
+- Флаги: команда модуля не может объявлять `-h`/`--help`, `-C`/`--directory`,
+  флаги корневой команды (`-I`/`--internal`, `-V`/`--verbose`,
+  `--log-format`, `--no-prompt`, а в дистрибутиве с проверкой целостности -
   также `--integrity-check` и `--integrity-check-period`), а также
-  персистентный флаг группы, под которую она смонтирована, - ни по полному
-  имени, ни по короткой форме. Короткая форма флага, использованная дважды
-  внутри команд одного модуля, также отклоняется.
-- Имена: команда, чьё имя или алиас уже заняты рядом с ней, отклоняется:
-  дубликат - при совпадении имён, неоднозначность - при пересечении имени и
-  алиаса. Точно так же отклоняются `help`, `__complete` и
-  `__completeNoDesc` в корне. Команда в корне, названная так же, как одна из
-  собственных команд tt, считается дубликатом: чтобы заменить команду tt,
-  дистрибутив собирают с `builtin = false` либо используют внешний модуль.
-- Пути: путь монтирования задаёт команды по их именам, а не по алиасам, и не
-  может вести под исполняемую команду другого модуля. Группа, не являющаяся
-  самостоятельной командой, считается общей: любой модуль может
-  монтироваться под неё.
+  persistent-флаги группы, под которую она смонтирована, как по имени, так и
+  по короткому варианту. Короткий флаг, использованный дважды внутри команд
+  одного модуля, также отклоняется.
+- Имена: команда, чьё имя или псевдоним уже заняты рядом с ней, отклоняется -
+  как дубликат при совпадении имён, либо как неоднозначность при совпадении
+  имени с псевдонимом; аналогично отклоняются команды `help`, `__complete` и
+  `__completeNoDesc` в корне. Команда с именем, совпадающим со встроенной
+  командой tt в корне, считается дубликатом: чтобы заменить встроенную
+  команду tt, собирают дистрибутив с параметром `builtin = false` либо
+  используют внешний модуль.
+- Пути: путь монтирования указывает команды по их именам, а не псевдонимам,
+  и не может вести под исполняемую команду другого модуля. Группа, не
+  являющаяся отдельной командой, считается общей: любой модуль может
+  монтировать команды под неё.
 
 Как выполняются команды:
 
-- Флаги корня указываются до команды: `tt -V probe ping ...`, а не `tt probe
-  ping -V`, где `-V` считается неизвестным флагом. Команды модуля не видят
-  флаги `-V` или `--no-prompt`; они видят их результаты через `Log` и
-  `Confirm`.
-- Неперсистентный флаг группы разбирается только между группой и
-  подкомандой, `tt probe --flag ping`, поскольку корень tt обходит группы;
-  корень sdktest этого не делает. Флаг, общий для подкоманд, должен быть
-  персистентным флагом группы.
+- Корневые флаги указываются до команды: `tt -V probe ping ...`, а не
+  `tt probe ping -V`, где `-V` считается неизвестным флагом. Команды модуля
+  не видят `-V` или `--no-prompt` напрямую; они видят результат их действия
+  через сервисы `Log` и `Confirm`.
+- Не-persistent флаг группы разбирается только между группой и подкомандой,
+  например `tt probe --flag ping`, поскольку корень tt обходит группы
+  дерева команд, тогда как корень sdktest этого не делает. Флаг, общий для
+  всех подкоманд, должен объявляться среди persistent-флагов группы.
 - Ядро оборачивает хуки `PersistentPreRunE`, `PreRunE`, `RunE`, `PostRunE` и
-  `PersistentPostRunE`, выводя возвращаемые ими ошибки. Хуки без буквы `E`
-  ничего не возвращают.
+  `PersistentPostRunE`, чтобы выводить возвращаемые ими ошибки. Хуки без
+  суффикса `E` ничего для вывода не возвращают.
 - `Services.Project().Dir()` возвращает рабочий каталог, в котором запущен
   tt. Модуль не может объявлять флаг `-C`; только команда, смонтированная
-  под `tt package`, наследует его `-C` и получает этот каталог.
+  под `tt package`, наследует его `-C` и получает этот каталог, который для
+  неё становится также и `Root`.

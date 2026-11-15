@@ -1,58 +1,75 @@
-# Переход с предыдущих версий
+# Переход с предыдущих версий {#переход-с-предыдущих-версий}
 
-На этой странице описано, как перевести существующие проекты на новую версию `tt`, и перечислены
-несовместимые изменения.
+На этой странице описано, как перевести существующие проекты на более новую
+версию `tt`, и перечислены несовместимые изменения.
 
-## Содержание {#contents}
+## Содержание {#содержание}
 
-- [2.x -> 3.0.0](#2x---300)
-- [1.3.1 -> 2.0.0](#131---200)
+- [2.x -> 3.0.0](#2.x---3.0.0)
+- [1.3.1 -> 2.0.0](#1.3.1---2.0.0)
 
-## 2.x -> 3.0.0 {#2x---300}
+## 2.x -> 3.0.0 {#2.x---3.0.0}
 
 Главные отличия `tt` 3.0 от `tt` 2.x:
 
-- **Нет окружения tt и файла `tt.yaml`.** Приложение стало [проектом](concepts/projects-and-scopes.md),
-  а бинарные файлы и установленные приложения хранятся в [областях установки (scope)](concepts/projects-and-scopes.md) – проекта,
-  пользователя или системы.
-- **Команды объединены в группы:** `tt instance`, `tt binary`, `tt package`, `tt data` и другие.
-- **Поддерживается только Tarantool 3.** Cartridge и раскладка tarantoolctl больше не поддерживаются.
+- **Нет окружения tt и файла `tt.yaml`.** Приложение теперь является
+  [проектом](concepts/projects-and-scopes.md). Бинарные файлы и установленные
+  приложения живут в
+  [областях установки (scope)](concepts/projects-and-scopes.md):
+  проекта, пользователя или системы.
+- **Команды сгруппированы:** `tt instance`, `tt binary`, `tt package`, `tt data`
+  и другие.
+- **Поддерживается только Tarantool 3.** Cartridge и раскладка tarantoolctl
+  больше не поддерживаются.
 
-Краткий план перехода:
+Чек-лист по переходу:
 
-1. [Преобразуйте окружение tt в проекты](#ttyaml-is-not-read) – по одному на каждое приложение.
-2. Замените в скриптах команды `tt` 2.x на новые: [работа с экземплярами](#the-instance-commands-are-under-tt-instance),
-   [цели команд](#a-target-names-an-instance), [бинарные файлы](#binaries-are-managed-by-tt-binary),
-   [сборка и упаковка](#tt-pack-tt-build-and-tt-init-are-replaced-by-tt-package).
-3. Если приложения работают под systemd, [создайте юниты заново](#systemd-units-come-from-tt-service-systemd).
-4. Проверьте, как скрипты обрабатывают [коды завершения](#exit-codes) и [подтверждения](#tt-cluster-publish-asks-for-a-confirmation).
+1. [Преобразуйте окружение tt в проекты](#tt.yaml-не-читается) - по одному на
+   приложение.
+2. Замените команды tt 2.x в скриптах:
+   [команды для инстансов](#команды-инстансов-находятся-под-tt-instance),
+   [цели](#цель-задает-инстанс),
+   [бинарные файлы](#управление-бинарными-файлами-через-tt-binary), а также
+   [сборку и упаковку](#tt-pack-tt-build-и-tt-init-заменены-на-tt-package).
+3. Если приложения работают под systemd,
+   [пересоздайте их юниты](#юниты-systemd-создаются-через-tt-service-systemd).
+4. Проверьте, как скрипты обрабатывают [коды завершения](#коды-завершения) и
+   [запросы подтверждения](#tt-cluster-publish-запрашивает-подтверждение).
 
-Сначала описаны изменения, которые касаются большинства пользователей, в конце — те, что нужны в редких случаях.
+Разделы ниже начинаются с изменений, затрагивающих большинство пользователей,
+за которыми следуют более редкие случаи.
 
-### Файл `tt.yaml` больше не читается {#ttyaml-is-not-read}
+### tt.yaml не читается {#tt.yaml-не-читается}
 
-`tt` 3.0 не читает `tt.yaml` – ни файл окружения, ни системный `/etc/tarantool/tt.yaml`. Вместе с ним удалены:
+`tt` 3.0 не читает `tt.yaml`: ни файл окружения, ни системный
+`/etc/tarantool/tt.yaml`. Также удалены:
 
-- флаги `-S` (`--system`), `-L` (`--local`), `-c` (`--cfg`) и `-s` (`--self`) команды `tt`;
-- переменные окружения `TT_CLI_CFG` и `TT_SYSTEM_CONFIG_DIR`;
-- флаг `-c` (`--config`) команд `tt backup start` и `tt backup finalize`. Он задавал `tt.yaml`, по которому
-  находилась цель `<APP>:<INSTANCE>`. Теперь приложение находится по флагам `--scope` и `--template`;
-- команды `tt cfg` и `tt env`.
+- Флаги `-S` (`--system`), `-L` (`--local`), `-c` (`--cfg`) и `-s` (`--self`)
+  у `tt`.
+- Переменные окружения `TT_CLI_CFG` и `TT_SYSTEM_CONFIG_DIR`.
+- Флаг `-c` (`--config`) у `tt backup start` и `tt backup finalize`. Он
+  выбирал `tt.yaml`, использовавшийся для разрешения цели `<APP>:<INSTANCE>`.
+  Вместо этого для поиска приложения используйте `--scope` и `--template`.
+- Команды `tt cfg` и `tt env`.
 
-`tt` больше не передаёт управление `tt` из каталога `bin_dir`. Чтобы использовать `tt` проекта, выполните
-`source .env/activate.sh` – скрипт добавит его в `PATH`.
+`tt` больше не делегирует вызовы бинарному файлу `tt` в `bin_dir`. Чтобы
+использовать `tt` проекта, выполните `source .env/activate.sh` для добавления
+его в `PATH`.
 
-Если команда не находит проект, но находит `tt.yaml`, `tt.yml` или `instances.yml` в текущем или родительском
-каталоге, она сообщает, что это окружение `tt` 2.x, и ссылается на эту страницу.
+Если команда не находит проект, но находит `tt.yaml`, `tt.yml` или
+`instances.yml` в текущем или родительском каталоге, она сообщает об окружении
+tt 2.x и указывает на эту страницу.
 
-#### Как преобразовать окружение в проекты
+#### Преобразование окружения в проекты {#преобразование-окружения-в-проекты}
 
-Вместо приложения в окружении теперь используется проект – каталог, в котором есть `app.manifest.toml`
-(его создаёт `tt new`) или шаблоны экземпляров `.templates/<name>/instances.yaml`. `tt` ищет проект,
-поднимаясь от текущего каталога вверх.
+Проект заменяет собой приложение в окружении tt. Это каталог, содержащий
+`app.manifest.toml` (создаваемый командой `tt new`) или шаблоны инстансов в
+`.templates/<name>/instances.yaml`. tt ищет проект вверх от текущего
+каталога.
 
-Окружение tt с несколькими приложениями в `instances.enabled` превращается в несколько проектов – по одному
-на каждое приложение. Пример окружения `tt` 2.x:
+Окружение tt с несколькими приложениями в `instances.enabled` превращается в
+отдельный проект на каждое приложение. Например, окружение tt 2.x могло
+выглядеть так:
 
 ```text
 <environment>/
@@ -67,44 +84,51 @@
     └── app2 -> ../instances.available/app2
 ```
 
-Остановите экземпляры приложения средствами `tt` 2.x. Затем для каждого приложения:
+Остановите инстансы приложения с помощью tt 2.x. Затем для каждого приложения:
 
-1. Перейдите в настоящий каталог приложения (не в символьную ссылку из `instances.enabled`) и выполните `tt new`.
-   Этот каталог станет каталогом проекта.
+1. Возьмите настоящий каталог приложения, а не симлинк из `instances.enabled`,
+   и выполните там `tt new`. Этот каталог станет каталогом проекта.
 
-   Теперь имя приложения берётся из `[package].name` манифеста, а не из имени каталога или ссылки.
-   `tt new` использует имя каталога, только если оно допустимо для пакета: строчные латинские буквы, цифры
-   и дефисы. Например, для каталога `my_app` выполните `tt new -n my-app` – цели и каталоги данных будут
-   называться `my-app`.
+   Имя приложения теперь берется из `[package].name` манифеста, а не из имени
+   каталога или симлинка. `tt new` использует имя каталога, только если оно
+   является допустимым именем пакета: строчные латинские буквы, цифры и дефисы.
+   Для каталога с именем `my_app` выполните `tt new -n my-app`. В целях и
+   каталогах данных будет использоваться `my-app`.
 
-2. Перенесите описание экземпляров и конфигурацию кластера:
+2. Перенесите описание инстансов и конфигурацию кластера:
 
-   - `instances.yml` → `.templates/default/instances.yaml`;
-   - `config.yaml` → `.templates/default/config.yaml`.
+   + `instances.yml` в `.templates/default/instances.yaml`;
+   + `config.yaml` в `.templates/default/config.yaml`.
 
-   Имена записей сохраняются. Запись без полей, созданная `tt` 2.x, читается без изменений.
-   Экземпляр Tarantool из записи должен входить в топологию конфигурации кластера.
-   Приложению, которое само вызывает `box.cfg`, топология и `config.yaml` не нужны – см.
-   [Приложения на box.cfg](#boxcfg-applications-are-script-records).
+   Имена записей сохраняются. Записи без полей, как их записывал tt 2.x,
+   читаются без изменений. Инстанс Tarantool, указанный в записи, должен быть в
+   топологии кластерной конфигурации. Приложениям, которые сами вызывают
+   `box.cfg`, не нужны ни топология, ни `config.yaml`; см.
+   [Приложения с box.cfg](#приложения-с-box.cfg-оформляются-записями-со-script).
 
-   Политика перезапуска теперь задаётся полем `restart` записи (например, `restart: on-failure`),
-   а не параметром `env.restart_on_failure`.
+   Задайте политику перезапуска в поле `restart` записи, например
+   `restart: on-failure`, вместо `env.restart_on_failure`.
 
-3. Перенесите данные **всех** экземпляров сразу: из `var/lib/<instance>` в `.tarantool/var/lib/<app>/<instance>`.
-   Журналы, pid-файлы и сокеты теперь хранятся в `.tarantool/var/log` и `.tarantool/var/run`.
+3. Перенесите данные **всех** инстансов разом, из `var/lib/<instance>` в
+   `.tarantool/var/lib/<app>/<instance>`. Логи, pid-файлы и сокеты теперь
+   отправляются в `.tarantool/var/log` и `.tarantool/var/run`.
 
-   > **Внимание.** Пока `var/lib` существует, а `.tarantool/var/lib` нет, `tt instance start` не запускает экземпляр
-   > проекта, данные которого должны быть в `.tarantool/var/lib`, – чтобы он не стартовал с пустой базой.
-   > Как только появится `.tarantool/var/lib`, эта проверка отключается: экземпляр, данные которого остались
-   > в `var/lib`, запустится с пустой базой.
+   > **Предупреждение:** Пока `var/lib` существует, а `.tarantool/var/lib` - нет,
+   > `tt instance start` отказывается запускать инстанс проекта, чьи данные
+   > должны были бы пойти в `.tarantool/var/lib`. Это предотвращает его запуск с
+   > пустой базой данных. Как только появляется `.tarantool/var/lib`, эта
+   > проверка выключается: инстанс, чьи данные всё ещё лежат в `var/lib`,
+   > запустится с пустой базой данных.
 
-4. Установите бинарные файлы проекта командой `tt binary install`. Это заменяет параметры `env.bin_dir`
-   и `env.inc_dir`:
+4. Установите бинарные файлы проекта с помощью `tt binary install`. Это
+   заменяет `env.bin_dir` и `env.inc_dir`:
 
-   - версии хранятся в `.tarantool/versions/<product>/<product>_<version>/`;
-   - активные версии связываются с `.tarantool/bin`, заголовочные файлы – с `.tarantool/include/tarantool`.
+   + Версии хранятся в
+     `.tarantool/versions/<product>/<product>_<version>/`.
+   + Активные версии линкуются в `.tarantool/bin`, а их заголовочные файлы - в
+     `.tarantool/include/tarantool`.
 
-   Если бинарных файлов в проекте нет, используется первый `tarantool` из `PATH`.
+   Без бинарных файлов проекта проект использует первый `tarantool` из `PATH`.
 
 5. Удалите `tt.yaml`.
 
@@ -123,362 +147,420 @@
     └── var/
 ```
 
-#### Чем заменить остальные параметры `tt.yaml`
+#### Замена оставшихся настроек tt.yaml {#замена-оставшихся-настроек-tt.yaml}
 
-| `tt.yaml`                                                     | `tt` 3.0                                                                                                                   |
-|---------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `env.instances_enabled`                                       | Нет. Вместо этого – отдельный проект для каждого приложения или приложения, установленные в область установки пользователя или системы |
-| `env.bin_dir`, `env.inc_dir`                                  | Каталоги `bin/` и `include/` области установки, в которые устанавливает `tt binary --scope`                                            |
-| `env.restart_on_failure`                                      | Поле `restart` записи экземпляра                                                                                           |
-| `env.tarantoolctl_layout`                                     | Нет: раскладка tarantoolctl не поддерживается                                                                              |
-| `env.output_history_max`                                      | Аргумент `\history` в консоли `tt connect`, например `\history 15`. Без аргумента – 10                                     |
-| `app.run_dir`, `log_dir`, `wal_dir`, `memtx_dir`, `vinyl_dir` | `<root>/var/{run,log,lib}/<app>/<instance>/` в корневом каталоге области установки. Конфигурация кластера может задавать другие пути   |
-| `modules.directory`                                           | `TT_CLI_MODULES_PATH`, см. [Внешние модули](#external-modules-are-found-by-tt_cli_modules_path)                            |
-| `repo.rocks`                                                  | Rock-серверы `tt registry`, см. ниже                                                                                       |
-| `repo.distfiles`                                              | Флаги `--local-repo DIR` и `--local-dir DIR` команд `tt binary install` и `tt binary search`                               |
-| `ee.credential_path`                                          | Флаг `--credentials-file` команды `tt binary`                                                                              |
-| `templates`                                                   | Путь к собственному шаблону, который передаётся в `tt create`                                                              |
+| `tt.yaml` | `tt` 3.0 |
+| --- | --- |
+| `env.instances_enabled` | Нет: один проект на приложение, либо приложения, установленные в scope пользователя или системы |
+| `env.bin_dir`, `env.inc_dir` | `bin/` и `include/` в scope, выбранном с помощью `tt binary --scope` |
+| `env.restart_on_failure` | Поле `restart` в записи инстанса |
+| `env.tarantoolctl_layout` | Нет: раскладка tarantoolctl не поддерживается |
+| `env.output_history_max` | Аргумент команды `\history` в консоли `tt connect`, например `\history 15`; 10 без аргумента |
+| `app.run_dir`, `log_dir`, `wal_dir`, `memtx_dir`, `vinyl_dir` | `<root>/var/{run,log,lib}/<app>/<instance>/` под корнем scope; кластерная конфигурация может указывать другие пути |
+| `modules.directory` | `TT_CLI_MODULES_PATH`; см. [Внешние модули](#внешние-модули-находятся-по-tt_cli_modules_path) |
+| `repo.rocks` | Rock-серверы, отображаемые командой `tt registry`; см. ниже |
+| `repo.distfiles` | Параметры `--local-repo DIR` и `--local-dir DIR` у `tt binary install` и `tt binary search` |
+| `ee.credential_path` | Флаг `--credentials-file` у `tt binary` |
+| `templates` | Путь к собственному шаблону, передаваемый в `tt create` |
 
-Об изменении `repo.rocks`:
+Поведение `repo.rocks` изменилось:
 
-- В `tt` 2.x `repo.rocks` добавлял rock-сервер, который LuaRocks опрашивал раньше стандартных.
-- В `tt` 3.0 `TT_REGISTRIES` или `[platform].registries` манифеста **заменяют** стандартные серверы – и для
-  `tt package`, и для `tt rocks`.
-- `TT_CLI_REPO_ROCKS` по-прежнему добавляет сервер, который `tt rocks` опрашивает первым.
+- В tt 2.x параметр `repo.rocks` добавлял rock-сервер, который LuaRocks опрашивал
+  до своих серверов по умолчанию.
+- В tt 3.0 переменная `TT_REGISTRIES` или секция манифеста
+  `[platform].registries` **заменяют** серверы по умолчанию как для
+  `tt package`, так и для `tt rocks`.
+- `TT_CLI_REPO_ROCKS` по-прежнему добавляет сервер, который `tt rocks` опрашивает
+  в первую очередь.
 
-Подробнее – в разделе [Rock-серверы](concepts/rock-servers.md).
+См. [Rock-серверы](concepts/rock-servers.md).
 
-### Команды для экземпляров перенесены в `tt instance` {#the-instance-commands-are-under-tt-instance}
+### Команды инстансов находятся под tt instance {#команды-инстансов-находятся-под-tt-instance}
 
-Команды для работы с экземплярами перенесены в группу `tt instance`. Прежние команды верхнего уровня удалены:
-
-| `tt` 2.x                                                                       | `tt` 3.0                                                           |
-|--------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| `tt start`, `stop`, `restart`, `kill`, `status`, `logrotate`, `check`, `clean` | `tt instance start`, `stop`, ...                                   |
-| `tt log`, `tt log -f`                                                          | `tt instance logs`, `tt instance logs --follow`                    |
-| `tt start -i`                                                                  | `tt instance start --foreground`                                   |
-| `tt kill -f`, `tt clean -f`                                                    | `tt instance kill --yes`, `tt instance clean --yes`                |
-| `tt status -f json`, `tt status --pretty`                                      | `tt instance status -o json`, `tt instance status -o pretty-table` |
-| `tt connect`                                                                   | `tt connect` или `tt instance connect` – это одна и та же команда  |
-
-Что ещё изменилось:
-
-- Флаг `-f` в этих командах больше не означает подтверждение, слежение или формат.
-- Подтверждение запрашивается только в терминале. Если скрипт передавал `y` в `tt stop` или запускал
-  `tt --no-prompt stop`, теперь передавайте флаг `--yes`. Без него команда завершится с кодом 1.
-- `tt instance start --foreground` запускает каждый экземпляр под отдельным watchdog, как и в фоновом режиме,
-  дублирует их вывод в `tt.log` и не перезапускает экземпляры. Коды завершения:
-  - `0` – экземпляры остановились вовремя;
-  - `137` – экземпляр не остановился за `stop_timeout` и был принудительно завершён;
-  - в остальных случаях – код первого экземпляра, который сам завершился с другим кодом.
-- Команда для нескольких экземпляров продолжает работу после ошибки одного из них и завершается с кодом 3,
-  если часть экземпляров завершилась с ошибкой.
-
-### Цель команды – это экземпляр {#a-target-names-an-instance}
-
-Команды для экземпляров принимают цель в одном из видов:
-
-- `<app>:<instance>` – один экземпляр;
-- `<app>:*` – все экземпляры приложения;
-- список таких целей через запятую;
-- без цели – все экземпляры текущего проекта.
-
-Просто `<app>`, которое в `tt` 2.x означало все экземпляры приложения, теперь отклоняется, чтобы случайно
-не остановить их все:
-
-| `tt` 2.x                                           | `tt` 3.0                                                                                                                                |
-|----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `tt start app`                                     | `tt instance start app:*` или `tt instance start` в проекте                                                                             |
-| `tt start app:storage-001`                         | `tt instance start app:storage-001`                                                                                                     |
-| `tt start` – все приложения из `instances.enabled` | Нет. Выполните `tt instance start` в каждом проекте или `tt instance start app1:*,app2:*` для приложений, установленных в область установки системы |
-| `tt connect app`                                   | `tt connect app:<instance>`                                                                                                             |
-
-`<app>` – это `[package].name` из манифеста проекта или имя каталога проекта, если манифеста нет.
-Вне проекта с таким именем `<app>` означает приложение, установленное в область установки системы. Чтобы задать область установки явно,
-используйте флаг `--scope project|user|system`. Подробнее – в разделе [Цели](concepts/instances.md#targets).
-
-### Прекращённая поддержка {#removed-support}
-
-- **Tarantool 1.10 и 2.x.** `tt binary` не показывает и не устанавливает Tarantool, Tarantool Enterprise
-  и Enterprise SDK версий ниже 3.
-  - Tarantool Enterprise теперь устанавливается под именем своей версии, например `3.8.1`, а не под именами
-    `gc64-` и `nogc64-`, как в 2.x.
-  - Ранее установленный Tarantool Enterprise 2.x показывается, переключается и удаляется под прежним именем.
-- **Раскладка tarantoolctl и приложения tarantoolctl.**
-- **Cartridge:** `tt cartridge`, `tt replicaset --cartridge`, шаблон `cartridge` команды `tt create`
-  и `tt pack --cartridge-compat`.
-
-### Бинарными файлами управляет `tt binary` {#binaries-are-managed-by-tt-binary}
-
-Команды для установки бинарных файлов перенесены в группу `tt binary`:
+Команды инстансов сгруппированы под `tt instance`. Старые команды верхнего
+уровня удалены:
 
 | `tt` 2.x | `tt` 3.0 |
-|---|---|
+| --- | --- |
+| `tt start`, `stop`, `restart`, `kill`, `status`, `logrotate`, `check`, `clean` | `tt instance start`, `stop`, ... |
+| `tt log`, `tt log -f` | `tt instance logs`, `tt instance logs --follow` |
+| `tt start -i` | `tt instance start --foreground` |
+| `tt kill -f`, `tt clean -f` | `tt instance kill --yes`, `tt instance clean --yes` |
+| `tt status -f json`, `tt status --pretty` | `tt instance status -o json`, `tt instance status -o pretty-table` |
+| `tt connect` | `tt connect` или `tt instance connect`: одна и та же команда |
+
+Другие изменения:
+
+- `-f` больше не означает подтверждение, слежение (follow) или формат вывода в
+  этих командах.
+- Команды запрашивают подтверждение только в терминале. Если скрипт передавал `y`
+  через пайп в `tt stop` или запускал `tt --no-prompt stop`, передавайте вместо
+  этого `--yes`. Без него команда завершается с кодом 1.
+- `tt instance start --foreground` запускает каждый инстанс под собственным
+  watchdog'ом, как и в фоновом режиме, также записывает его вывод в `tt.log` и не
+  перезапускает инстансы. Она завершается с:
+  + `0`, если инстансы остановились вовремя;
+  + `137`, если инстанс не остановился в течение своего `stop_timeout` и был
+    принудительно завершен;
+  + иначе - с кодом завершения первого инстанса, завершившегося самостоятельно с
+    другим кодом.
+- Команда, нацеленная на несколько инстансов, продолжает работу, если операция
+  завершилась неудачей для одного инстанса. Она завершается с кодом 3, если
+  команда выполнилась успешно лишь для части инстансов.
+
+### Цель задает инстанс {#цель-задает-инстанс}
+
+Команды инстансов принимают следующие цели:
+
+- `<app>:<instance>`: один инстанс;
+- `<app>:*`: все инстансы приложения;
+- список таких целей через запятую;
+- без цели: все инстансы текущего проекта.
+
+Простое указание `<app>`, которое в tt 2.x означало все инстансы приложения,
+теперь отклоняется. Это защищает от случайной остановки всех инстансов при
+пропущенном имени:
+
+| `tt` 2.x | `tt` 3.0 |
+| --- | --- |
+| `tt start app` | `tt instance start app:*` или `tt instance start` в проекте |
+| `tt start app:storage-001` | `tt instance start app:storage-001` |
+| `tt start`: каждое приложение в `instances.enabled` | Запуск `tt instance start` в каждом проекте, либо `tt instance start app1:*,app2:*` для приложений, установленных в системный scope |
+| `tt connect app` | `tt connect app:<instance>` |
+
+`<app>` - это `[package].name` из манифеста проекта или имя каталога проекта,
+если манифест отсутствует. За пределами проекта с таким именем `<app>`
+относится к приложению, установленному в системный scope. Используйте
+`--scope project|user|system` для явного выбора scope. См.
+[Цели](concepts/instances.md#targets).
+
+### Удаленная поддержка {#удаленная-поддержка}
+
+- **Tarantool 1.10 и 2.x.** `tt binary` больше не выводит в списках и не
+  устанавливает Tarantool, Tarantool Enterprise или Enterprise SDK версий ниже 3.
+  + Tarantool Enterprise теперь устанавливается под своим номером версии,
+    например `3.8.1`, а не под именами с префиксами `gc64-` и `nogc64-`,
+    использовавшимися в 2.x.
+  + Ранее установленный Enterprise 2.x по-прежнему можно выводить в списке,
+    переключаться на него и удалять под его старым именем.
+- **Раскладка tarantoolctl и приложения tarantoolctl.**
+- **Cartridge:** `tt cartridge`, `tt replicaset --cartridge`, шаблон `cartridge`
+  в `tt create` и флаг `tt pack --cartridge-compat`.
+
+### Управление бинарными файлами через tt binary {#управление-бинарными-файлами-через-tt-binary}
+
+Команды управления бинарными файлами сгруппированы под `tt binary`:
+
+| `tt` 2.x | `tt` 3.0 |
+| --- | --- |
 | `tt install tarantool 3.2.0` | `tt binary install tarantool 3.2.0` |
-| `tt install tarantool-ee gc64-3.2.0-0-r40` | `tt binary install tarantool gc64-3.2.0-0-r40` или `3.2.0ee` для последней сборки 3.2.0 |
+| `tt install tarantool-ee gc64-3.2.0-0-r40` | `tt binary install tarantool gc64-3.2.0-0-r40`, или `3.2.0ee` для последней сборки 3.2.0 |
 | `tt install tarantool-dev ~/src/tarantool/build` | `tt binary install tarantool --from-build ~/src/tarantool/build` |
 | `tt uninstall tarantool 3.2.0` | `tt binary uninstall tarantool 3.2.0` |
 | `tt search tarantool` | `tt binary search tarantool` |
 | `tt binaries list` | `tt binary list` |
 | `tt binaries switch tarantool 3.2.0` | `tt binary switch tarantool 3.2.0` |
-| `tt download <version>` | `tt binary install tarantool-sdk <version>` – устанавливает SDK, а не только скачивает его |
-| `tt install --local-repo tarantool` | `tt binary install tarantool --local-repo DIR` – исходный код из Git в `DIR/tarantool` |
-| `tt install --local-repo tarantool-ee` | `tt binary install tarantool 3ee --local-dir DIR` – архивы SDK в `DIR` |
+| `tt download <version>` | `tt binary install tarantool-sdk <version>`: устанавливает SDK, а не просто скачивает его |
+| `tt install --local-repo tarantool` | `tt binary install tarantool --local-repo DIR`: исходники Git в `DIR/tarantool` |
+| `tt install --local-repo tarantool-ee` | `tt binary install tarantool 3ee --local-dir DIR`: архивы SDK в `DIR` |
 
-- Раньше `--local-repo` был переключателем и брал путь из `repo.distfiles` в `tt.yaml`. Теперь он, как
-  и `--local-dir`, принимает путь к каталогу относительно текущего каталога.
-- Каждая команда `tt binary` работает с одной областью установки: `--scope project` (по умолчанию), `user` или `system`.
-  На другую область установки команда не переключается.
+- `--local-repo` раньше был переключателем, считывавшим `repo.distfiles` из
+  `tt.yaml`. Теперь он принимает путь к каталогу относительно текущего каталога,
+  как и `--local-dir`.
+- Каждая команда `tt binary` действует на один scope: `--scope project`
+  (по умолчанию), `user` или `system`. Она никогда не откатывается к другому
+  scope.
 
-Подробнее – в разделе [Управление бинарными файлами](how-to/binaries.md).
+См. [Управление бинарными файлами](how-to/binaries.md).
 
-### `tt pack`, `tt build` и `tt init` заменены на `tt package` {#tt-pack-tt-build-and-tt-init-are-replaced-by-tt-package}
+### tt pack, tt build и tt init заменены на tt package {#tt-pack-tt-build-и-tt-init-заменены-на-tt-package}
 
-Приложение собирается и упаковывается как [пакет](concepts/packages.md), описанный в `app.manifest.toml`.
-Всем командам `tt package` нужен манифест – его создаёт `tt new`.
+Приложение собирается и упаковывается как [пакет](concepts/packages.md),
+описанный в `app.manifest.toml`. Каждой команде `tt package` нужен манифест;
+создайте его с помощью `tt new`.
 
 | `tt` 2.x | `tt` 3.0 |
-|---|---|
-| `tt init` | `tt new`. Инструмента для преобразования приложений Cartridge или tarantoolctl нет |
+| --- | --- |
+| `tt init` | `tt new`. Конвертера для приложений Cartridge или tarantoolctl нет |
 | `tt build` | `tt package build` |
-| `tt pack tgz`, `deb`, `rpm` | `tt package pack` – создаёт архив `.tt`, который устанавливается командой `tt package install` |
-| `tt pack --with-integrity-check KEY` | `tt package pack --with-integrity-check KEY` в дистрибутиве с `integrity = "rsa"`, см. [Подписание пакетов](how-to/sign-packages.md) |
-| `tt pack --unit-params-file` | `tt service systemd install`, см. [Юниты systemd](#systemd-units-come-from-tt-service-systemd) |
+| `tt pack tgz`, `deb`, `rpm` | `tt package pack`: создает архив `.tt`, устанавливаемый командой `tt package install` |
+| `tt pack --with-integrity-check KEY` | `tt package pack --with-integrity-check KEY` в дистрибутиве, собранном с `integrity = "rsa"`; см. [Подпись пакетов](how-to/sign-packages.md) |
+| `tt pack --unit-params-file` | `tt service systemd install`; см. [юниты systemd](#юниты-systemd-создаются-через-tt-service-systemd) |
 | `tt pack --use-docker`, `--cartridge-compat` | Нет |
 
-В архив входят `.rocks/`, `.templates/`, среды выполнения и файлы из списка `[package].include`.
+Архив включает `.rocks/`, `.templates/`, runtime и файлы, перечисленные в
+`[package].include`.
 
-> **Примечание.** `init.lua` из корня проекта попадает в архив, только если он указан в `[package].include`.
-> Если конфигурация кластера загружает его через `app.file`, добавьте файл в этот список или загружайте код
+> **Примечание:** Файл `init.lua` в корне проекта включается, только если он
+> указан в `[package].include`. Если кластерная конфигурация загружает его через
+> `app.file`, добавьте его в этот список либо вместо этого загружайте код
 > компонента через `app.module`.
 
-`tt run` запускает Tarantool для пакета в текущем каталоге, поэтому в нём должен быть `app.manifest.toml`.
-Раньше команда читала `tt.yaml`. Аргументы, включая `--`, передаются Tarantool без изменений, как и раньше:
-`tt run script.lua a -- -b` передаёт скрипту `a -- -b`, хотя справка `tt` 2.x описывала `--` иначе.
+`tt run` запускает Tarantool для пакета в текущем каталоге, который должен
+содержать `app.manifest.toml`. Раньше команда читала `tt.yaml`. Аргументы,
+включая `--`, по-прежнему передаются без изменений: `tt run script.lua a -- -b`
+передает `a -- -b` скрипту, хотя справка tt 2.x описывала `--` иначе.
 
-### Приложения на `box.cfg` описываются записями `script` {#boxcfg-applications-are-script-records}
+### Приложения с box.cfg оформляются записями со script {#приложения-с-box.cfg-оформляются-записями-со-script}
 
-В `tt` 2.x приложение, которое само вызывает `box.cfg`, запускалось из `init.lua`, `<instance>.init.lua` или
-единственного файла `<name>.lua` в `instances.enabled`. `tt` 3.0 эти варианты не распознаёт: скрипт
-запускается, только если в записи `instances.yaml` задано поле `script`:
+В tt 2.x приложение, которое само вызывает `box.cfg`, запускалось из `init.lua`,
+`<instance>.init.lua` или одиночного файла `<name>.lua` в `instances.enabled`.
+tt 3.0 не распознает такие раскладки. Чтобы запустить скрипт, задайте поле
+`script` в записи `instances.yaml`:
 
 ```yaml
 legacy-001:
-  script: init.lua          # путь относительно каталога приложения
+  script: init.lua          # относительно каталога приложения
 ```
 
-- Такие записи не входят в топологию конфигурации кластера. Приложению, которое состоит только из них,
-  `config.yaml` не нужен.
-- Переменная `TARANTOOL_CFG`, которая указывала на `instances.yml`, больше не задаётся. Нужные скрипту
-  переменные окружения задавайте в поле `env` записи.
-- Каталоги данных и порт, которые скрипт не задал сам, `box.cfg` берёт из переменных `TT_WAL_DIR`,
-  `TT_MEMTX_DIR`, `TT_VINYL_DIR` и `TT_LISTEN`.
+- Такие записи не входят в топологию кластерной конфигурации. Приложению,
+  состоящему только из записей со скриптами, файл `config.yaml` не нужен.
+- Переменная `TARANTOOL_CFG`, указывавшая на `instances.yml`, больше не
+  выставляется. Для переменных окружения, необходимых скрипту, используйте поле
+  `env` записи.
+- Для каталогов данных и бинарного порта, не заданных скриптом, `box.cfg`
+  использует значения `TT_WAL_DIR`, `TT_MEMTX_DIR`, `TT_VINYL_DIR` и `TT_LISTEN`
+  из раскладки.
 
-Подробнее – в разделе [Запуск приложения на box.cfg](how-to/script-instances.md).
+См. [Запуск приложения с box.cfg](how-to/script-instances.md).
 
-### Системное окружение заменено областью установки системы {#the-system-environment-is-the-system-scope}
+### Системное окружение заменено системным scope {#системное-окружение-заменено-системным-scope}
 
-В `tt` 2.x команда `tt -S` работала с окружением из `/etc/tarantool/tt.yaml`: приложения хранились
-в `/etc/tarantool/instances.enabled`, а данные, журналы и pid-файлы – в каталогах `sys_env` внутри
-`/var/lib/tarantool`, `/var/log/tarantool` и `/var/run/tarantool`.
+В tt 2.x команда `tt -S` использовала окружение в `/etc/tarantool/tt.yaml`.
+Приложения располагались в `/etc/tarantool/instances.enabled`, а данные, логи и
+pid-файлы находились в каталогах `sys_env` под `/var/lib/tarantool`,
+`/var/log/tarantool` и `/var/run/tarantool`.
 
-В `tt` 3.0 вместо этого есть область установки системы – каталог `/opt/tarantool` (или каталог из `TT_SYSTEM_ROOT`).
-В нём хранятся приложения, установленные из [пакетов](#tt-pack-tt-build-and-tt-init-are-replaced-by-tt-package):
+В tt 3.0 это окружение заменяет системный scope. Его корень находится в
+`/opt/tarantool` или по пути, заданному переменной `TT_SYSTEM_ROOT`. В нём
+хранятся приложения, установленные из
+[пакетов](#tt-pack-tt-build-и-tt-init-заменены-на-tt-package):
 
 ```console
-# tt package install --scope system myapp-1.0.0-linux-amd64.tt
-# tt instance start myapp:*
+# tt package install --scope system myapp-1.0.0-linux-amd64.tt {#tt-package-install---scope-system-myapp-1.0.0-linux-amd64.tt}
+# tt instance start myapp:* {#tt-instance-start-myapp}
 ```
 
-Где что хранится:
+Раскладка такова:
 
-- `/opt/tarantool/apps/<app>` – ссылка на активную версию приложения;
-- `/opt/tarantool/var/{lib,log,run}/<app>/<instance>/` – файлы экземпляров;
-- `/opt/tarantool/etc/<app>/` – конфигурация этого хоста: `config.yaml` и `instances.yaml`.
+- `/opt/tarantool/apps/<app>`: ссылка на активную версию приложения;
+- `/opt/tarantool/var/{lib,log,run}/<app>/<instance>/`: файлы инстансов;
+- `/opt/tarantool/etc/<app>/`: файлы `config.yaml` и `instances.yaml` этого хоста.
 
-До первого запуска перенесите данные каждого экземпляра из `/var/lib/tarantool/sys_env/<app>/<instance>`
-в `/opt/tarantool/var/lib/<app>/<instance>`. Вне проекта `tt` не ищет данные в прежнем каталоге.
+Перед первым запуском перенесите данные каждого инстанса из
+`/var/lib/tarantool/sys_env/<app>/<instance>` в
+`/opt/tarantool/var/lib/<app>/<instance>`. Вне проекта tt не проверяет старое
+местоположение данных.
 
-Пакеты deb и rpm `tt` 3.0 не устанавливают `/etc/tarantool/tt.yaml`, каталоги `sys_env`
-и `/etc/logrotate.d/tt.conf`. При обновлении deb-пакета старые файлы остаются до полного удаления пакета (purge).
+Пакеты deb и rpm для tt 3.0 больше не устанавливают `/etc/tarantool/tt.yaml`,
+каталоги `sys_env` или `/etc/logrotate.d/tt.conf`. Обновление deb-пакета
+оставляет старые файлы на месте до тех пор, пока пакет не будет вычищен (purge).
 
-> **Внимание.** Старое правило logrotate вызывает `tt -S logrotate`, а эта команда теперь завершается с ошибкой.
-> Удалите это правило. В собственном правиле переоткрывайте журналы командой `tt instance logrotate <app>:*` –
-> пример приведён в разделе [Логи](how-to/systemd.md#logs).
+> **Предупреждение:** Старое правило logrotate запускает `tt -S logrotate`,
+> которое теперь завершается с ошибкой. Удалите это правило. В собственном
+> правиле переоткрывайте логи с помощью `tt instance logrotate <app>:*`. Пример
+> см. в разделе [Логи](how-to/systemd.md#logs).
 
-### Юниты `systemd` создаёт `tt service systemd` {#systemd-units-come-from-tt-service-systemd}
+### Юниты systemd создаются через tt service systemd {#юниты-systemd-создаются-через-tt-service-systemd}
 
-Юниты, которые `tt pack` в `tt` 2.x добавлял в пакеты, запускали `tt -L <environment> start` как сервисы типа
-forking. С `tt` 3.0 они не работают.
+Юниты, которые `tt pack` из tt 2.x добавлял в пакеты, запускали
+`tt -L <environment> start` как сервисы типа forking. С tt 3.0 они не работают.
 
-Для приложения, установленного в область установки системы, команда `tt service systemd install <app>` создаёт:
+Для приложения, установленного в системный scope, команда
+`tt service systemd install <app>` создает:
 
-- шаблонный юнит `<app>@.service`, который запускает один экземпляр через `tt instance start --foreground`;
-- drop-in для каждого экземпляра с полями `restart` и `stop_timeout` из его записи.
+- Шаблонный юнит `<app>@.service`, запускающий один инстанс через
+  `tt instance start --foreground`.
+- Drop-in для каждого инстанса, использующий `restart` и `stop_timeout` из его
+  записи.
 
-После этого экземплярами управляет `systemctl`, а `tt instance start`, `stop`, `restart` и `kill` отказываются
-ими управлять.
+После установки используйте `systemctl` для управления этими инстансами.
+Команды `tt instance start`, `stop`, `restart` и `kill` откажутся управлять ими.
 
-В `tt` 2.x приложение с несколькими экземплярами тоже использовало юнит `<app>@.service`, но в
-`/usr/lib/systemd/system`. В `tt` 3.0 юнит создаётся в `/etc/systemd/system` и перекрывает старый.
-Поэтому переходите в таком порядке:
+В tt 2.x приложение из нескольких инстансов также использовало `<app>@.service`,
+но в `/usr/lib/systemd/system`. Юнит tt 3.0 помещается в `/etc/systemd/system` и
+переопределяет старый. Выполняйте перенос в следующем порядке:
 
 1. Остановите и отключите старые юниты.
 2. Удалите пакет, который их установил.
-3. Соберите приложение и установите его в область установки системы.
+3. Упакуйте приложение и установите архив в системный scope.
 4. Установите юниты командой `tt service systemd install <app>`.
 
-Команда работает только с областью установки системы – не с проектом и не с областью установки пользователя.
+Команда поддерживает только системный scope, но не scope проекта или
+пользователя.
 
-Параметры из `--unit-params-file` заменяются так:
+Замените параметры `--unit-params-file` следующим образом:
 
-| `systemd-unit-params.yml`      | `tt` 3.0                                                                                                           |
-|--------------------------------|--------------------------------------------------------------------------------------------------------------------|
-| `FdLimit`                      | В юните задано `LimitNOFILE=65535`. Другое значение задайте в собственном drop-in `<app>@.service.d/override.conf` |
-| `instance-env`                 | Поле `env` записи экземпляра или записи `"*"`                                                                      |
-| `TT`, `ConfigPath`, `ExecArgs` | Нет: юнит запускает `tt` из области установки приложения                                                        |
+| `systemd-unit-params.yml` | `tt` 3.0 |
+| --- | --- |
+| `FdLimit` | Юнит выставляет `LimitNOFILE=65535`. Другое значение задается в собственном drop-in, `<app>@.service.d/override.conf` |
+| `instance-env` | Поле `env` записи инстанса или записи `"*"` |
+| `TT`, `ConfigPath`, `ExecArgs` | Нет: юнит запускает `tt` этого scope для установленного приложения |
 
-Подробнее – в разделе [Запуск инстансов под systemd](how-to/systemd.md).
+См. [Запуск инстансов под systemd](how-to/systemd.md).
 
-### `tt cluster publish` запрашивает подтверждение {#tt-cluster-publish-asks-for-a-confirmation}
+### tt cluster publish запрашивает подтверждение {#tt-cluster-publish-запрашивает-подтверждение}
 
-- `tt cluster publish` запрашивает подтверждение перед записью конфигурации, но только в терминале.
-  В скрипте публикации передавайте `--yes` (`-y`), иначе команда завершится с кодом 1 и ничего не запишет.
-- `--force` отключает проверку конфигурации, но не подтверждение.
-- `tt cluster show --validate` и `tt cluster publish` проверяют конфигурацию по JSON Schema конфигурации
-  кластера Tarantool. Проверка строже, чем в `tt` 2.x: неизвестные ключи верхнего уровня и областей видимости (scope) отклоняются.
-  Ошибки выводятся в формате `<path> [code] <message>`.
+- `tt cluster publish` запрашивает подтверждение перед записью конфигурации, но
+  только в терминале. В скриптах публикации передавайте `--yes` (`-y`); иначе
+  команда завершится с кодом 1 и ничего не запишет.
+- Флаг `--force` пропускает валидацию, а не подтверждение.
+- `tt cluster show --validate` и `tt cluster publish` выполняют валидацию по
+  JSON Schema кластерной конфигурации Tarantool. Валидация строже, чем в tt 2.x:
+  неизвестные ключи на верхнем уровне и в scope конфигурации отклоняются. Ошибки
+  используют формат `<path> [code] <message>`.
 
-### Удалённые команды {#removed-commands}
+### Удаленные команды {#удаленные-команды}
 
 | `tt` 2.x | `tt` 3.0 |
-|---|---|
-| `tt env`, `. <(tt env)` | `source .env/activate.sh`. Файл создаёт первая команда `tt binary install` в проекте |
-| `tt cfg dump` | Нет. Rock-серверы показывает `tt registry list` |
-| `tt enable` | Нет: проект определяется по текущему каталогу, а приложение устанавливается командой `tt package install` |
-| `tt instances` | `tt instance status` – для экземпляров, `tt package list --scope system` – для установленных приложений |
+| --- | --- |
+| `tt env`, `. <(tt env)` | `source .env/activate.sh`. Первый вызов `tt binary install` в проекте создает этот файл |
+| `tt cfg dump` | Нет. `tt registry list` показывает rock-серверы |
+| `tt enable` | Нет: проекты находятся от текущего каталога, а `tt package install` устанавливает приложения |
+| `tt instances` | `tt instance status` для инстансов, `tt package list --scope system` для установленных приложений |
 | `tt cartridge` | Нет |
 
-### Команда `tt create` {#tt-create}
+### tt create {#tt-create}
 
-- Для `tt create` файл `tt.yaml` не нужен.
-- Команда создаёт приложение в текущем каталоге или в каталоге из `--dst` и не создаёт ссылку
-  в `instances.enabled`.
-- Собственный шаблон задаётся путём к каталогу или архиву `.tgz`, например `tt create ./templates/basic`.
-- Переменная шаблона `rundir` удалена.
-- Встроенные шаблоны размещают `instances.yaml` и `config.yaml` в `.templates/default/`.
-  Шаблон `single_instance` использует расширение `.yaml`, а не `.yml`. Шаблон `cartridge` удалён.
-- Шаблон, который создаёт `app.manifest.toml`, отклоняет имена, недопустимые для пакета. Например,
-  `vshard_cluster` преобразует `--name my_app` в `my-app`, а `My_App` отклоняет.
+- `tt create` не требует `tt.yaml`.
+- Команда создает приложение в текущем каталоге или по пути `--dst`, без
+  создания симлинка в `instances.enabled`.
+- Собственный шаблон указывается путем к его каталогу или архиву `.tgz`,
+  например `tt create ./templates/basic`.
+- Переменная шаблонов `rundir` удалена.
+- Встроенные шаблоны помещают `instances.yaml` и `config.yaml` в
+  `.templates/default/`. Шаблон `single_instance` использует `.yaml` вместо
+  `.yml`. Шаблон `cartridge` удален.
+- Шаблоны, создающие `app.manifest.toml`, отклоняют имена, недопустимые для
+  пакета. Например, `vshard_cluster` преобразует `--name my_app` в `my-app`, но
+  отклоняет `My_App`.
 
-### Коды завершения {#exit-codes}
+### Коды завершения {#коды-завершения}
 
-В `tt` 2.x любая ошибка, кроме ошибок `tt backup` и `tt restore`, завершала команду с кодом 1.
-В `tt` 3.0 коды такие:
+В tt 2.x все ошибки, кроме ошибок `tt backup` и `tt restore`, возвращали код 1.
+В tt 3.0 коды таковы:
 
-| Код | Значение                                                                                                                                                                                                                                                    |
-|-----|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `1` | Запрос нельзя выполнить в заданном виде: ошибка в использовании, нет файла или проекта, нужно подтверждение, а терминала нет                                                                                                                                |
-| `2` | Сбой системы, в которой выполнялась команда: сервер недоступен или не ответил вовремя, имя хоста не разрешается, файловой системе не хватает прав или места. Например, `tt connect` к порту, который никто не слушает, теперь завершается с кодом 2, а не 1 |
-| `3` | Команда для нескольких целей выполнилась успешно только для части из них                                                                                                                                                                                    |
+- `1`: запрос не может быть выполнен в заданном виде. Примеры включают ошибки
+  использования, отсутствие файла или проекта либо требуемое подтверждение вне
+  терминала.
+- `2`: сбой системы, в которой выполнялась команда. Примеры включают
+  недоступный или неотвечающий сервер, имя хоста, которое не удается разрешить,
+  или файловую операцию, отклоненную из-за нехватки прав или места на диске.
+  Вызов `tt connect` к порту, который никто не слушает, теперь завершается с
+  кодом 2, а не 1.
+- `3`: команда, нацеленная на несколько ресурсов, завершилась успешно лишь для
+  части из них.
 
-Если скрипт проверял код 1, теперь проверяйте любой код, отличный от 0. `tt backup` и `tt restore` сохраняют
-собственные коды, начиная с 3. Все коды описаны в `tt help errors`.
+Если скрипт проверял код 1, проверяйте вместо этого любой ненулевой код.
+У `tt backup` и `tt restore` сохраняются собственные коды от 3 и выше. Все коды
+описаны в `tt help errors`.
 
-### `tt backup-id` заменена на `tt backup id` {#tt-backup-id-is-tt-backup-id}
+### tt backup-id теперь tt backup id {#tt-backup-id-теперь-tt-backup-id}
 
-Команда, которая выводит идентификатор новой резервной копии, перенесена в группу `tt backup`. В скрипте
-резервного копирования замените `id=$(tt backup-id)` на `id=$(tt backup id)`. Формат идентификатора не изменился.
+Команда, выводящая идентификатор для новой резервной копии, переместилась под
+`tt backup`. В скриптах резервного копирования замените `id=$(tt backup-id)` на
+`id=$(tt backup id)`. Формат идентификатора остался прежним.
 
-### Внешние модули ищутся в `TT_CLI_MODULES_PATH` {#external-modules-are-found-by-tt_cli_modules_path}
+### Внешние модули находятся по TT_CLI_MODULES_PATH {#внешние-модули-находятся-по-tt_cli_modules_path}
 
-- Внешние модули ищутся только в каталогах из переменной `TT_CLI_MODULES_PATH` (через двоеточие).
-  Относительный путь отсчитывается от рабочего каталога.
-- Каталог `modules.directory` из `tt.yaml` и стандартный каталог `modules` рядом с ним больше не проверяются.
-  Модуль оттуда не будет найден, и команда, которую он заменял, снова будет выполняться как встроенная команда `tt`.
-- Модуль с именем группы команд, например `cluster`, перехватывает всю группу: `tt cluster publish ...`
-  запускает модуль с аргументами `publish ...`.
-- Команды `tt modules`, `tt help`, `tt completion` и `tt version` заменить нельзя.
-- Флаг `-I` запускает встроенную команду `tt`, даже если есть модуль с таким именем.
+- Внешние модули находятся только в каталогах из `TT_CLI_MODULES_PATH`,
+  разделенных двоеточиями. Относительные пути разрешаются от рабочей директории.
+- Каталог `modules.directory` из `tt.yaml` и стандартный каталог `modules` рядом
+  с ним больше не просматриваются. Оставленный там модуль найден не будет, а
+  команда, которую он подменял, снова будет выполняться как встроенная команда
+  tt.
+- Модуль, названный по имени группы команд, например `cluster`, заменяет всю
+  группу: `tt cluster publish ...` запустит модуль с аргументами `publish ...`.
+- Команды `tt modules`, `tt help`, `tt completion` и `tt version` заменить
+  нельзя.
+- Флаг `-I` запускает встроенную команду tt, даже если существует модуль с таким
+  именем.
 
-Подробнее – в разделе [Внешние модули](how-to/external-modules.md).
+См. [Внешние модули](how-to/external-modules.md).
 
-### `tt daemon` запускает команды tt 3.0 {#tt-daemon-runs-the-commands-of-tt-30}
+### tt daemon выполняет команды tt 3.0 {#tt-daemon-выполняет-команды-tt-3.0}
 
-Запрос к `tt daemon` теперь содержит команду `tt` 3.0. Например, запрос для `tt start test_app`:
+Запрос к `tt daemon` теперь должен называть команду tt 3.0. Например, запрос
+для `tt start test_app` меняется следующим образом:
 
-- в `tt` 2.x: `{"command_name":"start", "params":["test_app"]}`;
-- в `tt` 3.0: `{"command_name":"instance", "params":["start", "test_app:*"]}`.
+- tt 2.x: `{"command_name":"start", "params":["test_app"]}`;
+- tt 3.0: `{"command_name":"instance", "params":["start", "test_app:*"]}`.
 
-Глобальные флаги `tt` 2.x, например `-L`, удалены. Для команд, которые запрашивают подтверждение, передавайте
-`--yes`: daemon запускает команды без терминала. Подробнее – в разделе
+Глобальные флаги tt 2.x, такие как `-L`, удалены. Передавайте `--yes` для команд,
+требующих подтверждения: демон выполняет команды без терминала. См.
 [Работа с tt daemon](https://github.com/tarantool/tt/blob/v3/doc/examples.md#working-with-tt-daemon-experimental).
 
-### Сборка tt и импорт его пакетов {#building-tt-and-importing-its-packages}
+### Сборка tt и импорт его пакетов {#сборка-tt-и-импорт-его-пакетов}
 
-Переменная `TT_CLI_BUILD_SSL` принимает значения `default`, `openssl` и `openssl_static`. Значения `no`,
-`shared` и `static` отклоняются:
+Переменная `TT_CLI_BUILD_SSL` принимает значения `default`, `openssl` и
+`openssl_static`. Значения `no`, `shared` и `static` отклоняются:
 
-| `tt` 2.x                     | `tt` 3.0                                            |
-|------------------------------|-----------------------------------------------------|
-| Не задана или `no` – без TLS | Не задана или `default` – TLS на чистом Go, без cgo |
-| `shared`                     | `openssl`                                           |
-| `static`                     | `openssl_static`                                    |
+| `tt` 2.x | `tt` 3.0 |
+| --- | --- |
+| Не задано или `no`: без TLS | Не задано или `default`: TLS на чистом Go, без cgo |
+| `shared` | `openssl` |
+| `static` | `openssl_static` |
 
-Для Go-кода, который импортирует `tt`:
+Для кода на Go, импортирующего tt:
 
-- путь модуля – `github.com/tarantool/tt/v3`;
-- `lib/cluster`, `lib/connect`, `lib/dial` и `lib/integrity` перенесены в `github.com/tarantool/tt/sdk/cluster`,
-  `sdk/connect`, `sdk/dial` и `sdk/integrity`. Каждый из них стал отдельным модулем с API в статусе alpha;
-- `InjectedCmds` из `cli/cmd` удалён. Дистрибутив добавляет свои команды как модули tt и выбирает поставщика
-  integrity через `core.WithIntegrity`. Подробнее – в разделе [Дистрибутивы и модули](concepts/distributions.md).
+- Путь к модулю - `github.com/tarantool/tt/v3`.
+- Модули `lib/cluster`, `lib/connect`, `lib/dial` и `lib/integrity` перемещены в
+  `github.com/tarantool/tt/sdk/cluster`, `sdk/connect`, `sdk/dial` и
+  `sdk/integrity`. Каждый из них является отдельным модулем с API в статусе alpha.
+- Переменная `InjectedCmds` из `cli/cmd` удалена. Дистрибутив добавляет команды
+  как модули tt и выбирает поставщика integrity с помощью `core.WithIntegrity`.
+  См. [Дистрибутивы и модули](concepts/distributions.md).
 
-### `tt cat` и `tt play` заменены на `tt data cat` и `tt data play` {#tt-cat-and-tt-play-are-tt-data-cat-and-tt-data-play}
+### tt cat и tt play теперь tt data cat и tt data play {#tt-cat-и-tt-play-теперь-tt-data-cat-и-tt-data-play}
 
-`tt cat` и `tt play` удалены без псевдонимов – используйте `tt data cat` и `tt data play`. Новые команды читают
-файлы средствами Go, поэтому локальный Tarantool не нужен. Имена флагов сохранились, но поведение изменилось:
+Команды `tt cat` и `tt play` удалены без создания псевдонимов. Вместо них
+используйте `tt data cat` и `tt data play`. Новые команды читают файлы на Go,
+поэтому локальный Tarantool не требуется. Имена флагов сохранены, но их
+поведение изменилось:
 
-| `tt` 2.x                                               | `tt` 3.0                                                                                                                                                                    |
-|--------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--format yaml\|json\|lua`                             | `-o`/`--format`. `json` – формат JSON Lines, по одному объекту на строку                                                                                                    |
-| `--to N` не включает N                                 | `--to N` включает N, как и `--from N`                                                                                                                                       |
-| `--from`/`--to` сравнивают один LSN со всеми репликами | Ограничивают LSN одной реплики: она задаётся флагом `--replica` или берётся единственная реплика из файлов. Для нескольких реплик используйте `--from-vclock`/`--to-vclock` |
-| Граница может разрезать транзакцию                     | Транзакция внутри границы берётся целиком                                                                                                                                   |
-| Все `.snap` и `.xlog` каталога, сначала снимки         | Самый свежий снимок в заданных границах, затем журналы по vclock, без данных, которые уже есть в снимке                                                                     |
-| `--show-system` фильтрует только изменения данных      | Также скрывает строки RAFT, синхронной репликации и NOP                                                                                                                     |
-| `play`: один запрос на строку, без транзакций          | Один поток IPROTO, запросы `--batch` выполняются одновременно, доступны `--txn-mode`, `--on-error`, `--dry-run`                                                             |
+| `tt` 2.x | `tt` 3.0 |
+| --- | --- |
+| `--format yaml\|json\|lua` | `-o`/`--format`. `json` - это JSON Lines: по одному объекту на строку |
+| `--to N` исключает N | `--to N` включает N, как и `--from N` |
+| `--from`/`--to` сравнивают один LSN с LSN каждой реплики | Ограничивают LSN одной реплики: выберите её через `--replica` или используйте единственную реплику в файлах. Для нескольких реплик используйте `--from-vclock`/`--to-vclock` |
+| Граница могла разрезать транзакцию | Транзакция в пределах границ берется целиком |
+| Все файлы `.snap` и `.xlog` в каталоге, снимки первыми | Самый свежий снимок в пределах границ, затем журналы по порядку vclock, без данных, уже имеющихся в снимке |
+| `--show-system` фильтрует только изменения данных | Также скрывает строки RAFT, синхронной репликации и NOP |
+| `play`: один запрос на строку, без транзакций | Один поток IPROTO, с числом запросов в обработке по `--batch`; поддерживает `--txn-mode`, `--on-error` и `--dry-run` |
 
-Дополнительно:
+Дополнительные изменения:
 
-- Если задан `--from` или `--from-vclock`, снимок не читается. Номера строк снимка не являются LSN, поэтому
-  границы применяются только к журналам упреждающей записи (WAL).
-- Вывод `cat` сохраняет `HEADER` и `BODY` каждой строки. Тела строк RAFT и синхронной репликации теперь
-  декодируются.
-- Снимок не содержит данных спейсов vinyl: они хранятся в файлах `.run`. `tt data cat` читает эти файлы, если
-  они указаны явно или найдены с флагом `-r`. `tt data play` с ними не работает.
-- `tt data play` завершается с кодом 3, если цель отклонила часть транзакций, и с кодом 2 при сбое соединения.
-- Команда `tt coredump` не перенесена в группу.
+- Если задан флаг `--from` или `--from-vclock`, снимок не считывается. Номера
+  строк в снимке не являются LSN, поэтому границы применимы только к журналам
+  предварительной записи (WAL).
+- Вывод команды `cat` сохраняет `HEADER` и `BODY` каждой строки. Тела строк RAFT
+  и синхронной репликации теперь декодируются.
+- Снимок не содержит данных пространств vinyl; эти данные живут в файлах `.run`.
+  Команда `tt data cat` читает их при явном указании имени или обнаружении с
+  помощью `-r`. Команда `tt data play` их отклоняет.
+- `tt data play` завершается с кодом 3, если целевой сервер отклонил часть
+  транзакций, или 2, если произошел сбой соединения.
+- Команда `tt coredump` не переносилась в эту группу.
 
-## 1.3.1 -> 2.0.0 {#131---200}
+## 1.3.1 -> 2.0.0 {#1.3.1---2.0.0}
 
-### Новый формат файла конфигурации tt {#new-format-of-tt-config-file}
+### Новый формат конфигурационного файла tt {#новый-формат-конфигурационного-файла-tt}
 
-Формат файла конфигурации `tt` 2.0.0 несовместим с предыдущей версией:
+Формат конфигурационного файла tt 2.0.0 несовместим с предыдущими версиями:
 
-- корневой раздел `tt` удалён;
-- общие настройки окружения перенесены в раздел `env`. Все относительные
-  пути в нём отсчитываются от каталога файла конфигурации;
-- относительные пути в разделе `app` отсчитываются от каталога приложения.
+- Корневая секция `tt` удалена.
+- Общие настройки окружения перемещены в секцию `env`. Все относительные пути в
+  этой секции разрешаются от каталога конфигурационного файла.
+- Относительные пути в секции `app` разрешаются от каталога приложения.
 
-### Новая раскладка артефактов времени выполнения {#new-runtime-artifacts-layout}
+### Новая раскладка runtime-артефактов {#новая-раскладка-runtime-артефактов}
 
-Раскладка артефактов времени выполнения изменилась:
+Раскладка runtime-артефактов изменилась:
 
-- относительные пути отсчитываются от каталога приложения. Для инстанса,
-  заданного одним скриптом, каталог создаётся в каталоге `instances.enabled`;
-- поскольку относительные пути уже содержат имя приложения, к результирующему
-  каталогу добавляется только имя инстанса. Ниже показана стандартная
-  раскладка локального окружения в версии 2.0.0:
+- Относительные пути разрешаются от каталога приложения. Для инстанса,
+  определенного одним скриптом, создается каталог в `instances.enabled`.
+- Поскольку относительные пути уже содержат имя приложения, добавляется только
+  имя инстанса. Раскладка локального окружения по умолчанию в 2.0.0 такова:
 
 ```text
 instances.enabled/app/
@@ -496,19 +578,19 @@ instances.enabled/app/
         └── inst2
 ```
 
-Перенос артефактов из версий 1.*:
+Для переноса артефактов из версии 1.*:
 
-- создайте каталоги артефактов в каталоге приложения: var/lib, var/log,
-  var/run;
-- скопируйте подкаталоги инстансов из окружения версии 1.* в каталог
-  приложения. Пример копирования данных:
+- Создайте каталоги артефактов в каталоге приложения: var/lib, var/log и
+  var/run.
+- Скопируйте подкаталоги инстансов из окружения 1.* в каталог приложения.
+  Например, для копирования данных:
   `cp -r <env_dir>/var/lib/app/* <instances_enabled>/app/var/lib/`
 
-Абсолютные пути не затрагиваются этими изменениями: к ним всегда добавляется
-имя приложения.
+Эти изменения не затрагивают абсолютные пути: имя приложения к ним добавляется
+всегда.
 
-### Изменился рабочий каталог {#working-directory-is-changed}
+### Изменилась рабочая директория {#изменилась-рабочая-директория}
 
-Рабочим каталогом процесса инстанса стал каталог приложения. Раньше это был
-текущий каталог `tt`. Поэтому файлы, с которыми код инстанса работает по
-относительным путям, нужно переместить или скопировать в каталог приложения.
+Процесс инстанса теперь использует каталог приложения в качестве своей рабочей
+директории, а не текущий каталог tt. Переместите или скопируйте файлы, к которым
+инстанс обращается по относительным путям, в каталог приложения.
