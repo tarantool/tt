@@ -345,6 +345,36 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   standard modules the binary has, `standard = ['aeon', 'build',
   'emmylua', 'wasm']` in `[core]`. A core before 3.0.0-alpha.3 has no such package: a distribution
   built on it needs `standard = false`.
+- `tt package clean [COMPONENT]` removes what the builds made, and nothing
+  else: `_build/` but its lock - the build trees, the records of the
+  incremental builds and of what the components made, the stages, the
+  builds of path dependencies, the archives of `tt package pack` in
+  `_build/pack/` - and the rock of the package in `.rocks/`, by the files
+  its rock manifest lists. The dependencies, the guest packages, the
+  manifest, the lock and the sources stay. A component named is cleaned
+  alone: its build tree, its records and its files in the stage, and the
+  rock of the package, which the next build installs again with the
+  component built, incremental or not. `--dry-run` prints what would go;
+  `-V` lists the files of the rock. A build backend cleans what its tool
+  leaves beside the sources (`build.Cleaner`, `Clean(ctx, c)` of a build,
+  run first, which `buildtest.Harness.Clean` runs in a test), and
+  `[hooks.clean]` of the manifest runs on a clean of the whole package for
+  what the project generates itself. `Project().Clean()` of the SDK is the
+  same, for `tt wasm clean NAME`.
+- The commands that change a project hold its lock, an flock of
+  `_build/tt.lock`: `tt package build`, `fetch`, `pack`, `clean`, `add`,
+  `remove`, `update`, `resolve`, `install` and `uninstall` in the project
+  scope, `tt test` while it builds, and the methods of `Project()` of the
+  SDK that change the project. Two of them on one project, which raced on
+  `_build/`, `.rocks/` and the lock, run one after the other: the second
+  waits, `waiting for another tt working on the project DIR (pid N)`, until
+  the first is done or Ctrl-C. The commands that only read, `tt package
+  deps` and `list`, wait for nothing. The lock goes when tt exits, however
+  it exits. A tt that a hook or a build runs on the same project works
+  under the lock of the tt that runs it, named in `TT_PROJECT_LOCK`, rather
+  than wait for it. `Project().Lock()` takes it for an operation of a
+  module of several steps; the methods of `Project()` given the context it
+  returns work under it.
 
 ### Changed
 

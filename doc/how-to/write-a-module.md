@@ -642,6 +642,15 @@ func newScaffoldCmd(services sdk.Services) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			project := services.Project()
 
+			// The check, the edit and the resolution are one change of the
+			// project: no other tt is to change it in between.
+			ctx, unlock, err := project.Lock(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			defer unlock()
+
 			manifest, err := project.Manifest()
 			if err != nil {
 				return err
@@ -651,7 +660,7 @@ func newScaffoldCmd(services sdk.Services) *cobra.Command {
 				return sdk.Usagef("component %q is declared already", args[0])
 			}
 
-			err = project.AddComponent(cmd.Context(), sdk.Component{
+			err = project.AddComponent(ctx, sdk.Component{
 				Name:    args[0],
 				Comment: "Probes, declared by tt probe scaffold.",
 				Path:    args[0],
@@ -664,7 +673,7 @@ func newScaffoldCmd(services sdk.Services) *cobra.Command {
 			_, _ = fmt.Fprintf(services.Streams().IO().Out,
 				"declared component %s\n", args[0])
 
-			_, err = project.Resolve(cmd.Context(), sdk.ResolveOptions{})
+			_, err = project.Resolve(ctx, sdk.ResolveOptions{})
 
 			return err
 		},
@@ -684,8 +693,25 @@ include = ["*.lua"]
 ```
 
 then prints `declared component checks` and resolves `app.manifest.lock`
-again, as `tt package resolve` does.
+again, as `tt package resolve` does, all of it under the lock of the
+project.
 
+- `Lock` takes the lock of the project that the `tt package` commands
+  hold while they change it, `_build/tt.lock`, and returns the context that
+  carries it and its release. It waits while another tt holds the lock,
+  saying so, until the context is done: Ctrl-C stops it. The methods that
+  change the project - `AddComponent`, `UpdateComponent`,
+  `RemoveComponent`, `Resolve`, `AddDependency`, `RemoveDependency`,
+  `Install`, `Build` and `Clean` - take the lock themselves, each for
+  itself; given the context `Lock` returned, they work under it instead.
+  A command takes the lock for a change of several steps, such as the
+  check and the two edits of `scaffold`, or `tt wasm bind`, which writes
+  files of its own and then builds. A method given another context while
+  the command holds the lock waits for the lock forever, and so does
+  another goroutine, as another tt would: pass the context on. A tt the
+  command runs on the project works under its lock, which tt names in
+  `TT_PROJECT_LOCK`. `Manifest`, `ReadLock` and `BuildContext` read, and
+  take no lock.
 - `Manifest` returns what the manifest declares, as written: the name of
   the package, the dependencies and the development dependencies, each with
   its version, registry and path, and the components, each with its path,
@@ -737,6 +763,16 @@ again, as `tt package resolve` does.
   `build.Context` a build of a component runs in, and the build its backend
   makes of the block, building nothing: a command of the module of the
   backend runs its tools there, in the environment a build has.
+- `Clean` removes what the builds made, as `tt package clean` does:
+  `Clean(ctx, sdk.CleanOptions{Components: []string{"calc"}})` is
+  `tt package clean calc`, which runs the `Clean` of the backend of `calc`
+  ([build.Cleaner](write-a-build-backend.md#clean)) and removes its build
+  tree, its records, its files in the stage and the rock of the package,
+  so that the next `Build` builds it even when it is incremental and up to
+  date. The result has the paths removed and the components whose backend
+  cleaned. `DryRun` removes nothing. `tt wasm clean NAME` removes the files
+  the module recorded and then cleans the core's state of the component
+  with it, under one `Lock`.
 - `StateDir` is the `.tarantool` of the project, where `tt binary` installs
   into the project scope, and whose `bin/` is first in the `PATH` of a build.
   `PrepareEnvironment` writes `.env/activate.sh` and `deactivate.sh` when
@@ -753,8 +789,10 @@ other processes.
 
 In a test the project of `sdktest` touches no file: its manifest is the one
 `sdktest.WithManifest` gives, `AddComponent` declares into it,
-`AddedComponents` returns what it was given and `Resolves` the calls of
-`Resolve`:
+`AddedComponents` returns what it was given, `Resolves` the calls of
+`Resolve`, and `Locks` how many locks `Lock` took and how many are not
+released; its `Lock` waits for nothing, and `Clean` records its calls
+(`Cleans`) and answers as `sdktest.WithClean` says:
 
 ```go
 func TestScaffold(t *testing.T) {
@@ -769,6 +807,10 @@ func TestScaffold(t *testing.T) {
 	require.Len(t, services.AddedComponents(), 1)
 	assert.Equal(t, "checks", services.AddedComponents()[0].Path)
 	assert.Len(t, services.Resolves(), 1)
+
+	taken, held := services.Locks()
+	assert.Equal(t, 1, taken)
+	assert.Zero(t, held, "released")
 
 	again := sdktest.New(t, sdktest.WithManifest(sdk.Manifest{
 		Components: map[string]sdk.ManifestComponent{"checks": {Path: "checks"}},

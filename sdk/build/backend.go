@@ -104,8 +104,8 @@ type Backend struct {
 	// are no files of the package, such as go, whose test fixtures would
 	// otherwise be laid out.
 	NoSourceLayout bool
-	// Hook lets a lifecycle hook ([hooks.pre_build], [hooks.post_build])
-	// name the backend; a hook may name no other. New checks the block of a
+	// Hook lets a lifecycle hook ([hooks.pre_build], [hooks.post_build],
+	// [hooks.clean]) name the backend; a hook may name no other. New checks the block of a
 	// hook too, given the zero Component, and the build runs in a Context
 	// whose Hook is set ([Context.Hook]).
 	Hook bool

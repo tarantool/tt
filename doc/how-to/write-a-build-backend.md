@@ -219,7 +219,7 @@ A `build.Backend` is a value. Its fields tell the core what the backend is:
 | `OutputFrom` | whether the block has `output`, and who copies what it lists |
 | `Exclude` | gitignore patterns of files the backend's tool leaves in the component, which are never laid out: `/target/` of `cargo` |
 | `NoSourceLayout` | switches off the default `include` of the component, the Lua sources and the prebuilt modules: for a backend whose sources are no files of the package, as `go` |
-| `Hook` | lets a lifecycle hook, `[hooks.pre_build]` or `[hooks.post_build]`, name the backend |
+| `Hook` | lets a lifecycle hook, `[hooks.pre_build]`, `[hooks.post_build]` or `[hooks.clean]`, name the backend |
 
 The core calls `Config` and `New` whenever it checks a manifest: every
 command that reads the manifest does, `tt package add` included, and it may
@@ -586,8 +586,8 @@ of the manifest reference has where every `to` is installed.
 
 A build may implement more interfaces. The core asks for each with a type
 assertion, so a method of another signature would never be called: the
-core refuses a build whose `Preflight`, `Produces`, `Programs` or `Inputs`
-is not the method of the interface, or is a method of a pointer while
+core refuses a build whose `Preflight`, `Produces`, `Programs`, `Inputs` or
+`Clean` is not the method of the interface, or is a method of a pointer while
 `New` returns a value, when it checks the manifest, with exit code 1:
 
 ```text
@@ -628,6 +628,7 @@ too. The other interfaces:
   that makes a program. When the list is not exhaustive, the core adds what
   the build wrote into `Programs`.
 - `build.InputHasher`: see the next section.
+- `build.Cleaner`: see [Clean](#clean).
 
 ## Incremental builds
 
@@ -654,11 +655,134 @@ $ tt -V package build
 A backend without `Incremental` refuses the field:
 `components.native.build.incremental: is a field of backend make, shell, zig or template, not of "cargo"`.
 
+## Clean
+
+`tt package clean` removes what the builds of a package made. The core
+removes what is its own: for a clean of the whole package, all of
+`Dirs.State`, `_build/` - `Dirs.Work` of every component, the records of the
+builds, the stage that `Dirs.Output`, `Dirs.Share` and `Dirs.Programs` are
+in - but the lock of the project, `_build/tt.lock`; for
+`tt package clean NAME`, `Dirs.Work` of the component, its records and its
+files in the stage. Either way the rock of the package leaves `Dirs.Tree`.
+A backend that writes only into these directories, as `template` does, has
+nothing more to clean.
+
+What a tool leaves anywhere else - the directory of the component,
+`Dirs.Cwd`, `Dirs.Tools` - the core does not remove: it cannot tell a file a
+build made there from one the project keeps, and a file `output` lists may
+be a prebuilt one in git. A build that leaves files there is a
+`build.Cleaner` and removes them in `Clean(ctx, c)`. `render` writes the
+file of `output` into `Dirs.Cwd`; add to `render.go`, with `errors` and
+`io/fs` imported:
+
+```go
+// The core finds these interfaces of a build by type assertions.
+var _ build.Cleaner = renderBuild{}
+
+// Clean removes the file the build rendered into its working directory:
+// the core removes the copy in the package, not what is beside the sources.
+func (b renderBuild) Clean(_ context.Context, c *build.Context) error {
+	err := os.Remove(filepath.Join(c.Dirs.Cwd, b.file))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	return err
+}
+```
+
+`Clean` runs for every component of the backend the clean cleans, before
+the core removes anything, so that `Dirs.Work` is still there for a tool
+that cleans its build tree itself. `c` is the Context of a build of the
+component, without `Args`. Its directories may not exist, for a component
+that was never built, so a file that is not there is no error. `ctx` is that
+of the clean: make the commands `Clean` runs with it. A failed `Clean` fails
+the clean with exit code 2, and nothing is removed. `--dry-run` runs no
+`Clean`, and says which would run:
+
+```console
+$ ../dist/tt package build
+$ ../dist/tt package clean --dry-run
+would run the clean of component banner
+would remove _build/cache
+would remove _build/component
+would remove _build/results.json
+would remove _build/rock
+would remove myapp 0.0.0.dev.0-1 from .rocks (4 files)
+  .rocks/share/tarantool/rocks/myapp/0.0.0.dev.0-1/myapp-0.0.0.dev.0-1.rockspec
+  .rocks/share/tarantool/myapp/banner.txt
+  .rocks/share/tarantool/myapp/defaults.lua
+  .rocks/share/tarantool/myapp/version.lua
+$ ../dist/tt package clean
+ran the clean of component banner
+removed _build/cache
+removed _build/component
+removed _build/results.json
+removed _build/rock
+removed myapp 0.0.0.dev.0-1 from .rocks (4 files)
+$ ls banner
+banner.txt.in  dist
+$ ls banner/dist
+$ ls -A _build
+tt.lock
+```
+
+`dist/` stays, empty: `Clean` removes the one file it knows. In a test,
+`harness.Clean(ctx, bld)` runs the `Clean` of a build as the core does, and
+nothing after it:
+
+```go
+func TestRenderClean(t *testing.T) {
+	banner := build.Component{Name: "banner", Path: "banner", Namespace: "app", Package: "app"}
+	block := buildtest.Block{
+		Common: build.Common{Output: []build.OutputFile{{Path: "dist/banner.txt", To: build.Data}}},
+		Rest:   map[string]any{"template": "banner.txt.in"},
+	}
+
+	bld, err := buildtest.Validate(template.RenderBackend(), banner, block)
+	require.NoError(t, err)
+
+	harness := buildtest.New(t, template.RenderBackend(), banner)
+	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, "banner.txt.in"),
+		[]byte("${TT_PACKAGE}\n"), 0o600))
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	rendered := filepath.Join(harness.Context.Dirs.Cwd, "dist", "banner.txt")
+	require.FileExists(t, rendered)
+
+	require.NoError(t, harness.Clean(t.Context(), bld))
+	assert.NoFileExists(t, rendered)
+	require.NoError(t, harness.Clean(t.Context(), bld), "a file that is not there is no error")
+}
+```
+
+What the project itself generates beside the sources, which no backend
+knows of, is for the `[hooks.clean]` of its manifest, which a clean of the
+whole package runs after the backends; see
+[the reference](../reference/app-manifest.md#hookspre_build-hookspost_build-and-hooksclean).
+
+## The lock of the project
+
+The core builds the components of a package one after another, and holds
+the lock of the project, `_build/tt.lock`, through the whole build, the
+clean, and every other command that changes the project. No other tt
+changes `_build/`, `.rocks/`, the manifest or the lock meanwhile: a second
+`tt package build` of the project waits for the first. A backend needs no
+lock of its own for what it writes into the directories of its Context.
+
+A tt that a build runs on the same project - a `shell` block whose command
+is `tt package fetch`, say - works under the lock of the tt that runs it:
+tt names the locks it holds in `TT_PROJECT_LOCK`, which every command of
+the build inherits, through `c.Command` or not. A tt that a build starts in
+the background and does not wait for would work beside the build, so a
+build waits for what it runs.
+
 ## Lifecycle hooks
 
 `[hooks.pre_build]` and `[hooks.post_build]` run around the builds of all
-the components. A hook names a backend with `Hook: true`, `make` or `shell`
-in tt; another is refused,
+the components, and `[hooks.clean]` in `tt package clean` of the whole
+package, after the `Clean` of the backends. A hook names a backend with
+`Hook: true`, `make` or `shell` in tt; another is refused,
 `hooks.pre_build: backend "template" is not supported (want make or shell)`.
 The core checks the block of a hook as it checks a build block, `New` given
 the zero `Component`. The build runs in a Context whose `Hook` is set. It

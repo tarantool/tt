@@ -904,6 +904,7 @@ tt run                                # the tarantool of the project
 tt test                               # build, then luatest over test/
 tt package pack                       # _build/pack/<name>-<version>-<os>-<arch>.tt
 tt package install <archive> --scope user
+tt package clean                      # remove what the builds made
 ```
 
 The versions the dependencies resolved to are in `app.manifest.lock` next to
@@ -912,6 +913,8 @@ versions the lock holds, and only `tt package update` takes newer ones from the
 rock servers (see [Rock servers](#rock-servers)). `--locked` makes `build` and
 `pack` fail on a lock that is out of date instead of resolving it again.
 `tt package deps` shows what the manifest declares and what it resolved to.
+The commands that change a project hold its lock, `_build/tt.lock`: a second
+`tt package build` of a project waits for the first.
 
 A component is the code of the package:
 
