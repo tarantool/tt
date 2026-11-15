@@ -1,6 +1,7 @@
 package sdktest_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/sdktest"
 )
 
@@ -227,6 +229,71 @@ func TestRunRefusesBadMounts(t *testing.T) {
 			message := fatal(t, func(tb testing.TB) {
 				tb.Helper()
 				sdktest.Run(tb, func(sdk.Services) []sdk.Mount { return testCase.mounts })
+			})
+
+			assert.Contains(t, message, testCase.want)
+		})
+	}
+}
+
+// noopBuild is the build of the backends of TestRunModule.
+type noopBuild struct{}
+
+func (noopBuild) Run(context.Context, *build.Context) error { return nil }
+
+// moduleOf is a module of the commands of twoMounts and of backends and
+// checks.
+func moduleOf(backends []build.Backend, checks []build.FileCheck) sdk.ModuleConstructor {
+	return func(services sdk.Services) sdk.Module {
+		return sdk.Module{Commands: twoMounts(services), Backends: backends, FileChecks: checks}
+	}
+}
+
+// noop is a backend of the name name the core takes.
+func noop(name string) build.Backend {
+	return build.Backend{
+		Name: name, Produces: []build.Result{build.Data},
+		Config: func() any { return new(struct{}) },
+		New: func(any, build.Component, build.Common) (build.Build, error) {
+			return noopBuild{}, nil
+		},
+	}
+}
+
+func TestRunModule(t *testing.T) {
+	t.Parallel()
+
+	check := build.FileCheck{
+		Suffix: ".wasm",
+		Check:  func(context.Context, string) (string, error) { return "", nil },
+	}
+
+	got := sdktest.RunModule(t, moduleOf([]build.Backend{noop("a"), noop("b")},
+		[]build.FileCheck{check}), "hello", "world")
+
+	require.NoError(t, got.Err)
+	assert.Equal(t, "hello, world\n", got.Stdout)
+
+	cases := []struct {
+		name   string
+		module sdk.ModuleConstructor
+		want   string
+	}{
+		{"a backend of no name", moduleOf([]build.Backend{noop("")}, nil),
+			`invalid build backend "": the name must match`},
+		{"two backends of one name", moduleOf([]build.Backend{noop("a"), noop("a")}, nil),
+			`invalid build backend "a": two backends of the module have the name`},
+		{"a check of no suffix", moduleOf(nil, []build.FileCheck{{Suffix: "", Check: nil}}),
+			"invalid file check: no Suffix"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			message := fatal(t, func(tb testing.TB) {
+				tb.Helper()
+				sdktest.RunModule(tb, testCase.module, "hello", "world")
 			})
 
 			assert.Contains(t, message, testCase.want)

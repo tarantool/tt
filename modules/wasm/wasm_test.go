@@ -18,11 +18,6 @@ import (
 // default.
 const defaultRockServer = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/"
 
-// commands are the commands of the module, as sdktest.Run takes them.
-func commands(services sdk.Services) []sdk.Mount {
-	return wasm.New(services).Commands
-}
-
 // testProject returns a project directory with a manifest, which prepare
 // looks for before it declares anything.
 func testProject(t *testing.T) string {
@@ -67,7 +62,7 @@ func TestPrepareDeclaresTheRock(t *testing.T) {
 	services := sdktest.New(t, sdktest.WithRoot(project), withTarantool(),
 		sdktest.WithMoves(sdk.DependencyMove{Name: "wasm", From: "", To: "0.1.0-1"}))
 
-	got := services.Run(commands, "wasm", "prepare", "--no-tarawasm",
+	got := services.RunModule(wasm.New, "wasm", "prepare", "--no-tarawasm",
 		"--registry", "mirror")
 	require.NoError(t, got.Err)
 
@@ -87,7 +82,7 @@ func TestPrepareDeclaresTheRock(t *testing.T) {
 		sdktest.WithManifest(declaring(".tarantool/registry")),
 		sdktest.WithMoves(sdk.DependencyMove{Name: "wasm", From: "", To: "0.1.0-1"}))
 
-	got = again.Run(commands, "wasm", "prepare", "--no-tarawasm", "--registry", "mirror")
+	got = again.RunModule(wasm.New, "wasm", "prepare", "--no-tarawasm", "--registry", "mirror")
 	require.NoError(t, got.Err)
 	assert.Equal(t, "wasm is already declared in app.manifest.toml; left as it is\n",
 		got.Stderr)
@@ -112,7 +107,7 @@ func TestPrepareFromIndexesTheRegistry(t *testing.T) {
 
 	services := sdktest.New(t, sdktest.WithRoot(project), withTarantool())
 
-	got := services.Run(commands, "wasm", "prepare", "--no-tarawasm", "--from", build)
+	got := services.RunModule(wasm.New, "wasm", "prepare", "--no-tarawasm", "--from", build)
 	require.NoError(t, got.Err)
 
 	registry := filepath.Join(project, ".tarantool", "registry")
@@ -135,7 +130,7 @@ func TestPrepareFailsToDeclare(t *testing.T) {
 	services := sdktest.New(t, sdktest.WithRoot(project),
 		sdktest.WithAddDependencyError(errors.New("tarantool executable not found in PATH")))
 
-	got := services.Run(commands, "wasm", "prepare")
+	got := services.RunModule(wasm.New, "wasm", "prepare")
 	require.EqualError(t, got.Err,
 		"declaring the wasm dependency: tarantool executable not found in PATH")
 	assert.Len(t, services.AddedDependencies(), 1)
@@ -151,7 +146,7 @@ func TestNewRefusesADeclaredName(t *testing.T) {
 	services := sdktest.New(t, sdktest.WithRoot(testProject(t)), withTarantool(),
 		sdktest.WithManifest(declaring(".tarantool/registry")))
 
-	got := services.Run(commands, "wasm", "new", "router", "--lang", "python")
+	got := services.RunModule(wasm.New, "wasm", "new", "router", "--lang", "python")
 	require.EqualError(t, got.Err, "component already declared: router")
 	assert.Empty(t, services.AddedComponents())
 }
@@ -165,7 +160,7 @@ func TestStatus(t *testing.T) {
 	services := sdktest.New(t, sdktest.WithRoot(project),
 		sdktest.WithManifest(declaring("https://rocks.example.test/")))
 
-	got := services.Run(commands, "wasm", "status")
+	got := services.RunModule(wasm.New, "wasm", "status")
 	require.NoError(t, got.Err)
 	assert.Equal(t, "wasm:       0.1.0 from https://rocks.example.test/\n"+
 		"rock:       from https://rocks.example.test/\n"+
@@ -174,7 +169,7 @@ func TestStatus(t *testing.T) {
 
 	none := sdktest.New(t, sdktest.WithRoot(project), sdktest.WithNoManifest())
 
-	got = none.Run(commands, "wasm", "status")
+	got = none.RunModule(wasm.New, "wasm", "status")
 	require.EqualError(t, got.Err, "not a tt project: "+project+
 		" has no app.manifest.toml (create one with tt new)")
 }
@@ -191,7 +186,7 @@ func TestRockFrom(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "rocks")
 	services := sdktest.New(t)
 
-	got := services.Run(commands, "wasm", "rock", "--from", build, "--arch", "macosx-aarch64",
+	got := services.RunModule(wasm.New, "wasm", "rock", "--from", build, "--arch", "macosx-aarch64",
 		"--out", out)
 	require.NoError(t, got.Err)
 
