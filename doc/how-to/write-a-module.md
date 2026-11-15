@@ -651,16 +651,20 @@ func newScaffoldCmd(services sdk.Services) *cobra.Command {
 				return sdk.Usagef("component %q is declared already", args[0])
 			}
 
-			change, err := project.AddComponent(cmd.Context(), sdk.Component{
+			err = project.AddComponent(cmd.Context(), sdk.Component{
 				Name:    args[0],
 				Comment: "Probes, declared by tt probe scaffold.",
 				Path:    args[0],
 				Include: []string{"*.lua"},
 			})
-			if change.Declared {
-				_, _ = fmt.Fprintf(services.Streams().IO().Out,
-					"declared component %s\n", args[0])
+			if err != nil {
+				return err
 			}
+
+			_, _ = fmt.Fprintf(services.Streams().IO().Out,
+				"declared component %s\n", args[0])
+
+			_, err = project.Resolve(cmd.Context(), sdk.ResolveOptions{})
 
 			return err
 		},
@@ -679,30 +683,60 @@ path = "checks"
 include = ["*.lua"]
 ```
 
-and resolves `app.manifest.lock` again, as `tt package resolve` does.
+then prints `declared component checks` and resolves `app.manifest.lock`
+again, as `tt package resolve` does.
 
-- `Manifest` returns what the manifest declares, as written: the
-  dependencies and the development dependencies, each with its version,
-  registry and path, and the components, each with its path and the backend
-  and `cwd` of its build block. It is parsed and not checked; a project with
-  no manifest is an error that wraps `sdk.ErrNotFound`.
+- `Manifest` returns what the manifest declares, as written: the name of
+  the package, the dependencies and the development dependencies, each with
+  its version, registry and path, and the components, each with its path,
+  `include`, `exclude`, namespace and build block: `backend`, `cwd`, `env`,
+  `output`, `incremental`, `static`, and in `Fields` the fields of the
+  backend as the TOML decoder reads them. `ManifestBuild.Decode(backend)`
+  decodes those into the configuration of a backend of the module, with the
+  decoder of the core, a field it has no place for an error: a command reads
+  the block its backend builds, as `tt package build` reads it. The manifest
+  is parsed and not checked; a project with no manifest is an error that
+  wraps `sdk.ErrNotFound`.
 - `AddComponent` appends the component - its comment, `path`, `include` and
   a build block, `sdk.ComponentBuild`, whose `Backend` and `Fields` are
-  written in their order - after the rest of the manifest, every line and
-  comment of which stays. The manifest it makes is checked as
+  written in their order, a value of a field being a string, a bool, an
+  integer, a slice or a map of them, `output = "dist/calc.wasm"` or
+  `env = { PROFILE = "release" }` - after the rest of the manifest, every
+  line and comment of which stays. The manifest it makes is checked as
   `tt package build` checks it, with the backends of the tt, before it is
-  written: a name declared already, a component the check refuses, a project
-  with no manifest and a tt with no Tarantool write nothing. A resolution of
-  the lock that fails leaves the component declared: `Declared` is set with
-  the error. `OnDeclared` of the component, when set, is called between the
-  write and the resolution, and not at all when nothing is written: a
-  command that reports each of its steps, as `tt wasm new` does, says there
-  that the component is declared, ahead of what the resolution warns of.
+  written: a name declared already, a component the check refuses and a
+  project with no manifest write nothing. `UpdateComponent` changes the
+  fields of a component, or of its build block, where they are written,
+  adds those it does not have and removes those `Remove` names;
+  `RemoveComponent` removes a component, its tables and the keys that
+  declare it. None of the three resolves the lock or needs a Tarantool: the
+  lock is stale after them until `Resolve`, or the next `tt package build`,
+  resolves it. A field written inside an inline table, such as
+  `build = { backend = "make" }`, is not edited: the error names it.
+- `Resolve` resolves the lock against the manifest, as `tt package resolve`
+  does, every version the lock chose kept; a tt with no Tarantool resolves
+  as `tt package build` does without one. `ReadLock` returns what the lock
+  pins, by product, and whether it is fresh, resolving nothing.
 - `AddDependency` declares a rock in `[dependencies]`, or with `Dev` in
-  `[dev_dependencies]`, as `tt package add` does, and `Install` fills
-  `.rocks/` from the lock, as `tt package fetch` does. They, and
-  `AddComponent`, take the rock servers a `--registry` of the command would
-  give in `Registries`: a module declares the flag itself.
+  `[dev_dependencies]`, as `tt package add` does: a declaration there gets
+  the constraint given, and the registry, when the dependency has one, and
+  the change says what it had. A command that keeps a declaration someone
+  wrote reads `Manifest` first and calls `Resolve` instead, as
+  `tt wasm prepare` does. `RemoveDependency` removes one, as
+  `tt package remove` does, and `Install` fills `.rocks/` from the lock, as
+  `tt package fetch` does. They and `Resolve` take the rock servers a
+  `--registry` of the command would give: a module declares the flag
+  itself.
+- `Build` builds the package, or the components `Components` names, with
+  the code of `tt package build`: `Build(ctx, sdk.BuildOptions{Components:
+  []string{"calc"}})` is `tt package build calc`, its hooks, lock, layout
+  and checks included. `Args` are passed through to the build of the one
+  component, as `Context.Args`, for its tool. The result says what each
+  component made, by type, where it was installed in `.rocks`, and whether
+  an incremental build was up to date. `BuildContext` gives the
+  `build.Context` a build of a component runs in, and the build its backend
+  makes of the block, building nothing: a command of the module of the
+  backend runs its tools there, in the environment a build has.
 - `StateDir` is the `.tarantool` of the project, where `tt binary` installs
   into the project scope, and whose `bin/` is first in the `PATH` of a build.
   `PrepareEnvironment` writes `.env/activate.sh` and `deactivate.sh` when
@@ -718,8 +752,9 @@ fork of tt in between, so that it can be started at once while tt starts
 other processes.
 
 In a test the project of `sdktest` touches no file: its manifest is the one
-`sdktest.WithManifest` gives, `AddComponent` declares into it, and
-`AddedComponents` returns what it was given:
+`sdktest.WithManifest` gives, `AddComponent` declares into it,
+`AddedComponents` returns what it was given and `Resolves` the calls of
+`Resolve`:
 
 ```go
 func TestScaffold(t *testing.T) {
@@ -733,6 +768,7 @@ func TestScaffold(t *testing.T) {
 	assert.Equal(t, "declared component checks\n", got.Stdout)
 	require.Len(t, services.AddedComponents(), 1)
 	assert.Equal(t, "checks", services.AddedComponents()[0].Path)
+	assert.Len(t, services.Resolves(), 1)
 
 	again := sdktest.New(t, sdktest.WithManifest(sdk.Manifest{
 		Components: map[string]sdk.ManifestComponent{"checks": {Path: "checks"}},

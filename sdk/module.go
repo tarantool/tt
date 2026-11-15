@@ -147,6 +147,8 @@ type Integrity interface {
 //
 // Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Project,
 // as they implement Services.
+//
+//nolint:interfacebloat // What tt package does to a project, one service as it is one group.
 type Project interface {
 	// Dir returns the directory of the command as an absolute path: the
 	// working directory tt runs in. A module cannot declare -C; a command
@@ -168,19 +170,52 @@ type Project interface {
 	// an error that wraps ErrNotFound; a manifest that does not parse is an
 	// error that names it.
 	Manifest() (Manifest, error)
-	// AddComponent declares component in the app.manifest.toml of Root and
-	// re-resolves app.manifest.lock against it, holding every version the
-	// lock already chose. The tables of the component are appended to the
-	// manifest, every other line and comment kept, and the manifest that
-	// makes is parsed and checked as tt package build checks it, the
-	// backends of this tt included, before it is written;
-	// [Component.OnDeclared] is called once it is. A name the
-	// manifest declares already, a component that fails the check, a
-	// project without a manifest and a tt with no Tarantool, whose error
-	// wraps ErrNotFound, are errors, and nothing is written. When the
-	// resolution fails the component stays declared: the change reports
-	// Declared with the error. The warnings of the resolution are logged.
-	AddComponent(ctx context.Context, component Component) (ComponentChange, error)
+	// AddComponent declares component in the app.manifest.toml of Root. The
+	// tables of the component are appended to the manifest, every other
+	// line and comment kept, and the manifest that makes is parsed and
+	// checked as tt package build checks it, the backends of this tt
+	// included, before it is written in its place. A name the manifest
+	// declares already, a component that fails the check and a project
+	// without a manifest, whose error wraps ErrNotFound, are errors, and
+	// nothing is written.
+	//
+	// The lock is not resolved, and no Tarantool is needed: the lock is
+	// stale afterwards, as after an edit of the manifest by hand, until
+	// [Project.Resolve] or a build resolves it again.
+	AddComponent(ctx context.Context, component Component) error
+	// UpdateComponent changes the component the manifest of Root declares
+	// as update says: a field there has its value replaced where it is
+	// written, a new one goes after the last field of its table, a removed
+	// one takes its lines, and every other line and comment stays. The
+	// manifest is checked and written as AddComponent writes it, and the
+	// lock is not resolved. A component the manifest does not declare is an
+	// error that wraps ErrNotFound; a field written in a form tt does not
+	// edit, inside an inline table, is an error that names it, to be edited
+	// by hand; nothing is written then.
+	UpdateComponent(ctx context.Context, update ComponentUpdate) error
+	// RemoveComponent removes the component name from the manifest of Root:
+	// its tables, with the blank lines above them, and the keys that
+	// declare it elsewhere; comments stay. The manifest is checked and
+	// written as AddComponent writes it - a product that names the
+	// component fails the check - and the lock is not resolved. Nothing of
+	// the directory of the component is removed. A component the manifest
+	// does not declare is an error that wraps ErrNotFound.
+	RemoveComponent(ctx context.Context, name string) error
+	// Resolve resolves app.manifest.lock of Root against its manifest, as
+	// tt package resolve does: every version the lock chose is held, the
+	// manifest is not changed and nothing is installed. It is what a
+	// command runs after AddComponent, UpdateComponent or RemoveComponent
+	// when the lock is to be fresh. A tt with no Tarantool resolves as
+	// tt package build resolves a stale lock, without one: a rockspec that
+	// asks for the version of Tarantool is evaluated with none. A project
+	// without a manifest is an error that wraps ErrNotFound. The warnings of
+	// the resolution are logged.
+	Resolve(ctx context.Context, opts ResolveOptions) (ResolveChange, error)
+	// ReadLock returns what app.manifest.lock of Root pins, and whether it
+	// is fresh for the manifest, reading the lock and resolving nothing. A
+	// project without a manifest or a lock is an error that wraps
+	// ErrNotFound; a lock that does not parse is an error that names it.
+	ReadLock() (LockFile, error)
 	// StateDir returns the directory of the state of Root on this machine,
 	// .tarantool, as an absolute path: tt binary installs into the project
 	// scope there, and its bin/ comes first in the PATH of the builds of the
@@ -199,15 +234,19 @@ type Project interface {
 	// requires can move. Nothing is installed; [Project.Install] does that.
 	//
 	// When the table dep goes to declares the name already, the change
-	// reports Existed and the constraint the declaration had. For a dep with
-	// a Registry the declaration is left exactly as it is, constraint and
-	// registry included, since they are someone's choice, and the lock is
-	// resolved against it. For a dep without one its constraint is rewritten
-	// to dep's, "*" for none, and the rest of it - a registry, a source - is
-	// kept. A name declared in the other table as well stays there, with a
-	// warning. The manifest is rewritten in place, every other line and
-	// comment kept, and before the resolution: when the resolution fails the
-	// declaration stays and the error says so.
+	// reports Existed and the constraint and the registry the declaration
+	// had, and the declaration is set to dep: its constraint is rewritten to
+	// dep's, "*" for none; for a dep with a Registry its registry is set
+	// too, a short declaration becoming the long form; for a dep without one
+	// a registry it names is kept. The other fields of the declaration, a
+	// source say, are kept, and so is a declaration that says what dep says
+	// already. A command that keeps a declaration someone chose reads it in
+	// [Project.Manifest] first, and resolves with [Project.Resolve] instead.
+	// A name declared in the other table as well stays there, with a
+	// warning. A path dependency, which has no version, is refused. The
+	// manifest is rewritten in place, every other line and comment kept, and
+	// before the resolution: when the resolution fails the declaration stays
+	// and the error says so.
 	//
 	// The warnings of the manifest and of the resolution are logged. A
 	// project without a manifest, an invalid manifest or constraint, and a
@@ -215,6 +254,17 @@ type Project interface {
 	// whose version the rockspecs are evaluated for, and that error wraps
 	// ErrNotFound.
 	AddDependency(ctx context.Context, dep Dependency) (DependencyChange, error)
+	// RemoveDependency removes the rock name from [dependencies] and
+	// [dev_dependencies] of the manifest of Root and re-resolves the lock
+	// without it, as tt package remove does: every other version is held,
+	// and the rocks only it required drop out of the closure. Nothing is
+	// removed from .rocks. The change reports the constraint and the
+	// registry of the declaration removed, and the moves. A name the
+	// manifest does not declare there is an error that wraps ErrNotFound;
+	// one a component declares stays, with a warning. A tt with no
+	// Tarantool fails as AddDependency fails.
+	RemoveDependency(ctx context.Context, name string, opts ResolveOptions) (
+		DependencyChange, error)
 	// Install materializes .rocks/ of Root strictly from its lock, as
 	// tt package fetch does for the default product: the locked closure of
 	// the product and the development closure are installed at the versions
@@ -225,6 +275,33 @@ type Project interface {
 	// need none, and fails on one compiled against the headers of
 	// Tarantool. The warnings are logged.
 	Install(ctx context.Context, opts InstallOptions) error
+	// Build builds the package of Root, or the components opts names, with
+	// the code of tt package build and as it builds them: the preflight,
+	// pre_build, the lock gated - resolved when stale, an error under
+	// opts.Locked - .rocks materialized, the builds of the components, their
+	// layout, the checks of the files, version.lua, the install of the rock
+	// of the package into .rocks and post_build. Build with
+	// Components: []string{"calc"} is tt package build calc. What the tools
+	// of the builds print is shown as tt package build shows it, on the
+	// standard streams of the process. The error is the one tt package build
+	// fails with, with its exit code ([ExitCode]): ExitSystem for a build
+	// that failed. A tt with no Tarantool builds as tt package build does
+	// without one.
+	Build(ctx context.Context, opts BuildOptions) (BuildResult, error)
+	// BuildContext returns the Context the build of a component would run
+	// in, and the build its backend makes of its block, building nothing:
+	// for a command of the module of the backend that runs its tools in
+	// the environment a build has - PATH with .tarantool/bin first, the
+	// env of the block, the TT_* variables - as tt wasm fetch and bind do.
+	// The manifest is read and checked as Build checks it, the version of
+	// the package is derived, TT_BUILD_DIR (Dirs.Work) is created, and the
+	// lock is read and not resolved: LockedVersion answers as during the
+	// preflight of a build, from a lock that is fresh. No hook and no
+	// backend runs; the directories of the stage and .rocks may not exist.
+	// A component the product does not build, or with no build block, is an
+	// error.
+	BuildContext(ctx context.Context, opts BuildContextOptions) (
+		*build.Context, build.Build, error)
 }
 
 // Rocks are the rock servers tt writes, as tt package index writes one.

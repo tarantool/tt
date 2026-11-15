@@ -98,21 +98,32 @@ core uses, and the core never requires older ones.
   through the integrity checks), `Project` (the directory of the command,
   `Dir`, and the project it is in, `Root`, as the project commands of tt
   find it, which the other methods work on: `Manifest`, what its manifest
-  declares - the dependencies with their version, registry and path, the
-  components with their path, backend and cwd - parsed and not checked;
-  `AddDependency`, which declares a `Dependency` in the manifest - in the
-  long form with a `Registry`, in `[dev_dependencies]` with `Dev` - and
+  declares - the package, the dependencies with their version, registry
+  and path, the components with their path, include, exclude, namespace
+  and build block, its common fields and the raw fields of its backend,
+  which `ManifestBuild.Decode` decodes as the core does - parsed and not
+  checked; `AddDependency`, which declares a `Dependency` in the manifest -
+  in the long form with a `Registry`, in `[dev_dependencies]` with `Dev` -
+  setting the constraint and the registry of a declaration there, and
   re-resolves its lock as `tt package add` does, reporting in a
-  `DependencyChange` whether the name was declared already and how the
-  locked versions moved; `AddComponent`, which appends a `Component` - a
-  comment, its path and include and a `ComponentBuild` of fields in their
-  order - to the manifest, every other line kept, checks it with the
-  backends of the tt and re-resolves the lock, calling its `OnDeclared` in
-  between, a `ComponentChange` saying whether it was declared, with the
-  error of a resolution that failed too;
-  `Install`, which fills `.rocks/` from the lock as `tt package fetch`
-  does; the three take the rock servers `--registry` would give;
-  `StateDir`, its `.tarantool`; and `PrepareEnvironment`, which writes
+  `DependencyChange` whether the name was declared already, with what, and
+  how the locked versions moved; `RemoveDependency`, as `tt package
+  remove`; `AddComponent`, which appends a `Component` - a comment, its path
+  and include and a `ComponentBuild` of fields in their order, tables
+  included - to the manifest, every other line kept, and checks it with the
+  backends of the tt; `UpdateComponent`, which changes the fields of a
+  component where they are written, and `RemoveComponent` - the three
+  resolve nothing and need no Tarantool; `Resolve`, which resolves the lock
+  as `tt package resolve` does, and without a Tarantool as a build does;
+  `ReadLock`, what the lock pins and whether it is fresh; `Build`, which
+  builds the package or the components of `BuildOptions` with the code of
+  `tt package build`, arguments passed through to the build of one, and
+  reports what each made and whether it was up to date; `BuildContext`,
+  the `build.Context` a build of a component runs in, and its build, with
+  nothing built; `Install`, which fills `.rocks/` from the lock as `tt
+  package fetch` does; those that resolve take the rock servers
+  `--registry` would give; `StateDir`, its `.tarantool`; and
+  `PrepareEnvironment`, which writes
   `.env/activate.sh` and `deactivate.sh` as the first `tt binary install`
   into the project does), `Rocks` (`Index` makes a directory a rock server:
   the LuaRocks manifests and `tt-rocks-index.json`, as `tt package index`
@@ -242,15 +253,18 @@ core uses, and the core never requires older ones.
   found). The project reads, edits and installs nothing: its root is the
   project directory or the one `WithRoot` sets, its manifest the one
   `WithManifest` gives - empty by default, none with `WithNoManifest` - with
-  the names `WithDeclared` declares, and `AddDependency` and `AddComponent`
-  declare into it; what it is asked is recorded (`AddedDependencies`,
-  `AddedComponents`, `Installs`, `PreparedEnvironments`, and `Indexed` for
-  `Rocks().Index`), `AddDependency` and `AddComponent` report the moves
-  `WithMoves` gives, `AddDependency` fails with `WithAddDependencyError`,
-  `AddComponent` with `WithResolveError` once it declared the component
-  and called its `OnDeclared`,
-  and `Install` and `Index` run the functions `WithInstall` (in the root)
-  and `WithIndex` give, to write what the rocks would.
+  the names `WithDeclared` declares, and `AddDependency`,
+  `RemoveDependency`, `AddComponent`, `UpdateComponent` and
+  `RemoveComponent` change it as the core would; what it is asked is
+  recorded (`AddedDependencies`, `RemovedDependencies`, `AddedComponents`,
+  `UpdatedComponents`, `RemovedComponents`, `Resolves`, `Builds`,
+  `Installs`, `PreparedEnvironments`, and `Indexed` for `Rocks().Index`),
+  `AddDependency`, `RemoveDependency` and `Resolve` report the moves
+  `WithMoves` gives, the two fail with `WithAddDependencyError` and
+  `Resolve` with `WithResolveError`, `ReadLock` returns the lock `WithLock`
+  gives, and `Build`, `BuildContext`, `Install` and `Index` run the
+  functions `WithBuild`, `WithBuildContext`, `WithInstall` (in the root)
+  and `WithIndex` give, to do what the core would.
   `Stdout`, `Stderr` and `Records` return what the
   module wrote and logged. `Run` hangs a constructor's mounts on a root,
   creating the groups on their paths, starts the services and executes a

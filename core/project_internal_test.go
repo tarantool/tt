@@ -241,19 +241,54 @@ func TestProjectAddDependency(t *testing.T) {
 	assert.NotContains(t, man.Dependencies, "tool")
 	assert.Equal(t, map[string]string{"tool": "1.0.0-1"}, lockedVersions(lock.DevDependencies))
 
-	// A declaration with a registry is someone's choice: it stays.
+	// The same declaration again is no change of the manifest.
+	change, err = project.AddDependency(t.Context(), tool)
+	require.NoError(t, err)
+	assert.Equal(t, sdk.DependencyChange{
+		Existed: true, Previous: "<1.1", PreviousRegistry: registry,
+		Moves: []sdk.DependencyMove{},
+	}, change)
+
+	unchanged, _, _ := readProject(t, dir)
+	assert.Equal(t, string(source), string(unchanged))
+
+	// A declaration with a registry takes the constraint and the registry
+	// given, the rest of the manifest kept, and the lock moves with it.
 	tool.Constraint = ">=1.1"
 
 	change, err = project.AddDependency(t.Context(), tool)
 	require.NoError(t, err)
 	assert.Equal(t, sdk.DependencyChange{
-		Existed:  true,
-		Previous: "<1.1",
-		Moves:    []sdk.DependencyMove{},
+		Existed: true, Previous: "<1.1", PreviousRegistry: registry,
+		Moves: []sdk.DependencyMove{{Name: "tool", From: "1.0.0-1", To: "1.1.0-1"}},
 	}, change)
 
-	unchanged, _, _ := readProject(t, dir)
-	assert.Equal(t, string(source), string(unchanged))
+	source, man, lock = readProject(t, dir)
+	assert.Contains(t, string(source), "# The application of the tests of the core.")
+	assert.Equal(t, manifest.Dependency{Source: "registry", Version: ">=1.1", Registry: registry},
+		man.DevDependencies["tool"])
+	assert.Equal(t, map[string]string{"tool": "1.1.0-1"}, lockedVersions(lock.DevDependencies))
+
+	// RemoveDependency removes it and drops it from the lock.
+	change, err = project.RemoveDependency(t.Context(), "tool", sdk.ResolveOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, sdk.DependencyChange{
+		Existed: true, Previous: ">=1.1", PreviousRegistry: registry,
+		Moves: []sdk.DependencyMove{{Name: "tool", From: "1.1.0-1", To: ""}},
+	}, change)
+
+	_, err = project.RemoveDependency(t.Context(), "tool", sdk.ResolveOptions{})
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+
+	_, man, lock = readProject(t, dir)
+	assert.NotContains(t, man.DevDependencies, "tool")
+	assert.Empty(t, lock.DevDependencies)
+
+	// Back at 1.0.0-1, for what follows.
+	tool.Constraint = "<1.1"
+
+	_, err = project.AddDependency(t.Context(), tool)
+	require.NoError(t, err)
 
 	// The short form resolves from the servers given, and keeps what the lock
 	// holds: tool stays at 1.0.0-1.

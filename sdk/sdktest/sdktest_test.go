@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/sdk/sdktest"
 )
@@ -476,14 +477,39 @@ func TestServicesProjectManifest(t *testing.T) {
 	assert.True(t, change.Existed)
 	assert.Equal(t, "0.1.0", change.Previous)
 
+	assert.Equal(t, ".tarantool/registry", change.PreviousRegistry)
+
 	_, err = project.AddDependency(t.Context(), sdk.Dependency{Name: "checks"})
 	require.NoError(t, err)
 
 	manifest, err = project.Manifest()
 	require.NoError(t, err)
-	assert.Equal(t, sdk.ManifestDependency{Version: "0.1.0", Registry: ".tarantool/registry"},
-		manifest.Dependencies["wasm"], "a declaration with a registry is left as it is")
+	assert.Equal(t, sdk.ManifestDependency{Version: "0.2.0", Registry: "https://rocks.example/"},
+		manifest.Dependencies["wasm"], "a declaration takes the constraint and the registry")
 	assert.Equal(t, sdk.ManifestDependency{Version: "*"}, manifest.Dependencies["checks"])
+
+	// A registry the declaration names stays for a dependency of none.
+	_, err = project.AddDependency(t.Context(), sdk.Dependency{Name: "wasm", Constraint: "0.3.0"})
+	require.NoError(t, err)
+
+	manifest, err = project.Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ManifestDependency{Version: "0.3.0", Registry: "https://rocks.example/"},
+		manifest.Dependencies["wasm"])
+
+	// RemoveDependency removes it from both tables, and refuses a name of
+	// neither.
+	change, err = project.RemoveDependency(t.Context(), "luatest", sdk.ResolveOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, sdk.DependencyChange{Existed: true, Previous: "1.0.1", Moves: nil}, change)
+
+	_, err = project.RemoveDependency(t.Context(), "luatest", sdk.ResolveOptions{})
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+	assert.Equal(t, []string{"luatest", "luatest"}, services.RemovedDependencies())
+
+	manifest, err = project.Manifest()
+	require.NoError(t, err)
+	assert.Empty(t, manifest.DevDependencies)
 
 	none := sdktest.New(t, sdktest.WithNoManifest())
 	none.Start()
@@ -505,34 +531,41 @@ func routerComponent() sdk.Component {
 		Include: []string{"dist/router.wasm"},
 		Build: &sdk.ComponentBuild{Backend: "shell", Fields: []sdk.BuildField{
 			{Key: "command", Value: "tarawasm"}, {Key: "cwd", Value: "router/src"},
+			{Key: "output", Value: "dist/router.wasm"},
+			{Key: "env", Value: map[string]string{"PROFILE": "release"}},
+			{Key: "incremental", Value: true},
+			{Key: "args", Value: map[string][]string{"build": {"-opt=2"}}},
 		}},
-		Registries: []string{"mirror"},
-		OnDeclared: nil,
 	}
 }
 
 // TestServicesProjectAddComponent checks that AddComponent records its
-// calls, declares the component in the manifest, refuses what the core
-// refuses, and that WithResolveError fails it once it is declared.
+// calls, declares the component in the manifest, the fields of its build
+// block read back as the core reads them, refuses what the core refuses,
+// and resolves nothing.
 func TestServicesProjectAddComponent(t *testing.T) {
 	t.Parallel()
 
-	moves := []sdk.DependencyMove{{Name: "wasm", From: "", To: "0.1.0-1"}}
-
-	services := sdktest.New(t, sdktest.WithMoves(moves...))
+	services := sdktest.New(t, sdktest.WithManifest(sdk.Manifest{Package: "shop"}))
 	services.Start()
 
 	project := services.Project()
 	router := routerComponent()
 
-	change, err := project.AddComponent(t.Context(), router)
-	require.NoError(t, err)
-	assert.Equal(t, sdk.ComponentChange{Declared: true, Moves: moves}, change)
+	require.NoError(t, project.AddComponent(t.Context(), router))
 
 	manifest, err := project.Manifest()
 	require.NoError(t, err)
 	assert.Equal(t, sdk.ManifestComponent{
-		Path: "router", Build: &sdk.ManifestBuild{Backend: "shell", Cwd: "router/src"},
+		Path: "router", Include: []string{"dist/router.wasm"}, Namespace: "shop",
+		Build: &sdk.ManifestBuild{
+			Backend: "shell", Cwd: "router/src", Env: map[string]string{"PROFILE": "release"},
+			Output:      []sdk.ManifestOutput{{Path: "dist/router.wasm", To: ""}},
+			Incremental: true,
+			Fields: map[string]any{
+				"command": "tarawasm", "args": map[string]any{"build": []any{"-opt=2"}},
+			},
+		},
 	}, manifest.Components["router"])
 
 	for _, refused := range []sdk.Component{
@@ -541,9 +574,7 @@ func TestServicesProjectAddComponent(t *testing.T) {
 		{Name: "x", Path: ""},
 		{Name: "x", Path: "x", Build: &sdk.ComponentBuild{Backend: ""}},
 	} {
-		change, err = project.AddComponent(t.Context(), refused)
-		require.Error(t, err, refused.Name)
-		assert.False(t, change.Declared, refused.Name)
+		require.Error(t, project.AddComponent(t.Context(), refused), refused.Name)
 	}
 
 	added := services.AddedComponents()
@@ -553,36 +584,166 @@ func TestServicesProjectAddComponent(t *testing.T) {
 	added[0].Build.Fields[0].Value = "changed"
 	assert.Equal(t, "tarawasm", services.AddedComponents()[0].Build.Fields[0].Value,
 		"the record is a copy")
+	assert.Empty(t, services.Resolves(), "nothing is resolved")
+
+	none := sdktest.New(t, sdktest.WithNoManifest())
+	none.Start()
+
+	require.ErrorIs(t, none.Project().AddComponent(t.Context(), router), sdk.ErrNotFound)
+}
+
+// TestServicesProjectUpdateComponent checks that UpdateComponent and
+// RemoveComponent change the manifest as the core does, and refuse a
+// component it does not declare.
+func TestServicesProjectUpdateComponent(t *testing.T) {
+	t.Parallel()
+
+	services := sdktest.New(t)
+	services.Start()
+
+	project := services.Project()
+
+	require.NoError(t, project.AddComponent(t.Context(), routerComponent()))
+	require.NoError(t, project.AddComponent(t.Context(), sdk.Component{Name: "app", Path: "app"}))
+
+	update := sdk.ComponentUpdate{
+		Name:   "router",
+		Fields: []sdk.BuildField{{Key: "path", Value: "wasm/router"}},
+		Build:  []sdk.BuildField{{Key: "output", Value: []string{"dist/a.wasm", "dist/b.wasm"}}},
+		Remove: []string{"include", "build.incremental", "build.args"},
+	}
+
+	require.NoError(t, project.UpdateComponent(t.Context(), update))
+	require.NoError(t, project.UpdateComponent(t.Context(), sdk.ComponentUpdate{
+		Name: "app", Build: []sdk.BuildField{{Key: "backend", Value: "make"}},
+	}))
+
+	manifest, err := project.Manifest()
+	require.NoError(t, err)
+
+	router := manifest.Components["router"]
+	assert.Equal(t, "wasm/router", router.Path)
+	assert.Empty(t, router.Include)
+	assert.False(t, router.Build.Incremental)
+	assert.Equal(t, map[string]any{"command": "tarawasm"}, router.Build.Fields)
+	assert.Equal(t, []sdk.ManifestOutput{{Path: "dist/a.wasm"}, {Path: "dist/b.wasm"}},
+		router.Build.Output)
+	assert.Equal(t, "make", manifest.Components["app"].Build.Backend)
+
+	require.ErrorIs(t, project.UpdateComponent(t.Context(), sdk.ComponentUpdate{Name: "x"}),
+		sdk.ErrNotFound)
+	require.Error(t, project.UpdateComponent(t.Context(), sdk.ComponentUpdate{
+		Name: "router", Remove: []string{"build"},
+		Build: []sdk.BuildField{{Key: "cwd", Value: "."}},
+	}), "a build block made anew names its backend")
+	assert.Equal(t, update, services.UpdatedComponents()[0])
+
+	require.NoError(t, project.RemoveComponent(t.Context(), "app"))
+	require.ErrorIs(t, project.RemoveComponent(t.Context(), "app"), sdk.ErrNotFound)
+	assert.Equal(t, []string{"app", "app"}, services.RemovedComponents())
+
+	manifest, err = project.Manifest()
+	require.NoError(t, err)
+	assert.NotContains(t, manifest.Components, "app")
+}
+
+// TestServicesProjectResolve checks that Resolve records its calls and
+// answers as WithMoves and WithResolveError say, and ReadLock as WithLock.
+func TestServicesProjectResolve(t *testing.T) {
+	t.Parallel()
+
+	moves := []sdk.DependencyMove{{Name: "wasm", From: "", To: "0.1.0-1"}}
+	lock := sdk.LockFile{
+		Fresh: true, Reason: "", DefaultProduct: "default",
+		Products: map[string]map[string]sdk.LockedRock{
+			"default": {"wasm": {Version: "0.1.0-1", Path: ""}},
+		},
+		DevDependencies: map[string]sdk.LockedRock{"luatest": {Version: "1.0.1-1", Path: ""}},
+	}
+
+	services := sdktest.New(t, sdktest.WithMoves(moves...), sdktest.WithLock(lock))
+	services.Start()
+
+	change, err := services.Project().Resolve(t.Context(),
+		sdk.ResolveOptions{Registries: []string{"mirror"}})
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ResolveChange{Moves: moves}, change)
+	assert.Equal(t, []sdk.ResolveOptions{{Registries: []string{"mirror"}}}, services.Resolves())
+
+	read, err := services.Project().ReadLock()
+	require.NoError(t, err)
+	assert.Equal(t, lock, read)
+
+	rock, ok := read.Locked("wasm")
+	assert.True(t, ok)
+	assert.Equal(t, "0.1.0-1", rock.Version)
+
+	rock, ok = read.Locked("luatest")
+	assert.True(t, ok)
+	assert.Equal(t, "1.0.1-1", rock.Version)
+
+	_, ok = read.Locked("checks")
+	assert.False(t, ok)
 
 	failure := errors.New("rock not found on any server")
 
 	failing := sdktest.New(t, sdktest.WithResolveError(failure))
 	failing.Start()
 
-	declared := 0
-	told := router
-
-	told.OnDeclared = func() { declared++ }
-
-	change, err = failing.Project().AddComponent(t.Context(), told)
+	_, err = failing.Project().Resolve(t.Context(), sdk.ResolveOptions{})
 	require.ErrorIs(t, err, failure)
-	assert.True(t, change.Declared)
-	assert.Equal(t, 1, declared, "OnDeclared is called once the component is declared")
 
-	_, err = failing.Project().AddComponent(t.Context(), told)
-	require.Error(t, err)
-	assert.Equal(t, 1, declared, "and not for a component it refuses")
-
-	manifest, err = failing.Project().Manifest()
-	require.NoError(t, err)
-	assert.Contains(t, manifest.Components, "router", "the component stays declared")
-
-	none := sdktest.New(t, sdktest.WithNoManifest())
-	none.Start()
-
-	change, err = none.Project().AddComponent(t.Context(), router)
+	_, err = failing.Project().ReadLock()
 	require.ErrorIs(t, err, sdk.ErrNotFound)
-	assert.False(t, change.Declared)
+}
+
+// TestServicesProjectBuild checks that Build records its calls and runs what
+// WithBuild gives, and BuildContext what WithBuildContext gives.
+func TestServicesProjectBuild(t *testing.T) {
+	t.Parallel()
+
+	services := sdktest.New(t)
+	services.Start()
+
+	result, err := services.Project().Build(t.Context(), sdk.BuildOptions{
+		Components: []string{"calc"}, Args: []string{"-opt=2"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, sdk.BuildResult{Product: "default"}, result)
+	assert.Equal(t, []sdk.BuildOptions{{
+		Components: []string{"calc"}, Args: []string{"-opt=2"},
+	}}, services.Builds())
+
+	_, _, err = services.Project().BuildContext(t.Context(),
+		sdk.BuildContextOptions{Component: "calc"})
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+
+	built := sdk.BuiltComponent{Data: []string{"/p/.rocks/share/tarantool/shop/calc.wasm"}}
+	facts := &build.Context{Args: []string{"-opt=2"}}
+
+	building := sdktest.New(t,
+		sdktest.WithBuild(func(opts sdk.BuildOptions) (sdk.BuildResult, error) {
+			return sdk.BuildResult{
+				Product: "default", Version: "1.0.0",
+				Components: map[string]sdk.BuiltComponent{opts.Components[0]: built},
+			}, nil
+		}),
+		sdktest.WithBuildContext(func(opts sdk.BuildContextOptions) (
+			*build.Context, build.Build, error,
+		) {
+			return facts, nil, nil
+		}))
+	building.Start()
+
+	result, err = building.Project().Build(t.Context(),
+		sdk.BuildOptions{Components: []string{"calc"}})
+	require.NoError(t, err)
+	assert.Equal(t, built, result.Components["calc"])
+
+	got, _, err := building.Project().BuildContext(t.Context(),
+		sdk.BuildContextOptions{Component: "calc"})
+	require.NoError(t, err)
+	assert.Same(t, facts, got)
 }
 
 // TestServicesProjectPrepareEnvironment checks that PrepareEnvironment

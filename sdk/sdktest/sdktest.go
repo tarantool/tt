@@ -12,16 +12,19 @@
 // without the core's encoders.
 //
 // Cluster configurations come from [WithClusterConfig] rather than from
-// files or storages. The project reads, edits and installs no file: its
-// manifest is the one [WithManifest] and [WithDeclared] give, which
-// AddDependency and AddComponent declare into, and they, Install,
-// PrepareEnvironment and the Index of the rock servers record their calls
-// ([Services.AddedDependencies], [Services.AddedComponents],
+// files or storages. The project reads, edits, builds and installs no file:
+// its manifest is the one [WithManifest] and [WithDeclared] give, which
+// AddDependency, RemoveDependency, AddComponent, UpdateComponent and
+// RemoveComponent change as the core would, and they, Resolve, Build,
+// Install, PrepareEnvironment and the Index of the rock servers record their
+// calls ([Services.AddedDependencies], [Services.RemovedDependencies],
+// [Services.AddedComponents], [Services.UpdatedComponents],
+// [Services.RemovedComponents], [Services.Resolves], [Services.Builds],
 // [Services.Installs], [Services.PreparedEnvironments], [Services.Indexed])
 // and answer as [WithMoves], [WithAddDependencyError], [WithResolveError],
-// [WithInstall] and [WithIndex] say. [Services.Exit] does not end the test
-// binary: under [Services.Run] it ends the command, and the [Result] says
-// so.
+// [WithLock], [WithBuild], [WithBuildContext], [WithInstall] and [WithIndex]
+// say. [Services.Exit] does not end the test binary: under [Services.Run] it
+// ends the command, and the [Result] says so.
 package sdktest
 
 import (
@@ -34,6 +37,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -41,6 +45,7 @@ import (
 	"testing"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/internal/clusteryaml"
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/sdk/output"
@@ -52,6 +57,8 @@ var (
 	errNoManifest = fmt.Errorf("no app.manifest.toml in the project: %w", sdk.ErrNotFound)
 	// errComponent reports a component the fake does not declare.
 	errComponent = errors.New("cannot declare the component")
+	// errNoField reports a field of a component the fake does not declare.
+	errNoField = errors.New("the fake declares no such field of a component")
 )
 
 // defaultName is the module name a Services logs under unless WithName says
@@ -83,6 +90,10 @@ type options struct {
 	noMan     bool
 	resolve   error
 	index     func(dir string, opts sdk.IndexOptions) error
+	lock      *sdk.LockFile
+	build     func(opts sdk.BuildOptions) (sdk.BuildResult, error)
+	// buildContext answers Project.BuildContext.
+	buildContext func(opts sdk.BuildContextOptions) (*build.Context, build.Build, error)
 }
 
 // Option configures the Services New returns.
@@ -117,27 +128,52 @@ func WithRoot(dir string) Option {
 
 // WithManifest makes the manifest of the project declare what manifest
 // does, the dependencies WithDeclared gives added; an empty manifest by
-// default. Project.Manifest returns a copy of it with what AddDependency
-// and AddComponent declared since, and AddDependency of a name it declares
-// reports Existed and its version as Previous.
+// default. Project.Manifest returns a copy of it with what AddDependency,
+// RemoveDependency, AddComponent, UpdateComponent and RemoveComponent
+// changed since, and AddDependency of a name it declares reports Existed
+// and its version and registry as Previous and PreviousRegistry.
 func WithManifest(manifest sdk.Manifest) Option {
 	return func(o *options) { o.manifest = &manifest }
 }
 
-// WithNoManifest makes a project without app.manifest.toml: Manifest and
-// AddComponent fail with an error wrapping sdk.ErrNotFound, and the
-// component is not declared. It cannot be combined with WithManifest or
-// WithDeclared.
+// WithNoManifest makes a project without app.manifest.toml: Manifest,
+// ReadLock and the edits of components fail with an error wrapping
+// sdk.ErrNotFound, and nothing is declared. It cannot be combined with
+// WithManifest or WithDeclared.
 func WithNoManifest() Option {
 	return func(o *options) { o.noMan = true }
 }
 
-// WithResolveError makes every Project.AddComponent that declares its
-// component fail with err afterwards, as a resolution of the lock that
-// fails does: the component stays declared, and the change reports Declared
-// with the error.
+// WithResolveError makes every Project.Resolve fail with err, as a
+// resolution of the lock that fails does; the call is recorded all the
+// same.
 func WithResolveError(err error) Option {
 	return func(o *options) { o.resolve = err }
+}
+
+// WithLock makes Project.ReadLock return lock; without it the project has
+// no lock, and ReadLock fails with an error wrapping sdk.ErrNotFound.
+func WithLock(lock sdk.LockFile) Option {
+	return func(o *options) { o.lock = &lock }
+}
+
+// WithBuild makes Project.Build call build with the options it was given
+// and return what build returns: a module's test writes there what the
+// build of its component would make, or fails it. Without it Build builds
+// nothing and returns the product and no component; it records the call
+// either way (Services.Builds).
+func WithBuild(build func(opts sdk.BuildOptions) (sdk.BuildResult, error)) Option {
+	return func(o *options) { o.build = build }
+}
+
+// WithBuildContext makes Project.BuildContext call buildContext with the
+// options it was given and return what it returns, such as the Context of a
+// buildtest.Harness and the build of the module's backend. Without it
+// BuildContext fails with an error wrapping sdk.ErrNotFound.
+func WithBuildContext(
+	buildContext func(opts sdk.BuildContextOptions) (*build.Context, build.Build, error),
+) Option {
+	return func(o *options) { o.buildContext = buildContext }
 }
 
 // WithIndex makes Rocks().Index call index with the directory and the
@@ -248,8 +284,18 @@ type Services struct {
 	manifest sdk.Manifest
 	// added are the calls of Project.AddDependency, in order.
 	added []sdk.Dependency
+	// removed are the names Project.RemoveDependency was given, in order.
+	removed []string
 	// components are the calls of Project.AddComponent, in order.
 	components []sdk.Component
+	// updates are the calls of Project.UpdateComponent, in order.
+	updates []sdk.ComponentUpdate
+	// dropped are the names Project.RemoveComponent was given, in order.
+	dropped []string
+	// resolves are the calls of Project.Resolve, in order.
+	resolves []sdk.ResolveOptions
+	// builds are the calls of Project.Build, in order.
+	builds []sdk.BuildOptions
 	// installs are the calls of Project.Install, in order.
 	installs []sdk.InstallOptions
 	// environments counts the calls of Project.PrepareEnvironment.
@@ -292,6 +338,10 @@ func New(tb testing.TB, opts ...Option) *Services {
 		noMan:     false,
 		resolve:   nil,
 		index:     nil,
+		lock:      nil,
+		build:     nil,
+
+		buildContext: nil,
 	}
 
 	for _, opt := range opts {
@@ -354,7 +404,12 @@ func New(tb testing.TB, opts ...Option) *Services {
 		answers:      config.answers,
 		manifest:     manifest,
 		added:        nil,
+		removed:      nil,
 		components:   nil,
+		updates:      nil,
+		dropped:      nil,
+		resolves:     nil,
+		builds:       nil,
 		installs:     nil,
 		environments: 0,
 		indexed:      nil,
@@ -375,27 +430,23 @@ func declare(dep sdk.Dependency) sdk.ManifestDependency {
 // copyManifest returns a copy of manifest whose maps are its own and never
 // nil; an empty manifest for nil.
 func copyManifest(manifest *sdk.Manifest) sdk.Manifest {
-	out := sdk.Manifest{
-		Dependencies:    map[string]sdk.ManifestDependency{},
-		DevDependencies: map[string]sdk.ManifestDependency{},
-		Components:      map[string]sdk.ManifestComponent{},
-	}
-
 	if manifest == nil {
-		return out
+		return sdk.Manifest{
+			Package:         "",
+			Dependencies:    map[string]sdk.ManifestDependency{},
+			DevDependencies: map[string]sdk.ManifestDependency{},
+			Components:      map[string]sdk.ManifestComponent{},
+		}
 	}
 
-	maps.Copy(out.Dependencies, manifest.Dependencies)
-	maps.Copy(out.DevDependencies, manifest.DevDependencies)
+	out := manifest.Clone()
 
-	for name, component := range manifest.Components {
-		if component.Build != nil {
-			build := *component.Build
+	if out.Dependencies == nil {
+		out.Dependencies = map[string]sdk.ManifestDependency{}
+	}
 
-			component.Build = &build
-		}
-
-		out.Components[name] = component
+	if out.DevDependencies == nil {
+		out.DevDependencies = map[string]sdk.ManifestDependency{}
 	}
 
 	return out
@@ -448,12 +499,13 @@ func (s *Services) Integrity() sdk.Integrity {
 }
 
 // Project returns the project WithProject and WithRoot set. It touches no
-// file: its manifest is what WithManifest and WithDeclared give, and
-// AddDependency and AddComponent declare into it; they, Install and
-// PrepareEnvironment record the calls, which AddedDependencies,
-// AddedComponents, Installs and PreparedEnvironments return, and do what
-// WithMoves, WithAddDependencyError, WithNoManifest, WithResolveError and
-// WithInstall say. StateDir is .tarantool of the root.
+// file: its manifest is what WithManifest and WithDeclared give, which the
+// edits of dependencies and components change; they, Resolve, Build,
+// Install and PrepareEnvironment record the calls, which the methods of
+// Services named after them return, and do what WithMoves,
+// WithAddDependencyError, WithNoManifest, WithResolveError, WithLock,
+// WithBuild, WithBuildContext and WithInstall say. StateDir is .tarantool
+// of the root.
 func (s *Services) Project() sdk.Project {
 	s.ready("Project")
 
@@ -616,6 +668,51 @@ func (s *Services) AddedComponents() []sdk.Component {
 	return added
 }
 
+// RemovedDependencies returns the names Project.RemoveDependency was given
+// so far, in order, the failed calls included.
+func (s *Services) RemovedDependencies() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.removed)
+}
+
+// UpdatedComponents returns the updates Project.UpdateComponent was given so
+// far, in order, the failed calls included.
+func (s *Services) UpdatedComponents() []sdk.ComponentUpdate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.updates)
+}
+
+// RemovedComponents returns the names Project.RemoveComponent was given so
+// far, in order, the failed calls included.
+func (s *Services) RemovedComponents() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.dropped)
+}
+
+// Resolves returns the options Project.Resolve was given so far, in order,
+// the failed calls included.
+func (s *Services) Resolves() []sdk.ResolveOptions {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.resolves)
+}
+
+// Builds returns the options Project.Build was given so far, in order, the
+// failed calls included.
+func (s *Services) Builds() []sdk.BuildOptions {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.builds)
+}
+
 // PreparedEnvironments returns how many times Project.PrepareEnvironment was
 // called so far.
 func (s *Services) PreparedEnvironments() int {
@@ -635,8 +732,8 @@ func (s *Services) Indexed() []Index {
 }
 
 // addDependency records dep and declares it as the core would: a name the
-// table declares already keeps its declaration when dep has a registry and
-// takes dep's constraint when it has none.
+// table declares already takes dep's constraint, and its registry when dep
+// has one.
 func (s *Services) addDependency(dep sdk.Dependency) (sdk.DependencyChange, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -649,9 +746,10 @@ func (s *Services) addDependency(dep sdk.Dependency) (sdk.DependencyChange, erro
 	}
 
 	change := sdk.DependencyChange{
-		Existed:  false,
-		Previous: "",
-		Moves:    slices.Clone(s.opts.moves),
+		Existed:          false,
+		Previous:         "",
+		PreviousRegistry: "",
+		Moves:            slices.Clone(s.opts.moves),
 	}
 
 	table := tableOf(s.manifest, dep.Dev)
@@ -665,10 +763,53 @@ func (s *Services) addDependency(dep sdk.Dependency) (sdk.DependencyChange, erro
 
 	change.Existed = true
 	change.Previous = existing.Version
+	change.PreviousRegistry = existing.Registry
 
-	if dep.Registry == "" {
-		existing.Version = declare(dep).Version
-		table[dep.Name] = existing
+	existing.Version = declare(dep).Version
+	if dep.Registry != "" {
+		existing.Registry = dep.Registry
+	}
+
+	table[dep.Name] = existing
+
+	return change, nil
+}
+
+// removeDependency records name and removes it from both tables of the
+// manifest as the core would: a name neither declares is an error wrapping
+// sdk.ErrNotFound.
+func (s *Services) removeDependency(name string) (sdk.DependencyChange, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.removed = append(s.removed, name)
+
+	if s.opts.addErr != nil {
+		return sdk.DependencyChange{}, s.opts.addErr
+	}
+
+	change := sdk.DependencyChange{
+		Existed: false, Previous: "", PreviousRegistry: "", Moves: slices.Clone(s.opts.moves),
+	}
+
+	for _, table := range []map[string]sdk.ManifestDependency{
+		s.manifest.DevDependencies, s.manifest.Dependencies,
+	} {
+		existing, ok := table[name]
+		if !ok {
+			continue
+		}
+
+		change.Existed = true
+		change.Previous = existing.Version
+		change.PreviousRegistry = existing.Registry
+
+		delete(table, name)
+	}
+
+	if !change.Existed {
+		return sdk.DependencyChange{}, fmt.Errorf("%q: dependency is not declared in the "+
+			"manifest: %w", name, sdk.ErrNotFound)
 	}
 
 	return change, nil
@@ -676,56 +817,360 @@ func (s *Services) addDependency(dep sdk.Dependency) (sdk.DependencyChange, erro
 
 // addComponent records component and declares it as the core would: a
 // component of no name, path or backend, a name declared already and a
-// project WithNoManifest made are refused, and WithResolveError fails it
-// once it is declared.
-func (s *Services) addComponent(component sdk.Component) (sdk.ComponentChange, error) {
+// project WithNoManifest made are refused.
+func (s *Services) addComponent(component sdk.Component) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	component = cloneComponent(component)
 	s.components = append(s.components, component)
 
-	refused := sdk.ComponentChange{Declared: false, Moves: nil}
-
 	switch _, declared := s.manifest.Components[component.Name]; {
 	case s.opts.noMan:
-		return refused, errNoManifest
+		return errNoManifest
 	case component.Name == "" || component.Path == "":
-		return refused, fmt.Errorf("%w %q: it needs a name and a path", errComponent,
-			component.Name)
+		return fmt.Errorf("%w %q: it needs a name and a path", errComponent, component.Name)
 	case component.Build != nil && component.Build.Backend == "":
-		return refused, fmt.Errorf("%w %q: its build block names no backend", errComponent,
+		return fmt.Errorf("%w %q: its build block names no backend", errComponent,
 			component.Name)
 	case declared:
-		return refused, fmt.Errorf("%w %q: the manifest declares it already", errComponent,
+		return fmt.Errorf("%w %q: the manifest declares it already", errComponent,
 			component.Name)
 	}
 
-	declared := sdk.ManifestComponent{Path: component.Path, Build: nil}
+	declared := sdk.ManifestComponent{
+		Path: component.Path, Include: slices.Clone(component.Include), Exclude: nil,
+		Namespace: s.manifest.Package, Build: nil,
+	}
 
 	if component.Build != nil {
-		declared.Build = &sdk.ManifestBuild{Backend: component.Build.Backend, Cwd: ""}
-
-		for _, field := range component.Build.Fields {
-			if cwd, ok := field.Value.(string); ok && field.Key == "cwd" {
-				declared.Build.Cwd = cwd
-			}
+		declared.Build = &sdk.ManifestBuild{
+			Backend: component.Build.Backend, Cwd: "", Env: nil, Output: nil,
+			Incremental: false, Static: false, Fields: nil,
 		}
+
+		setBuildFields(declared.Build, component.Build.Fields)
 	}
 
 	s.manifest.Components[component.Name] = declared
 
-	if s.opts.resolve != nil {
-		return sdk.ComponentChange{Declared: true, Moves: nil}, s.opts.resolve
+	return nil
+}
+
+// updateComponent records update and applies it to the manifest as the core
+// would: the removals, then the fields of the component and of its build
+// block, a build block made for a component of none.
+func (s *Services) updateComponent(update sdk.ComponentUpdate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	update.Fields = slices.Clone(update.Fields)
+	update.Build = slices.Clone(update.Build)
+	update.Remove = slices.Clone(update.Remove)
+	s.updates = append(s.updates, update)
+
+	if s.opts.noMan {
+		return errNoManifest
 	}
 
-	return sdk.ComponentChange{Declared: true, Moves: slices.Clone(s.opts.moves)}, nil
+	component, ok := s.manifest.Components[update.Name]
+	if !ok {
+		return fmt.Errorf("%w %q: %w", errComponent, update.Name, sdk.ErrNotFound)
+	}
+
+	for _, key := range update.Remove {
+		removeComponentField(&component, key)
+	}
+
+	for _, field := range update.Fields {
+		err := setComponentField(&component, field)
+		if err != nil {
+			return fmt.Errorf("%w %q: %w", errComponent, update.Name, err)
+		}
+	}
+
+	if len(update.Build) > 0 && component.Build == nil {
+		component.Build = &sdk.ManifestBuild{
+			Backend: "", Cwd: "", Env: nil, Output: nil, Incremental: false, Static: false,
+			Fields: nil,
+		}
+	}
+
+	if component.Build != nil {
+		setBuildFields(component.Build, update.Build)
+
+		if component.Build.Backend == "" {
+			return fmt.Errorf("%w %q: its build block names no backend", errComponent,
+				update.Name)
+		}
+	}
+
+	s.manifest.Components[update.Name] = component
+
+	return nil
+}
+
+// removeComponent records name and removes the component from the manifest
+// as the core would.
+func (s *Services) removeComponent(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.dropped = append(s.dropped, name)
+
+	if s.opts.noMan {
+		return errNoManifest
+	}
+
+	if _, ok := s.manifest.Components[name]; !ok {
+		return fmt.Errorf("%w %q: %w", errComponent, name, sdk.ErrNotFound)
+	}
+
+	delete(s.manifest.Components, name)
+
+	return nil
+}
+
+// resolve records opts and answers as WithResolveError and WithMoves say.
+func (s *Services) resolve(opts sdk.ResolveOptions) (sdk.ResolveChange, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	opts.Registries = slices.Clone(opts.Registries)
+	s.resolves = append(s.resolves, opts)
+
+	switch {
+	case s.opts.noMan:
+		return sdk.ResolveChange{}, errNoManifest
+	case s.opts.resolve != nil:
+		return sdk.ResolveChange{}, s.opts.resolve
+	}
+
+	return sdk.ResolveChange{Moves: slices.Clone(s.opts.moves)}, nil
+}
+
+// readLock returns the lock WithLock gave.
+func (s *Services) readLock() (sdk.LockFile, error) {
+	if s.opts.noMan {
+		return sdk.LockFile{}, errNoManifest
+	}
+
+	if s.opts.lock == nil {
+		return sdk.LockFile{}, fmt.Errorf("no app.manifest.lock in the project: %w",
+			sdk.ErrNotFound)
+	}
+
+	lock := *s.opts.lock
+
+	lock.Products = maps.Clone(lock.Products)
+	lock.DevDependencies = maps.Clone(lock.DevDependencies)
+
+	return lock, nil
+}
+
+// runBuild records opts and runs what WithBuild gave.
+func (s *Services) runBuild(opts sdk.BuildOptions) (sdk.BuildResult, error) {
+	s.mu.Lock()
+
+	opts.Components = slices.Clone(opts.Components)
+	opts.Registries = slices.Clone(opts.Registries)
+	opts.Args = slices.Clone(opts.Args)
+	s.builds = append(s.builds, opts)
+
+	noMan := s.opts.noMan
+
+	s.mu.Unlock()
+
+	switch {
+	case noMan:
+		return sdk.BuildResult{}, errNoManifest
+	case s.opts.build != nil:
+		return s.opts.build(opts)
+	}
+
+	product := opts.Product
+	if product == "" {
+		product = "default"
+	}
+
+	return sdk.BuildResult{Product: product, Version: "", Components: nil}, nil
+}
+
+// setBuildFields sets the fields of a build block, as the core reads them
+// back: the common ones into their fields, those of the backend into
+// Fields, as the TOML decoder reads them.
+func setBuildFields(block *sdk.ManifestBuild, fields []sdk.BuildField) {
+	for _, field := range fields {
+		value := tomlValue(field.Value)
+
+		switch field.Key {
+		case "backend":
+			block.Backend, _ = value.(string)
+		case "cwd":
+			block.Cwd, _ = value.(string)
+		case "env":
+			block.Env = map[string]string{}
+
+			table, _ := value.(map[string]any)
+			for key, item := range table {
+				block.Env[key], _ = item.(string)
+			}
+		case "output":
+			block.Output = outputOf(value)
+		case "incremental":
+			block.Incremental, _ = value.(bool)
+		case "static":
+			block.Static, _ = value.(bool)
+		default:
+			if block.Fields == nil {
+				block.Fields = map[string]any{}
+			}
+
+			block.Fields[field.Key] = value
+		}
+	}
+}
+
+// outputOf is the output of a build block whose value, as the TOML decoder
+// reads it, is value: an entry alone or an array of them.
+func outputOf(value any) []sdk.ManifestOutput {
+	entries, ok := value.([]any)
+	if !ok {
+		entries = []any{value}
+	}
+
+	output := make([]sdk.ManifestOutput, 0, len(entries))
+
+	for _, entry := range entries {
+		switch entry := entry.(type) {
+		case string:
+			output = append(output, sdk.ManifestOutput{Path: entry, To: ""})
+		case map[string]any:
+			path, _ := entry["path"].(string)
+			to, _ := entry["to"].(string)
+
+			output = append(output, sdk.ManifestOutput{Path: path, To: to})
+		}
+	}
+
+	return output
+}
+
+// setComponentField sets a field of [components.<name>] of component.
+func setComponentField(component *sdk.ManifestComponent, field sdk.BuildField) error {
+	value := tomlValue(field.Value)
+
+	switch field.Key {
+	case "path":
+		component.Path, _ = value.(string)
+	case "include":
+		component.Include = stringsOf(value)
+	case "exclude":
+		component.Exclude = stringsOf(value)
+	case "namespace":
+		component.Namespace, _ = value.(string)
+	default:
+		return fmt.Errorf("%w: %q", errNoField, field.Key)
+	}
+
+	return nil
+}
+
+// removeComponentField removes the field key of ComponentUpdate.Remove
+// from component.
+func removeComponentField(component *sdk.ManifestComponent, key string) {
+	switch key {
+	case "include":
+		component.Include = nil
+	case "exclude":
+		component.Exclude = nil
+	case "build":
+		component.Build = nil
+	}
+
+	field, ok := strings.CutPrefix(key, "build.")
+	if !ok || component.Build == nil {
+		return
+	}
+
+	switch field {
+	case "cwd":
+		component.Build.Cwd = ""
+	case "env":
+		component.Build.Env = nil
+	case "output":
+		component.Build.Output = nil
+	case "incremental":
+		component.Build.Incremental = false
+	case "static":
+		component.Build.Static = false
+	default:
+		delete(component.Build.Fields, field)
+	}
+}
+
+// stringsOf is value, an array as the TOML decoder reads it, as strings.
+func stringsOf(value any) []string {
+	items, _ := value.([]any)
+
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		str, _ := item.(string)
+
+		out = append(out, str)
+	}
+
+	return out
+}
+
+// tomlValue is value, of a BuildField, as the TOML decoder reads what the
+// core writes of it: an integer is an int64, a slice a []any and a map with
+// string keys a map[string]any, of such values.
+func tomlValue(value any) any {
+	return tomlOf(reflect.ValueOf(value))
+}
+
+// tomlOf is tomlValue of a reflected value.
+func tomlOf(value reflect.Value) any {
+	if value.Kind() == reflect.Interface && !value.IsNil() {
+		value = value.Elem()
+	}
+
+	switch value.Kind() {
+	case reflect.String:
+		return value.String()
+	case reflect.Bool:
+		return value.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return value.Int()
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return int64(value.Uint()) //nolint:gosec // A field of a manifest is no larger.
+	case reflect.Slice, reflect.Array:
+		out := make([]any, 0, value.Len())
+		for i := range value.Len() {
+			out = append(out, tomlOf(value.Index(i)))
+		}
+
+		return out
+	case reflect.Map:
+		out := make(map[string]any, value.Len())
+		for _, key := range value.MapKeys() {
+			out[key.String()] = tomlOf(value.MapIndex(key))
+		}
+
+		return out
+	default:
+		if !value.IsValid() {
+			return nil
+		}
+
+		return value.Interface()
+	}
 }
 
 // cloneComponent returns a copy of component that shares no slice with it.
 func cloneComponent(component sdk.Component) sdk.Component {
 	component.Include = slices.Clone(component.Include)
-	component.Registries = slices.Clone(component.Registries)
 
 	if component.Build != nil {
 		build := *component.Build
@@ -861,19 +1306,55 @@ func (f fakeProject) Manifest() (sdk.Manifest, error) { return f.services.readMa
 
 // AddComponent records component and declares it in the manifest of the
 // project.
-func (f fakeProject) AddComponent(
-	_ context.Context, component sdk.Component,
-) (sdk.ComponentChange, error) {
-	change, err := f.services.addComponent(component)
+func (f fakeProject) AddComponent(_ context.Context, component sdk.Component) error {
+	return f.services.addComponent(component)
+}
 
-	// The core calls it between the write and the resolution: the fake
-	// writes and resolves nothing, so once declared, before the error
-	// WithResolveError gives.
-	if change.Declared && component.OnDeclared != nil {
-		component.OnDeclared()
+// UpdateComponent records update and applies it to the manifest of the
+// project.
+func (f fakeProject) UpdateComponent(_ context.Context, update sdk.ComponentUpdate) error {
+	return f.services.updateComponent(update)
+}
+
+// RemoveComponent records name and removes the component from the manifest
+// of the project.
+func (f fakeProject) RemoveComponent(_ context.Context, name string) error {
+	return f.services.removeComponent(name)
+}
+
+// Resolve records opts and answers as WithResolveError and WithMoves say.
+func (f fakeProject) Resolve(_ context.Context, opts sdk.ResolveOptions) (
+	sdk.ResolveChange, error,
+) {
+	return f.services.resolve(opts)
+}
+
+// ReadLock returns the lock WithLock gave.
+func (f fakeProject) ReadLock() (sdk.LockFile, error) { return f.services.readLock() }
+
+// Build records opts and runs what WithBuild gave.
+func (f fakeProject) Build(_ context.Context, opts sdk.BuildOptions) (sdk.BuildResult, error) {
+	return f.services.runBuild(opts)
+}
+
+// BuildContext runs what WithBuildContext gave.
+func (f fakeProject) BuildContext(
+	_ context.Context, opts sdk.BuildContextOptions,
+) (*build.Context, build.Build, error) {
+	if f.services.opts.buildContext == nil {
+		return nil, nil, fmt.Errorf("the fake has no Context of component %q (WithBuildContext): "+
+			"%w", opts.Component, sdk.ErrNotFound)
 	}
 
-	return change, err
+	return f.services.opts.buildContext(opts)
+}
+
+// RemoveDependency records name and removes it from the manifest of the
+// project.
+func (f fakeProject) RemoveDependency(
+	_ context.Context, name string, _ sdk.ResolveOptions,
+) (sdk.DependencyChange, error) {
+	return f.services.removeDependency(name)
 }
 
 // StateDir returns .tarantool of the root.

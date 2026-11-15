@@ -301,11 +301,36 @@ func (project) AddDependency(
 		return sdk.DependencyChange{}, packageError(err)
 	}
 
+	return dependencyChangeOf(result), nil
+}
+
+// RemoveDependency removes name from the manifest of Root and re-resolves
+// the lock, as tt package remove does: cmd.RemoveDependency, its result
+// told in the SDK's terms. A name not declared is sdk.ErrNotFound as well.
+func (project) RemoveDependency(
+	ctx context.Context, name string, opts sdk.ResolveOptions,
+) (sdk.DependencyChange, error) {
+	result, err := cmd.RemoveDependency(ctx, name, opts.Registries)
+	if errors.Is(err, deps.ErrNotDeclared) {
+		return sdk.DependencyChange{}, notFoundError{err: err}
+	}
+
+	if err != nil {
+		return sdk.DependencyChange{}, packageError(err)
+	}
+
+	return dependencyChangeOf(result), nil
+}
+
+// dependencyChangeOf is result, of a change of a dependency, in the SDK's
+// terms.
+func dependencyChangeOf(result *deps.Result) sdk.DependencyChange {
 	return sdk.DependencyChange{
-		Existed:  result.Change.Existed,
-		Previous: result.Change.Previous,
-		Moves:    movesOf(result.Moves),
-	}, nil
+		Existed:          result.Change.Existed,
+		Previous:         result.Change.Previous,
+		PreviousRegistry: result.Change.PreviousRegistry,
+		Moves:            movesOf(result.Moves),
+	}
 }
 
 // movesOf is moves in the SDK's terms.

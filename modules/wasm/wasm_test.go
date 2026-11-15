@@ -1,6 +1,7 @@
 package wasm_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -80,14 +81,23 @@ func TestPrepareDeclaresTheRock(t *testing.T) {
 		`  rock:       from `+defaultRockServer+`\n$`, got.Stdout)
 	assert.Equal(t, "declared wasm 0.1.0 from "+defaultRockServer+"\n", got.Stderr)
 
-	// A declaration already there is left as it is.
+	// A declaration already there is left as it is, and the lock is
+	// resolved against it.
 	again := sdktest.New(t, sdktest.WithRoot(project), withTarantool(),
-		sdktest.WithManifest(declaring(".tarantool/registry")))
+		sdktest.WithManifest(declaring(".tarantool/registry")),
+		sdktest.WithMoves(sdk.DependencyMove{Name: "wasm", From: "", To: "0.1.0-1"}))
 
-	got = again.Run(commands, "wasm", "prepare", "--no-tarawasm")
+	got = again.Run(commands, "wasm", "prepare", "--no-tarawasm", "--registry", "mirror")
 	require.NoError(t, got.Err)
 	assert.Equal(t, "wasm is already declared in app.manifest.toml; left as it is\n",
 		got.Stderr)
+	assert.Regexp(t, `^  wasm 0\.1\.0-1\nprepared for tarantool-wasm 0\.1\.0 `, got.Stdout)
+	assert.Empty(t, again.AddedDependencies())
+	assert.Equal(t, []sdk.ResolveOptions{{Registries: []string{"mirror"}}}, again.Resolves())
+
+	man, err := again.Project().Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, ".tarantool/registry", man.Dependencies["wasm"].Registry)
 }
 
 // TestPrepareFromIndexesTheRegistry checks that prepare --from packs the
@@ -115,26 +125,22 @@ func TestPrepareFromIndexesTheRegistry(t *testing.T) {
 	assert.Contains(t, got.Stdout, "  rock:       .tarantool/registry/wasm-0.1.0-1.")
 }
 
-// TestPrepareAndNewNeedATarantool checks that prepare and new, which
-// re-resolve the lock, fail before they do anything in a tt with no
-// Tarantool, as tt package says it.
-func TestPrepareAndNewNeedATarantool(t *testing.T) {
+// TestPrepareFailsToDeclare checks that prepare fails at the declaration of
+// the rock when the project cannot declare it - a tt with no Tarantool, as
+// the core says it - before tarawasm is installed.
+func TestPrepareFailsToDeclare(t *testing.T) {
 	t.Parallel()
 
-	for _, args := range [][]string{
-		{"wasm", "prepare", "--no-tarawasm"},
-		{"wasm", "new", "calc", "--lang", "python"},
-	} {
-		project := testProject(t)
-		services := sdktest.New(t, sdktest.WithRoot(project),
-			sdktest.WithManifest(declaring(".tarantool/registry")))
+	project := testProject(t)
+	services := sdktest.New(t, sdktest.WithRoot(project),
+		sdktest.WithAddDependencyError(errors.New("tarantool executable not found in PATH")))
 
-		got := services.Run(commands, args...)
-		require.EqualError(t, got.Err, "tarantool executable not found in PATH", args)
-		assert.Empty(t, services.AddedDependencies(), args)
-		assert.Empty(t, services.AddedComponents(), args)
-		assert.Empty(t, got.Stderr, args)
-	}
+	got := services.Run(commands, "wasm", "prepare")
+	require.EqualError(t, got.Err,
+		"declaring the wasm dependency: tarantool executable not found in PATH")
+	assert.Len(t, services.AddedDependencies(), 1)
+	assert.NoDirExists(t, filepath.Join(project, ".tarantool"))
+	assert.Empty(t, got.Stderr)
 }
 
 // TestNewRefusesADeclaredName checks that new refuses a name the manifest

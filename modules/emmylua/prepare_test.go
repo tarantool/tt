@@ -99,6 +99,15 @@ func TestPrepareDeclared(t *testing.T) {
 	require.NoError(t, got.Err)
 	assert.Contains(t, got.Stderr, "emmylua is already declared in app.manifest.toml")
 	assert.Len(t, services.Installs(), 1)
+
+	// The declaration is not set again; the lock is resolved against it.
+	assert.Empty(t, services.AddedDependencies())
+	assert.Len(t, services.Resolves(), 1)
+
+	man, err := services.Project().Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ManifestDependency{Version: "0.25.1", Registry: ".tarantool/registry"},
+		man.DevDependencies["emmylua"])
 }
 
 // TestPrepareRockServer checks that tt emmylua prepare --rock-server packs

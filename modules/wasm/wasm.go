@@ -34,11 +34,6 @@ const registryFlagUsage = "rock server to use instead of the configured ones: " 
 // --python names another.
 const defaultPython = "python3"
 
-// errNoTarantool reports a tt with no Tarantool, whose version the rockspecs
-// are evaluated for when prepare and new re-resolve the lock: the text
-// tt package says it with.
-var errNoTarantool = errors.New("tarantool executable not found in PATH")
-
 // wasmToolchainHelp says what tt does about the toolchain of a language.
 const wasmToolchainHelp = "The toolchain of a language is put in place for the language " +
 	"of each component tarawasm builds, and for --lang. tt installs wasm-tools, wkg " +
@@ -190,13 +185,13 @@ func newPrepareCmd(services sdk.Services) *cobra.Command {
 // the dependency through the project of the SDK, printing how the lock
 // moved, and writes the scripts of .env there.
 func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
-	projectDir, err := resolvingRoot(c.services)
+	project := c.services.Project()
+	streams := c.services.Streams().IO()
+
+	projectDir, err := project.Root()
 	if err != nil {
 		return err
 	}
-
-	project := c.services.Project()
-	streams := c.services.Streams().IO()
 
 	report, err := wasm.Prepare(cmd.Context(), wasm.Options{
 		ProjectDir: projectDir,
@@ -212,6 +207,19 @@ func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 		Manifest:     manifestOf(c.services, projectDir),
 		Rocks:        c.services.Rocks(),
 		Declare: func(ctx context.Context, name, constraint, registry string) (bool, error) {
+			// A declaration there is someone's choice of the version and the
+			// server, and is kept: the lock is resolved against it.
+			if declared(project, name) {
+				change, err := project.Resolve(ctx, sdk.ResolveOptions{Registries: c.registries})
+				if err != nil {
+					return true, err
+				}
+
+				printMoves(streams.Out, change.Moves)
+
+				return true, nil
+			}
+
 			change, err := project.AddDependency(ctx, sdk.Dependency{
 				Name:       name,
 				Constraint: constraint,
@@ -310,14 +318,13 @@ func newNewCmd(services sdk.Services) *cobra.Command {
 // run adds a component to the package the directory of the command is in.
 func (c *newCmd) run(cmd *cobra.Command, args []string) error {
 	name := args[0]
+	project := c.services.Project()
+	streams := c.services.Streams().IO()
 
-	projectDir, err := resolvingRoot(c.services)
+	projectDir, err := project.Root()
 	if err != nil {
 		return err
 	}
-
-	project := c.services.Project()
-	streams := c.services.Streams().IO()
 
 	report, err := wasm.NewComponent(cmd.Context(), wasm.NewOptions{
 		ProjectDir: projectDir,
@@ -330,13 +337,12 @@ func (c *newCmd) run(cmd *cobra.Command, args []string) error {
 		Tarawasm: wasm.Tarawasm{
 			Python: defaultPython, Source: "", Reinstall: false, Output: streams.Err,
 		},
-		Manifest: manifestOf(c.services, projectDir),
-		AddComponent: func(
-			ctx context.Context, component sdk.Component,
-		) (sdk.ComponentChange, error) {
-			component.Registries = c.registries
+		Manifest:     manifestOf(c.services, projectDir),
+		AddComponent: project.AddComponent,
+		Resolve: func(ctx context.Context) error {
+			_, err := project.Resolve(ctx, sdk.ResolveOptions{Registries: c.registries})
 
-			return project.AddComponent(ctx, component)
+			return err
 		},
 		Progress: streams.Err,
 	})
@@ -546,29 +552,17 @@ func newFetcher() wasm.Fetcher {
 	return wasm.Fetcher{CacheDir: wasm.DefaultCacheDir(), Client: nil}
 }
 
-// resolvingRoot returns the project prepare and new work on, the root of the
-// project of the SDK, having checked first that tt has a Tarantool: they
-// re-resolve the lock, which evaluates the rockspecs for its version, and
-// would fail on its absence only once they have installed tarawasm or
-// created the component.
-func resolvingRoot(services sdk.Services) (string, error) {
-	projectDir, err := services.Project().Root()
+// declared reports whether the manifest of project declares the rock name
+// in [dependencies].
+func declared(project sdk.Project, name string) bool {
+	man, err := project.Manifest()
 	if err != nil {
-		return "", err
+		return false
 	}
 
-	_, err = services.Tarantool()
-	if errors.Is(err, sdk.ErrNotFound) {
-		services.Log().Debug("no tarantool: " + err.Error())
+	_, ok := man.Dependencies[name]
 
-		return "", errNoTarantool
-	}
-
-	if err != nil {
-		return "", err
-	}
-
-	return projectDir, nil
+	return ok
 }
 
 // manifestOf reads the manifest of the project in projectDir through the

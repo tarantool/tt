@@ -21,19 +21,19 @@ their directories through `replace`.
 
 - `wasm.go` - the commands. `prepare` declares the binary rock `wasm`, the
   native module of the release, through the project of the SDK
-  (`Project.AddDependency`), printing how the lock moved, installs tarawasm
+  (`Project.AddDependency`), or, when the manifest declares it already
+  (`Project.Manifest`), keeps the declaration and resolves the lock against
+  it (`Project.Resolve`), printing how the lock moved; it installs tarawasm
   into `.tarantool` (`Project.StateDir`) and the toolchains of the
   languages, restores the SDK of each component and writes
   `.env/activate.sh` (`Project.PrepareEnvironment`). `new` has tarawasm
   create a component and declares it (`Project.AddComponent`), built by
-  `tarawasm all` with the `shell` backend of the standard module `build`; the
-  line on the declaration comes from `Component.OnDeclared`, before the lock
-  is resolved again. `status` reads the manifest (`Project.Manifest`) and
-  changes nothing. `rock` packs the rocks of a release and has the core make
-  the directory a rock server (`Rocks().Index`). The commands work on the
-  project the directory of the command is in (`Project.Root`), and `prepare`
-  and `new`, which re-resolve the lock, check first that tt has a Tarantool
-  (`Services.Tarantool`).
+  `tarawasm all` with the `shell` backend of the standard module `build`,
+  says so, and resolves the lock again (`Project.Resolve`), which needs no
+  Tarantool. `status` reads the manifest (`Project.Manifest`) and changes
+  nothing. `rock` packs the rocks of a release and has the core make the
+  directory a rock server (`Rocks().Index`). The commands work on the
+  project the directory of the command is in (`Project.Root`).
 - `filecheck.go` - the check of the `.wasm` files, a `build.FileCheck` of the
   module: every file of a package whose name ends with `.wasm`, laid out by a
   component or written by its build into `share/`, has to be a WebAssembly
