@@ -27,6 +27,46 @@ func TestFieldError(t *testing.T) {
 	assert.Equal(t, "module is required", build.FieldErrorf("", "module is required").Error())
 }
 
+// typedConfig is the configuration of a backend of TestTyped.
+type typedConfig struct {
+	Module string `toml:"module"`
+}
+
+// typedBuild is the build of TestTyped.
+type typedBuild struct{ module string }
+
+func (typedBuild) Run(context.Context, *build.Context) error { return nil }
+
+// TestTyped checks that the New Typed makes hands the function the
+// configuration Config returned, decoded, and refuses one of another type.
+func TestTyped(t *testing.T) {
+	t.Parallel()
+
+	newBuild := build.Typed(func(cfg *typedConfig, c build.Component, _ build.Common) (
+		build.Build, error,
+	) {
+		return typedBuild{module: cfg.Module + "@" + c.Name}, nil
+	})
+
+	backend := build.Backend{
+		Name: "typed", Produces: []build.Result{build.Module},
+		Config: func() any { return new(typedConfig) }, New: newBuild,
+	}
+
+	require.NoError(t, backend.Validate())
+
+	cfg, _, err := backend.Decode(map[string]any{"module": "fast"})
+	require.NoError(t, err)
+
+	bld, err := backend.New(cfg, build.Component{Name: "c"}, build.Common{})
+	require.NoError(t, err)
+	assert.Equal(t, typedBuild{module: "fast@c"}, bld)
+
+	_, err = newBuild(new(struct{}), build.Component{}, build.Common{})
+	require.ErrorIs(t, err, build.ErrConfig)
+	assert.Contains(t, err.Error(), "*build_test.typedConfig")
+}
+
 func TestModuleExt(t *testing.T) {
 	t.Parallel()
 

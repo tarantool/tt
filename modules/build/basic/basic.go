@@ -13,7 +13,6 @@ package basic
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -45,7 +44,7 @@ func Make() build.Backend {
 		Name:           MakeName,
 		Produces:       build.Results(),
 		Config:         func() any { return new(MakeConfig) },
-		New:            newMake,
+		New:            build.Typed(newMake),
 		Incremental:    true,
 		OutputFrom:     build.OutputCwd,
 		Exclude:        nil,
@@ -61,7 +60,7 @@ func Shell() build.Backend {
 		Name:           ShellName,
 		Produces:       build.Results(),
 		Config:         func() any { return new(ShellConfig) },
-		New:            newShell,
+		New:            build.Typed(newShell),
 		Incremental:    true,
 		OutputFrom:     build.OutputCwd,
 		Exclude:        nil,
@@ -90,12 +89,7 @@ type ShellConfig struct {
 }
 
 // newMake checks a make build block.
-func newMake(cfg any, _ build.Component, common build.Common) (build.Build, error) {
-	config, ok := cfg.(*MakeConfig)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+func newMake(config *MakeConfig, _ build.Component, common build.Common) (build.Build, error) {
 	if config.MakeTarget == "" {
 		return nil, build.FieldErrorf("", "make_target is required for backend %q", MakeName)
 	}
@@ -104,12 +98,7 @@ func newMake(cfg any, _ build.Component, common build.Common) (build.Build, erro
 }
 
 // newShell checks a shell build block.
-func newShell(cfg any, _ build.Component, common build.Common) (build.Build, error) {
-	config, ok := cfg.(*ShellConfig)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+func newShell(config *ShellConfig, _ build.Component, common build.Common) (build.Build, error) {
 	if config.Command == "" {
 		return nil, build.FieldErrorf("", "command is required for backend %q", ShellName)
 	}
