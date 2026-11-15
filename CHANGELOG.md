@@ -426,9 +426,43 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   function `require` calls, or needs functions of the Lua API by their C++
   names - a C++ source that includes `lua.h` rather than `lua.hpp` - which
   failed only when the module was loaded, with `undefined symbol`.
+- A `c` or `lua-c` build loads the module it has just linked into the
+  `tarantool` of the build, with `package.loadlib` - `dlopen(RTLD_NOW)` -
+  by its entry point for `lua-c` and `"*"` for `c`, and fails with what the
+  loader said when it does not load: a library forgotten in `libraries`, a
+  function of the headers of a newer Tarantool. A module up to date is not
+  loaded again; with no `tarantool`, or one that does not run the script,
+  nothing is loaded.
+- A `c` or `lua-c` build warns of a module that exports a function or a
+  variable of the name of one the `tarantool` of the build exports - those
+  of curl, OpenSSL or zstd of Tarantool Enterprise, say - naming up to five
+  and how to hide them.
+- The warnings of the compiler of a `c` or `lua-c` build are shown: once an
+  object, after a line naming the source, as the compiler printed them, and
+  again when the object is taken from the cache, as cargo shows the
+  warnings of a crate it does not compile again. They were in a debug
+  record of `tt -V` only.
+- `tt package pack --debuginfo keep|strip`: `strip` packs the modules and
+  the programs the builds of the package made without their debug
+  information - `strip --strip-debug` (or `objcopy --strip-debug`) on Linux,
+  `strip -S` on macOS - in the `.tt` archive and in the rock; the bundled
+  runtime, the dependencies and the files of the project are left as they
+  are. `keep` is the default.
 
 ### Changed
 
+- A `c` or `lua-c` build compiles with `-O2 -g` when `CFLAGS` (`CXXFLAGS`
+  for C++) is unset, where it had `-O2` alone, as the `cmake` backend builds
+  `RelWithDebInfo`: a module that crashes Tarantool has a backtrace with
+  its lines. Each compile has `-ffile-prefix-map=<project>=.` and
+  `-gno-record-gcc-switches` too, when its compiler takes them - probed
+  once a compiler, the answer kept in the build directory - so the module
+  names no path of the machine it was built on.
+- A `c` or `lua-c` module of Linux is linked with `-Wl,-Bsymbolic-functions`
+  (but by `zig cc`, which refuses it): its calls to its own functions call
+  them, where a function of the name of one Tarantool exports - Tarantool
+  Enterprise exports 1373 symbols, `curl_easy_init` among them - got the one
+  of Tarantool called, even from within the module.
 - A `c` or `lua-c` build compiles each source on its own into an object of
   `_build/component/<component>/obj/`, as many at once as the machine has
   CPUs, and links the objects into the module: `cflags` and `CFLAGS` reach

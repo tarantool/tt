@@ -460,9 +460,11 @@ twice. Each source is compiled on its own, the sources of a module at
 once, as many as the machine has CPUs:
 
 ```console
-$CC -O2 -fPIC <cflags> <$CFLAGS> -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
+$CC -O2 -g -fPIC -ffile-prefix-map=<project>=. -gno-record-gcc-switches <cflags> <$CFLAGS> \
+    -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
     -MD -MF <object>.d -MQ <object> -c <source> -o <object>
-$CXX -O2 -fPIC <cxxflags> <$CXXFLAGS> -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
+$CXX -O2 -g -fPIC -ffile-prefix-map=<project>=. -gno-record-gcc-switches <cxxflags> <$CXXFLAGS> \
+    -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
     -MD -MF <object>.d -MQ <object> -c <source> -o <object>
 ```
 
@@ -470,18 +472,35 @@ and the objects are linked with `$CXX` when a source is C++, with `$CC`
 otherwise:
 
 ```console
-$CXX -shared <ldflags> -o <module>.so <objects> \
+$CXX -shared -Wl,-Bsymbolic-functions <ldflags> -o <module>.so <objects> \
     -L<library_dirs> -Wl,-rpath,<library_dirs> -l<libraries> <$LDFLAGS>
 ```
 
 The flags of a compile are tt's, then the project's, then the user's:
-`-O2`, left out when the variable of the language, `CFLAGS` or `CXXFLAGS`,
-is set, even to nothing, and `-fPIC`; then `cflags` or `cxxflags`; then
-`CFLAGS` or `CXXFLAGS` of the environment, split on blanks, which come last
-and so win a conflict, as `CFLAGS` comes after `AM_CFLAGS` in autotools:
-`CFLAGS="-O0 -g"` builds the C sources for a debugger, and
-`CFLAGS=-Wno-error` builds a project whose `cflags` have `-Werror` with a
-compiler that warns of more. The flags of one language do not reach the
+`-O2 -g`, left out, both, when the variable of the language, `CFLAGS` or
+`CXXFLAGS`, is set, even to nothing, and `-fPIC`; then `cflags` or
+`cxxflags`; then `CFLAGS` or `CXXFLAGS` of the environment, split on
+blanks, which come last and so win a conflict, as `CFLAGS` comes after
+`AM_CFLAGS` in autotools: `CFLAGS="-O0 -g"` builds the C sources for a
+debugger, and `CFLAGS=-Wno-error` builds a project whose `cflags` have
+`-Werror` with a compiler that warns of more. The module has its debug
+information by default, as a `cmake` build of `RelWithDebInfo` does, so a
+module that crashes Tarantool has a backtrace with its lines;
+`tt package pack --debuginfo strip` packs it without
+([Packages](../concepts/packages.md#debug-information)).
+
+The objects name no path of the machine: `-ffile-prefix-map=<project>=.`
+makes the root of the project `.` in the debug information and in
+`__FILE__`, and `-gno-record-gcc-switches` keeps the command line out of
+it, so that the same sources built in another directory make the same
+module. A debugger finds the sources when it is started in the project, or
+told the directory, `set substitute-path . /path/to/project` of gdb. Each
+of the two is given only when the compiler takes it: tt compiles a source
+of nothing with it once a compiler and a language, which has to succeed
+and print nothing, as gcc warns of some flags it does not know rather than
+fails, and keeps the answer in `TT_BUILD_DIR` with the identity of the
+compiler. `cflags` and `CFLAGS` come after them, and so may map other
+directories. The flags of one language do not reach the
 sources of the other - `-std=c11` would fail a C++ compile - while
 `defines`, `include_dirs`, `-fPIC` and the headers of Tarantool reach both.
 The link gets none of the flags of the compilers: a flag both the compiles
@@ -492,8 +511,33 @@ $(LDLIBS)` has them, so that `-Wl,--as-needed` acts on the `-l` that follow;
 `LDFLAGS` of the environment ends the line. A list of `platforms.<os>` goes
 after the one of the build; `<os>` is `linux` or `darwin`, the OSes tt
 builds for, and another, `macos` say, is an error. On macOS `-shared` is
-`-bundle -undefined dynamic_lookup -all_load`, and no `-Wl,-rpath` is
-given.
+`-bundle -undefined dynamic_lookup -all_load`, and no `-Wl,-rpath` and no
+`-Wl,-Bsymbolic-functions` are given.
+
+On Linux `-Wl,-Bsymbolic-functions` binds the calls of the module to the
+functions it defines itself. Without it the loader resolves a call to a
+function by the order of the process, the Tarantool executable first: a
+module that defines `curl_easy_init`, which Tarantool Enterprise exports
+with the 80 other functions of curl it links in, called the one of
+Tarantool even from within itself. The variables of the module are left
+as they are. `zig cc` and `zig c++` refuse the flag, and their link goes
+without it. On macOS a call of a bundle to a function it defines is bound
+to it at its link, by the two-level namespace, without a flag.
+
+Once the module is linked, tt compares the functions and the variables it
+exports with those the `tarantool` of the build exports, and warns of a
+module that exports a name Tarantool exports too, naming up to five of
+them: the other modules, `ffi`, and the module where its calls are not
+bound to its own, get the one of Tarantool. A function that is not of the
+API of the module is better `static`, or hidden,
+`__attribute__((visibility("hidden")))` or `-fvisibility=hidden` in
+`cflags`. The entry point of a `lua-c` module is not compared: `require`
+finds it in the module itself. With no `tarantool`, or one whose symbols
+cannot be read, nothing is compared.
+
+```text
+   ⚠ .../lib/hashkit/fnv.so exports 2 symbols that the tarantool /opt/sdk/tarantool exports too: crc32, curl_easy_init; the loader resolves a name to one symbol, that of Tarantool, for the other modules, ffi, and the module itself where its calls are not bound to its own: make them static, or hidden (__attribute__((visibility("hidden"))) or -fvisibility=hidden)
+```
 
 `CC` and `CXX` are split into words as a shell splits a command, with
 `'...'`, `"..."` and `\` and without expansions, so a compiler may be run
@@ -506,9 +550,23 @@ nothing, and the flags of the project go into `cflags`, `cxxflags` and
 `ldflags`. So are `CPPFLAGS`, `LIBS` and `LDLIBS`, which neither tt nor the
 compiler reads: `defines`, `include_dirs`, `cflags` and `cxxflags` take
 what `CPPFLAGS` would carry, `libraries` and `library_dirs` what `LIBS`
-would. `tt -V package build` shows each command before it runs it, and
-what a compile that succeeded printed, its warnings; without `-V` a compile
-that fails shows its command and what it printed in the error.
+would. `tt -V package build` shows each command before it runs it; a
+compile that fails shows its command and what it printed in the error.
+
+What the compiler printed for a compile that succeeded, its warnings, is a
+warning of the build, once an object, after a line naming the source, the
+output as the compiler printed it, in the order of `sources` once the
+compiles are done. It is kept with the object, and shown again by a build
+that takes the object from the cache, so that a warning does not vanish
+with the second build:
+
+```text
+   ⚠ compiling datapath.c:
+datapath.c: In function 'mc_set':
+datapath.c:12:9: warning: unused variable 'len' [-Wunused-variable]
+   12 |     int len;
+      |         ^~~
+```
 
 A module of C++ needs the C++ library. On Linux a build with
 `static = true` links `libstdc++` into the module, with
@@ -557,6 +615,24 @@ dropped, as Lua does: `require('my-app.fast')` calls `luaopen_app_fast` -
 and when the module needs functions of the Lua API by their C++ names. Each
 slice of a universal Mach-O file is checked. A module of `c`, whose
 functions Tarantool calls by the names of `box.schema.func`, is not.
+
+Then the module of either backend is loaded into the `tarantool` of the
+build, when the build is for the machine it runs on: `tarantool -e` runs
+`package.loadlib(<module>, "luaopen_<name>")` for `lua-c`, which looks the
+entry point up without calling it, and `package.loadlib(<module>, "*")`
+for `c`. LuaJIT opens the module with `dlopen(RTLD_NOW)`, so each symbol
+it needs is resolved, as `require` and `box.schema.func` resolve them, and
+a module that would not load fails its build with what the loader said -
+a library forgotten in `libraries`, a function of the headers of a newer
+Tarantool than the one it runs in:
+
+```text
+⨯ building component "hashkit": .../lib/hashkit/fnv.so: the module does not load into /opt/sdk/tarantool: .../lib/hashkit/fnv.so: undefined symbol: deflate
+```
+
+The load runs once a module is linked, not for a module up to date, for 30
+seconds at most. With no `tarantool`, or one that does not run the script,
+nothing is loaded.
 
 ```text
 ⨯ building component "hashkit": .../hashkit/_build/rock/default/lib/hashkit/fnv.so: the module needs functions of the Lua API by their C++ names: _Z17luaL_checkintegerP9lua_Statei, _Z15lua_pushintegerP9lua_Statel: lua.h, lauxlib.h and lualib.h of Tarantool declare no extern "C", so a C++ source includes them through <lua.hpp>, which does, or within extern "C" { }

@@ -24,10 +24,17 @@ and its tests run it through `sdk/build/buildtest`.
   with the toolchain it derives from the Context as go-luarocks does for a
   builtin rock: `CC` and `CXX` of tt's environment, the link flags of the
   target, the headers under the prefix of the Tarantool of the build. The
-  contract has no toolchain of C: it is this backend's. It keeps a cache
-  of the objects and of the link in the work directory (`cache.go`),
-  writes `compile_commands.json` there, and checks the entry point of a
-  lua-c module once it is linked (`entry.go`).
+  contract has no toolchain of C: it is this backend's. It compiles with
+  `-O2 -g` unless `CFLAGS`/`CXXFLAGS` is set, with the flags that keep the
+  paths of the project out of the objects each compiler takes, probed once
+  (`probe.go`), and links a module of Linux with
+  `-Wl,-Bsymbolic-functions`. It keeps a cache of the objects, with the
+  warnings of their compiles, which it shows again, and of the link in the
+  work directory (`cache.go`), writes `compile_commands.json` there, and
+  checks a module once it is linked: the entry point of a lua-c module
+  (`entry.go`), the symbols it exports that the tarantool of the build
+  exports too (`exports.go`), and that the module loads into that
+  tarantool (`load.go`).
 - `cargo` - Rust crates: a module, a program or both.
 - `cmake` - CMake projects, built out of the source.
 - `gobuild` - Go programs.
