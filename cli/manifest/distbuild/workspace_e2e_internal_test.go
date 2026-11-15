@@ -55,8 +55,8 @@ func TestWorkspaceOnThisCheckout(t *testing.T) {
 	env := append(slices.DeleteFunc(os.Environ(), func(entry string) bool {
 		return strings.HasPrefix(entry, "GOWORK=") || strings.HasPrefix(entry, "GOFLAGS=") ||
 			strings.HasPrefix(entry, "GOPRIVATE=") || strings.HasPrefix(entry, "GONOPROXY=") ||
-			strings.HasPrefix(entry, "GONOSUMDB=")
-	}), "GOPRIVATE=github.com/tarantool/tt", "GOFLAGS=")
+			strings.HasPrefix(entry, "GONOSUMDB=") || strings.HasPrefix(entry, "GOENV=")
+	}), "GOENV=off", "GOPRIVATE=github.com/tarantool/tt", "GOFLAGS=")
 
 	result, err := Workspace(t.Context(), WorkspaceOptions{Manifest: manifest, Environ: env})
 	require.NoError(t, err)

@@ -334,10 +334,12 @@ func offlineGoEnv(t *testing.T) []string {
 	env := slices.DeleteFunc(os.Environ(), func(entry string) bool {
 		return strings.HasPrefix(entry, "GOWORK=") || strings.HasPrefix(entry, "GOFLAGS=") ||
 			strings.HasPrefix(entry, "GOPROXY=") || strings.HasPrefix(entry, "GOMODCACHE=") ||
-			strings.HasPrefix(entry, "GOTOOLCHAIN=")
+			strings.HasPrefix(entry, "GOTOOLCHAIN=") || strings.HasPrefix(entry, "GOENV=")
 	})
 
-	return append(env, "GOPROXY=off", "GOFLAGS=", "GOTOOLCHAIN=local",
+	// An empty variable does not override what go env -w wrote, such as
+	// GOFLAGS=-mod=mod: GOENV=off leaves that file out.
+	return append(env, "GOENV=off", "GOPROXY=off", "GOFLAGS=", "GOTOOLCHAIN=local",
 		"GOMODCACHE="+filepath.Join(t.TempDir(), "modcache"))
 }
 
