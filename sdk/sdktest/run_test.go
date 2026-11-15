@@ -249,7 +249,7 @@ func moduleOf(backends []build.Backend, checks []build.FileCheck) sdk.ModuleCons
 	}
 }
 
-// noop is a backend of the name name the core takes.
+// noop is a backend the core takes, called as name says.
 func noop(name string) build.Backend {
 	return build.Backend{
 		Name: name, Produces: []build.Result{build.Data},
