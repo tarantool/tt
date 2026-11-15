@@ -4,49 +4,40 @@ A component built by zig makes a native module of Tarantool: a library,
 which the code of the application loads with `require`, and which holds the
 C functions of `box.schema.func.create`. The same component may make a
 program too, from the same `build.zig`.
-[zig-tarantool](https://git.srht.bigb.es/~bigbes/zig-tarantool) gives the
-Zig code the API of Tarantool, and the `build.zig` helpers that build a
+[zig-tarantool](https://github.com/tarantool-contrib/zig-tarantool) gives
+the Zig code the API of Tarantool, and the `build.zig` helpers that build a
 module and a program.
 
 The `zig` backend is one of the standard module `build` of tt, which the
 official tt and every distribution that takes the standard modules have:
 `tt version --modules` lists `build` in a tt that has it.
 
-## Get zig and zig-tarantool
+## Get zig
 
 zig is yours to install: tt does not install it, and looks for `zig` on
 `PATH`, `.tarantool/bin` of the project first. zig-tarantool and the
-examples here need zig 0.16.0.
-
-The helpers of `build.zig` this page uses - `addModule`, `installModule`
-and `addExecutable` - are newer than the published versions of
-zig-tarantool: until a version has them, the package depends on a
-checkout of zig-tarantool that has them, by its path. Here it is beside the
-project, in `zig-tarantool/` next to `myapp/`, and its `build.zig` declares
-the helpers:
+examples here need zig 0.17.1:
 
 ```console
-$ grep -c 'pub fn addModule' ../zig-tarantool/build.zig
-1
+$ zig version
+0.17.1
 ```
 
-Once a published version has them, `zig fetch --save=tarantool <url>` in
-the directory of the component pins it by a `.url` and a `.hash` instead.
+The backend builds with zig 0.16 too, a `build.zig` that does not use
+zig-tarantool.
 
 ## Write the package
 
-In `libs/hello/` of a package named `myapp`, `build.zig.zon` declares the
-dependency, named `tarantool`, by its path from there:
+In `libs/hello/` of a package named `myapp`, `build.zig.zon` names the
+package, with no dependency yet:
 
 ```zig
 .{
     .name = .hello,
     .version = "0.1.0",
     .fingerprint = 0x3610a6861c561281,
-    .minimum_zig_version = "0.16.0",
-    .dependencies = .{
-        .tarantool = .{ .path = "../../../zig-tarantool" },
-    },
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{},
     .paths = .{ "build.zig", "build.zig.zon", "src" },
 }
 ```
@@ -131,6 +122,28 @@ pub fn main(init: std.process.Init) !void {
 }
 ```
 
+Then, in `libs/hello/`, `zig fetch --save` adds zig-tarantool to
+`build.zig.zon` as the dependency `tarantool`, pinned to a commit by its
+`.url` and its `.hash`:
+
+```console
+$ cd libs/hello
+$ zig fetch --save=tarantool git+https://github.com/tarantool-contrib/zig-tarantool#c43e6c84c371b59e89cdc0354b8d377ffdd93dc8
+$ grep -A3 '\.tarantool' build.zig.zon
+        .tarantool = .{
+            .url = "git+https://github.com/tarantool-contrib/zig-tarantool#c43e6c84c371b59e89cdc0354b8d377ffdd93dc8",
+            .hash = "tarantool-0.0.0-LczyxTwvEQC19W4vsXUbauN_kO8EABpFyamoek3lPuqV",
+        },
+$ cd ../..
+```
+
+`zig fetch --save` looks for the `build.zig` of the package, so it comes
+after it, and zig 0.17 puts what it fetched into `zig-pkg/` beside
+`build.zig.zon`. That
+directory is no file of the package: tt leaves it out of the layout, and
+its build fetches into a directory of its own, out of the sources (see
+below). Put `zig-pkg/` and `zig-out/` into `.gitignore`.
+
 ## Declare the component
 
 The block names the module and the program the build makes:
@@ -150,17 +163,24 @@ $ tt package build
 $ find .rocks/bin .rocks/lib -name 'hello*'
 .rocks/bin/hello-client
 .rocks/lib/tarantool/myapp/hello.so
+$ find .rocks -path '*zig-pkg*' | wc -l
+0
 ```
 
 The build runs, in the directory of the component,
 
 ```console
-zig build -p _build/component/hello/zig-out --cache-dir _build/component/hello/zig-cache --release=safe
+zig build -p _build/component/hello/zig-out --cache-dir _build/component/hello/zig-cache --pkg-dir _build/component/hello/zig-pkg --release=safe
 ```
 
 which installs into a prefix of the build's own, out of the sources, and
-keeps the cache of the project there too; `tt -V package build` shows the
-line. tt takes the module from `lib/` of the prefix, `hello.so` or
+keeps the cache of the project and the packages it fetches there too;
+`tt -V package build` shows the line, with absolute paths. `--pkg-dir` is
+given to zig 0.17 and later, and not when the `env` of the block sets
+`ZIG_LOCAL_PKG_DIR`, the directory of the packages zig takes then: `env =
+{ ZIG_LOCAL_PKG_DIR = "/home/me/.cache/zig-pkg" }` shares one between
+projects. zig 0.16 keeps the packages in its global cache and is given
+none. tt takes the module from `lib/` of the prefix, `hello.so` or
 `hello.dylib` as `installModule` installs it, or `libhello.so` or
 `libhello.dylib` as `b.installArtifact` installs a library, and copies it
 as `<module>.so`, `<module>.dylib` on macOS, where Tarantool looks for that
@@ -181,8 +201,13 @@ $ tt package build
 ```
 
 A `zig-out/` of the component, which `zig build` run there by hand leaves,
-is not laid out, and neither are the `.zig` sources: a `*.lua` file of the
-component is laid out as in any component.
+is not laid out, nor is its `zig-pkg/`, which `zig fetch --save` and
+`zig build` run there leave, and neither are the `.zig` sources: a
+`*.lua` file of the component is laid out as in any component, but one
+of `zig-pkg/`, as `examples/kv/init.lua` of zig-tarantool, is not. A
+module renamed in the block, `module = "greet"` for `hello`, leaves no
+`hello.so` behind: a build of a block that changed starts the component
+afresh.
 
 The other fields of the block:
 
@@ -252,7 +277,8 @@ load and run them as in the project.
 ## The toolchain
 
 zig fetches the dependencies of `build.zig.zon` itself, as it builds, into
-its global cache: `tt package fetch` does not run the build, and
+its global cache, and zig 0.17 into `_build/component/<component>/zig-pkg/`
+from there: `tt package fetch` does not run the build, and
 `tt package build --locked` keeps the lock of tt, not zig off the network.
 The hashes of `build.zig.zon` pin what zig fetches. The module links
 against the C library of the machine it is built on: build it on the
