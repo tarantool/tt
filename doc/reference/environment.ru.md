@@ -1,4 +1,4 @@
-# Переменные окружения
+# Переменные окружения {#environment-variables}
 
 ## Scope и бинарные файлы {#scopes-and-binaries}
 
@@ -11,6 +11,14 @@
 | `TT_CLI_TARANTOOL_PREFIX` | префикс каталога с заголовочными файлами Tarantool, под которые собираются rock-модули с частью на C; задаётся в `.env/activate.sh` |
 | `TT_PROJECT_DIR` | каталог проекта; задаётся в `.env/activate.sh` |
 | `TT_CLI_EE_USERNAME`, `TT_CLI_EE_PASSWORD` | учётные данные customer-zone для Enterprise, TCM и SDK, если не передан флаг `--credentials-file` |
+| `CMAKE_POLICY_VERSION_MINIMUM` | версия политик, с которой CMake 4 конфигурирует проект для более старого CMake; tt устанавливает её в `3.5` для `cmake` и `make`, собирающих Tarantool из исходников, и для собираемых им rock-модулей, если только переменная не задана (включая пустое значение) |
+
+CMake 4 отказывается конфигурировать проект, запрашивающий CMake старее 3.5
+через `cmake_minimum_required`, как это делают коммиты Tarantool до 2024 года
+и многие rock-модули, если только `CMAKE_POLICY_VERSION_MINIMUM` не указывает,
+какую версию политик предполагать. CMake 3 эту переменную не читает. tt не
+устанавливает её для компонентов проекта и их hook'ов, являющихся кодом
+пользователя, а также для Tarantool, который запускают `tt run` и `tt test`.
 
 См. [Projects and scopes](../concepts/projects-and-scopes.md) и
 [Manage binaries](../how-to/binaries.md).
@@ -21,18 +29,19 @@
 | --- | --- |
 | `TT_REGISTRIES` | rock-серверы через запятую вместо `[platform].registries` и значений по умолчанию; флаг `--registry` имеет приоритет |
 | `SOURCE_DATE_EPOCH` | время, фиксируемое в `version.lua` и в архиве; по умолчанию - время коммита HEAD |
+| `TT_PROJECT_LOCK` | устанавливается tt на время удержания блокировки проекта, `_build/tt.lock`, для запускаемых им команд: запускаемый среди них tt работает с проектом под этой блокировкой, а не ждёт её; значение, указывающее на блокировку, которую никто не удерживает, игнорируется. Вручную не задаётся |
 
-Сборка компонента и хуки получают переменные `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
-`TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION`, `TT_PLATFORM_OS` и
-`TT_PLATFORM_ARCH`, а если tt знает Tarantool, для которого идёт сборка,
-то и `TT_TARANTOOL_PREFIX` и `TT_TARANTOOL_INCLUDE_DIR`, каталог его
-`module.h` и `lua.h`; см. [app.manifest.toml](app-manifest.md#componentsnamebuild).
-Каталог `.tarantool/bin` проекта ставится первым в передаваемом им `PATH`.
-Сборка компонента получает также `TT_BUILD_DIR` -
-`_build/component/<component>/`, собственный каталог для того, что она
-создаёт по пути, вне исходников, - а сборка `cargo` получает
-`CARGO_TARGET_DIR` - `_build/cargo/`, - если не заданы `CARGO_TARGET_DIR` или
-`CARGO_BUILD_TARGET_DIR`.
+Сборка компонента и hook получают переменные `TT_PROJECT_ROOT`, `TT_PACKAGE`,
+`TT_VERSION`, `TT_PLATFORM_OS` и `TT_PLATFORM_ARCH`, а если tt знает
+Tarantool, под который идёт сборка, то и `TT_TARANTOOL_PREFIX` и
+`TT_TARANTOOL_INCLUDE_DIR` - каталог его файлов `module.h` и `lua.h`; см.
+[app.manifest.toml](app-manifest.md#componentsnamebuild). Каталог
+`.tarantool/bin` проекта ставится первым в передаваемом им `PATH`. Сборка
+компонента получает также `TT_OUTPUT_DIR`, куда она помещает создаваемые
+модули, `TT_COMPONENT_NAME` и `TT_BUILD_DIR` - `_build/component/<component>/`,
+собственный каталог сборки для того, что она создаёт по пути, вне исходников,
+а сборка `cargo` - `CARGO_TARGET_DIR`, `_build/cargo/`, если не заданы
+`CARGO_TARGET_DIR` или `CARGO_BUILD_TARGET_DIR`.
 
 ## Компоненты WebAssembly {#webassembly-components}
 
