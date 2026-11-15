@@ -445,6 +445,26 @@ func (h *Harness) Run(ctx context.Context, bld build.Build) error {
 	return checkProduced(h.backend, bld, h.Context.Dirs, before, after)
 }
 
+// Clean runs the Clean of bld, a build of the backend of the harness, as tt
+// package clean runs it, when bld is a [build.Cleaner]: bld is checked
+// ([build.Backend.ValidateBuild]) first. A build that is no Cleaner cleans
+// nothing, and Clean returns nil. Nothing is removed after it: what the core
+// removes itself - [build.Dirs.Work], the stage, the records - stays, so a
+// test sees what Clean alone removed.
+func (h *Harness) Clean(ctx context.Context, bld build.Build) error {
+	err := h.backend.ValidateBuild(bld)
+	if err != nil {
+		return err
+	}
+
+	cleaner, ok := bld.(build.Cleaner)
+	if !ok {
+		return nil
+	}
+
+	return cleaner.Clean(ctx, h.Context)
+}
+
 // preflight runs the Preflight of preflighter in facts with TT_VERSION of
 // the Env empty, and then puts it back.
 func preflight(ctx context.Context, facts *build.Context, preflighter build.Preflighter) error {

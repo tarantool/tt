@@ -287,6 +287,39 @@ func TestHarness(t *testing.T) {
 	assert.Equal(t, []string{"sdk 3.1.0"}, harness.Warnings())
 }
 
+// genBuild is a Build that generates a file beside the sources of its
+// component, and a Cleaner that removes it.
+type genBuild struct{}
+
+var _ build.Cleaner = genBuild{}
+
+func (genBuild) Run(_ context.Context, c *build.Context) error {
+	return os.WriteFile(filepath.Join(c.Dirs.Component, "gen.lua"), nil, 0o600)
+}
+
+func (genBuild) Clean(_ context.Context, c *build.Context) error {
+	return os.Remove(filepath.Join(c.Dirs.Component, "gen.lua"))
+}
+
+// TestHarnessClean runs the Clean of a Cleaner, leaving what the core
+// removes itself, and cleans nothing of a Build that is no Cleaner.
+func TestHarnessClean(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, touch(), component())
+	work := filepath.Join(harness.Context.Dirs.Work, "object.o")
+
+	require.NoError(t, os.WriteFile(work, nil, 0o600))
+	require.NoError(t, harness.Run(t.Context(), genBuild{}))
+	require.FileExists(t, filepath.Join(harness.Context.Dirs.Component, "gen.lua"))
+
+	require.NoError(t, harness.Clean(t.Context(), genBuild{}))
+	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Component, "gen.lua"))
+	assert.FileExists(t, work, "what the core removes stays")
+
+	require.NoError(t, harness.Clean(t.Context(), touchBuild{file: "made.txt"}))
+}
+
 func TestHarnessBin(t *testing.T) {
 	t.Parallel()
 

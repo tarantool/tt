@@ -146,18 +146,20 @@ var optionalInterfaces = []struct {
 	{"Produces", reflect.TypeFor[Producer]()},
 	{"Programs", reflect.TypeFor[ProgramNamer]()},
 	{"Inputs", reflect.TypeFor[InputHasher]()},
+	{"Clean", reflect.TypeFor[Cleaner]()},
 }
 
 // ValidateBuild checks bld, a Build New of b returned: that a method of it
 // named as the method of an optional interface - Preflight, Produces,
-// Programs, Inputs - makes it that interface ([Preflighter], [Producer],
-// [ProgramNamer], [InputHasher]). The core finds these interfaces by type
-// assertion, so a method of another signature, written for an older SDK,
-// or one of a pointer receiver on a Build New returns as a value, would
-// never be called: the check it makes, or the inputs it names, would be
-// left out with no error. The core checks every Build a backend makes,
-// when it checks a manifest, and so does buildtest. The error wraps
-// [ErrBackend] and says what signature the method needs.
+// Programs, Inputs, Clean - makes it that interface ([Preflighter],
+// [Producer], [ProgramNamer], [InputHasher], [Cleaner]). The core finds
+// these interfaces by type assertion, so a method of another signature,
+// written for an older SDK, or one of a pointer receiver on a Build New
+// returns as a value, would never be called: the check it makes, the inputs
+// it names, or what it cleans would be left out with no error. The core
+// checks every Build a backend makes, when it checks a manifest, and so does
+// buildtest. The error wraps [ErrBackend] and says what signature the method
+// needs.
 func (b Backend) ValidateBuild(bld Build) error {
 	if bld == nil {
 		return fmt.Errorf("%w %q: New returned a nil Build", ErrBackend, b.Name)

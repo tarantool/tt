@@ -34,7 +34,7 @@ func isPlatformToken(token string) bool {
 
 func isHookName(name string) bool {
 	switch name {
-	case "pre_build", "post_build":
+	case "pre_build", "post_build", "clean":
 		return true
 	default:
 		return false
@@ -512,7 +512,8 @@ func (m *Manifest) validateHooks(checker BuildChecker) ([]string, error) {
 	for _, name := range sortedKeys(m.Hooks) {
 		if !isHookName(name) {
 			warnings = append(warnings, fmt.Sprintf(
-				"unknown hook %q skipped (only pre_build and post_build are supported)", name))
+				"unknown hook %q skipped (only pre_build, post_build and clean are supported)",
+				name))
 
 			continue
 		}

@@ -265,6 +265,36 @@ type InputHasher interface {
 	Inputs(ctx context.Context, c *Context) ([]string, error)
 }
 
+// Cleaner is a Build that removes what its builds leave outside the
+// directories of the core, as tt package clean cleans the component: files
+// it generates in the directory of the component, the files of its output
+// that its tool makes in the working directory of the build, a cache of its
+// own. The core asks every component it cleans before it removes anything of
+// its own, so that Clean may still read [Dirs.Work], and then removes
+// [Dirs.Work], the records of the component, its files in the stage and the
+// rock of the package in [Dirs.Tree]; for a clean of the whole project it
+// removes all of [Dirs.State]. What is anywhere else - the directory of the
+// component, [Dirs.Cwd], [Dirs.Tools] - the core never removes, as it cannot
+// tell what of it the build made from what the user wrote: the files output
+// lists may be prebuilt ones the project keeps. So Clean removes what its
+// builds made there, and nothing else: a file its tool would make again. It
+// runs for a component that was never built too, so a file that is not there
+// is no error.
+//
+// c is a Context as that of a build of the component - the same Dirs, Env
+// and PATH - but for [Context.Args], which are empty, and Fresh, Locked and
+// Static, which are false; its directories may not exist, and the version
+// of the package is empty when it cannot be derived. ctx is that of the
+// clean: a command Clean runs is made with it ([Context.Command]). The core
+// runs Clean under the lock of the project, as it runs Run. An error fails
+// the clean, with exit code 2, before the core removes anything.
+//
+// The core finds a Cleaner by a type assertion; a method Clean of another
+// signature is refused ([Backend.ValidateBuild]) rather than never called.
+type Cleaner interface {
+	Clean(ctx context.Context, c *Context) error
+}
+
 // FileCheck checks the files of a package whose names end with Suffix,
 // whatever component and backend made them: the files the layout of every
 // component copies into the package, and the data files ([Data]) the build

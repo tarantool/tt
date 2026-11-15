@@ -427,7 +427,8 @@ func (m *Manifest) DefaultProduct() (string, Product, bool) {
 	return "", Product{}, false
 }
 
-// Hook is a lifecycle hook ([hooks.pre_build]/[hooks.post_build]). It is a
+// Hook is a lifecycle hook ([hooks.pre_build], [hooks.post_build] and
+// [hooks.clean], which tt package clean of the whole project runs). It is a
 // build block, but only a backend that runs hooks runs one (make and shell
 // of the module build of tt), it has no component and static is refused.
 type Hook = Build
