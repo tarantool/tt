@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -76,19 +77,23 @@ func writeTool(t *testing.T, dir, body string) {
 }
 
 // fakeZig writes a zig into the tools directory of harness. zig version
-// prints 0.16.0; zig build --help prints the options of a build.zig, with
-// -Dtarget unless FAKE_NO_TARGET is set; zig build records its working
-// directory and its arguments at <state>/zig.args and the arguments of every
-// run, one run a line, at <state>/zig.runs, and installs into the prefix of
-// its -p the modules hello.so, libplain.so and a/b.dylib and the program
-// hello-client, saying so on stderr; it fails when FAKE_FAIL is set.
+// prints FAKE_ZIG_VERSION, 0.17.1 when it is not set; zig build --help prints
+// the options of a build.zig, with -Dtarget unless FAKE_NO_TARGET is set;
+// zig build records its working directory and its arguments at
+// <state>/zig.args and the arguments of every run, one run a line, at
+// <state>/zig.runs, and installs into the prefix of its -p the modules
+// hello.so, libplain.so and a/b.dylib and the program hello-client, saying so
+// on stderr; but for zig version, it fails when FAKE_FAIL is set.
 func fakeZig(t *testing.T, harness *buildtest.Harness) string {
 	t.Helper()
 
 	log := filepath.Join(harness.Context.Dirs.State, "zig")
 
-	writeTool(t, harness.Context.Dirs.Tools, `[ -n "$FAKE_FAIL" ] && exit 1
-if [ "$1" = version ]; then echo 0.16.0; exit 0; fi
+	writeTool(t, harness.Context.Dirs.Tools, `if [ "$1" = version ]; then
+	echo "${FAKE_ZIG_VERSION:-0.17.1}"
+	exit 0
+fi
+[ -n "$FAKE_FAIL" ] && exit 1
 printf '%s\n' "$*" >> "`+log+`.runs"
 case " $* " in *" --help "*)
 	echo '  -Doptimize=[enum]            Prioritize performance, safety, or binary size'
@@ -278,7 +283,7 @@ func TestBackend(t *testing.T) {
 	assert.Equal(t, []build.Result{build.Module, build.Program}, backend.Produces)
 	assert.False(t, backend.NoSourceLayout)
 	assert.Equal(t, build.OutputNone, backend.OutputFrom)
-	assert.Equal(t, []string{"/zig-out/"}, backend.Exclude)
+	assert.Equal(t, []string{"/zig-out/", "/zig-pkg/"}, backend.Exclude)
 	assert.True(t, backend.Incremental)
 	assert.False(t, backend.Hook)
 
@@ -378,7 +383,8 @@ func TestRunCopiesTheModuleAndTheProgram(t *testing.T) {
 	work := facts.Dirs.Work
 	assert.Equal(t, []string{
 		cwd, "build", "install", "client", "-p", filepath.Join(work, "zig-out"),
-		"--cache-dir", filepath.Join(work, "zig-cache"), "--release=safe",
+		"--cache-dir", filepath.Join(work, "zig-cache"),
+		"--pkg-dir", filepath.Join(work, "zig-pkg"), "--release=safe",
 		"-Dapi=3", "-Dverify-cabi=true",
 	}, readLines(t, log+".args"))
 
@@ -393,6 +399,61 @@ func TestRunCopiesTheModuleAndTheProgram(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(facts.Dirs.Output, "hello-client"))
 	assert.NoDirExists(t, filepath.Join(facts.Dirs.Component, "zig-out"))
 	assert.Equal(t, "installing\n", harness.Printed())
+}
+
+// TestRunOfThePackageDirectory: zig 0.17 and later fetch the packages into
+// zig-pkg/ of the work directory, --pkg-dir, unless the env of the build
+// names a directory of its own; an older zig, which refuses --pkg-dir, and a
+// development version of 0.17.0 are given none.
+func TestRunOfThePackageDirectory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		version string
+		env     string
+		pkg     bool
+	}{
+		{"zig 0.17.1", "0.17.1", "", true},
+		{"zig 0.17.0", "0.17.0", "", true},
+		{"a development version of 0.18.0", "0.18.0-dev.12+0123abcd", "", true},
+		{"zig 1.0.0", "1.0.0", "", true},
+		{"zig 0.16.0", "0.16.0", "", false},
+		{"a development version of 0.17.0", "0.17.0-dev.3+abcdef01", "", false},
+		{"a version tt cannot read", "master", "", false},
+		{"ZIG_LOCAL_PKG_DIR of the env", "0.17.1", "/srv/zig-pkg", false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			harness := buildtest.New(t, Backend(), component())
+			log := fakeZig(t, harness)
+
+			harness.Context.Env["FAKE_ZIG_VERSION"] = test.version
+			if test.env != "" {
+				harness.Context.Env["ZIG_LOCAL_PKG_DIR"] = test.env
+			}
+
+			require.NoError(t, harness.Run(t.Context(), validate(t, component(),
+				map[string]any{"module": "hello"}, false)))
+
+			args := readLines(t, log+".args")[1:]
+			cache := slices.Index(args, "--cache-dir")
+			require.GreaterOrEqual(t, cache, 0, args)
+
+			work := harness.Context.Dirs.Work
+
+			want := []string{"--cache-dir", filepath.Join(work, "zig-cache")}
+			if test.pkg {
+				want = append(want, "--pkg-dir", filepath.Join(work, "zig-pkg"))
+			}
+
+			assert.Equal(t, want, args[cache:cache+len(want)])
+			assert.NotContains(t, args[cache+len(want):], "--pkg-dir")
+		})
+	}
 }
 
 // TestRunOfAnOptimizationMode: Debug, the mode of a zig build asked for
@@ -552,6 +613,8 @@ func TestRunOfAStaticProgram(t *testing.T) {
 			if test.help {
 				require.Len(t, runs, 2)
 				assert.True(t, strings.HasPrefix(runs[0], "build --help --cache-dir "), runs[0])
+				assert.Contains(t, runs[0], " --pkg-dir "+
+					filepath.Join(harness.Context.Dirs.Work, "zig-pkg"))
 			} else {
 				require.Len(t, runs, 1)
 			}
@@ -578,7 +641,7 @@ func TestInputs(t *testing.T) {
 
 	inputs, err := bld.Inputs(t.Context(), harness.Context)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"zig version 0.16.0"}, inputs)
+	assert.Equal(t, []string{"zig version 0.17.1"}, inputs)
 
 	cwd := harness.Context.Dirs.Cwd
 	require.NoError(t, os.WriteFile(filepath.Join(cwd, "build.zig"), []byte("a"), 0o600))
@@ -587,7 +650,7 @@ func TestInputs(t *testing.T) {
 	inputs, err = bld.Inputs(t.Context(), harness.Context)
 	require.NoError(t, err)
 	assert.Equal(t, []string{
-		"zig version 0.16.0",
+		"zig version 0.17.1",
 		"build.zig sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
 		"build.zig.zon sha256:3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d",
 	}, inputs)

@@ -3,12 +3,17 @@
 package zig
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"debug/elf"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -242,14 +247,20 @@ func TestBuildsAStaticProgram(t *testing.T) {
 // function and a C function, and a program hello-client of
 // tarantool-client.
 func consumerProject(dep string) map[string]string {
+	return consumerProjectOf(`.{ .path = "` + filepath.ToSlash(dep) + `" }`)
+}
+
+// consumerProjectOf is consumerProject whose dependency tarantool is the
+// one of build.zig.zon dependency.
+func consumerProjectOf(dependency string) map[string]string {
 	return map[string]string{
 		"build.zig.zon": `.{
     .name = .hello,
     .version = "0.1.0",
     .fingerprint = 0x3610a686cc406856,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.1",
     .dependencies = .{
-        .tarantool = .{ .path = "` + filepath.ToSlash(dep) + `" },
+        .tarantool = ` + dependency + `,
     },
     .paths = .{ "build.zig", "build.zig.zon", "src" },
 }
@@ -359,4 +370,147 @@ os.exit(0)
 	assert.Contains(t, printed, "mul\t42")
 	assert.Contains(t, printed, "1 + 1 = 2\n")
 	assert.Contains(t, printed, "exit\t0\n")
+}
+
+// requirePkgDir skips the test for a zig that keeps no packages in a
+// directory of the project: one older than 0.17.
+func requirePkgDir(t *testing.T) {
+	t.Helper()
+
+	out, err := exec.CommandContext(t.Context(), zigTool, "version").Output()
+	require.NoError(t, err)
+
+	if !takesPkgDir(strings.TrimSpace(string(out))) {
+		t.Skipf("zig %s keeps no packages in the project", strings.TrimSpace(string(out)))
+	}
+}
+
+// packTarball packs the files of dir, but those of .git, .zig-cache,
+// zig-out and zig-pkg, into a gzipped tarball at path, under the directory
+// top, as a forge serves the archive of a commit.
+func packTarball(t *testing.T, dir, top, path string) {
+	t.Helper()
+
+	file, err := os.Create(path)
+	require.NoError(t, err)
+
+	root, err := os.OpenRoot(dir)
+	require.NoError(t, err)
+
+	defer func() { _ = root.Close() }()
+
+	compressed := gzip.NewWriter(file)
+	archive := tar.NewWriter(compressed)
+
+	err = fs.WalkDir(root.FS(), ".", func(rel string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() && rel != "." &&
+			slices.Contains([]string{".git", ".zig-cache", "zig-out", "zig-pkg"}, entry.Name()) {
+			return fs.SkipDir
+		}
+
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+
+		header.Name = top + "/" + rel
+
+		err = archive.WriteHeader(header)
+		if err != nil {
+			return err
+		}
+
+		data, err := fs.ReadFile(root.FS(), rel)
+		if err == nil {
+			_, err = archive.Write(data)
+		}
+
+		return err
+	})
+	require.NoError(t, err)
+	require.NoError(t, archive.Close())
+	require.NoError(t, compressed.Close())
+	require.NoError(t, file.Close())
+}
+
+// TestBuildsAModuleOfAFetchedDependency builds the project of the how-to
+// whose dependency zig-tarantool is fetched by a .url and a .hash, as
+// zig fetch --save pins it: here a tarball of the checkout, so that the test
+// runs offline. zig 0.17 fetches it into the zig-pkg/ of the work directory
+// of the build: none is left beside the build.zig.zon of the component.
+func TestBuildsAModuleOfAFetchedDependency(t *testing.T) {
+	t.Parallel()
+	requireZig(t)
+	requirePkgDir(t)
+
+	checkout := requireZigTarantool(t)
+	tarball := filepath.Join(t.TempDir(), "zig-tarantool.tar.gz")
+	packTarball(t, checkout, "zig-tarantool", tarball)
+
+	// zig fetch --save, as the how-to runs it, pins the package by its hash,
+	// here in a project of its own. zig 0.17.1 fetch without --save keeps the
+	// package in the global cache with the top directory of the tarball, and
+	// a build of that hash then fails: "hash mismatch".
+	scratch := t.TempDir()
+	writeFiles(t, scratch, map[string]string{
+		"build.zig": "pub fn build(b: *@import(\"std\").Build) void {\n    _ = b;\n}\n",
+		"build.zig.zon": `.{
+    .name = .hello,
+    .version = "0.1.0",
+    .fingerprint = 0x3610a686cc406856,
+    .dependencies = .{},
+    .paths = .{""},
+}
+`,
+	})
+
+	fetch := exec.CommandContext(t.Context(), zigTool, "fetch", "--save=tarantool",
+		"--pkg-dir", filepath.Join(scratch, "zig-pkg"), tarball)
+
+	fetch.Dir = scratch
+
+	out, err := fetch.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	zon, err := os.ReadFile(filepath.Join(scratch, "build.zig.zon"))
+	require.NoError(t, err)
+
+	match := regexp.MustCompile(`\.hash = "([^"]+)"`).FindSubmatch(zon)
+	require.NotNil(t, match, string(zon))
+
+	hash := string(match[1])
+
+	harness := buildtest.New(t, Backend(), component())
+	dirs := harness.Context.Dirs
+	ext := harness.Context.Target.ModuleExt()
+
+	writeFiles(t, dirs.Component, consumerProjectOf(`.{
+            .url = "`+filepath.ToSlash(tarball)+`",
+            .hash = "`+hash+`",
+        }`))
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
+		map[string]any{"module": "hello"}, false)), harness.Printed())
+
+	module := filepath.Join(dirs.Output, "hello"+ext)
+	assert.FileExists(t, module)
+	assert.NoDirExists(t, filepath.Join(dirs.Component, "zig-pkg"))
+	assert.FileExists(t, filepath.Join(dirs.Work, "zig-pkg", hash, "build.zig.zon"))
+
+	tarantool := requireTarantool(t)
+	assert.Equal(t, "42", runTarantool(t, tarantool, module,
+		"io.write(tostring(require('hello').mul(6, 7))) os.exit(0)"))
 }

@@ -331,8 +331,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `build.zig`. `incremental` is allowed, and `static = true` builds a
   program of a block without a module for musl when the `build.zig` takes
   `-Dtarget`. The backend is one of the standard module `build`, written
-  against the SDK alone; see the how-to "Build a module in Zig". zig 0.16.0
-  is the user's to install.
+  against the SDK alone; see the how-to "Build a module in Zig". zig, 0.16
+  or 0.17, is the user's to install.
 - `[distribution] standard` and `exclude` in `tt.manifest.toml`: a
   distribution of tt takes the standard modules of its core - the ones the
   official tt is built with, `aeon`, `build`, `emmylua` and `wasm` now, which the
@@ -671,6 +671,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A `zig` component built with zig 0.17 no longer puts the packages zig
+  fetches for its `build.zig.zon` into the package: zig 0.17 fetches them
+  into `zig-pkg/` beside `build.zig.zon`, and the files of zig-tarantool,
+  its `examples/kv/init.lua` say, were laid out into
+  `.rocks/share/tarantool/<package>/zig-pkg/` and the archive. The build
+  gives zig 0.17 and later `--pkg-dir _build/component/<component>/zig-pkg`,
+  unless the `env` of the block sets `ZIG_LOCAL_PKG_DIR`, and the layout
+  leaves out a `zig-pkg/` of the component, which `zig fetch --save` run
+  there makes. zig 0.16, which refuses `--pkg-dir`, is given none.
 - `tt -V package build` no longer says `library=go-luarocks` of what tt
   itself logs: `component is up to date component=<name>` of an incremental
   build skipped, and `removed <rock> <version>, which the lock does not pin`.
