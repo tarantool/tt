@@ -143,14 +143,14 @@ type Backend struct {
 func Typed[C any](
 	newBuild func(cfg *C, c Component, common Common) (Build, error),
 ) func(cfg any, c Component, common Common) (Build, error) {
-	return func(cfg any, c Component, common Common) (Build, error) {
+	return func(cfg any, component Component, common Common) (Build, error) {
 		config, ok := cfg.(*C)
 		if !ok {
 			return nil, fmt.Errorf("%w: New takes a %T, Config returned a %T", ErrConfig,
 				config, cfg)
 		}
 
-		return newBuild(config, c, common)
+		return newBuild(config, component, common)
 	}
 }
 

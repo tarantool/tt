@@ -279,6 +279,7 @@ func TestRun(t *testing.T) {
 			0o700))
 
 		harness.SetTarantool(build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""})
+
 		facts.Target.OS = goos
 
 		require.NoError(t, harness.Run(t.Context(), bld))

@@ -46,6 +46,7 @@ func TestToolchainOf(t *testing.T) {
 	}, nil)
 
 	want := linuxToolchain()
+
 	want.includeDir = "/tt/include/tarantool"
 
 	assert.Equal(t, want, toolchainOf(linux, func(string) (string, bool) { return "", true }))
