@@ -72,8 +72,12 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	testDir := t.TempDir()
-	err := os.Mkdir(testDir+"/bin", os.ModePerm)
+	// The prefix is found along the real path of the executable: on macOS
+	// the temporary directory is under /var, a link to /private/var.
+	testDir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	err = os.Mkdir(testDir+"/bin", os.ModePerm)
 	require.NoError(t, err)
 
 	tntBinPath := testDir + "/bin/tarantool"

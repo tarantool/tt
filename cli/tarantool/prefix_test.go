@@ -13,6 +13,19 @@ import (
 	"github.com/tarantool/tt/v3/cli/tarantool"
 )
 
+// tempDir is t.TempDir with its symbolic links resolved. ResolvePrefix looks
+// along the real path of the executable first, so it returns the real path
+// of the prefix: on macOS the temporary directory is under /var, a link to
+// /private/var.
+func tempDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	return dir
+}
+
 // stubTarantool writes at path a tarantool that prints the banner of
 // tarantool --version of version, built for the install prefix built.
 func stubTarantool(t *testing.T, path, version, built string) {
@@ -75,7 +88,7 @@ func resolve(t *testing.T, executable string) tarantool.Prefix {
 }
 
 func TestResolvePrefixStandard(t *testing.T) {
-	root := t.TempDir()
+	root := tempDir(t)
 	exe := filepath.Join(root, "bin", "tarantool")
 	stubTarantool(t, exe, "3.3.5-0-gabcdef", "/nonexistent/prefix")
 
@@ -92,7 +105,7 @@ func TestResolvePrefixStandard(t *testing.T) {
 }
 
 func TestResolvePrefixSDK(t *testing.T) {
-	sdk := t.TempDir()
+	sdk := tempDir(t)
 	exe := filepath.Join(sdk, "tarantool")
 	stubTarantool(t, exe, "Enterprise 3.7.0-0-g1f1ec9fdf", "/usr")
 
@@ -112,7 +125,7 @@ func TestResolvePrefixSDK(t *testing.T) {
 func ttScope(t *testing.T) (string, string, string) {
 	t.Helper()
 
-	root := t.TempDir()
+	root := tempDir(t)
 	version := filepath.Join(root, "versions", "tarantool", "tarantool_3.3.5")
 	stubTarantool(t, filepath.Join(version, "tarantool"), "3.3.5-0-gabcdef", "/usr")
 
@@ -151,12 +164,12 @@ func TestResolvePrefixScopeActiveHeaders(t *testing.T) {
 }
 
 func TestResolvePrefixSymlinkedDir(t *testing.T) {
-	sdk := t.TempDir()
+	sdk := tempDir(t)
 	stubTarantool(t, filepath.Join(sdk, "tarantool"), "3.7.0-0-g1f1ec9fdf", "/usr")
 
 	include := writeHeaders(t, sdk, "3.7.0")
 
-	link := filepath.Join(t.TempDir(), "sdk")
+	link := filepath.Join(tempDir(t), "sdk")
 	require.NoError(t, os.Symlink(sdk, link))
 
 	prefix := resolve(t, filepath.Join(link, "tarantool"))
@@ -164,8 +177,8 @@ func TestResolvePrefixSymlinkedDir(t *testing.T) {
 	assert.Equal(t, include, prefix.IncludeDir)
 
 	// A bin directory that is a link: the prefix is the one it is found in.
-	root := t.TempDir()
-	elsewhere := t.TempDir()
+	root := tempDir(t)
+	elsewhere := tempDir(t)
 	stubTarantool(t, filepath.Join(elsewhere, "tarantool"), "3.7.0-0-g1f1ec9fdf", "/usr")
 	require.NoError(t, os.Symlink(elsewhere, filepath.Join(root, "bin")))
 
@@ -177,10 +190,10 @@ func TestResolvePrefixSymlinkedDir(t *testing.T) {
 }
 
 func TestResolvePrefixBuild(t *testing.T) {
-	built := t.TempDir()
+	built := tempDir(t)
 	include := writeHeaders(t, built, "3.3.5")
 
-	exe := filepath.Join(t.TempDir(), "bin", "tarantool")
+	exe := filepath.Join(tempDir(t), "bin", "tarantool")
 	stubTarantool(t, exe, "3.3.5-0-gabcdef", built)
 
 	prefix := resolve(t, exe)
@@ -192,8 +205,8 @@ func TestResolvePrefixBuild(t *testing.T) {
 func TestResolvePrefixBuildWithoutHeaders(t *testing.T) {
 	skipSystemHeaders(t)
 
-	built := t.TempDir()
-	dir := t.TempDir()
+	built := tempDir(t)
+	dir := tempDir(t)
 	exe := filepath.Join(dir, "bin", "tarantool")
 	stubTarantool(t, exe, "3.3.5-0-gabcdef", built)
 
@@ -212,7 +225,7 @@ func TestResolvePrefixBuildWithoutHeaders(t *testing.T) {
 }
 
 func TestResolvePrefixRelocated(t *testing.T) {
-	root := t.TempDir()
+	root := tempDir(t)
 	exe := filepath.Join(root, "bin", "tarantool")
 	stubTarantool(t, exe, "3.8.1-0-ge643f88a5e0c", "/tarantool/static-build/tarantool-prefix")
 
@@ -226,7 +239,7 @@ func TestResolvePrefixRelocated(t *testing.T) {
 func TestResolvePrefixNothingFound(t *testing.T) {
 	skipSystemHeaders(t)
 
-	dir := t.TempDir()
+	dir := tempDir(t)
 	exe := filepath.Join(dir, "tarantool")
 	stubTarantool(t, exe, "3.8.1-0-ge643f88a5e0c", "/tarantool/static-build/tarantool-prefix")
 
@@ -254,13 +267,13 @@ func TestResolvePrefixNothingFound(t *testing.T) {
 }
 
 func TestResolvePrefixOverrides(t *testing.T) {
-	root := t.TempDir()
+	root := tempDir(t)
 	exe := filepath.Join(root, "bin", "tarantool")
 	stubTarantool(t, exe, "3.3.5-0-gabcdef", "/usr")
 	writeHeaders(t, root, "3.3.5")
 
-	env := t.TempDir()
-	project := t.TempDir()
+	env := tempDir(t)
+	project := tempDir(t)
 
 	// The prefix named wins, headers there or not.
 	prefix, err := tarantool.ResolvePrefix(tarantool.PrefixQuery{Env: env, Executable: exe})
@@ -293,7 +306,7 @@ func TestResolvePrefixOverrides(t *testing.T) {
 }
 
 func TestResolvePrefixVersionMismatch(t *testing.T) {
-	sdk := t.TempDir()
+	sdk := tempDir(t)
 	exe := filepath.Join(sdk, "tarantool")
 	stubTarantool(t, exe, "3.3.5-0-gabcdef", "/usr")
 
@@ -313,7 +326,7 @@ func TestResolvePrefixVersionMismatch(t *testing.T) {
 }
 
 func TestResolvePrefixBanner(t *testing.T) {
-	dir := t.TempDir()
+	dir := tempDir(t)
 	exe := filepath.Join(dir, "bin", "tarantool")
 
 	writeScript(t, exe, "Tarantool 3.3.5\nTarget: Linux-x86_64-RelWithDebInfo\n")
@@ -334,10 +347,10 @@ func TestResolvePrefixBanner(t *testing.T) {
 	assert.Equal(t, include, prefix.IncludeDir)
 
 	// The prefix ends at the first blank, whatever options follow it.
-	built := t.TempDir()
+	built := tempDir(t)
 	writeHeaders(t, built, "3.3.5")
 
-	other := filepath.Join(t.TempDir(), "tarantool")
+	other := filepath.Join(tempDir(t), "tarantool")
 	writeScript(t, other, "Tarantool 3.3.5\nTarget: Linux\nBuild options: cmake . "+
 		"-DCMAKE_INSTALL_PREFIX="+built+" -DA=1 -DB=2\n")
 
@@ -348,7 +361,7 @@ func TestResolvePrefixBanner(t *testing.T) {
 	// An executable that does not run is an error when the prefix is to be
 	// taken from its banner.
 	_, err = tarantool.ResolvePrefix(tarantool.PrefixQuery{
-		Executable: filepath.Join(t.TempDir(), "missing"),
+		Executable: filepath.Join(tempDir(t), "missing"),
 	})
 	require.Error(t, err)
 }
