@@ -70,6 +70,28 @@ type DependencyMove struct {
 	To string
 }
 
+// String renders the move as tt package reports one, a line each: a rock
+// that arrived with its version, "name 1.0.0-1"; one that dropped out
+// marked so, "name 1.0.0-1 -> (dropped)"; one that moved with both ends,
+// "name 1.0.0-1 -> 1.1.0-1".
+func (m DependencyMove) String() string {
+	switch {
+	case m.From == "":
+		return m.Name + " " + m.To
+	case m.To == "":
+		return m.Name + " " + m.From + " -> (dropped)"
+	default:
+		return m.Name + " " + m.From + " -> " + m.To
+	}
+}
+
+// RegistryFlagUsage is the help of the --registry flag of tt package: for
+// the flag of a command of a module that takes the rock servers to resolve
+// or install with ([Dependency.Registries]), so that it reads as tt's.
+const RegistryFlagUsage = "rock server to use instead of the configured ones: " +
+	"an http(s) URL or a local directory; repeat to give an ordered list " +
+	"(overrides TT_REGISTRIES and [platform].registries)"
+
 // ResolveOptions are how [Project.Resolve] and [Project.RemoveDependency]
 // resolve the lock of a project.
 type ResolveOptions struct {

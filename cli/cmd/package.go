@@ -479,19 +479,13 @@ func printResolution(result *deps.Result, unchanged string) {
 	}
 }
 
-// printMoves reports the closure changes one per line: a rock that arrived
+// printMoves reports the closure changes one per line, as the SDK renders
+// them for the modules too (sdk.DependencyMove.String): a rock that arrived
 // shows only its new version, one that dropped out is marked as such, and one
 // that moved shows both ends.
 func printMoves(moves []deps.Move) {
 	for _, move := range moves {
-		switch {
-		case move.From == "":
-			_, _ = fmt.Fprintf(os.Stdout, "  %s %s\n", move.Name, move.To)
-		case move.To == "":
-			_, _ = fmt.Fprintf(os.Stdout, "  %s %s -> (dropped)\n", move.Name, move.From)
-		default:
-			_, _ = fmt.Fprintf(os.Stdout, "  %s %s -> %s\n", move.Name, move.From, move.To)
-		}
+		_, _ = fmt.Fprintf(os.Stdout, "  %s\n", sdk.DependencyMove(move))
 	}
 }
 
@@ -1137,15 +1131,11 @@ func buildPackageResult(ctx context.Context, projectDir string, run packageRun) 
 	})
 }
 
-// registryFlagUsage is the --registry help text, shared by every command that
-// takes it so they cannot drift apart.
-const registryFlagUsage = "rock server to use instead of the configured ones: " +
-	"an http(s) URL or a local directory; repeat to give an ordered list " +
-	"(overrides " + manifestrocks.EnvRegistries + " and [platform].registries)"
-
-// addRegistryFlag declares --registry on a command that queries rock servers.
+// addRegistryFlag declares --registry on a command that queries rock servers,
+// with the help of the SDK, which the flags of the modules share so they
+// cannot drift apart.
 func addRegistryFlag(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVar(&packageRegistries, "registry", nil, registryFlagUsage)
+	cmd.Flags().StringArrayVar(&packageRegistries, "registry", nil, sdk.RegistryFlagUsage)
 }
 
 // registrySources collects the rock-server lists the process itself carries:
