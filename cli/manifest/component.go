@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2/unstable"
 )
@@ -57,17 +58,67 @@ const (
 )
 
 // OutputEntry is a file of the output of a build block. It is written in two
-// forms: a string, the path of a module, and a table,
+// forms: a string, the path of the file, and a table,
 // { path = "build/tool", to = "bin" }, which says where the file goes.
 type OutputEntry struct {
 	// Path is the file, relative to where the backend of the block takes
 	// it from: the working directory of make and shell, the build tree of
 	// cmake. Required.
 	Path string `toml:"path"`
-	// To is where the file goes: OutputToLib, OutputToShare or OutputToBin;
-	// empty is a module, but for a component of kind = "executable", whose
-	// files are programs.
+	// To is where the file goes: OutputToLib, OutputToShare or OutputToBin.
+	// Empty says nothing, and the backend of the block tells where it goes
+	// (buildreg.OutputType): where the one type of result of a backend that
+	// makes one goes, bin for a component of kind = "executable", lib
+	// otherwise.
 	To string `toml:"to,omitempty"`
+}
+
+// OutputList is the output field of a build block: an array of entries, or
+// one entry written alone, output = "dist/calc.wasm", which is the array of
+// that entry.
+type OutputList []OutputEntry
+
+// UnmarshalTOML decodes the field in either form: an array of entries, or
+// an entry alone, a string or an inline table. The decoder must have
+// EnableUnmarshalerInterface set (ParseManifest does). An array of tables
+// ([[components.<name>.build.output]]) is decoded table by table into the
+// entries instead.
+func (l *OutputList) UnmarshalTOML(node *unstable.Node) error {
+	switch node.Kind {
+	case unstable.String, unstable.InlineTable:
+		var entry OutputEntry
+
+		err := entry.UnmarshalTOML(node)
+		if err != nil {
+			return err
+		}
+
+		*l = OutputList{entry}
+
+		return nil
+	case unstable.Array:
+	default:
+		return invalid("", "output must be a file, a table { path = ..., to = ... } "+
+			"or an array of them, got %s", strings.ToLower(node.Kind.String()))
+	}
+
+	list := OutputList{}
+
+	it := node.Children()
+	for it.Next() {
+		var entry OutputEntry
+
+		err := entry.UnmarshalTOML(it.Node())
+		if err != nil {
+			return err
+		}
+
+		list = append(list, entry)
+	}
+
+	*l = list
+
+	return nil
 }
 
 // UnmarshalTOML decodes an entry of either form. The decoder must have
@@ -141,7 +192,7 @@ type Build struct {
 	Env map[string]string `toml:"env,omitempty"`
 	// Output are the files the build makes, for a backend that copies them,
 	// each where its entry says it goes.
-	Output []OutputEntry `toml:"output,omitempty"`
+	Output OutputList `toml:"output,omitempty"`
 	// Incremental skips the build of a component when its inputs - the
 	// build block and the files of the component, but those its .gitignore
 	// files ignore - are the ones of its last build, and its outputs are

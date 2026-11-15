@@ -290,7 +290,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `.rocks/lib/tarantool/<namespace>/` and `.rocks/bin/`. An entry of
   `output` of `make`, `shell` and `cmake` may be a table that says where
   the file goes, `{ path = "build/tool", to = "bin" }`, `to` being `lib`,
-  `share` or `bin`; a string is a module, as before. A program of `output`
+  `share` or `bin`; a string is a module, as before, but of a backend that
+  makes one type of file only, which it is then: a data file of a backend of
+  data files. One file may be written alone, `output = "dist/calc.wasm"`,
+  for `output = ["dist/calc.wasm"]`, and a value of another type is told
+  in the terms of the manifest, `output must be a file, a table { path =
+  ..., to = ... } or an array of them, got integer`. A program of `output`
   is a program of the component, found by `tt instance` and checked as
   every program is. A `go` component lays out what its `include` names,
   where an executable component could have no `include`: only the default

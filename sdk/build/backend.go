@@ -167,10 +167,12 @@ type OutputFile struct {
 	// for [OutputBackend].
 	Path string
 	// To is the type of the file, which says where it goes, by its base
-	// name: [Module] for a plain string and to = "lib", [Data] for
-	// to = "share", [Program] for to = "bin". A plain string of a component
-	// of kind = "executable" (manifest_version 0.1, deprecated) is a
-	// [Program].
+	// name: [Module] for to = "lib", [Data] for to = "share", [Program] for
+	// to = "bin". An entry that says no to - a plain string - is of the one
+	// type of a backend whose [Backend.Produces] has one: a backend of data
+	// files only lists them with output = "dist/calc.wasm". Of another
+	// backend it is a [Module], and a [Program] for a component of
+	// kind = "executable" (manifest_version 0.1, deprecated).
 	To Result
 }
 

@@ -289,12 +289,12 @@ to = "bin"
 	_, err := mfst.Validate(backends())
 	require.NoError(t, err)
 
-	assert.Equal(t, []manifest.OutputEntry{
+	assert.Equal(t, manifest.OutputList{
 		{Path: "build/tool.so"}, {Path: "build/tool", To: manifest.OutputToBin},
 		{Path: "build/tool.wasm", To: manifest.OutputToShare},
 		{Path: "build/x.so", To: manifest.OutputToLib},
 	}, mfst.Components["tool"].Build.Output)
-	assert.Equal(t, []manifest.OutputEntry{{Path: "gen/other", To: manifest.OutputToBin}},
+	assert.Equal(t, manifest.OutputList{{Path: "gen/other", To: manifest.OutputToBin}},
 		mfst.Components["other"].Build.Output)
 	assert.Equal(t, []string{"build/tool.so", "build/tool", "build/tool.wasm", "build/x.so"},
 		manifest.OutputPaths(mfst.Components["tool"].Build.Output))
@@ -306,6 +306,46 @@ to = "bin"
 	again, _, err := manifest.ParseManifest(data)
 	require.NoError(t, err)
 	assert.Equal(t, mfst.Components["tool"].Build.Output, again.Components["tool"].Build.Output)
+}
+
+// TestOutputAlone checks that an entry of output written alone, a string or
+// a table, is the array of that entry: it means and hashes what the array
+// does, the build block included.
+func TestOutputAlone(t *testing.T) {
+	t.Parallel()
+
+	block := func(output string) *manifest.Manifest {
+		return parseBody(t, "[components.calc]\npath = \"calc\"\n"+
+			"[components.calc.build]\nbackend = \"shell\"\ncommand = \"./build.sh\"\n"+
+			"output = "+output+"\n")
+	}
+
+	for _, tt := range []struct {
+		alone, array string
+		want         manifest.OutputList
+	}{
+		{`"dist/calc.wasm"`, `["dist/calc.wasm"]`, manifest.OutputList{{Path: "dist/calc.wasm"}}},
+		{
+			`{ path = "dist/calc.wasm", to = "share" }`,
+			`[{ path = "dist/calc.wasm", to = "share" }]`,
+			manifest.OutputList{{Path: "dist/calc.wasm", To: manifest.OutputToShare}},
+		},
+	} {
+		alone, array := block(tt.alone), block(tt.array)
+
+		_, err := alone.Validate(backends())
+		require.NoError(t, err, tt.alone)
+		assert.Equal(t, tt.want, alone.Components["calc"].Build.Output, tt.alone)
+		assert.Equal(t, array.Components["calc"].Build.Output,
+			alone.Components["calc"].Build.Output, tt.alone)
+
+		aloneForm, err := alone.Components["calc"].Build.Canonical()
+		require.NoError(t, err)
+
+		arrayForm, err := array.Components["calc"].Build.Canonical()
+		require.NoError(t, err)
+		assert.Equal(t, string(arrayForm), string(aloneForm), tt.alone)
+	}
 }
 
 // TestOutputEntryErrors covers the entries of output validation and parsing
@@ -342,10 +382,17 @@ func TestOutputEntryErrors(t *testing.T) {
 	}
 
 	for _, output := range []string{`[{ path = "a", into = "bin" }]`, `[1]`,
-		`[{ path = "a", to = 1 }]`} {
+		`[{ path = "a", to = 1 }]`, `{ path = "a", into = "bin" }`} {
 		_, _, err := manifest.ParseManifest([]byte(head + "output = " + output + "\n"))
 		require.Error(t, err, output)
 	}
+
+	// A value of another type is told in the terms of the manifest, not of
+	// Go.
+	_, _, err := manifest.ParseManifest([]byte(head + "output = 1\n"))
+	require.ErrorContains(t, err, "output must be a file, a table { path = ..., to = ... } "+
+		"or an array of them, got integer")
+	assert.NotContains(t, err.Error(), "OutputEntry")
 }
 
 // TestValidateComponentBuilds covers what an executable component, the kind
@@ -819,7 +866,7 @@ output = ["bin/mc-bench", "mc-cli"]
 		"targets":    []any{"internalso"},
 		"build_type": "Release",
 	}, memcached.Rest)
-	assert.Equal(t, []manifest.OutputEntry{{Path: "memcached/internal.so"}}, memcached.Output)
+	assert.Equal(t, manifest.OutputList{{Path: "memcached/internal.so"}}, memcached.Output)
 
 	tools := mfst.Components["tools"]
 	assert.True(t, tools.ProgramsOnly())

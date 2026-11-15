@@ -222,15 +222,57 @@ func TestCheckBuildExpects(t *testing.T) {
 
 	types := make([]build.Result, 0, len(entries))
 	programs := make([]build.Result, 0, len(entries))
+	data := make([]build.Result, 0, len(entries))
+	one := make([]build.Result, 0, len(entries))
 
 	for _, entry := range entries {
-		types = append(types, buildreg.OutputType(entry, ""))
-		programs = append(programs, buildreg.OutputType(entry, manifest.KindExecutable))
+		types = append(types, buildreg.OutputType(entry, "", build.Results()))
+		programs = append(programs, buildreg.OutputType(entry, manifest.KindExecutable,
+			build.Results()))
+		data = append(data, buildreg.OutputType(entry, "", []build.Result{build.Data}))
+		one = append(one, buildreg.OutputType(entry, manifest.KindModule,
+			[]build.Result{build.Program}))
 	}
 
 	assert.Equal(t, []build.Result{build.Module, build.Module, build.Data, build.Program}, types)
 	assert.Equal(t, []build.Result{build.Program, build.Module, build.Data, build.Program},
 		programs)
+	// An entry that says nothing is of the one type of a backend that makes
+	// one; what it says is what it is.
+	assert.Equal(t, []build.Result{build.Data, build.Module, build.Data, build.Program}, data)
+	assert.Equal(t, []build.Result{build.Program, build.Module, build.Data, build.Program}, one)
+}
+
+// TestCheckBuildOutputOfOneType checks that a file of output that says not
+// where it goes is of the one type of a backend that makes one, as its
+// backend is told and its check takes it: a data file of a backend of data
+// files.
+func TestCheckBuildOutputOfOneType(t *testing.T) {
+	t.Parallel()
+
+	var told []build.OutputFile
+
+	registry := buildregtest.Registry()
+	tool := backend("wasm-tool")
+
+	tool.Config = func() any { return new(struct{}) }
+	tool.Produces = []build.Result{build.Data}
+	tool.Incremental = false
+	tool.OutputFrom = build.OutputCwd
+	tool.New = func(_ any, _ build.Component, common build.Common) (build.Build, error) {
+		told = append(told, common.Output...)
+
+		return noBuild{}, nil
+	}
+
+	require.NoError(t, registry.Add("wasm", []build.Backend{tool}, nil))
+
+	_, err := registry.CheckBuild("components.a.build", moduleTarget(), manifest.Build{
+		Backend: "wasm-tool", Output: manifest.OutputList{{Path: "dist/calc.wasm", To: ""}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []build.OutputFile{{Path: "dist/calc.wasm", To: build.Data}}, told)
+	assert.Nil(t, buildreg.OutputFiles(tool, nil, ""))
 }
 
 // TestBuild checks that the registry returns the backend of a block and the
@@ -369,9 +411,11 @@ func TestCheckBuildErrors(t *testing.T) {
 		{
 			"a module of a backend of programs", moduleTarget(),
 			manifest.Build{
-				Backend: "wasm-tool", Output: []manifest.OutputEntry{{Path: "a.so", To: ""}},
+				Backend: "wasm-tool", Output: []manifest.OutputEntry{
+					{Path: "a.so", To: manifest.OutputToLib},
+				},
 			},
-			"components.a.build.output[0]", `backend "wasm-tool" makes no modules`,
+			"components.a.build.output[0].to", `backend "wasm-tool" makes no modules`,
 		},
 		{
 			"a data file of a backend of programs", moduleTarget(),
