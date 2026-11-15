@@ -17,7 +17,15 @@ import (
 // libgcc_s: every build of Tarantool, of the packages as of the static
 // build, needs it, for the unwinding of its C++ code, so it is there
 // wherever Tarantool starts. A C++ module that needs libstdc++ is not
-// covered: Tarantool links it in statically, so the system may not have it.
+// covered: Tarantool links it in statically, so the system may not have it,
+// and the c and lua-c backends link it into the module of a build with
+// static = true.
+//
+// On macOS they are libSystem, the C library, and libc++, the C++ library
+// of the system: Tarantool needs /usr/lib/libc++.1.dylib itself - the
+// builds of Homebrew (3.9) and of Tarantool EE (3.3, 3.6, 3.7) link it
+// dynamically, as Apple ships no static libc++ - so it is there wherever
+// Tarantool starts, as libgcc_s is on Linux.
 var (
 	// elfModuleLibraries are the libraries of the C library and the GCC
 	// runtime a module may need by name: glibc's libc, and those glibc split
@@ -31,16 +39,21 @@ var (
 	// and of musl, whose loader is its libc too, linked as libc.musl-<arch>
 	// on Alpine.
 	elfModuleLoaders = []string{"ld-linux*.so.*", "ld-musl-*.so.1", "libc.musl-*.so.1"}
+	// machoModuleLibraries are the libraries a module of macOS may need:
+	// libSystem, which holds the interface of the loader, libdyld, too, and
+	// libc++, which Tarantool needs itself.
+	machoModuleLibraries = []string{libSystem, libCxx}
 )
+
+// libCxx is the C++ library of macOS, which a module of C++ links.
+const libCxx = "/usr/lib/libc++.1.dylib"
 
 // ModuleExtras lists the libraries of Needed a native module may not find on
 // a machine Tarantool runs on: all but those of the C library and the
-// loader. On Linux these are elfModuleLibraries and the libraries
-// elfModuleLoaders match. On macOS the C library is libSystem, which holds
-// the interface of the loader, libdyld, too; libc++, the C++ library of the
-// system, is no more one of them than libstdc++ is on Linux. A universal
-// Mach-O file needs the libraries of every slice (InspectProgram), and each
-// has to be one of those.
+// loader, and those Tarantool needs itself. On Linux these are
+// elfModuleLibraries and the libraries elfModuleLoaders match; on macOS,
+// machoModuleLibraries. A universal Mach-O file needs the libraries of
+// every slice (InspectProgram), and each has to be one of those.
 //
 // Unlike Static, ModuleExtras does not look at the loader a file names: the
 // process that loads a module has one already.
@@ -65,7 +78,7 @@ func (p Program) moduleLibrary(library string) bool {
 
 	for _, platform := range p.Platforms {
 		if platform.OS == darwinOS {
-			if library != libSystem {
+			if !slices.Contains(machoModuleLibraries, library) {
 				return false
 			}
 
