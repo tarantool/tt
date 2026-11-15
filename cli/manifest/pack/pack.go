@@ -74,6 +74,13 @@ type Options struct {
 	Signer integrity.Signer
 	// Warn receives non-fatal diagnostics; nil drops them.
 	Warn func(string)
+	// DebugInfo is what the pack does with the debug information of the
+	// native files the builds of the package made, the modules and the
+	// programs of its components: DebugInfoKeep, the default when empty, or
+	// DebugInfoStrip, which packs them without it. The files of the project
+	// are left as they are, and so are the bundled runtime and the rocks of
+	// the dependencies.
+	DebugInfo string
 }
 
 // Result reports what pack produced.
@@ -106,6 +113,11 @@ type Result struct {
 // packs from in between.
 func Run(ctx context.Context, opts Options) (*Result, error) {
 	err := checkFormats(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkDebugInfo(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -186,6 +198,18 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.stripsDebugInfo() {
+		own, err := ownNativeFiles(stageDir, built)
+		if err != nil {
+			return nil, err
+		}
+
+		err = stripDebugInfo(ctx, own)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	natives, err := native.Files(stageDir)
