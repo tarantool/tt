@@ -318,6 +318,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- A build and a hook look the programs they run up in their own `PATH`
+  only: `.tarantool/bin` of the project, then the `PATH` of the `env` of the
+  block or else tt's. A block with `env = { PATH = "..." }` that has no
+  `cmake` there fails, `build tool not found: the cmake backend runs
+  "cmake", which is not in PATH`, and a `command` of `make` or `shell` not
+  there fails to start, `executable file not found in $PATH`, where both
+  took the program of tt's `PATH` before.
 - The messages that list build backends list them module by module, in the
   order of the names of the modules, those of a module in its order: those
   of tt, of the module `build`, `make` and `shell` first, then the others

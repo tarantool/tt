@@ -123,7 +123,8 @@ type Host interface {
 	// Output runs cmd and returns what it printed to stdout; its stderr is
 	// shown as Run shows it.
 	Output(cmd *exec.Cmd) ([]byte, error)
-	// LookPath finds the program name in the PATH of the build.
+	// LookPath finds the program name in the PATH of the build, and only
+	// there.
 	LookPath(name string) (string, error)
 	// LockedVersion returns the version of the rock the lock of the project
 	// pins.
@@ -180,8 +181,10 @@ func NewContext(facts Context, host Host) *Context {
 // cmd.Env set to the environment of the build: that of tt, the env of the
 // build block, PATH with .tarantool/bin of the project first, and the TT_*
 // variables last, so that the block cannot change them. name is looked up in
-// that PATH. A backend may append to cmd.Env, a variable it appends winning,
-// and read it with [LookupEnv].
+// that PATH and nowhere else, as [Context.LookPath] looks: a name it does not
+// have makes a command that fails to start with an error wrapping
+// exec.ErrNotFound. A backend may append to cmd.Env, a variable it appends
+// winning, and read it with [LookupEnv].
 func (c *Context) Command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	return c.mustHost().Command(ctx, name, args...)
 }
@@ -199,7 +202,11 @@ func (c *Context) Output(cmd *exec.Cmd) ([]byte, error) {
 }
 
 // LookPath finds the program name in the PATH of the build, which has
-// .tarantool/bin of the project first.
+// .tarantool/bin of the project first, and nowhere else: a PATH the env of
+// the build block sets is the PATH of the build, the PATH of tt is not looked
+// at then. A name it does not have is an error wrapping exec.ErrNotFound,
+// which a [Preflighter] reports as [ErrNoTool]. A name with a slash is a path,
+// relative to [Dirs.Cwd], that must be an executable file.
 func (c *Context) LookPath(name string) (string, error) {
 	return c.mustHost().LookPath(name)
 }

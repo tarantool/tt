@@ -179,20 +179,19 @@ func withProjectBin(environ []string, projectRoot string) []string {
 }
 
 // lookPathIn finds the program name the way exec.LookPath does, but in the
-// PATH of environ, the child's environment, rather than in tt's own: that is
-// where the project's bin directory was put. A name with a separator is a
-// path and is returned as it is, and so is a name found nowhere, so that
-// exec reports the failure in its usual words. Relative PATH entries are
-// skipped: a program must not be picked up from wherever the build runs.
-func lookPathIn(name string, environ []string) string {
+// PATH of environ, the child's environment, and only there: that is where
+// the project's bin directory was put, and a PATH the env of a build block
+// sets is the whole of it, tt's own PATH no fallback. A name with a
+// separator is a path and is returned as it is. A name found nowhere is an
+// *exec.Error wrapping exec.ErrNotFound, in the words exec reports it with.
+// Relative PATH entries are skipped: a program must not be picked up from
+// wherever the build runs.
+func lookPathIn(name string, environ []string) (string, error) {
 	if strings.ContainsRune(name, os.PathSeparator) {
-		return name
+		return name, nil
 	}
 
-	value, ok := sdkbuild.LookupEnv(environ, pathKey)
-	if !ok {
-		return name
-	}
+	value, _ := sdkbuild.LookupEnv(environ, pathKey)
 
 	for _, dir := range filepath.SplitList(value) {
 		if !filepath.IsAbs(dir) {
@@ -203,11 +202,33 @@ func lookPathIn(name string, environ []string) string {
 
 		info, err := os.Stat(candidate)
 		if err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
-			return candidate
+			return candidate, nil
 		}
 	}
 
-	return name
+	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
+}
+
+// commandIn returns the command name with args, name looked up in the PATH
+// of environ (lookPathIn). A name not there makes a command that fails to
+// start with the error of the lookup, rather than one exec looks up in the
+// PATH of tt.
+func commandIn(ctx context.Context, environ []string, name string, args ...string) *exec.Cmd {
+	program, lookErr := lookPathIn(name, environ)
+	if lookErr != nil {
+		program = name
+	}
+
+	cmd := exec.CommandContext(ctx, program, args...)
+	if lookErr != nil {
+		cmd.Path = name
+		cmd.Err = lookErr
+	}
+
+	cmd.Args[0] = name
+	cmd.Env = environ
+
+	return cmd
 }
 
 // host runs the commands of one build for its sdkbuild.Context, as tt runs
@@ -226,15 +247,11 @@ type host struct {
 }
 
 // Command is the command name with args in the working directory of the
-// build, with its environment, name looked up in its PATH.
+// build, with its environment, name looked up in its PATH (commandIn).
 func (h host) Command(ctx context.Context, name string, args ...string) *exec.Cmd {
-	environ := h.env.environ()
+	cmd := commandIn(ctx, h.env.environ(), name, args...)
 
-	cmd := exec.CommandContext(ctx, lookPathIn(name, environ), args...)
-
-	cmd.Args[0] = name
 	cmd.Dir = h.cwd
-	cmd.Env = environ
 
 	return cmd
 }
@@ -277,9 +294,26 @@ func (h host) Output(cmd *exec.Cmd) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-// LookPath finds name in the PATH of the build.
+// LookPath finds name in the PATH of the build, and only there
+// (lookPathIn). A name with a separator is a path, relative to the working
+// directory of the build, that must be an executable file.
 func (h host) LookPath(name string) (string, error) {
-	path, err := exec.LookPath(lookPathIn(name, h.env.environ()))
+	var (
+		path string
+		err  error
+	)
+
+	if strings.ContainsRune(name, os.PathSeparator) {
+		path = name
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(h.cwd, path)
+		}
+
+		path, err = exec.LookPath(path)
+	} else {
+		path, err = lookPathIn(name, h.env.environ())
+	}
+
 	if err != nil {
 		return "", fmt.Errorf("looking for %s: %w", name, err)
 	}

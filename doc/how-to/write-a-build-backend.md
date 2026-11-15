@@ -324,7 +324,11 @@ variables, so that the block cannot change them. The backend may append to
 - `c.Output(cmd)` runs it the same way and returns its stdout, which is not
   shown: for a tool that answers in JSON, or `envsubst`, whose stdout is the
   result.
-- `c.LookPath(name)` finds a program in the `PATH` of the build.
+- `c.LookPath(name)` finds a program in the `PATH` of the build, and only
+  there: a `PATH` the `env` of the block sets is the whole `PATH` of the
+  build, and a program of tt's own `PATH` is not found then. A program it
+  does not find is an error wrapping `exec.ErrNotFound`; `c.Command` of
+  it makes a command that fails to start with that error.
 
 The `TT_*` variables are `TT_OUTPUT_DIR`, `TT_BUILD_DIR`,
 `TT_COMPONENT_NAME`, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_VERSION`,
