@@ -1122,7 +1122,7 @@ so such a distribution fails to build:
 ```text
 ⨯ the built binary does not start: .../tt version: exit status 1
   ⨯ module "bad": invalid build backend "Tmpl": the name must match [a-z][a-z0-9-]*
-       module "bad": invalid build backend "noprod": the Produces must name module, data or program, once each
+       module "bad": invalid build backend "noprod": the Produces must name module, data, program or link, once each
        module "bad": invalid build backend "envfield": env is a field of every build block, not one of a backend
        module "bad": invalid build backend "nonew": no New
        module "build": invalid build backend "make": module "bad" provides one of the name too

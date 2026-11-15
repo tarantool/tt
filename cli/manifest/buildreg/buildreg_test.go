@@ -93,7 +93,7 @@ func TestAddRefused(t *testing.T) {
 		{"no results", func(b *build.Backend) { b.Produces = nil }, "the Produces must name"},
 		{"an unknown result", func(b *build.Backend) {
 			b.Produces = []build.Result{"executable"}
-		}, `the Produces must name module, data or program, once each, not "executable"`},
+		}, `the Produces must name module, data, program or link, once each, not "executable"`},
 		{"a result twice", func(b *build.Backend) {
 			b.Produces = []build.Result{build.Module, build.Module}
 		}, `not "module, module"`},

@@ -41,7 +41,7 @@ func (r *Registry) CheckBuild(
 ) (manifest.BuildCheck, error) {
 	found, ok := r.lookup(block.Backend)
 
-	check := manifest.BuildCheck{Known: ok, Unknown: nil, Programs: nil}
+	check := manifest.BuildCheck{Known: ok, Unknown: nil, Programs: nil, Links: nil}
 
 	if target.Hook && (!ok || !found.backend.Hook) {
 		return check, &manifest.ValidationError{Field: field, Msg: r.notHookMessage(block.Backend)}
@@ -88,6 +88,10 @@ func (r *Registry) CheckBuild(
 
 	if namer, ok := bld.(build.ProgramNamer); ok && !target.Hook {
 		check.Programs, _ = namer.Programs()
+	}
+
+	if linker, ok := bld.(build.Linker); ok && !target.Hook {
+		check.Links = linker.Links()
 	}
 
 	return check, nil
@@ -193,6 +197,8 @@ func OutputType(entry manifest.OutputEntry, kind string, produces []build.Result
 		return build.Program
 	case manifest.OutputToLib:
 		return build.Module
+	case manifest.OutputToLink:
+		return build.Link
 	}
 
 	switch {
@@ -357,7 +363,9 @@ func checkResults(
 	}
 
 	for _, result := range asked {
-		if !slices.Contains(wants, result) {
+		// A library to link is not in the package, and so no result the
+		// kind says anything of.
+		if result != build.Link && !slices.Contains(wants, result) {
 			return &manifest.ValidationError{
 				Field: kindField,
 				Msg:   fmt.Sprintf("is %q, but the build makes %s", target.Kind, Plural(result)),
@@ -369,13 +377,16 @@ func checkResults(
 }
 
 // Plural names the results of the type result in a message: modules, data
-// files, programs.
+// files, programs, libraries to link.
 func Plural(result build.Result) string {
-	if result == build.Data {
+	switch result {
+	case build.Data:
 		return "data files"
+	case build.Link:
+		return "libraries to link"
+	default:
+		return string(result) + "s"
 	}
-
-	return string(result) + "s"
 }
 
 // validationError is err, of a check of the build block at field, as

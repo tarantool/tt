@@ -200,8 +200,8 @@ func TestValidateOfABackendTheCoreRefuses(t *testing.T) {
 	}{
 		{common, `invalid build backend "touch": output is a field of every build block, ` +
 			`not one of a backend`},
-		{none, `invalid build backend "touch": the Produces must name module, data or ` +
-			`program, once each`},
+		{none, `invalid build backend "touch": the Produces must name module, data, ` +
+			`program or link, once each`},
 	} {
 		_, err := buildtest.Validate(test.backend, component(), buildtest.Block{
 			Fields: map[string]any{"file": "a"},

@@ -294,6 +294,9 @@ type LibConfig struct {
 	Defines []string `toml:"defines"`
 	// Platforms are flags by OS, added to those of the block.
 	Platforms map[string]LibFlags `toml:"platforms"`
+	// Link are the components whose libraries the build links, as it names
+	// them (build.Linker).
+	Link []string `toml:"link"`
 }
 
 // LibFlags are the flags of a block of lib, of all OSes or of one.
@@ -319,7 +322,7 @@ func Lib() build.Backend {
 				return nil, build.FieldErrorf("", "module is required for backend %q", LibName)
 			}
 
-			return libBuild{module: config.Module}, nil
+			return libBuild{module: config.Module, link: config.Link}, nil
 		},
 		Incremental:    false,
 		OutputFrom:     build.OutputNone,
@@ -332,7 +335,11 @@ func Lib() build.Backend {
 // libBuild is a block of lib.
 type libBuild struct {
 	module string
+	link   []string
 }
+
+// Links names the components of link.
+func (b libBuild) Links() []string { return b.link }
 
 // Preflight checks that the Tarantool of the build has headers.
 func (b libBuild) Preflight(_ context.Context, c *build.Context) error {
@@ -503,7 +510,7 @@ func (b treeBuild) Programs() ([]string, bool) { return b.programs(), true }
 // directories of their types.
 func (b treeBuild) Run(_ context.Context, c *build.Context) error {
 	for _, file := range b.outputs {
-		err := build.CopyFile(filepath.Join(c.Dirs.Of(file.To), filepath.Base(file.Path)),
+		err := build.CopyFile(c.Dirs.OutputPath(file.To, filepath.Base(file.Path)),
 			filepath.Join(c.Dirs.Cwd, file.Path))
 		if err != nil {
 			return fmt.Errorf("copying %s: %w", file.Path, err)

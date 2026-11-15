@@ -262,10 +262,15 @@ func TestClean_component(t *testing.T) {
 
 	require.FileExists(t, incrementalPath(state, "fast"))
 	require.FileExists(t, filepath.Join(stage, "lib", "my-app", "fast.so"))
+	require.DirExists(t, componentLinkDir(state, "default", "fast"))
 
 	result, err := Clean(context.Background(), opts,
 		CleanOptions{Components: []string{"fast"}, DryRun: false})
 	require.NoError(t, err)
+
+	assert.NoDirExists(t, componentLinkDir(state, "default", "fast"))
+	assert.Contains(t, result.Removed, componentLinkDir(state, "default", "fast"))
+	assert.DirExists(t, componentLinkDir(state, "default", "slow"))
 
 	assert.Equal(t, []string{"fast"}, result.Cleaned)
 	assert.False(t, result.Hook)

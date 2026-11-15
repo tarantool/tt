@@ -88,7 +88,7 @@ func TestValidate(t *testing.T) {
 		{module(), []build.OutputFile{
 			{Path: "lib/answer.so", To: build.Module}, {Path: "bin/answer", To: build.Program},
 			{Path: "bin/answerctl", To: build.Program}, {Path: "answer", To: build.Program},
-			{Path: "answer.wasm", To: build.Data},
+			{Path: "answer.wasm", To: build.Data}, {Path: "libanswer.a", To: build.Link},
 		}, []string{"answer", "answerctl"}, build.Results()},
 		{program(), []build.OutputFile{
 			{Path: "lib/answer", To: build.Program}, {Path: "bin/answer", To: build.Program},

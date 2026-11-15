@@ -99,6 +99,7 @@ func (b builder) component(name string) (componentRun, error) {
 		State:     b.proj.stateDir,
 		Tools:     ProjectBinDir(b.proj.dir),
 		Tree:      filepath.Join(b.opts.ProjectDir, rocksDirName),
+		Link:      componentLinkDir(b.proj.stateDir, b.proj.product, name),
 	}
 
 	outputDir := dirs.Modules
@@ -163,6 +164,7 @@ func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Conte
 		State:     b.proj.stateDir,
 		Tools:     ProjectBinDir(b.proj.dir),
 		Tree:      filepath.Join(b.opts.ProjectDir, rocksDirName),
+		Link:      "",
 	}
 
 	env := environment{
@@ -310,7 +312,14 @@ func (b builder) runBackends(
 		lastBuild := last.Components[name]
 		fresh := b.opts.Rebuild || lastBuild.Block != "" && lastBuild.Block != block
 
+		// What the component made for linking is what this build makes: the
+		// directory is emptied, and a library it no longer makes is not
+		// linked by the components after it.
 		err = prepareBuildDir(dirs.Work, fresh)
+		if err == nil {
+			err = prepareBuildDir(dirs.Link, true)
+		}
+
 		if err != nil {
 			return backendRuns{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
 				name, err)
@@ -560,12 +569,13 @@ func makeDirs(dirs ...string) error {
 
 // copyOutputs copies each file of outputs from cwd into the directory of
 // dirs of its type, flattened to its base name (matching how the loader
-// looks up <namespace>/<name>, and tt instance a program in .rocks/bin/). A
-// listed file that does not exist after the build is an error: the build
+// looks up <namespace>/<name>, and tt instance a program in .rocks/bin/), a
+// header of a library to link into include/ of it (sdkbuild.Dirs.OutputPath).
+// A listed file that does not exist after the build is an error: the build
 // claimed an output it did not make.
 func copyOutputs(dirs sdkbuild.Dirs, cwd string, outputs []sdkbuild.OutputFile) error {
 	for _, entry := range outputs {
-		err := sdkbuild.CopyFile(filepath.Join(dirs.Of(entry.To), filepath.Base(entry.Path)),
+		err := sdkbuild.CopyFile(dirs.OutputPath(entry.To, filepath.Base(entry.Path)),
 			filepath.Join(cwd, entry.Path))
 		if err != nil {
 			return fmt.Errorf("copy declared output %q: %w", entry.Path, err)

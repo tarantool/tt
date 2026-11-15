@@ -49,6 +49,10 @@ const (
 	OutputToShare = "share"
 	// OutputToBin is a program: bin/ of the package, .rocks/bin/.
 	OutputToBin = "bin"
+	// OutputToLink is a library, or a header of one, that the components
+	// built after it link (the link field of a c or lua-c build): it goes to
+	// _build/link/<product>/<component>/, and is not in the package.
+	OutputToLink = "link"
 )
 
 // The keys of the table form of an entry of output.
@@ -65,7 +69,8 @@ type OutputEntry struct {
 	// it from: the working directory of make and shell, the build tree of
 	// cmake. Required.
 	Path string `toml:"path"`
-	// To is where the file goes: OutputToLib, OutputToShare or OutputToBin.
+	// To is where the file goes: OutputToLib, OutputToShare, OutputToBin or
+	// OutputToLink.
 	// Empty says nothing, and the backend of the block tells where it goes
 	// (buildreg.OutputType): where the one type of result of a backend that
 	// makes one goes, bin for a component of kind = "executable", lib

@@ -796,6 +796,20 @@ func componentBuildDir(stateDir, name string) string {
 	return filepath.Join(stateDir, componentDirName, name)
 }
 
+// linkDirName is the directory of _build/ the libraries the components make
+// for linking are in (sdkbuild.Link), one directory per product.
+const linkDirName = "link"
+
+// componentLinkDir is where the build of the component name of the product
+// puts what it makes for the components built after it to link,
+// sdkbuild.Dirs.Link: _build/link/<product>/<name>/, in the state directory
+// of the project (componentBuildDir), out of the stage and so of the
+// package, and of the product, as the components a product builds before
+// the one that links are those of the product.
+func componentLinkDir(stateDir, product, name string) string {
+	return filepath.Join(stateDir, linkDirName, product, name)
+}
+
 // prepareBuildDir makes the directory of the intermediate files of a build,
 // TT_BUILD_DIR, ready for it to write into at once: emptied first when the
 // build is from scratch (fresh, tt package build --rebuild), so that what an

@@ -354,7 +354,7 @@ output = [{ path = "dist/router.wasm", to = "share" }]
 		}}},
 	})
 	require.ErrorContains(t, err, "the manifest with component router changed is invalid: "+
-		`components.router.build.output[0].to: "etc" is not lib, share or bin`)
+		`components.router.build.output[0].to: "etc" is not lib, share, bin or link`)
 
 	unchanged, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
 	require.NoError(t, err)

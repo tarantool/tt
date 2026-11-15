@@ -76,10 +76,10 @@ func backend(name string) build.Backend {
 		Name:     name,
 		Produces: []build.Result{build.Module},
 		Config:   func() any { return new(Config) },
-		New: build.Typed(func(cfg *Config, _ build.Component, common build.Common) (
+		New: build.Typed(func(cfg *Config, component build.Component, common build.Common) (
 			build.Build, error,
 		) {
-			return newBuild(name, cfg, common)
+			return newBuild(name, cfg, component, common)
 		}),
 		Incremental:    false,
 		OutputFrom:     build.OutputNone,
@@ -114,6 +114,11 @@ type Config struct {
 	// --cflags go to every compile, those of --libs to the link, after
 	// libraries (pkgconfig.go).
 	PkgConfig []string `toml:"pkg_config"`
+	// Link are the components of the package whose libraries the module
+	// links: what the output of their builds sends to = "link", in
+	// build.Dirs.LinkOf, -L and -l of each library, -I of its include/
+	// (link.go).
+	Link []string `toml:"link"`
 	// Defines are the macros defined, -D.
 	Defines []string `toml:"defines"`
 	// Cflags are flags of the C compiler, of the C and assembler sources,
@@ -151,8 +156,11 @@ type Overlay struct {
 // once, env sets none of the variables that reach nothing there (envVars),
 // each overlay of platforms is for an OS tt builds for, and no flag of the
 // compilers or of the linker, of the build or of an overlay, is empty, which
-// cc would take for the name of a file.
-func newBuild(name string, config *Config, common build.Common) (build.Build, error) {
+// cc would take for the name of a file, and link names components other
+// than the component, each once (checkLink).
+func newBuild(name string, config *Config, component build.Component, common build.Common) (
+	build.Build, error,
+) {
 	if config.Module == "" {
 		return nil, build.FieldErrorf("", "module is required for backend %q", name)
 	}
@@ -213,7 +221,18 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 		}
 	}
 
+	err = checkLink(config.Link, component.Name)
+	if err != nil {
+		return nil, err
+	}
+
 	return ccBuild{name: name, config: *config, lookupEnv: os.LookupEnv}, nil
+}
+
+// Links names the components whose libraries the build links, link, which
+// the core checks the products build before it.
+func (b ccBuild) Links() []string {
+	return slices.Clone(b.config.Link)
 }
 
 // How the loaders name the directory of the module in an rpath: $ORIGIN of
@@ -367,27 +386,6 @@ func (b ccBuild) Preflight(ctx context.Context, c *build.Context) error {
 	return checkPkgConfig(ctx, c, tools, pkgPackages(b.config, c.Target.OS))
 }
 
-// toolchain returns the toolchain of the build in c (toolchainOf), checking
-// that it has the headers of a Tarantool.
-func (b ccBuild) toolchain(c *build.Context) (toolchain, error) {
-	tools, err := toolchainOf(c, b.lookupEnv)
-	if err != nil {
-		return toolchain{}, err
-	}
-
-	if tools.includeDir == "" {
-		if c.Tarantool.Prefix != "" {
-			// A Tarantool without headers: the core adds where it looked
-			// for them and how to point tt at them.
-			return toolchain{}, ErrMissingHeaders
-		}
-
-		return toolchain{}, fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
-	}
-
-	return tools, nil
-}
-
 // Run compiles each source into its object in the work directory, writes
 // compile_commands.json there, and links the objects into <module><ext> in
 // the output directory, the extension the one Tarantool loads on the target
@@ -417,7 +415,16 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	libs := planLibraries(b.config, c.Target.OS, c.Dirs.Cwd, pkg, c.Static,
+	linked, err := linkedLibrariesOf(b.config.Link, c)
+	if err != nil {
+		return err
+	}
+
+	// The headers of the libraries of link come after include_dirs, before
+	// those of pkg-config, as their libraries come.
+	pkg.cflags = concat(linked.includeFlags(), pkg.cflags)
+
+	libs := planLibraries(b.config, c.Target.OS, c.Dirs.Cwd, pkg, linked, c.Static,
 		staticFinder(ctx, c, linkerOf(b.config, tools)))
 
 	env := environFlags(b.lookupEnv)
@@ -459,6 +466,27 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 	}
 
 	return run.link(ctx, libs.files)
+}
+
+// toolchain returns the toolchain of the build in c (toolchainOf), checking
+// that it has the headers of a Tarantool.
+func (b ccBuild) toolchain(c *build.Context) (toolchain, error) {
+	tools, err := toolchainOf(c, b.lookupEnv)
+	if err != nil {
+		return toolchain{}, err
+	}
+
+	if tools.includeDir == "" {
+		if c.Tarantool.Prefix != "" {
+			// A Tarantool without headers: the core adds where it looked
+			// for them and how to point tt at them.
+			return toolchain{}, ErrMissingHeaders
+		}
+
+		return toolchain{}, fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
+	}
+
+	return tools, nil
 }
 
 // runner runs the compiles and the link of a plan, each unless it is up to

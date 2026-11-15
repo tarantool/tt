@@ -156,6 +156,16 @@ func validate(backend build.Backend, component build.Component, block Block) (bu
 // dirPerm is the mode of the directories of a harness.
 const dirPerm = 0o750
 
+// linkName is the name of the Link of a component named name in a harness:
+// its name, or "component" for a component of none.
+func linkName(name string) string {
+	if name == "" {
+		return "component"
+	}
+
+	return name
+}
+
 // Version is TT_VERSION of the builds of a harness: the version the core
 // gives a package of no tag and no VERSION file in a repository with no
 // commit. A test sets another in the Env of the Context.
@@ -195,7 +205,9 @@ type Harness struct {
 // <tmp>/project is the project, with the component at its Path in it (its
 // name when Path is empty), its .tarantool/bin and .rocks; <tmp>/work,
 // <tmp>/lib, <tmp>/share, <tmp>/bin and <tmp>/state are the other
-// directories of the build. All of them but the tree exist. The target is
+// directories of the build, and <tmp>/link/<component> its Link, beside
+// which a test puts what another component made for linking
+// ([build.Dirs.LinkOf]). All of them but the tree exist. The target is
 // the machine the test runs on, and no Tarantool is known
 // ([Harness.SetTarantool] tells one).
 // The Env has the TT_* variables the core sets for the build of a
@@ -234,10 +246,11 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 		State:     filepath.Join(root, "state"),
 		Tools:     filepath.Join(project, ".tarantool", "bin"),
 		Tree:      filepath.Join(project, ".rocks"),
+		Link:      filepath.Join(root, "link", linkName(component.Name)),
 	}
 
 	for _, dir := range []string{dirs.Component, dirs.Work, dirs.Modules, dirs.Share,
-		dirs.Programs, dirs.State, dirs.Tools} {
+		dirs.Programs, dirs.State, dirs.Tools, dirs.Link} {
 		err := os.MkdirAll(dir, dirPerm)
 		if err != nil {
 			tb.Fatalf("buildtest: %v", err)
@@ -306,6 +319,7 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 		State:     filepath.Join(root, "state"),
 		Tools:     filepath.Join(project, ".tarantool", "bin"),
 		Tree:      filepath.Join(project, ".rocks"),
+		Link:      "",
 	}
 
 	for _, dir := range []string{dirs.Project, dirs.State, dirs.Tools} {

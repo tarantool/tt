@@ -351,8 +351,9 @@ func removeState(stateDir string, dryRun bool) ([]string, error) {
 
 // removeComponentsState removes from the build directory stateDir what the
 // builds of components made, or with dryRun lists it only, and returns what
-// was there: the directory of the intermediate files and the incremental
-// record of each, its files in every stage, and its entries in the record
+// was there: the directory of the intermediate files, the incremental record
+// and the libraries made for linking of each, its files in every stage, and
+// its entries in the record
 // of what the components made and in the records of the stages.
 func removeComponentsState(
 	stateDir string, man *manifest.Manifest, components []string, dryRun bool,
@@ -360,9 +361,13 @@ func removeComponentsState(
 	var removed []string
 
 	for _, name := range components {
-		for _, path := range []string{
+		// What the component made for linking, in the directory of each
+		// product.
+		linkDirs, _ := filepath.Glob(componentLinkDir(stateDir, "*", name))
+
+		for _, path := range append([]string{
 			componentBuildDir(stateDir, name), incrementalPath(stateDir, name),
-		} {
+		}, linkDirs...) {
 			_, err := os.Lstat(path)
 			if err != nil {
 				continue

@@ -280,9 +280,15 @@ func noLibs() libraryArgs {
 // libsOf are the libraries of the link of config for goos in /src, pkg
 // those pkg-config gave, of a build without static = true.
 func libsOf(config Config, goos string, pkg pkgFlags) libraryArgs {
-	return planLibraries(config, goos, "/src", pkg, false, func([]string, string) string {
-		panic("a build without static = true looks for no static library")
-	})
+	return planLibraries(config, goos, "/src", pkg, noLinked(), false,
+		func([]string, string) string {
+			panic("a build without static = true looks for no static library")
+		})
+}
+
+// noLinked are the libraries of a build of no link.
+func noLinked() linkedLibraries {
+	return linkedLibraries{dirs: nil, includeDirs: nil, names: nil, files: nil}
 }
 
 // TestPlanLibraries pins the libraries of the link: -L of library_dirs,
@@ -304,7 +310,7 @@ func TestPlanLibraries(t *testing.T) {
 
 	pkg := pkgFlags{cflags: nil, libs: []string{"-L/usr/ssl/lib", "-lssl", "-pthread", "-lz"}}
 
-	libs := planLibraries(config, "linux", "/src", pkg, false, nil)
+	libs := planLibraries(config, "linux", "/src", pkg, noLinked(), false, nil)
 	assert.Equal(t, []string{
 		"-Lvendor/lib", "-L/opt/lib",
 		"-lfoo", "vendor/libbar.a", "libbaz.a", "../shared/libqux.so", "-l:libquux.a", "-lm",
@@ -329,7 +335,8 @@ func TestPlanLibraries(t *testing.T) {
 		return ""
 	}
 
-	libs = planLibraries(config, "linux", "/src", pkg, true, find)
+	libs = planLibraries(config, "linux", "/src", pkg, noLinked(), true, find)
+
 	assert.Equal(t, []string{"foo", "System", "ssl", "z"}, asked, "libc, libm and libgcc_s "+
 		"are linked as they are, libSystem only on darwin")
 	assert.Equal(t, []string{
@@ -345,8 +352,59 @@ func TestPlanLibraries(t *testing.T) {
 
 	asked = nil
 
-	planLibraries(config, "darwin", "/src", pkg, true, find)
+	planLibraries(config, "darwin", "/src", pkg, noLinked(), true, find)
 	assert.Equal(t, []string{"foo", "ssl", "z"}, asked)
+}
+
+// TestPlanLibrariesOfLink pins where the libraries of the components of link
+// go: -L of each directory after those of library_dirs, -l of each library
+// after libraries, but one libraries names, which keeps its place, and the
+// files of the directories of the key; with static = true each is looked for
+// in library_dirs, then in the directories of link.
+func TestPlanLibrariesOfLink(t *testing.T) {
+	t.Parallel()
+
+	config := moduleConfig("a.c")
+
+	config.LibraryDirs = []string{"/opt/lib"}
+	config.Libraries = []string{"bar", "m"}
+
+	linked := linkedLibraries{
+		dirs:        []string{"/state/link/default/foo", "/state/link/default/bar"},
+		includeDirs: []string{"/state/link/default/foo/include"},
+		names:       []string{"foo", "foo-extra", "bar"},
+		files: []string{
+			"/state/link/default/foo/libfoo.a", "/state/link/default/foo/libfoo-extra.so",
+			"/state/link/default/bar/libbar.a",
+		},
+	}
+	pkg := pkgFlags{cflags: nil, libs: []string{"-lssl"}}
+
+	libs := planLibraries(config, "linux", "/src", pkg, linked, false, nil)
+	assert.Equal(t, []string{
+		"-L/opt/lib", "-L/state/link/default/foo", "-L/state/link/default/bar",
+		"-lbar", "-lm", "-lfoo", "-lfoo-extra", "-lssl",
+	}, libs.args)
+	assert.Equal(t, concat(libraryFiles(config, "linux", "/src"), linked.files), libs.files)
+
+	find := func(dirs []string, name string) string {
+		assert.Equal(t, []string{"/opt/lib", "/state/link/default/foo",
+			"/state/link/default/bar"}, dirs)
+
+		if name == "foo-extra" {
+			return ""
+		}
+
+		return "/state/link/default/" + name + "/lib" + name + ".a"
+	}
+
+	libs = planLibraries(config, "linux", "/src", pkg, linked, true, find)
+	assert.Equal(t, []string{
+		"-L/opt/lib", "-L/state/link/default/foo", "-L/state/link/default/bar",
+		"/state/link/default/bar/libbar.a", "-lm", "/state/link/default/foo/libfoo.a",
+		"-lfoo-extra", "/state/link/default/ssl/libssl.a",
+	}, libs.args)
+	assert.Equal(t, []string{"-I/state/link/default/foo/include"}, linked.includeFlags())
 }
 
 // TestIsLibraryFile pins which entries of libraries are files.
@@ -449,8 +507,8 @@ func sampleConfig() Config {
 func moduleConfig(sources ...string) Config {
 	return Config{
 		Module: "m", Sources: sources, IncludeDirs: nil, Libraries: nil, LibraryDirs: nil,
-		Rpath: nil, PkgConfig: nil, Defines: nil, Cflags: nil, Cxxflags: nil, Ldflags: nil,
-		Platforms: nil,
+		Rpath: nil, PkgConfig: nil, Link: nil, Defines: nil, Cflags: nil, Cxxflags: nil,
+		Ldflags: nil, Platforms: nil,
 	}
 }
 
@@ -512,11 +570,13 @@ func TestCompileFlagsUserFlagsComeLast(t *testing.T) {
 
 	assert.Equal(t,
 		concat([]string{"-fPIC", "-std=gnu99", "-Werror", "-Wno-psabi", "-O0", "-g"}, tail),
-		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), "linux", langC))
+		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), "linux",
+			langC))
 	assert.Equal(t,
 		concat([]string{"-fPIC", "-std=c++17", "-fno-rtti", "-Wno-class-memaccess", "-O1", "-g3"},
 			tail),
-		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), "linux", langCXX))
+		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), "linux",
+			langCXX))
 
 	// CFLAGS alone set keeps the -O2 of C++, and the other way round.
 	env := noEnvFlags()
@@ -776,7 +836,8 @@ func TestPlanOf(t *testing.T) {
 	assert.Equal(t, concat([]string{"c++", "-shared", "-Wl,-Bsymbolic-functions",
 		"-static-libstdc++", "-Wl,--exclude-libs,ALL", "-o", "/lib/m.so"}, objects), gxx.link)
 
-	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), noPkgFlags(), noLibs(), context(true))
+	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), noPkgFlags(), noLibs(),
+		context(true))
 	assert.False(t, withoutCXX.cxx)
 	assert.Equal(t, []string{"zig", "cc", "-shared", "-o", "/lib/m.so"}, withoutCXX.link[:5])
 }

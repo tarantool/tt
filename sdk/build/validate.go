@@ -39,7 +39,7 @@ var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 var (
 	// errProduces reports the result types of a backend that are not well
 	// formed.
-	errProduces = errors.New("the Produces must name module, data or program, once each")
+	errProduces = errors.New("the Produces must name module, data, program or link, once each")
 	// errExclude reports an empty pattern of the exclusions of a backend.
 	errExclude = errors.New("an empty pattern in Exclude")
 	// errOutputFrom reports an OutputFrom of no meaning.
@@ -145,14 +145,15 @@ var optionalInterfaces = []struct {
 	{"Preflight", reflect.TypeFor[Preflighter]()},
 	{"Produces", reflect.TypeFor[Producer]()},
 	{"Programs", reflect.TypeFor[ProgramNamer]()},
+	{"Links", reflect.TypeFor[Linker]()},
 	{"Inputs", reflect.TypeFor[InputHasher]()},
 	{"Clean", reflect.TypeFor[Cleaner]()},
 }
 
 // ValidateBuild checks bld, a Build New of b returned: that a method of it
 // named as the method of an optional interface - Preflight, Produces,
-// Programs, Inputs, Clean - makes it that interface ([Preflighter],
-// [Producer], [ProgramNamer], [InputHasher], [Cleaner]). The core finds
+// Programs, Links, Inputs, Clean - makes it that interface ([Preflighter],
+// [Producer], [ProgramNamer], [Linker], [InputHasher], [Cleaner]). The core finds
 // these interfaces by type assertion, so a method of another signature,
 // written for an older SDK, or one of a pointer receiver on a Build New
 // returns as a value, would never be called: the check it makes, the inputs

@@ -13,9 +13,10 @@ import (
 // The set of types is closed, and it is the core's: a type is a place in
 // the layout of a rock - lib, share, bin - and of the rocks tree it is
 // installed into, which the core lays out, records and cleans, and which
-// the output field of a build block names (to = "lib", "share", "bin"). A
-// backend says which of the types it makes ([Backend.Produces]) and does
-// not add one: a backend with a type of its own is refused
+// the output field of a build block names (to = "lib", "share", "bin"),
+// or, of [Link], a place of the build that is never installed (to =
+// "link"). A backend says which of the types it makes ([Backend.Produces])
+// and does not add one: a backend with a type of its own is refused
 // ([Backend.Validate]). What a backend makes that is none of them, a .wasm
 // say, is a file of one of them, [Data]. A type a later SDK adds is a
 // constant of a value of its own, a directory of [Dirs] and an entry of
@@ -35,11 +36,20 @@ const (
 	// Program is a program the instances of an application run as external
 	// processes: it goes to [Dirs.Programs], bin of the rock.
 	Program Result = "program"
+	// Link is a library another component of the package links - a static
+	// library, a shared one, or a header of theirs - which a build of the
+	// c or lua-c backend names in its link field: it goes to [Dirs.Link],
+	// where the builds of the components built after it find it
+	// ([Dirs.LinkOf]), and is neither installed nor packed. The core does
+	// not record it as made: what a component makes for linking is in
+	// [Dirs.Link] until the next build of the component, which the core
+	// empties it for.
+	Link Result = "link"
 )
 
 // Results are the result types, in the order the core lists them in.
 func Results() []Result {
-	return []Result{Module, Data, Program}
+	return []Result{Module, Data, Program, Link}
 }
 
 // OutputFrom says where the files the output field of a build block lists
@@ -218,8 +228,9 @@ type OutputFile struct {
 	// for [OutputBackend].
 	Path string
 	// To is the type of the file, which says where it goes, by its base
-	// name: [Module] for to = "lib", [Data] for to = "share", [Program] for
-	// to = "bin". An entry that says no to - a plain string - is of the one
+	// name ([Dirs.OutputPath]): [Module] for to = "lib", [Data] for to =
+	// "share", [Program] for to = "bin", [Link] for to = "link". An entry
+	// that says no to - a plain string - is of the one
 	// type of [Component.Wants] when it has one, else of the one type of a
 	// backend whose [Backend.Produces] has one: a backend of data files
 	// only lists them with output = "dist/calc.wasm". Of another backend it
@@ -311,6 +322,17 @@ type ProgramNamer interface {
 	Programs() (names []string, exhaustive bool)
 }
 
+// Linker is a Build that links what other components of the package make
+// for linking ([Link]), and names them: the core checks, when it checks the
+// manifest, that each is a component of the package that every product of
+// the component builds before it, so that its libraries are in
+// [Dirs.LinkOf] when the build runs. A name it returns is a component of
+// the package or an error the core reports for the block; a Linker that
+// names none links nothing of another component.
+type Linker interface {
+	Links() []string
+}
+
 // InputHasher is a Build of a backend that allows incremental builds whose
 // build reads more than the build block and the files of the component: a
 // version of a tool, a file outside the component. The core adds what
@@ -327,7 +349,7 @@ type InputHasher interface {
 // that its tool makes in the working directory of the build, a cache of its
 // own. The core asks every component it cleans before it removes anything of
 // its own, so that Clean may still read [Dirs.Work], and then removes
-// [Dirs.Work], the records of the component, its files in the stage and the
+// [Dirs.Work], [Dirs.Link], the records of the component, its files in the stage and the
 // rock of the package in [Dirs.Tree]; for a clean of the whole project it
 // removes all of [Dirs.State]. What is anywhere else - the directory of the
 // component, [Dirs.Cwd], [Dirs.Tools] - the core never removes, as it cannot

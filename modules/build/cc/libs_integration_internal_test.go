@@ -91,14 +91,15 @@ func sharedLibrary(t *testing.T, dir, name, soname, body string) string {
 }
 
 // staticLibrary builds the static library lib<name>.a of the C source body
-// into dir, compiled with cc of PATH and flags, and returns its path.
-func staticLibrary(t *testing.T, dir, name, body string, flags ...string) string {
+// into dir, compiled with cc of PATH and flags.
+func staticLibrary(t *testing.T, dir, name, body string, flags ...string) {
 	t.Helper()
 
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 
 	source := filepath.Join(dir, name+".c")
 	object := filepath.Join(dir, name+".o")
+
 	require.NoError(t, os.WriteFile(source, []byte(body), 0o600))
 
 	args := append(append([]string{}, flags...), "-c", source, "-o", object)
@@ -106,12 +107,9 @@ func staticLibrary(t *testing.T, dir, name, body string, flags ...string) string
 	printed, err := exec.CommandContext(t.Context(), "cc", args...).CombinedOutput()
 	require.NoError(t, err, string(printed))
 
-	out := filepath.Join(dir, "lib"+name+".a")
-
-	printed, err = exec.CommandContext(t.Context(), "ar", "rcs", out, object).CombinedOutput()
+	printed, err = exec.CommandContext(t.Context(), "ar", "rcs",
+		filepath.Join(dir, "lib"+name+".a"), object).CombinedOutput()
 	require.NoError(t, err, string(printed))
-
-	return out
 }
 
 // fooC is the source of the library foo the module of answerC links.
@@ -326,7 +324,8 @@ func TestStaticLibraries(t *testing.T) {
 
 	compilers := []string{""}
 
-	if zig, err := exec.LookPath("zig"); err == nil {
+	zig, err := exec.LookPath("zig")
+	if err == nil {
 		compilers = append(compilers, zig+" cc")
 	}
 

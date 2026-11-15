@@ -66,27 +66,37 @@ type libraryArgs struct {
 }
 
 // planLibraries returns the libraries of the link of the build of config
-// for goos in cwd, pkg the flags pkg-config gave, each library of a build
-// with static = true that staticExempt does not name taken from its static
-// library as find finds it, in library_dirs, then the -L directories of
-// pkg-config, then the directories of the compiler that links. A library
-// whose static library is not found is linked as it is, -l<name>, and the
-// static check of the core names the shared library the module needs. Of a
-// build without static nothing changes, but the files of libraries, which
-// go to the link as they are, after the objects in their place among the
-// -l.
-func planLibraries(config Config, goos, cwd string, pkg pkgFlags, static bool,
-	find staticFind,
+// for goos in cwd, pkg the flags pkg-config gave and linked the libraries
+// of the components of link, each library of a build with static = true
+// that staticExempt does not name taken from its static library as find
+// finds it, in library_dirs, then the directories of link, then the -L
+// directories of pkg-config, then the directories of the compiler that
+// links. A library whose static library is not found is linked as it is,
+// -l<name>, and the static check of the core names the shared library the
+// module needs. Of a build without static nothing changes, but the files of
+// libraries, which go to the link as they are, after the objects in their
+// place among the -l. The libraries of link come after those of libraries
+// - but those libraries names, which keep their place - and before those of
+// pkg-config.
+func planLibraries(config Config, goos, cwd string, pkg pkgFlags, linked linkedLibraries,
+	static bool, find staticFind,
 ) libraryArgs {
 	overlay := config.Platforms[goos]
 	libraryDirs := concat(config.LibraryDirs, overlay.LibraryDirs)
-	libs := libraryArgs{args: nil, files: libraryFiles(config, goos, cwd)}
+	libs := libraryArgs{
+		args: nil, files: concat(libraryFiles(config, goos, cwd), linked.files),
+	}
 
-	dirs := make([]string, 0, len(libraryDirs))
+	dirs := make([]string, 0, len(libraryDirs)+len(linked.dirs))
 
 	for _, dir := range libraryDirs {
 		libs.args = append(libs.args, "-L"+dir)
 		dirs = append(dirs, inDir(cwd, dir))
+	}
+
+	for _, dir := range linked.dirs {
+		libs.args = append(libs.args, "-L"+dir)
+		dirs = append(dirs, dir)
 	}
 
 	for _, word := range pkg.libs {
@@ -110,7 +120,9 @@ func planLibraries(config Config, goos, cwd string, pkg pkgFlags, static bool,
 		return archive
 	}
 
-	for _, entry := range concat(config.Libraries, overlay.Libraries) {
+	libraries := concat(config.Libraries, overlay.Libraries)
+
+	for _, entry := range libraries {
 		if isLibraryFile(entry) {
 			libs.args = append(libs.args, entry)
 			libs.files = append(libs.files, inDir(cwd, entry))
@@ -119,6 +131,12 @@ func planLibraries(config Config, goos, cwd string, pkg pkgFlags, static bool,
 		}
 
 		libs.args = append(libs.args, resolve(entry))
+	}
+
+	for _, name := range linked.names {
+		if !slices.Contains(libraries, name) {
+			libs.args = append(libs.args, resolve(name))
+		}
 	}
 
 	for _, word := range pkg.libs {
@@ -204,9 +222,10 @@ var pieHints = []string{"recompile with -fPIC", "can not be used when making a s
 // /path/libfoo.a(foo.o) - lld names it after ">>> defined in".
 var archiveRe = regexp.MustCompile(`([^\s'"(]+\.a)\(`)
 
-// pieHint is the hint a failed link that printed printed gets when the
-// linker says an object of it is not position-independent: the static
-// library it names was not built with -fPIC. Empty for another failure.
+// pieHint is the hint of a failed link whose linker printed the output
+// printed, when it says an object of the link is not position-independent:
+// the static library it names was not built with -fPIC. Empty for another
+// failure.
 func pieHint(printed string) string {
 	if !slices.ContainsFunc(pieHints, func(hint string) bool {
 		return strings.Contains(printed, hint)
