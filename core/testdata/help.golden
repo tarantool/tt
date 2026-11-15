@@ -902,6 +902,7 @@ COMMANDS
   search      Search available program versions
   switch      Switch the active binary
   uninstall   Uninstall a program
+  workspace   Write a go.work for the local modules on a checkout of the core
 
 FLAGS
   -h, --help           help for binary
@@ -1006,10 +1007,12 @@ of the dependency for a tt module.
 The build writes tt.manifest.lock and tt.manifest.sum next to the manifest:
 the exact versions and the go.sum it was built from, and a hash of the files
 of every local module, local core and replaced directory. The hash leaves out
-what the .gitignore files of the module and of its repository ignore - read
-without git, and without the excludes of the machine - but the Go sources and
-the embedded files, which the build needs. While the manifest does not change,
-the next build takes the versions from the lock; --update resolves them again.
+go.work and go.work.sum, which the build does not read (see tt binary
+workspace), and what the .gitignore files of the module and of its
+repository ignore - read without git, and without the excludes of the
+machine - but the Go sources and the embedded files, which the build needs.
+While the manifest does not change, the next build takes the versions from
+the lock; --update resolves them again.
 --locked builds strictly from the lock and fails when it, the Go modules or
 the files of a local module or a replaced directory differ. The lock does not
 record how the binary is compiled - the TLS implementation, the tags, the
@@ -1710,6 +1713,82 @@ FLAGS
 GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
+
+=== tt binary workspace --help
+Write a Go workspace, go.work, to develop the local tt modules of the
+distribution tt.manifest.toml describes together with a local checkout of its
+core: go test, go build and gopls in a module then build it on the SDK of
+the checkout, whatever version of the SDK its go.mod requires - a commit
+that is not pushed yet as well.
+
+The core is [core].path of the manifest, or --core DIR (or TT_DIST_CORE), as
+tt binary build tt takes it; a core given by a version is refused, as the
+module cache it comes from has no change of yours. The workspace uses every
+module of [dependencies] given by a path, and replaces with a directory,
+whatever their version:
+  - the core and every Go module of its repository its go.mod replaces with
+    a directory of its own (sdk/..., modules/...);
+  - every Go module under sdk/ of the core, so that a new SDK module is in
+    the workspace at once;
+  - every module [replace] replaces with a directory; a replacement with a
+    module version is left out, with a warning.
+The go directive is the newest of the go.mod files of them all.
+
+The go command looks for go.work from the current directory up, so a
+go.work is written beside the manifest for the modules in the manifest's
+directory, and in the directory of every other module: one file for a
+module whose repository has its manifest at the root (path = "."), or a
+distribution with its modules under it, and one in each module that lives
+beside its distribution (path = "../tt-foo"). Each file uses every local
+module of the distribution. The paths in it are relative to it.
+
+A go.work tt writes starts with a comment that says so. tt rewrites such a
+file and refuses to overwrite any other unless --force; --remove deletes
+the files tt wrote, with their go.work.sum, and refuses, deleting nothing,
+when one of them is not tt's. --remove needs no local core: the manifest
+may name a version of the core again by then. The paths of the files are printed
+to
+stdout; --dry-run prints them with what would be written, and changes
+nothing.
+
+tt binary build tt does not read go.work: it builds with GOWORK=off on the
+core of the manifest, and leaves go.work and go.work.sum out of the content
+hash of a local module. go mod tidy does not read it either. Keep the files
+out of git: they name directories of your machine.
+
+USAGE
+  tt binary workspace [flags]
+
+FLAGS
+      --core string        take this local checkout of the core instead of
+                           [core].path (env TT_DIST_CORE)
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
+      --dry-run            print what would be written or removed, and change
+                           nothing
+  -f, --force              overwrite a go.work tt did not write
+  -h, --help               help for workspace
+      --manifest string    path to the manifest (default: tt.manifest.toml in
+                           the project directory)
+      --remove             delete the go.work files tt wrote, and their
+                           go.work.sum
+
+GLOBAL FLAGS
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
+
+EXAMPLES
+  # Write go.work for the modules of ./tt.manifest.toml on its [core].path.
+  $ tt binary workspace
+
+  # The same on another checkout of the core, without editing the manifest.
+  $ tt binary workspace --core ../tt
+
+  # Show what would be written.
+  $ tt binary workspace --dry-run
+
+  # Delete the files when the core change is pushed.
+  $ tt binary workspace --remove
 
 === tt cluster --help
 Manage cluster configuration

@@ -34,7 +34,7 @@ func newBinaryWorkspaceCmd(base *binary.BinaryContext) *cobra.Command {
 
 	workspaceCmd := &cobra.Command{
 		Use:   "workspace",
-		Short: "Write a go.work to develop the modules of a distribution with its core",
+		Short: "Write a go.work for the local modules on a checkout of the core",
 		Long: `Write a Go workspace, go.work, to develop the local tt modules of the
 distribution tt.manifest.toml describes together with a local checkout of its
 core: go test, go build and gopls in a module then build it on the SDK of
