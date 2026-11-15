@@ -176,8 +176,8 @@ all:
 
 ```sh
 $ go version -m tt-lite | grep 'dep.*tt/modules'
-	dep	github.com/tarantool/tt/modules/aeon	v0.0.0
-	dep	github.com/tarantool/tt/modules/build	v0.0.0
+	dep	github.com/tarantool/tt/modules/aeon	v0.0.0-0
+	dep	github.com/tarantool/tt/modules/build	v0.0.0-0
 ```
 
 `builtin`, tt's own commands, counts as a standard module here:

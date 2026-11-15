@@ -559,9 +559,9 @@ func checkJSON(_ context.Context, path string) (string, error) {
 
 `Check` gets the context of the build, for a tool it runs, and the absolute
 path of the file in the stage of the package. A warning is shown and the
-build goes on. An error fails the build with exit
-code 1, and the warnings of the other files are not shown. Both are shown as
-they are, so they name the file:
+build goes on. An error fails the build with exit code 1, and the warnings
+of the other files are not shown. Both are shown as they are, so they name
+the file:
 
 ```text
 ⨯ /home/me/myapp/_build/rock/default/lua/myapp/settings.json is not valid JSON
