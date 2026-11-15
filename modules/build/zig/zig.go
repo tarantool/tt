@@ -241,7 +241,7 @@ func (b zigBuild) Programs() ([]string, bool) {
 
 // Preflight checks that a static program is not asked for darwin and that
 // zig is in the PATH of the build.
-func (b zigBuild) Preflight(c *build.Context) error {
+func (b zigBuild) Preflight(_ context.Context, c *build.Context) error {
 	if b.static && b.bin != "" && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
 	}
@@ -258,8 +258,8 @@ func (b zigBuild) Preflight(c *build.Context) error {
 // Inputs are what an incremental build reads besides the block and the files
 // of the component: the version of zig, and build.zig and build.zig.zon of
 // the working directory, which may be outside the component.
-func (b zigBuild) Inputs(c *build.Context) ([]string, error) {
-	version, err := c.Output(c.Command(context.Background(), zigTool, "version"))
+func (b zigBuild) Inputs(ctx context.Context, c *build.Context) ([]string, error) {
+	version, err := c.Output(c.Command(ctx, zigTool, "version"))
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (b zigBuild) Inputs(c *build.Context) ([]string, error) {
 // <work>/zig-out, then copies the module from its lib/ (see copyModule) and
 // the program from its bin/ (see copyProgram), as the block asks for them.
 func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
-	err := b.Preflight(c)
+	err := b.Preflight(ctx, c)
 	if err != nil {
 		return err
 	}

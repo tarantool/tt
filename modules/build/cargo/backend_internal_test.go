@@ -262,7 +262,7 @@ func TestPreflight(t *testing.T) {
 
 		harness.Context.Target = darwin
 
-		err := validate(t, program(), nil, true).Preflight(harness.Context)
+		err := validate(t, program(), nil, true).Preflight(t.Context(), harness.Context)
 		require.ErrorIs(t, err, ErrStaticDarwin)
 		assert.Contains(t, err.Error(), "static = true needs a linux build")
 	})
@@ -278,7 +278,7 @@ func TestPreflight(t *testing.T) {
 		harness.Context.Target = darwin
 
 		require.NoError(t,
-			validate(t, module(), nil, true).Preflight(harness.Context))
+			validate(t, module(), nil, true).Preflight(t.Context(), harness.Context))
 	})
 
 	t.Run("a platform cargo has no target for", func(t *testing.T) {
@@ -289,7 +289,7 @@ func TestPreflight(t *testing.T) {
 
 		harness.Context.Target = build.Target{OS: "linux", Arch: "s390x"}
 
-		err := validate(t, program(), nil, false).Preflight(harness.Context)
+		err := validate(t, program(), nil, false).Preflight(t.Context(), harness.Context)
 		require.ErrorIs(t, err, errUnsupportedTarget)
 	})
 
@@ -314,7 +314,7 @@ func TestPreflight(t *testing.T) {
 		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		require.NoError(t,
-			validate(t, program(), nil, false).Preflight(harness.Context))
+			validate(t, program(), nil, false).Preflight(t.Context(), harness.Context))
 	})
 }
 

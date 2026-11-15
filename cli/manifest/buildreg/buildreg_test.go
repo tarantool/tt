@@ -1,6 +1,7 @@
 package buildreg_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,11 @@ type zigConfig struct {
 	Bin   string   `toml:"bin"`
 }
 
+// noBuild is a build that builds nothing.
+type noBuild struct{}
+
+func (noBuild) Run(context.Context, *build.Context) error { return nil }
+
 // backend returns a well-formed backend name of the tests, which change
 // what they check.
 func backend(name string) build.Backend {
@@ -24,7 +30,7 @@ func backend(name string) build.Backend {
 		Produces: []build.Result{build.Module, build.Program},
 		Config:   func() any { return new(zigConfig) },
 		New: func(any, build.Component, build.Common) (build.Build, error) {
-			return nil, nil
+			return noBuild{}, nil
 		},
 		Incremental: true,
 		OutputFrom:  build.OutputNone,
@@ -34,7 +40,9 @@ func backend(name string) build.Backend {
 
 // fileCheck returns a well-formed file check of suffix.
 func fileCheck(suffix string) build.FileCheck {
-	return build.FileCheck{Suffix: suffix, Check: func(string) (string, error) { return "", nil }}
+	return build.FileCheck{Suffix: suffix, Check: func(context.Context, string) (string, error) {
+		return "", nil
+	}}
 }
 
 func TestAdd(t *testing.T) {

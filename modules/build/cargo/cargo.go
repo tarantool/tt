@@ -219,7 +219,7 @@ func (b cargoBuild) Programs() ([]string, bool) {
 
 // Preflight checks that a static program is not asked for darwin, that the
 // platform has a target and that cargo is in the PATH of the build.
-func (b cargoBuild) Preflight(c *build.Context) error {
+func (b cargoBuild) Preflight(_ context.Context, c *build.Context) error {
 	if b.static && b.bin != "" && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
 	}
@@ -241,7 +241,7 @@ func (b cargoBuild) Preflight(c *build.Context) error {
 // Run builds the module (see runModule), then the binary (see runBinary),
 // as the block asks for them.
 func (b cargoBuild) Run(ctx context.Context, c *build.Context) error {
-	err := b.Preflight(c)
+	err := b.Preflight(ctx, c)
 	if err != nil {
 		return err
 	}

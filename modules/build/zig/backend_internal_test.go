@@ -309,7 +309,7 @@ func TestPreflight(t *testing.T) {
 		harness.Context.Target = darwin
 
 		err := validate(t, component(), map[string]any{"bin": "hello-client"}, true).
-			Preflight(harness.Context)
+			Preflight(t.Context(), harness.Context)
 		require.ErrorIs(t, err, ErrStaticDarwin)
 		assert.Contains(t, err.Error(), "static = true needs a linux build")
 	})
@@ -325,7 +325,7 @@ func TestPreflight(t *testing.T) {
 		harness.Context.Target = darwin
 
 		require.NoError(t, validate(t, component(), map[string]any{"module": "hello"}, true).
-			Preflight(harness.Context))
+			Preflight(t.Context(), harness.Context))
 	})
 
 	t.Run("a missing tool", func(t *testing.T) {
@@ -350,7 +350,7 @@ func TestPreflight(t *testing.T) {
 		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		require.NoError(t, validate(t, component(), map[string]any{"module": "hello"}, false).
-			Preflight(harness.Context))
+			Preflight(t.Context(), harness.Context))
 	})
 }
 
@@ -576,7 +576,7 @@ func TestInputs(t *testing.T) {
 
 	bld := validate(t, component(), map[string]any{"module": "hello"}, false)
 
-	inputs, err := bld.Inputs(harness.Context)
+	inputs, err := bld.Inputs(t.Context(), harness.Context)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"zig version 0.16.0"}, inputs)
 
@@ -584,7 +584,7 @@ func TestInputs(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(cwd, "build.zig"), []byte("a"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(cwd, "build.zig.zon"), []byte("b"), 0o600))
 
-	inputs, err = bld.Inputs(harness.Context)
+	inputs, err = bld.Inputs(t.Context(), harness.Context)
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		"zig version 0.16.0",

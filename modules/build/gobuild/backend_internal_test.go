@@ -187,14 +187,14 @@ func TestPreflight(t *testing.T) {
 		preflighter, ok := validate(t, nil, true).(build.Preflighter)
 		require.True(t, ok)
 
-		err := preflighter.Preflight(harness.Context)
+		err := preflighter.Preflight(t.Context(), harness.Context)
 		require.ErrorIs(t, err, ErrStaticDarwin)
 		assert.Contains(t, err.Error(), "static = true needs a linux build")
 
 		// Without static it passes.
 		preflighter, ok = validate(t, nil, false).(build.Preflighter)
 		require.True(t, ok)
-		require.NoError(t, preflighter.Preflight(harness.Context))
+		require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
 	})
 
 	t.Run("a missing tool", func(t *testing.T) {
@@ -219,7 +219,7 @@ func TestPreflight(t *testing.T) {
 
 		preflighter, ok := validate(t, nil, false).(build.Preflighter)
 		require.True(t, ok)
-		require.NoError(t, preflighter.Preflight(harness.Context))
+		require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
 	})
 }
 

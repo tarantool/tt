@@ -139,7 +139,7 @@ func (b goBuild) Programs() ([]string, bool) {
 
 // Preflight checks that a static program is not asked for darwin and that go
 // is in the PATH of the build.
-func (b goBuild) Preflight(c *build.Context) error {
+func (b goBuild) Preflight(_ context.Context, c *build.Context) error {
 	if b.static && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
 	}
@@ -157,7 +157,7 @@ func (b goBuild) Preflight(c *build.Context) error {
 // go build -trimpath -o <programs>/<name> <package>, for the target of the
 // build.
 func (b goBuild) Run(ctx context.Context, c *build.Context) error {
-	err := b.Preflight(c)
+	err := b.Preflight(ctx, c)
 	if err != nil {
 		return err
 	}

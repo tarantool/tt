@@ -74,7 +74,7 @@ type touchBuild struct {
 }
 
 // Preflight finds sh in the PATH of the build.
-func (b touchBuild) Preflight(c *sdkbuild.Context) error {
+func (b touchBuild) Preflight(_ context.Context, c *sdkbuild.Context) error {
 	_, err := c.LookPath("sh")
 	if err != nil {
 		return fmt.Errorf("%w: sh", sdkbuild.ErrNoTool)
@@ -112,7 +112,7 @@ func (b touchBuild) Programs() ([]string, bool) {
 
 // Inputs adds the version of the backend to what an incremental build is
 // skipped by.
-func (b touchBuild) Inputs(*sdkbuild.Context) ([]string, error) {
+func (b touchBuild) Inputs(context.Context, *sdkbuild.Context) ([]string, error) {
 	return []string{"touch 1"}, nil
 }
 

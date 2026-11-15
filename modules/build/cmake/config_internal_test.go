@@ -223,5 +223,5 @@ func TestPreflightNamesTheMissingTool(t *testing.T) {
 
 	preflighter, ok := bld.(build.Preflighter)
 	require.True(t, ok)
-	require.NoError(t, preflighter.Preflight(harness.Context))
+	require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
 }

@@ -29,7 +29,7 @@ type fileChecker struct {
 }
 
 // check is the Check of the file check.
-func (c *fileChecker) check(path string) (string, error) {
+func (c *fileChecker) check(_ context.Context, path string) (string, error) {
 	c.mu.Lock()
 
 	c.checked = append(c.checked, path)
@@ -129,15 +129,25 @@ include = ['*.chk']
 	assert.NotContains(t, warnings, laid+" is to be warned of")
 }
 
+// buildKey is the key of a value of the context of a build.
+type buildKey struct{}
+
 // TestCheckFiles checks the order the checks are run in, the files that are
-// given to none, and the first error, which drops the warnings.
+// given to none, and the first error, which drops the warnings; and that a
+// check is given the context of the build.
 func TestCheckFiles(t *testing.T) {
 	t.Parallel()
 
 	var calls []string
 
+	ctx := context.WithValue(t.Context(), buildKey{}, "the build")
+
 	checkOf := func(name string, fail bool) sdkbuild.FileCheck {
-		return sdkbuild.FileCheck{Suffix: ".x", Check: func(path string) (string, error) {
+		return sdkbuild.FileCheck{Suffix: ".x", Check: func(ctx context.Context, path string) (
+			string, error,
+		) {
+			assert.Equal(t, "the build", ctx.Value(buildKey{}))
+
 			calls = append(calls, name+" "+path)
 
 			if fail && path == "b.x" {
@@ -148,8 +158,8 @@ func TestCheckFiles(t *testing.T) {
 		}}
 	}
 
-	warnings, err := checkFiles([]sdkbuild.FileCheck{checkOf("one", false), checkOf("two", false)},
-		[]string{"a.x", "a.y", "b.x"})
+	warnings, err := checkFiles(ctx, []sdkbuild.FileCheck{checkOf("one", false),
+		checkOf("two", false)}, []string{"a.x", "a.y", "b.x"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"one a.x", "two a.x", "one b.x", "two b.x"}, calls)
 	assert.Equal(t, []string{
@@ -158,13 +168,13 @@ func TestCheckFiles(t *testing.T) {
 
 	calls = nil
 
-	warnings, err = checkFiles([]sdkbuild.FileCheck{checkOf("one", true), checkOf("two", false)},
-		[]string{"a.x", "b.x", "c.x"})
+	warnings, err = checkFiles(ctx, []sdkbuild.FileCheck{checkOf("one", true),
+		checkOf("two", false)}, []string{"a.x", "b.x", "c.x"})
 	require.ErrorIs(t, err, errBadFile)
 	assert.Nil(t, warnings)
 	assert.Equal(t, []string{"one a.x", "two a.x", "one b.x"}, calls)
 
-	warnings, err = checkFiles(nil, []string{"a.x"})
+	warnings, err = checkFiles(ctx, nil, []string{"a.x"})
 	require.NoError(t, err)
 	assert.Nil(t, warnings)
 }

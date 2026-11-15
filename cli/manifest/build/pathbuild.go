@@ -168,7 +168,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 
 	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
 
-	err = newBuilder(p.opts, proj, p.adapter, stage, version.Version{}).preflight(components)
+	err = newBuilder(p.opts, proj, p.adapter, stage, version.Version{}).preflight(ctx, components)
 	if err != nil {
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}

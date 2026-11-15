@@ -42,7 +42,8 @@ type Block struct {
 // Validate checks block, the build block of component, for backend as the
 // core checks one, in its order: the fields of the backend are decoded into
 // its configuration ([build.Backend.Decode]), a field it has no place for
-// being unknown; backend.New checks them; then output and incremental are
+// being unknown; backend.New checks them, and the build it returns is
+// checked ([build.Backend.ValidateBuild]); then output and incremental are
 // checked against what backend allows, and the types of what the block
 // asks for - the to of each file of output, those the build says it makes
 // ([build.Producer]) - and those component expects against what backend
@@ -123,6 +124,11 @@ func validate(backend build.Backend, component build.Component, block Block) (bu
 	}
 
 	bld, err := backend.New(cfg, component, block.Common)
+	if err != nil {
+		return nil, err
+	}
+
+	err = backend.ValidateBuild(bld)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +327,7 @@ func toolchain(target build.Target) build.Toolchain {
 // one, then Run.
 func (h *Harness) Run(ctx context.Context, bld build.Build) error {
 	if preflighter, ok := bld.(build.Preflighter); ok {
-		err := preflighter.Preflight(h.Context)
+		err := preflighter.Preflight(ctx, h.Context)
 		if err != nil {
 			return fmt.Errorf("preflight: %w", err)
 		}

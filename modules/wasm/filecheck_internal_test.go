@@ -26,11 +26,11 @@ func TestCheckWasmFile(t *testing.T) {
 	component := writeWasm(t, "app.wasm", []byte("\x00asm\x0d\x00\x01\x00rest"))
 	module := writeWasm(t, "core.wasm", []byte("\x00asm\x01\x00\x00\x00rest"))
 
-	warning, err := checkWasmFile(component)
+	warning, err := checkWasmFile(t.Context(), component)
 	require.NoError(t, err)
 	assert.Empty(t, warning)
 
-	warning, err = checkWasmFile(module)
+	warning, err = checkWasmFile(t.Context(), module)
 	require.NoError(t, err)
 	assert.Equal(t, module+" is a core WebAssembly module, not a component: "+
 		"require('wasm') loads components only", warning)
@@ -46,12 +46,12 @@ func TestCheckWasmFileRejectsOthers(t *testing.T) {
 	} {
 		path := writeWasm(t, name, data)
 
-		_, err := checkWasmFile(path)
+		_, err := checkWasmFile(t.Context(), path)
 		require.ErrorIs(t, err, errNotWasm, name)
 		assert.Contains(t, err.Error(), path, name)
 	}
 
-	_, err := checkWasmFile(filepath.Join(t.TempDir(), "missing.wasm"))
+	_, err := checkWasmFile(t.Context(), filepath.Join(t.TempDir(), "missing.wasm"))
 	require.ErrorContains(t, err, "checking ")
 }
 
@@ -66,7 +66,7 @@ func TestModuleChecksTheWasmFiles(t *testing.T) {
 	assert.Equal(t, ".wasm", module.FileChecks[0].Suffix)
 	assert.Empty(t, module.Backends)
 
-	warning, err := module.FileChecks[0].Check(
+	warning, err := module.FileChecks[0].Check(t.Context(),
 		writeWasm(t, "core.wasm", []byte("\x00asm\x01\x00\x00\x00")))
 	require.NoError(t, err)
 	assert.Contains(t, warning, "core WebAssembly module")

@@ -229,7 +229,7 @@ func TestMissingHeaders(t *testing.T) {
 	preflighter, ok := bld.(build.Preflighter)
 	require.True(t, ok)
 
-	err = preflighter.Preflight(harness.Context)
+	err = preflighter.Preflight(t.Context(), harness.Context)
 	require.ErrorIs(t, err, ErrMissingHeaders)
 	assert.Contains(t, err.Error(), "tarantool development headers not found")
 	assert.Contains(t, err.Error(), "tt binary install tarantool installs one")
@@ -239,7 +239,7 @@ func TestMissingHeaders(t *testing.T) {
 	assert.Empty(t, harness.Printed())
 
 	harness.Context.Toolchain.IncludeDir = "/tt/include"
-	require.NoError(t, preflighter.Preflight(harness.Context))
+	require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
 }
 
 // fakeCC is a compiler that records its arguments one a line and creates
