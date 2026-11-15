@@ -599,7 +599,8 @@ A local module, a local core or a directory of `[replace]` has no version to
 pin, so the lock records `content_hash`, a hash of its files by path and
 content, as Go hashes a module for `go.sum`. They are the files the bundle of
 `--vendor` copies: every regular file of its directory but those in VCS and
-`vendor` directories and in nested modules, and those `.gitignore` ignores.
+`vendor` directories and in nested modules, `go.work` and `go.work.sum`,
+which the build does not read, and those `.gitignore` ignores.
 The `.gitignore` files are the module's own and those of the directories
 above it up to the root of its git repository - outside a repository, up to
 the manifest's directory when the module is in it. They are read as git reads
@@ -681,6 +682,12 @@ Such a build is a development one. Its core and the modules of the core's
 repository are not taken from the lock, and the lock and the sum are not
 written; the other modules still come from the lock while the manifest
 matches it. `--locked` refuses it.
+
+`tt binary workspace`, with the same `--core` or `[core].path`, writes a
+`go.work` that builds the local modules of the distribution on that
+checkout for `go test` and the editor too, whatever version of the SDK
+their `go.mod` requires, and `--remove` deletes it; see
+[Develop together with the core](doc/how-to/write-a-module.md#develop-together-with-the-core).
 
 ### Offline build
 
@@ -1410,7 +1417,9 @@ Common description. For a detailed description, use `tt help command` .
 - `registry list` - show the rock servers the packages are resolved against.
 - `rocks` - LuaRocks package manager.
 - `binary` - install, search, list, switch and uninstall tt, Tarantool, TCM
-    and SDK bundles; `binary build tt` builds a distribution of tt.
+    and SDK bundles; `binary build tt` builds a distribution of tt, and
+    `binary workspace` writes the `go.work` of its local modules on a
+    checkout of the core.
 - `cluster` - manage cluster configuration.
 - `replicaset` (`rs`) - manage replicasets.
 - `backup` - back up a Tarantool cluster for point-in-time recovery;

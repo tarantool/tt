@@ -52,23 +52,9 @@ The distribution build does not use these versions: it builds every module
 on the SDK at the commit of its core, whatever the module's `go.mod`
 requires. They are what `go test` of the module runs on, so keep them at the
 commit of the core: when the core moves, `go get` the SDK modules at its new
-commit and run `go mod tidy`.
-
-### Develop against a checkout of tt
-
-To build the module on SDK changes not yet pushed, put the SDK modules of a
-local checkout of tt in a Go workspace. Keep `go.work` out of git:
-
-```sh
-go work init . ../tt/sdk ../tt/sdk/connect ../tt/sdk/dial
-go test ./...
-```
-
-and build the distribution on the same checkout with
-`tt binary build tt --core ../tt` (see
-[Building on another core](build-distribution.md#building-on-another-core)).
-The distribution build ignores `go.work`, and the `replace` directives of
-the module's `go.mod` as well: Go applies those of the main module only.
+commit and run `go mod tidy`. To build the module on a change of the SDK
+that is not pushed yet, see
+[Develop together with the core](#develop-together-with-the-core).
 
 ## Write the constructor
 
@@ -1024,6 +1010,156 @@ commands. Commit `tt.manifest.lock` and `tt.manifest.sum` the build writes.
 Once the module is published, the manifest names it by its module path and
 a version, `probe = "example.com/tt-probe@v0.1.0"`. Every field of the
 manifest is in [tt.manifest.toml](../reference/tt-manifest.md).
+
+## Develop together with the core
+
+A change of the module may need a change of the SDK, or of the core, that
+no commit of tt you can require has yet. Make both in a local checkout of
+tt next to the module, `../tt`, and have tt write a Go workspace that builds
+the module on the checkout:
+
+```console
+$ cd dist
+$ tt binary workspace --core ../tt
+/home/me/src/tt-probe/go.work
+```
+
+`tt binary workspace` reads `tt.manifest.toml` as `tt binary build tt`
+does, with the core of `--core`, or of `[core].path` when the manifest
+names a checkout. The `go.work` it writes uses every module of
+`[dependencies]` given by a path, and replaces the core and every Go module
+of its repository - every `go.mod` under `sdk/`, and the standard modules -
+with their directories in the checkout, with no version. Go then reads
+nothing of the versions the `go.mod` of the module requires, a commit that
+is not pushed as well:
+
+```text
+// Written by tt binary workspace: the local modules of the distribution
+// ../dist/tt.manifest.toml on the SDK of the core ../tt,
+// whatever their go.mod requires. tt binary workspace --remove deletes it.
+// Keep it out of git.
+
+go 1.27.4
+
+use (
+	.
+)
+
+replace (
+	github.com/tarantool/tt/modules/aeon => ../tt/modules/aeon
+	github.com/tarantool/tt/modules/build => ../tt/modules/build
+	github.com/tarantool/tt/modules/emmylua => ../tt/modules/emmylua
+	github.com/tarantool/tt/modules/wasm => ../tt/modules/wasm
+	github.com/tarantool/tt/sdk => ../tt/sdk
+	github.com/tarantool/tt/sdk/backup => ../tt/sdk/backup
+	github.com/tarantool/tt/sdk/build => ../tt/sdk/build
+	github.com/tarantool/tt/sdk/cluster => ../tt/sdk/cluster
+	github.com/tarantool/tt/sdk/connect => ../tt/sdk/connect
+	github.com/tarantool/tt/sdk/dial => ../tt/sdk/dial
+	github.com/tarantool/tt/sdk/fetch => ../tt/sdk/fetch
+	github.com/tarantool/tt/sdk/integrity => ../tt/sdk/integrity
+	github.com/tarantool/tt/sdk/tuple => ../tt/sdk/tuple
+	github.com/tarantool/tt/v3 => ../tt
+)
+```
+
+The go command looks for `go.work` from the current directory up, so tt
+writes one where `go test` in every local module finds it: beside the
+manifest for the modules in the manifest's directory - a module whose
+repository has its `tt.manifest.toml` at the root, with `path = "."`, or a
+distribution with its modules in subdirectories - and in the directory of
+every other module, as `tt-probe` here. Each one uses every local module
+of the distribution. The `go` directive is the newest of all their
+`go.mod` files; `[replace]` directories of the manifest are replaced too.
+`tt binary workspace` prints the paths of the files it wrote, and
+`--dry-run` prints what it would write.
+
+The cycle is then:
+
+1. Change the core in `../tt`: add a function to `sdk`, say.
+2. Use it in the module and run `go test ./...` in `tt-probe`: the module
+   builds on the SDK of `../tt`.
+3. Build the distribution on the same checkout, `tt binary build tt --core
+   ../tt` in `dist` (see
+   [Building on another core](build-distribution.md#building-on-another-core)).
+   The build reads no `go.work`: it builds with `GOWORK=off` on the core
+   `--core` names, and the content hash of a local module leaves `go.work`
+   and `go.work.sum` out, so writing the workspace changes no lock.
+4. Once the change of the core is pushed, at `<commit>`, remove the
+   workspace and require the SDK at that commit, as
+   [Set up the Go module](#set-up-the-go-module) does; build the
+   distribution on it with `[core] tt = "<commit>"`:
+
+```console
+$ cd ../dist
+$ tt binary workspace --remove
+/home/me/src/tt-probe/go.work
+$ cd ../tt-probe
+$ go get github.com/tarantool/tt/sdk@<commit> \
+    github.com/tarantool/tt/sdk/build@<commit> \
+    github.com/tarantool/tt/sdk/connect@<commit> \
+    github.com/tarantool/tt/sdk/dial@<commit>
+$ go mod tidy
+$ go test ./...
+ok  	example.com/tt-probe	0.005s
+```
+
+`--remove` deletes the `go.work` files tt wrote and their `go.work.sum`,
+and needs no checkout: the manifest may name a version of the core again.
+tt rewrites a `go.work` it wrote; one it did not write - one without its
+first comment line - it overwrites only with `--force`, and never removes.
+A distribution kept for development may name the checkout in
+the manifest, `[core] path = "../tt"`, and then neither command needs
+`--core`.
+
+A module that starts to import an SDK module its `go.mod` does not
+require, one the change of the core adds say, needs a requirement for it,
+and `go get` looks the version up even in a workspace, which fails before
+the push. Require the placeholder by hand until then:
+
+```sh
+go mod edit -require=github.com/tarantool/tt/sdk/build@v0.0.0-0
+```
+
+The `go get` of step 4 puts the commit in its place.
+
+`gopls`, and the editors built on it, take the workspace the go command
+finds - `go env GOWORK` in the module prints its path; restart the
+language server after the file is written or removed. Keep `go.work` and
+`go.work.sum` out of git, in the `.gitignore` of the module: they name
+directories of your machine, and `go mod tidy` ignores them anyway.
+
+Without tt, the same workspace is written by the go command, one `-replace`
+for each module of the checkout: every `go.mod` under `sdk/` and the
+modules the `go.mod` of tt replaces with its directories. The list grows
+with the SDK; `tt binary workspace` reads it from the checkout.
+
+```sh
+cd tt-probe
+go work init .
+go work edit \
+    -replace github.com/tarantool/tt/v3=../tt \
+    -replace github.com/tarantool/tt/modules/aeon=../tt/modules/aeon \
+    -replace github.com/tarantool/tt/modules/build=../tt/modules/build \
+    -replace github.com/tarantool/tt/modules/emmylua=../tt/modules/emmylua \
+    -replace github.com/tarantool/tt/modules/wasm=../tt/modules/wasm \
+    -replace github.com/tarantool/tt/sdk=../tt/sdk \
+    -replace github.com/tarantool/tt/sdk/backup=../tt/sdk/backup \
+    -replace github.com/tarantool/tt/sdk/build=../tt/sdk/build \
+    -replace github.com/tarantool/tt/sdk/cluster=../tt/sdk/cluster \
+    -replace github.com/tarantool/tt/sdk/connect=../tt/sdk/connect \
+    -replace github.com/tarantool/tt/sdk/dial=../tt/sdk/dial \
+    -replace github.com/tarantool/tt/sdk/fetch=../tt/sdk/fetch \
+    -replace github.com/tarantool/tt/sdk/integrity=../tt/sdk/integrity \
+    -replace github.com/tarantool/tt/sdk/tuple=../tt/sdk/tuple
+```
+
+`go work use ../tt/sdk ...` instead of the replacements works only while
+the `go.mod` of the module requires the SDK at a commit Go can download:
+the go command still reads the `go.mod` of every version a used module is
+required at, and a commit that is not pushed fails with
+`invalid version: unknown revision`. A replacement with no version reads
+none.
 
 ## What the core refuses
 

@@ -44,18 +44,16 @@ take a later commit of the core. Give `sdk/connect` too, even though the
 module does not import it: the `go.mod` of `sdk` requires it at a
 placeholder version that only tt's own repository resolves.
 
-To build on a checkout of tt instead, put its SDK modules in a Go
-workspace. Keep `go.work` out of git:
-
-```sh
-go work init . ../tt/sdk ../tt/sdk/build
-go test ./...
-```
-
+To build the module on a checkout of tt instead, with changes of the SDK
+that are not pushed yet, run `tt binary workspace` in the directory of the
+distribution below, whose `[core].path` names the checkout: it writes a
+`go.work` that builds the module on the SDK of the checkout whatever its
+`go.mod` requires, and `tt binary workspace --remove` deletes it once the
+changes are pushed. [Develop together with the core](write-a-module.md#develop-together-with-the-core)
+shows the cycle and how to require an SDK module no pushed commit has yet.
 `go mod tidy` ignores `go.work`, so it needs the requirements of the
-`go get` above. The distribution build ignores `go.work` and builds the
-module on the SDK of its core, whatever the `go.mod` of the module requires
-(see [Write a tt module](write-a-module.md#develop-against-a-checkout-of-tt)).
+`go get` above. The distribution build ignores `go.work` too and builds the
+module on the SDK of its core, whatever the `go.mod` of the module requires.
 
 ## Write the backend
 

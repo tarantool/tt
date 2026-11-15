@@ -313,8 +313,12 @@ go get github.com/tarantool/tt/sdk@<commit> github.com/tarantool/tt/sdk/build@<c
 
 The distribution build builds every module on the SDK at the commit of its
 core, whatever the module requires, so keep the commit the one of the core
-the module is built on. To work against a local checkout of tt, list its SDK
-modules in a `go.work` of the module.
+the module is built on. To work against a local checkout of tt, on changes
+of the SDK not pushed yet, `tt binary workspace` writes a `go.work` that
+replaces every module of the checkout with its directory, with no version;
+`go work use` of the SDK directories fails while the module requires a
+commit Go cannot download. See
+[Develop together with the core](https://tarantool.github.io/tt/how-to/write-a-module/#develop-together-with-the-core).
 
 ## Stability
 
