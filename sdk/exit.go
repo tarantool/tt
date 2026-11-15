@@ -39,7 +39,9 @@ type ExitCoder interface {
 
 // ExitError wraps an error with the process exit code tt should return for it.
 type ExitError struct {
-	// Code is the process exit code, one of the Exit* constants.
+	// Code is the process exit code: one of the Exit* constants for tt's
+	// verdict on a command, or any other code, such as that of a tool a
+	// command runs and passes through (tt wasm build -- ...).
 	Code int
 	// Err is the wrapped error. It must not be nil.
 	Err error
