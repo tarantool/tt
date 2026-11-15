@@ -24,6 +24,9 @@ const (
 	// its dependencies.
 	goMod = "go.mod"
 	goSum = "go.sum"
+	// vendorDir is the vendor directory of a module, which the go command
+	// leaves out of the module.
+	vendorDir = "vendor"
 	// embedAll prefixes a //go:embed pattern whose directories are embedded
 	// with the names that start with . or _.
 	embedAll = "all:"
@@ -52,8 +55,9 @@ type moduleFile struct {
 // moduleFiles lists the files of the module in dir that are its content:
 // the ones its content hash covers and its copy in a bundle carries. They
 // are its regular files - symbolic links and other files are left out -
-// but the .git file of a worktree, those of the directories skipModuleDir
-// skips and those .gitignore ignores.
+// but the .git file of a worktree, the files of a Go workspace (go.work,
+// go.work.sum), those of the directories skipModuleDir skips and those
+// .gitignore ignores.
 //
 // The .gitignore files are the module's own, each for its subtree, and
 // those of the directories above it up to the root of its git repository,
@@ -248,7 +252,8 @@ func (w *fileWalk) dir(dir, rel string, patterns []gitignore.Pattern, ignored bo
 			continue
 		}
 
-		if !entry.Type().IsRegular() || slices.Contains(vcsDirs, entry.Name()) {
+		if !entry.Type().IsRegular() || slices.Contains(vcsDirs, entry.Name()) ||
+			workspaceFile(entry.Name()) {
 			continue
 		}
 
@@ -373,13 +378,20 @@ func buildFile(name string) bool {
 	return name == goMod || name == goSum || slices.Contains(sourceExts, path.Ext(name))
 }
 
+// workspaceFile reports whether the file name belongs to a Go workspace -
+// go.work, go.work.sum - which the build, run with GOWORK=off, does not
+// read: no module is built from it, and its paths are of the machine.
+func workspaceFile(name string) bool {
+	return name == goWork || name == goWorkSum
+}
+
 // skipModuleDir reports whether the directory dir met walking a module
 // holds none of its files: a VCS directory, a vendor directory, a nested
 // module - a directory with a go.mod of its own - or work, the directory
 // of the build. These are the directories the go command leaves out of a
 // module zip, and work is not the module's at all.
 func skipModuleDir(dir string, entry fs.DirEntry, work string) bool {
-	if slices.Contains(vcsDirs, entry.Name()) || entry.Name() == "vendor" || dir == work {
+	if slices.Contains(vcsDirs, entry.Name()) || entry.Name() == vendorDir || dir == work {
 		return true
 	}
 

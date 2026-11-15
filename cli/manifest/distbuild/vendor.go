@@ -33,7 +33,7 @@ const (
 // bundleFiles are what a bundle consists of: an earlier bundle in the
 // directory is replaced, anything else in it is refused.
 var bundleFiles = []string{
-	"go.mod", "go.sum", "main.go", "vendor", bundleLocal, bundleEnv, bundleScript,
+	"go.mod", "go.sum", "main.go", vendorDir, bundleLocal, bundleEnv, bundleScript,
 }
 
 // errNotBundle reports a --vendor directory that holds something other than

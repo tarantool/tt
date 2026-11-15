@@ -117,6 +117,7 @@ SDK installations select Tarantool Enterprise, tt Enterprise, TCM, and headers t
 		newBinaryListCmd(&base, &listCtx),
 		newBinarySwitchCmd(&base, &switchCtx),
 		newBinaryBuildCmd(&base),
+		newBinaryWorkspaceCmd(&base),
 	)
 
 	return binaryCmd

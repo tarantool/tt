@@ -80,6 +80,23 @@ func TestModuleFilesNoGitFile(t *testing.T) {
 	assert.Equal(t, []string{"go.mod"}, listFiles(t, dir, dir))
 }
 
+// TestModuleFilesNoWorkspace checks that the files of a Go workspace, which
+// the build does not read and which name directories of the machine, are no
+// files of the module, so that tt binary workspace leaves the content hash
+// as it is.
+func TestModuleFilesNoWorkspace(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/m\n")
+	writeFile(t, filepath.Join(dir, "go.work"), "go 1.26\n\nuse .\n")
+	writeFile(t, filepath.Join(dir, "go.work.sum"), "")
+	writeFile(t, filepath.Join(dir, "sub", "go.work"), "go 1.26\n")
+
+	assert.Equal(t, []string{"go.mod"}, listFiles(t, dir, dir))
+}
+
 // TestModuleFilesNestedIgnore checks that a .gitignore of a subdirectory
 // rules its subtree only, after the ones above it.
 func TestModuleFilesNestedIgnore(t *testing.T) {
