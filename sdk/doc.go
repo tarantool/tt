@@ -17,8 +17,8 @@
 //     [Dependency] declared in it as tt package add declares one
 //     ([Project.AddDependency]), a [Component] appended to it
 //     ([Project.AddComponent]), its rocks installed from the lock as tt
-//     package fetch installs them ([Project.Install]), its state directory
-//     and the scripts that activate it ([Project.StateDir],
+//     package fetch installs them ([Project.Install]), its project scope
+//     and the scripts that activate it ([Project.ScopeDir],
 //     [Project.PrepareEnvironment]) - rock servers indexed as tt package
 //     index indexes one ([Services.Rocks]), prompts ([Services.Confirm]),
 //     the standard [Streams] with their printers, the cluster configuration

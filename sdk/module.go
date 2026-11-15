@@ -225,15 +225,18 @@ type Project interface {
 	// project without a manifest or a lock is an error that wraps
 	// ErrNotFound; a lock that does not parse is an error that names it.
 	ReadLock() (LockFile, error)
-	// StateDir returns the directory of the state of Root on this machine,
-	// .tarantool, as an absolute path: tt binary installs into the project
-	// scope there, and its bin/ comes first in the PATH of the builds of the
-	// project and of the shell .env/activate.sh activates. It is not
-	// created, nor is it committed with the project.
-	StateDir() (string, error)
+	// ScopeDir returns the root of the project scope of Root, .tarantool, as
+	// an absolute path ([github.com/tarantool/tt/sdk/scope.ProjectRoot]):
+	// tt binary --scope project installs there, a module installs the tools
+	// of the project there, and its bin/ comes first in the PATH of the
+	// builds of the project ([build.Dirs.Tools]) and of the shell
+	// .env/activate.sh activates. It is of this machine: not created, nor
+	// committed with the project. It is not where a build keeps its state,
+	// [build.Dirs.State].
+	ScopeDir() (string, error)
 	// PrepareEnvironment writes .env/activate.sh and .env/deactivate.sh of
 	// Root when they are missing, as the first tt binary install into the
-	// project scope does: sourced, they put bin/ of [Project.StateDir] on
+	// project scope does: sourced, they put bin/ of [Project.ScopeDir] on
 	// the PATH of a shell and take it off. Scripts that are there are the
 	// user's, and are kept.
 	PrepareEnvironment() error

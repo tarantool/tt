@@ -18,8 +18,8 @@ import (
 )
 
 // This file tests the services of Project that read and extend the
-// manifest and the state of the project - Root, Manifest, AddComponent,
-// StateDir and PrepareEnvironment - and Rocks.
+// manifest and the scope of the project - Root, Manifest, AddComponent,
+// ScopeDir and PrepareEnvironment - and Rocks.
 
 // realPath returns path with its symbolic links resolved, as the working
 // directory reports it.
@@ -33,7 +33,7 @@ func realPath(t *testing.T, path string) string {
 }
 
 // TestProjectRoot checks that a command run below the project works on the
-// project: Root and StateDir are of the project, Dir is the directory of
+// project: Root and ScopeDir are of the project, Dir is the directory of
 // the command, and AddDependency declares into the manifest of the project.
 //
 //nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
@@ -59,10 +59,10 @@ func TestProjectRoot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dir, realPath(t, root))
 
-	state, err := project.StateDir()
+	scopeDir, err := project.ScopeDir()
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(root, ".tarantool"), state)
-	assert.NoDirExists(t, state, "it is not created")
+	assert.Equal(t, filepath.Join(root, ".tarantool"), scopeDir)
+	assert.NoDirExists(t, scopeDir, "it is not created")
 
 	_, err = project.AddDependency(t.Context(), sdk.Dependency{
 		Name: "tool", Constraint: "", Registry: registry, Dev: false, Registries: nil,

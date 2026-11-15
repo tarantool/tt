@@ -526,7 +526,7 @@ func (s *Services) Integrity() sdk.Integrity {
 // Install and PrepareEnvironment record the calls, which the methods of
 // Services named after them return, and do what WithMoves,
 // WithAddDependencyError, WithNoManifest, WithResolveError, WithLock,
-// WithBuild, WithBuildContext and WithInstall say. StateDir is .tarantool
+// WithBuild, WithBuildContext and WithInstall say. ScopeDir is .tarantool
 // of the root.
 func (s *Services) Project() sdk.Project {
 	s.ready("Project")
@@ -1464,9 +1464,9 @@ func (f fakeProject) RemoveDependency(
 	return f.services.removeDependency(name)
 }
 
-// StateDir returns .tarantool of the root.
-func (f fakeProject) StateDir() (string, error) {
-	return filepath.Join(f.services.opts.root, scope.ProjectDirName), nil
+// ScopeDir returns .tarantool of the root.
+func (f fakeProject) ScopeDir() (string, error) {
+	return scope.ProjectRoot(f.services.opts.root), nil
 }
 
 // PrepareEnvironment records the call and writes nothing.

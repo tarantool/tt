@@ -369,7 +369,7 @@ func TestServicesProjectInstall(t *testing.T) {
 }
 
 // TestServicesProjectRoot checks the root of the project, by default the
-// directory of the command and below it with WithRoot, its StateDir, and
+// directory of the command and below it with WithRoot, its ScopeDir, and
 // that Install runs in it.
 func TestServicesProjectRoot(t *testing.T) {
 	t.Parallel()
@@ -384,10 +384,10 @@ func TestServicesProjectRoot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dir, root)
 
-	state, err := plain.Project().StateDir()
+	scopeDir, err := plain.Project().ScopeDir()
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, ".tarantool"), state)
-	assert.NoDirExists(t, state, "nothing is created")
+	assert.Equal(t, filepath.Join(dir, ".tarantool"), scopeDir)
+	assert.NoDirExists(t, scopeDir, "nothing is created")
 
 	top := t.TempDir()
 	sub := filepath.Join(top, "sub")
@@ -410,9 +410,9 @@ func TestServicesProjectRoot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, top, root)
 
-	state, err = below.Project().StateDir()
+	scopeDir, err = below.Project().ScopeDir()
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(top, ".tarantool"), state)
+	assert.Equal(t, filepath.Join(top, ".tarantool"), scopeDir)
 
 	require.NoError(t, below.Project().Install(t.Context(), sdk.InstallOptions{}))
 	assert.Equal(t, top, installedIn)
