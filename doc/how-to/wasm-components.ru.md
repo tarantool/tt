@@ -1,10 +1,24 @@
-# Запуск компонентов WebAssembly (экспериментально)
+# Запуск компонентов WebAssembly (экспериментально) {#запуск-компонентов-webassembly-экспериментально}
 
-[tarantool-wasm](https://github.com/tarantool/tarantool-wasm-rs) - модуль Tarantool, который запускает компоненты WebAssembly рядом с данными: код приложения на Python, JavaScript, Go, Rust, C или C#, вызываемый из Lua через `require('wasm')`. Компоненты собираются с помощью [tarawasm](https://github.com/mandesero/tarawasm).
+[tarantool-wasm](https://github.com/tarantool/tarantool-wasm-rs) - модуль
+Tarantool, запускающий компоненты WebAssembly рядом с данными: код приложения
+на Python, JavaScript, Go, Rust, C или C#, вызываемый из Lua через
+`require('wasm')`. Компоненты собираются с помощью
+[tarawasm](https://github.com/mandesero/tarawasm).
 
-`tt wasm prepare` подготавливает проект для работы обоих инструментов, пока tt не научится собирать компоненты самостоятельно, а `tt wasm new` добавляет компонент в пакет. Нужны Linux x86-64 или macOS arm64, Tarantool 3.6 или новее и Python 3.10 или новее для tarawasm. Linux arm64 не поддерживается: сборки tarantool-wasm для него нет, поэтому ни на одном rock-сервере нет rock `wasm` для установки там, если не упаковать локальную сборку (`tt wasm rock --from`).
+`tt wasm prepare` подготавливает проект для обоих инструментов, пока tt не
+собирает компоненты сам, а `tt wasm new` добавляет компонент в пакет.
+`tt wasm` - это модуль `wasm`, один из
+[стандартных модулей](../concepts/distributions.md) tt, который проверяет в том
+числе файлы `.wasm` пакета. Для работы требуются Linux x86-64 или macOS arm64,
+Tarantool 3.6 или новее и Python 3.10 или новее для tarawasm. Linux arm64 не
+поддерживается: сборки tarantool-wasm для него нет, поэтому ни на одном
+rock-сервере нет rock'а `wasm` для установки на этой платформе, если только не
+упаковать локальную сборку (`tt wasm rock --from`).
 
-На этой странице компонент Python `add(a, b)` собирается в пакет `myapp`. [HTTP API в компоненте WebAssembly](../write-your-app/http-api-in-wasm.md) - целое приложение: HTTP-сервер в компоненте, который записывает данные в space.
+На этой странице компонент Python `add(a, b)` собирается в пакет `myapp`.
+[HTTP API в компоненте WebAssembly](../write-your-app/http-api-in-wasm.md) -
+целое приложение: HTTP-сервер в компоненте, записывающий данные в space.
 
 ## Подготовка проекта {#prepare-the-project}
 
@@ -28,36 +42,47 @@ prepared for tarantool-wasm 0.1.0 (linux-x86_64)
   toolchains: python
 ```
 
-Вывод pip и tarawasm появляется между этими строками, вместо `...`. Команда:
+Вывод pip и tarawasm выводится между этими строками, на месте `...`. Что
+сделала команда:
 
-- объявила в манифесте rock `wasm` - нативный модуль релиза - и пересобрала lock:
+- объявила rock `wasm` - нативный модуль релиза - в манифесте и пересчитала
+  локфайл:
 
     ```toml
     [dependencies]
     wasm = { version = "0.1.0", registry = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/" }
     ```
 
-  Сервер - [индекс rock-модулей](../concepts/rock-servers.md#a-rock-index) tarantool-contrib/rocks-repo, где лежит rock для каждой платформы с его sha256, поэтому lock фиксирует их все, а следующий `tt package build` устанавливает rock этой машины, проверив его по lock;
+  Сервер - это [rock-индекс](../concepts/rock-servers.md#a-rock-index)
+  tarantool-contrib/rocks-repo, раздающий rock для каждой платформы с его
+  sha256, поэтому локфайл фиксирует их все, а следующий `tt package build`
+  устанавливает rock этой машины, проверенный по локфайлу;
+- установила tarawasm в виртуальное окружение в `.tarantool/versions/` и
+  создала ссылку `.tarantool/bin/tarawasm`;
+- развернула набор инструментов Python, см. ниже;
+- записала `.env/activate.sh`, добавляющий `.tarantool/bin` в `PATH` оболочки.
 
-- установила tarawasm в виртуальное окружение в `.tarantool/versions/` и создала ссылку `.tarantool/bin/tarawasm`;
-- установила инструменты Python, см. ниже;
-- записала `.env/activate.sh`, который добавляет `.tarantool/bin` в `PATH` оболочки.
-
-`.tarantool` относится к этой машине и не попадает в коммит. После checkout, на другой машине или в CI команда `tt wasm prepare` восстанавливает всё: tarawasm, набор инструментов каждого компонента и SDK, зафиксированный каждым компонентом.
+`.tarantool` относится к этой машине и не коммитится. После checkout, на другой
+машине или в CI `tt wasm prepare` восстанавливает всё: tarawasm, набор
+инструментов каждого компонента и SDK, зафиксированный каждым компонентом.
 
 ## Наборы инструментов {#the-toolchains}
 
-tarawasm запускает компиляторы для каждого языка. Из них tt устанавливает в проект инструменты, которые можно целиком взять из их релизов, проверяя каждый по известному tt sha256. Они размещаются в `.tarantool/versions/`, а ссылки на них - в `.tarantool/bin`:
+tarawasm управляет компиляторами для каждого языка. Из них tt устанавливает в
+проект те инструменты, которые можно целиком взять из их релизов, проверяя
+каждый по известному tt sha256, в `.tarantool/versions/` со ссылкой в
+`.tarantool/bin`:
 
 | Инструмент | Для | |
 | --- | --- | --- |
 | wasm-tools 1.261.0, wkg 0.16.1 | все языки | релизы Bytecode Alliance |
-| componentize-py 0.25.1 | `python` | wheel, который pip устанавливает в окружение tarawasm из загруженного tt файла |
-| TinyGo 0.43.0 с Binaryen 133 | `go` | Binaryen добавляется поверх TinyGo, которому в версии 0.43 нужен `wasm-opt`; на него тоже создаётся ссылка |
+| componentize-py 0.25.1 | `python` | wheel, который pip устанавливает в окружение tarawasm из скачанного tt файла |
+| TinyGo 0.43.0 с Binaryen 133 | `go` | Binaryen ставится поверх TinyGo, которому в версии 0.43 нужен `wasm-opt`; на него тоже создаётся ссылка |
 | wit-bindgen 0.62.0 | `c` | |
 | wasi-sdk 34 | `c` | не добавляется в `.tarantool/bin`, чтобы его `clang` не подменял системный компилятор при каждой сборке: для каждого C-компонента tarawasm получает путь к нему из `tarawasm.local.json` |
 
-Остальные инструменты устанавливаются отдельно: tt проверяет их версии и сообщает, что нужно установить, но ничего не устанавливает в систему.
+Остальные инструменты устанавливаются вручную: tt проверяет их версии, сообщает,
+что установить, и ничего не ставит в систему.
 
 | Язык | Устанавливаемые инструменты |
 | --- | --- |
@@ -68,7 +93,8 @@ tarawasm запускает компиляторы для каждого язы�
 | `c` | ничего дополнительного |
 | `csharp` | .NET SDK 10.0.402, в Linux x86-64 |
 
-Если инструмент отсутствует или его версия не подходит, команда останавливается и сообщает, что установить:
+Отсутствующий инструмент или неподходящая версия останавливают команду с
+сообщением о том, что именно нужно установить:
 
 ```console
 $ tt wasm prepare --lang rust
@@ -79,7 +105,10 @@ $ tt wasm prepare --lang rust
        cargo-component >=0.21.1 (missing): cargo install --locked cargo-component --version 0.21.1
 ```
 
-При сборке набор инструментов ищется сначала в `.tarantool/bin`, затем в `PATH`. Команда `tarawasm toolchain setup --install`, которая сама устанавливает инструменты, запускает `sudo apt-get install` в Linux и собирает `wasm-tools` и `wkg` из исходников; tt её не запускает.
+Набор инструментов проверяется так же, как его находит сборка: сначала в
+`.tarantool/bin`, затем в `PATH`. Команда `tarawasm toolchain setup --install`,
+устанавливающая инструменты сама, запускает `sudo apt-get install` на Linux и
+собирает `wasm-tools` и `wkg` из исходников; tt никогда её не запускает.
 
 ## Добавление компонента {#add-a-component}
 
@@ -89,7 +118,11 @@ $ tt wasm new calc --lang python
 added component calc in calc
 ```
 
-tarawasm создаёт компонент в `calc/` на SDK релиза `wasm`, объявленного пакетом, а `calc/.gitignore` исключает генерируемые файлы из git. Имя WIT world совпадает с именем компонента; так же называется результат сборки `dist/calc.wasm`, поэтому компоненты пакета не конфликтуют. Манифест объявляет компонент:
+tarawasm создаёт компонент в `calc/` на SDK того релиза `wasm`, который
+объявлен в пакете, а `calc/.gitignore` оставляет сгенерированные файлы вне git.
+WIT world компонента назван по его имени; так же назван и результат сборки,
+`dist/calc.wasm`: компоненты пакета не конфликтуют. Манифест объявляет
+компонент:
 
 ```toml
 # A WebAssembly component, made by tt wasm new and built by tarawasm.
@@ -104,19 +137,35 @@ args = ["all"]
 incremental = true
 ```
 
-`tarawasm all` заново создаёт bindings и собирает `dist/calc.wasm`; при сборке tarawasm и компиляторы находятся в `.tarantool/bin` независимо от наличия `.env/activate.sh`. Параметр `incremental = true` пропускает сборку, если исходники, WIT и SDK lock компонента не изменились с последней сборки; после установки нового компилятора `tt package build --rebuild` всё равно собирает компонент. См. [Инкрементальные сборки](../concepts/packages.md#incremental-builds). Lua-компонент проекта с `path = "."` по умолчанию включает все `*.so` внутри каталога: для исключения указывается `exclude = ["calc/"]`.
+`tarawasm all` заново генерирует bindings и собирает `dist/calc.wasm`; сборка
+находит tarawasm и компиляторы в `.tarantool/bin` как с `.env/activate.sh`, так
+и без него. `incremental = true` пропускает сборку, пока исходники, WIT и локфайл
+SDK компонента остаются теми же, что и при прошлой сборке; после смены
+компилятора `tt package build --rebuild` пересобирает компонент в любом случае.
+См. [Инкрементальные сборки](../concepts/packages.md#incremental-builds).
+Lua-компонент проекта с `path = "."` по умолчанию забирает все лежащие ниже
+`*.so`: укажите для него `exclude = ["calc/"]`.
 
-SDK компонента задаётся в его `tarawasm.tarantool.lock.json` и должен соответствовать релизу, объявленному пакетом: компонент собирается по WIT своего SDK, а модуль предоставляет собственный WIT. `tt package build` предупреждает о компоненте на другом SDK, а `tt wasm prepare` отказывается продолжать.
+SDK компонента зафиксирован в его `tarawasm.tarantool.lock.json` и должен
+соответствовать релизу, объявленному в пакете: компонент собирается под WIT
+своего SDK, а модуль отдаёт собственный WIT. `tt wasm prepare` отклоняет
+компонент на другом SDK, а `tt wasm status` перечисляет такие расхождения в
+списке причин, мешающих сборке проекта; `tt package build` ничего о них не
+сообщает.
 
 ## Написание компонента {#write-it}
 
-Параметр `--template` создаёт компонент Python на основе примера: `call` соответствует примеру ниже, `http` - серверу из материала [HTTP API в компоненте WebAssembly](../write-your-app/http-api-in-wasm.md). Затем `tt wasm new` выводит Lua-модуль для работы с компонентом.
+Флаг `--template` создаёт компонент Python по образцу: `call` соответствует
+примеру ниже, `http` - серверу из руководства
+[HTTP API в компоненте WebAssembly](../write-your-app/http-api-in-wasm.md);
+затем `tt wasm new` выводит Lua-модуль, использующий компонент.
 
 ```console
 $ tt wasm new calc --lang python --template call
 ```
 
-Без шаблона экспорт добавляется в world файла `calc/wit/app.wit`, который создаёт tarawasm:
+Без шаблона добавьте экспорт в world в файле `calc/wit/app.wit`, куда его
+записывает tarawasm:
 
 ```wit
 package example:app@0.1.0;
@@ -128,7 +177,7 @@ world calc {
 }
 ```
 
-Реализация записывается в `calc/main.py` после кода инициализации, созданного tarawasm:
+и реализуйте его в `calc/main.py` ниже инициализации, созданной tarawasm:
 
 ```python
 import twr_python_sdk
@@ -142,7 +191,8 @@ class WitWorld(wit_world.WitWorld):
         return a + b
 ```
 
-См. [руководство tarawasm](https://github.com/mandesero/tarawasm/blob/master/docs/tarantool.md) о других языках и API Tarantool для компонента.
+См. [руководство по tarawasm](https://github.com/mandesero/tarawasm/blob/master/docs/tarantool.md)
+для остальных языков и API Tarantool в компоненте.
 
 ## Сборка и вызов из Lua {#build-it-and-call-it-from-lua}
 
@@ -153,9 +203,14 @@ $ find .rocks -name wasm.so -o -name '*.wasm'
 .rocks/share/tarantool/myapp/dist/calc.wasm
 ```
 
-Компонент, который размещается в `.wasm`, должен быть бинарным файлом WebAssembly: любой другой формат приводит к ошибке сборки, а core module, который `require('wasm')` не загружает, размещается с предупреждением.
+Файл `.wasm` пакета - размещаемый компонентом или записываемый его сборкой в
+`share/` - обязан быть бинарным файлом WebAssembly: всё остальное приводит к
+ошибке сборки, а core module, который `require('wasm')` не загружает,
+раскладывается с предупреждением.
 
-Компонент становится файлом пакета в пространстве имён пакета. Его загружают по пути от каталога приложения - рабочего каталога инстансов - как в проекте, так и в установленной версии:
+Компонент - это файл пакета в пространстве имён пакета. Загружайте его по пути
+от каталога приложения (рабочего каталога инстансов) как в проекте, так и в
+установленной версии:
 
 ```lua
 local wasm = require('wasm')
@@ -176,13 +231,20 @@ $ tt run -e "local wasm = require('wasm') \
 42
 ```
 
-`os.exit()` завершает запуск: без него Tarantool продолжает читать скрипт из стандартного ввода или открывает консоль в терминале.
+`os.exit()` завершает выполнение: без него Tarantool продолжит читать скрипт из
+стандартного ввода или откроет консоль в терминале.
 
-Модуль хранит скомпилированные компоненты в `~/.cache/wasmtime` пользователя, от имени которого запущен Tarantool, и продолжает работу без кэша, если не может туда записать.
+Модуль держит скомпилированные компоненты в `~/.cache/wasmtime` пользователя, от
+имени которого запущен Tarantool, и продолжает работу без кэша, если не может
+туда писать.
 
 ## Проверка проекта {#check-the-project}
 
-`tt wasm status` показывает, что подготовила команда `tt wasm prepare` и что нужно для сборки, ничего не меняя: rock `wasm` и его сборку для этой машины, tarawasm, каждый компонент и указанный им SDK, а также наборы инструментов. При отсутствии чего-либо команда завершается с ошибкой, как и проверка в CI:
+`tt wasm status` показывает, что подготовила команда `tt wasm prepare` и что
+требуется для сборки, ничего не изменяя: rock `wasm` и его сборку для этой
+машины, tarawasm, каждый компонент с зафиксированным в нём SDK и наборы
+инструментов. При любых недостающих компонентах или инструментах команда
+завершается с ошибкой, как при проверке в CI:
 
 ```console
 $ tt wasm status
@@ -197,7 +259,8 @@ ready
 
 ## Упаковка {#pack-it}
 
-Упаковка с зависимостями используется по умолчанию: архив содержит модуль для платформы, на которой он собран, и компонент.
+Упаковка с зависимостями выполняется по умолчанию: архив содержит модуль для
+платформы, на которой собран пакет, и сам компонент.
 
 ```console
 $ tt package pack
@@ -206,20 +269,26 @@ $ tt package install _build/pack/myapp-1.0.0-linux-amd64.tt --scope user --yes
 installed myapp 1.0.0 into user scope
 ```
 
-Архив без зависимостей, созданный с `--without-deps`, получает имя `-any.tt`, если у пакета нет собственных нативных файлов: при установке он загружает с rock-сервера rock `wasm` той машины, на которую устанавливается, проверяя его по lock архива.
+Архив, упакованный с `--without-deps`, получает суффикс `-any.tt`, если у пакета
+нет собственных нативных файлов: при установке он скачивает rock `wasm` для
+машины, куда устанавливается, с rock-сервера, сверяя его по локфайлу архива.
 
 ## Публикация rock {#share-the-rock}
 
-Индекс tarantool-contrib/rocks-repo раздаёт rock для каждой платформы. Так же может и собственный rock-сервер: `tt wasm rock` упаковывает rocks всех сборок релиза вместе с индексом, который превращает каталог в rock-сервер:
+Rock-индекс tarantool-contrib/rocks-repo раздаёт rock для каждой платформы.
+Собственный rock-сервер делает то же самое: `tt wasm rock` упаковывает rock
+каждой сборки релиза вместе с индексом, превращающим каталог в rock-сервер:
 
 ```console
 $ tt wasm rock --out dist/rocks
 .../dist/rocks/wasm-0.1.0-1.linux-x86_64.rock
 .../dist/rocks/wasm-0.1.0-1.macosx-aarch64.rock
 .../dist/rocks/manifest
+.../dist/rocks/tt-rocks-index.json
 ```
 
-Каталог можно публиковать как есть или загрузить файлы рядом с ресурсами релиза, а затем объявить зависимость из этого источника:
+Раздавайте этот каталог или загрузите его файлы рядом с ассетами релиза и
+объявите зависимость оттуда:
 
 ```console
 $ tt wasm prepare --rock-server https://github.com/tarantool/tarantool-wasm-rs/releases/download/v0.1.0/
@@ -227,7 +296,9 @@ $ tt wasm prepare --rock-server https://github.com/tarantool/tarantool-wasm-rs/r
   rock:       from https://github.com/tarantool/tarantool-wasm-rs/releases/download/v0.1.0/
 ```
 
-Объявляется любая версия, которую раздаёт сервер, известен tt этот релиз или нет. Локальная сборка модуля упаковывается только для этой машины - в `.tarantool/registry`, rock-сервер внутри проекта, - и объявляется оттуда:
+Объявляется любая версия, которую раздаёт сервер, независимо от того, знает ли
+tt этот релиз. Локальная сборка модуля упаковывается только для этой машины - в
+`.tarantool/registry`, rock-сервер внутри проекта, - и объявляется оттуда:
 
 ```console
 $ tt wasm prepare --from target/release/libtarantool_wasm_rs.so
@@ -237,7 +308,9 @@ declared wasm 0.1.0 from .tarantool/registry
 ...
 ```
 
-Этот реестр есть только на этой машине: после checkout нужно снова запустить `tt wasm prepare --from`, а для установки в другом месте - упаковать пакет вместе с зависимостями.
+Этот реестр существует только на текущей машине: после checkout запустите
+`tt wasm prepare --from` заново, а для установки на другой машине упакуйте пакет
+вместе с зависимостями.
 
 ## Команды и параметры {#commands-and-options}
 
@@ -245,14 +318,28 @@ declared wasm 0.1.0 from .tarantool/registry
 | --- | --- |
 | `tt wasm prepare` | rock `wasm`, tarawasm, наборы инструментов и SDK компонентов |
 | `tt wasm new NAME --lang L` | компонент |
-| `tt wasm status` | недостающие для сборки элементы, без изменений; ошибка при отсутствии любого из них |
+| `tt wasm status` | чего не хватает для сборки, без изменений; ошибка при отсутствии любого элемента |
 | `tt wasm rock --out DIR` | rocks всех платформ релиза для rock-сервера |
 
-- `--version` команд `prepare` и `rock` выбирает релиз tarantool-wasm: для `prepare` - любой, который раздаёт rock-сервер, для `prepare --from` и `rock` - известный tt; их список выводит `tt wasm prepare --help`.
-- `--rock-server URL` команды `prepare` объявляет rock с этого rock-сервера, по умолчанию - с индекса tarantool-contrib/rocks-repo.
-- `--from FILE` команды `prepare` упаковывает локальную сборку модуля в `.tarantool/registry` и объявляет rock оттуда; команды `rock` - упаковывает её в `--out` как rock для `--arch`.
-- `--python` команды `prepare` задаёт Python для установки tarawasm, `--tarawasm` - версию tarawasm для установки через pip вместо закреплённой tt, `--no-tarawasm` исключает его установку, `--reinstall` устанавливает заново.
-- `--lang` команды `prepare` также устанавливает набор инструментов `python`, `go`, `js`, `rust`, `c` или `csharp`; для `new` параметр обязателен.
-- `--dir` команды `new` задаёт каталог компонента, `--world` - имя его WIT world (по умолчанию имя компонента), а `--template` - `http` или `call` для Python.
+- `--version` у `prepare` и `rock` выбирает релиз tarantool-wasm: любой,
+  раздаваемый rock-сервером, для `prepare`, либо известный tt для
+  `prepare --from` и `rock`; список известных выводит `tt wasm prepare --help`.
+- `--rock-server URL` у `prepare` объявляет rock с указанного rock-сервера
+  (по умолчанию - rock-индекс tarantool-contrib/rocks-repo).
+- `--from FILE` у `prepare` упаковывает локальную сборку модуля в
+  `.tarantool/registry` и объявляет rock оттуда; у `rock` - упаковывает её в
+  `--out` как rock для `--arch`.
+- `--python` у `prepare` задаёт Python для установки tarawasm, `--tarawasm` - то,
+  что pip ставит вместо зафиксированного в tt tarawasm, `--no-tarawasm`
+  пропускает его установку, `--reinstall` переустанавливает заново.
+- `--lang` у `prepare` попутно разворачивает набор инструментов для `python`,
+  `go`, `js`, `rust`, `c` или `csharp`; для `new` он обязателен.
+- `--dir` у `new` задаёт каталог компонента, `--world` - имя его WIT world
+  (по умолчанию совпадает с именем компонента), а `--template` - `http` или
+  `call` для Python.
 
-Загрузки кэшируются в каталоге кэша пользователя: в Linux это `~/.cache/tt/wasm`. Переменная `TT_WASM_RELEASES` задаёт JSON-файл с релизами, используемыми вместо известных tt, и `base_url` их ресурсов: это зеркало для сети без доступа к интернету. Формат описан в разделе [Переменные окружения](../reference/environment.md#webassembly-components).
+Загруженные файлы кэшируются в каталоге кэша пользователя, на Linux это
+`~/.cache/tt/wasm`. `TT_WASM_RELEASES` задаёт JSON-файл с релизами, которые tt
+использует вместо встроенных, вместе с `base_url` для их ассетов: это зеркало
+для сетей без доступа к интернету; его формат описан в разделе
+[Переменные окружения](../reference/environment.md#webassembly-components).
