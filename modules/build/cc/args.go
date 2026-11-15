@@ -115,15 +115,18 @@ func objectName(source string) string {
 // initialArgsCap pre-sizes the argument slices to avoid early regrows.
 const initialArgsCap = 16
 
-// defaultCFLAGS is the optimization a build compiles a source with when the
-// flags of its language in the environment, CFLAGS or CXXFLAGS, are unset,
-// as LuaRocks does.
-const defaultCFLAGS = "-O2"
+// defaultCFLAGS are the flags a build compiles a source with when the flags
+// of its language in the environment, CFLAGS or CXXFLAGS, are unset: the
+// optimization of LuaRocks, and the debug information, as the cmake backend
+// builds RelWithDebInfo and autoconf defaults to -g -O2, so that a module
+// that crashes Tarantool has a backtrace. tt package pack --debuginfo strip
+// takes it out of what is shipped.
+var defaultCFLAGS = []string{"-O2", "-g"}
 
 // compileFlags are the flags a source of the language lang is compiled
 // with, of a build for goos:
 //
-//	[-O2 unless CFLAGS is set] -fPIC <cflags...> <$CFLAGS...> \
+//	[-O2 -g unless CFLAGS is set] -fPIC <cflags...> <$CFLAGS...> \
 //	    -I<Tarantool incdir> -D<define...> -I<incdir...>
 //
 // for C and assembler, and the same with cxxflags and CXXFLAGS for C++.
@@ -156,7 +159,7 @@ func compileFlags(config Config, tools toolchain, env envFlags, goos string,
 	args := make([]string, 0, initialArgsCap)
 
 	if !envSet {
-		args = append(args, defaultCFLAGS)
+		args = append(args, defaultCFLAGS...)
 	}
 
 	args = append(args, "-fPIC")

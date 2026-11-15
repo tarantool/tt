@@ -591,8 +591,8 @@ var errNoProgram = errors.New("the first word, the program, is empty")
 // lines take: CFLAGS, CXXFLAGS and LDFLAGS, split on blanks as make splits
 // them. The compiler reads none of them itself.
 type envFlags struct {
-	// cflagsSet reports that CFLAGS is set, if to nothing: tt's -O2 of the
-	// C sources is then left out, as autoconf leaves out its own -g -O2.
+	// cflagsSet reports that CFLAGS is set, if to nothing: tt's -O2 -g of
+	// the C sources is then left out, as autoconf leaves out its own -g -O2.
 	cflagsSet bool
 	cflags    []string
 	// cxxflagsSet is cflagsSet of CXXFLAGS and the C++ sources.
