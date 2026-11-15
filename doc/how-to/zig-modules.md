@@ -176,8 +176,9 @@ zig build -p _build/component/hello/zig-out --cache-dir _build/component/hello/z
 which installs into a prefix of the build's own, out of the sources, and
 keeps the cache of the project and the packages it fetches there too;
 `tt -V package build` shows the line, with absolute paths. `--pkg-dir` is
-given to zig 0.17 and later, and not when the `env` of the block sets
-`ZIG_LOCAL_PKG_DIR`, the directory of the packages zig takes then: `env =
+given to zig 0.17 and later, and not when `ZIG_LOCAL_PKG_DIR` is set,
+the directory of the packages zig takes then, whether it is exported where
+tt runs or set by the `env` of the block: `env =
 { ZIG_LOCAL_PKG_DIR = "/home/me/.cache/zig-pkg" }` shares one between
 projects. zig 0.16 keeps the packages in its global cache and is given
 none. tt takes the module from `lib/` of the prefix, `hello.so` or

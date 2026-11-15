@@ -380,19 +380,25 @@ func (b zigBuild) acceptsTarget(ctx context.Context, c *build.Context, dirs []st
 // dirArgs are the options of zig build that name the directories it keeps
 // what it fetches and caches in, all in the work directory of the build, out
 // of the sources: --cache-dir, and --pkg-dir for a zig that takes it
-// (pkgDirSince), unless the env of the build names a directory of the
-// packages of its own, ZIG_LOCAL_PKG_DIR. Without one, zig 0.17 fetches the
+// (pkgDirSince), unless the environment of the build - tt's, or the env of
+// the block - names a directory of the packages of its own,
+// ZIG_LOCAL_PKG_DIR. Without one, zig 0.17 fetches the
 // dependencies of build.zig.zon into zig-pkg/ beside it, which the layout
 // leaves out (Backend.Exclude).
 func dirArgs(ctx context.Context, c *build.Context) ([]string, error) {
 	args := append(make([]string, 0, 4), //nolint:mnd // Two options of a value each.
 		"--cache-dir", filepath.Join(c.Dirs.Work, cacheDir))
 
-	if c.Env[pkgDirEnv] != "" {
+	cmd := c.Command(ctx, zigTool, "version")
+
+	// The environment of a command of the build is tt's own with the block's
+	// env over it, so a ZIG_LOCAL_PKG_DIR the user exported counts as one
+	// the block sets.
+	if value, _ := build.LookupEnv(cmd.Env, pkgDirEnv); value != "" {
 		return args, nil
 	}
 
-	version, err := c.Output(c.Command(ctx, zigTool, "version"))
+	version, err := c.Output(cmd)
 	if err != nil {
 		return nil, err
 	}

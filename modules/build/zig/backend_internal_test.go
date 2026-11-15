@@ -456,6 +456,25 @@ func TestRunOfThePackageDirectory(t *testing.T) {
 	}
 }
 
+// TestRunOfAPackageDirectoryOfTheUser: a ZIG_LOCAL_PKG_DIR exported where tt
+// runs, not set by the block, is the user's too, and zig is given no
+// --pkg-dir over it. Not parallel: it sets a variable of the process.
+func TestRunOfAPackageDirectoryOfTheUser(t *testing.T) {
+	t.Setenv("ZIG_LOCAL_PKG_DIR", "/srv/zig-pkg")
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeZig(t, harness)
+
+	harness.Context.Env["FAKE_ZIG_VERSION"] = "0.17.1"
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
+		map[string]any{"module": "hello"}, false)))
+
+	args := readLines(t, log+".args")[1:]
+	assert.Contains(t, args, "--cache-dir")
+	assert.NotContains(t, args, "--pkg-dir")
+}
+
 // TestRunOfAnOptimizationMode: Debug, the mode of a zig build asked for
 // none, is no --release; the others are theirs.
 func TestRunOfAnOptimizationMode(t *testing.T) {

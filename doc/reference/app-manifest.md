@@ -542,7 +542,8 @@ zig build <steps>... -p _build/component/<component>/zig-out \
 
 `--pkg-dir`, where zig 0.17 keeps the packages it fetches for
 `build.zig.zon`, `zig-pkg/` beside it by default, is given to zig 0.17
-and later, unless the `env` of the block sets `ZIG_LOCAL_PKG_DIR`; zig
+and later, unless `ZIG_LOCAL_PKG_DIR` is set, exported where tt runs or
+by the `env` of the block; zig
 0.16 keeps them in its global cache and refuses the flag.
 
 `optimize` is given as `--release=safe`, `fast` or `small`, and `Debug` as
