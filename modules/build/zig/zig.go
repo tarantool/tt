@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/build"
@@ -44,7 +45,19 @@ const (
 	// cacheDir is the directory of the work directory of the build zig keeps
 	// its cache of the project in, its --cache-dir.
 	cacheDir = "zig-cache"
+	// pkgDir is the directory zig 0.17 and later fetch the dependencies of
+	// build.zig.zon into: by default zig-pkg/ beside build.zig.zon, in the
+	// sources; the build gives zig the one of its work directory instead,
+	// its --pkg-dir.
+	pkgDir = "zig-pkg"
+	// pkgDirEnv is the variable that names the directory of the packages
+	// for zig: a build whose env sets it is given no --pkg-dir.
+	pkgDirEnv = "ZIG_LOCAL_PKG_DIR"
 )
+
+// pkgDirSince is the first version of zig that keeps the packages it fetched
+// in a directory of the project and takes --pkg-dir: zig 0.16 refuses it.
+var pkgDirSince = [3]int{0, 17, 0}
 
 // DefaultOptimize is the optimization mode a build is made in when its block
 // names none.
@@ -110,8 +123,9 @@ func Backend() build.Backend {
 		OutputFrom:  build.OutputNone,
 		// The prefix zig build run by hand in the component installs into:
 		// what it holds is no file of the package, and the build takes what
-		// it built from the prefix of its own.
-		Exclude:        []string{"/" + prefixDir + "/"},
+		// it built from the prefix of its own. The packages zig build or zig
+		// fetch run by hand fetch into the component are none either.
+		Exclude:        []string{"/" + prefixDir + "/", "/" + pkgDir + "/"},
 		NoSourceLayout: false,
 		Hook:           false,
 	}
@@ -285,10 +299,17 @@ func (b zigBuild) Inputs(ctx context.Context, c *build.Context) ([]string, error
 }
 
 // Run runs zig build in the working directory, installing into
-// <work>/zig-out, then copies the module from its lib/ (see copyModule) and
-// the program from its bin/ (see copyProgram), as the block asks for them.
+// <work>/zig-out, keeping its cache in <work>/zig-cache and, for zig 0.17 and
+// later, the packages it fetches in <work>/zig-pkg (see dirArgs), then copies
+// the module from its lib/ (see copyModule) and the program from its bin/
+// (see copyProgram), as the block asks for them.
 func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(ctx, c)
+	if err != nil {
+		return err
+	}
+
+	dirs, err := dirArgs(ctx, c)
 	if err != nil {
 		return err
 	}
@@ -296,7 +317,7 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	target := ""
 
 	if b.wantsMusl(c.Target) {
-		accepts, err := b.acceptsTarget(ctx, c)
+		accepts, err := b.acceptsTarget(ctx, c, dirs)
 		if err != nil {
 			return err
 		}
@@ -306,7 +327,7 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 		}
 	}
 
-	err = c.Run(c.Command(ctx, zigTool, b.args(c.Dirs.Work, target)...))
+	err = c.Run(c.Command(ctx, zigTool, b.args(c.Dirs.Work, dirs, target)...))
 	if err != nil {
 		return err
 	}
@@ -341,10 +362,14 @@ func (b zigBuild) wantsMusl(platform build.Target) bool {
 
 // acceptsTarget reports whether the build.zig takes -Dtarget, as
 // standardTargetOptions declares it: zig build refuses an option the
-// build.zig does not declare.
-func (b zigBuild) acceptsTarget(ctx context.Context, c *build.Context) (bool, error) {
-	help, err := c.Output(c.Command(ctx, zigTool, "build", "--help",
-		"--cache-dir", filepath.Join(c.Dirs.Work, cacheDir)))
+// build.zig does not declare. dirs are the directories of zig of the build
+// (dirArgs): zig build --help runs the build.zig, and fetches its
+// dependencies first.
+func (b zigBuild) acceptsTarget(ctx context.Context, c *build.Context, dirs []string) (
+	bool, error,
+) {
+	help, err := c.Output(c.Command(ctx, zigTool, append([]string{"build", "--help"},
+		dirs...)...))
 	if err != nil {
 		return false, err
 	}
@@ -352,14 +377,72 @@ func (b zigBuild) acceptsTarget(ctx context.Context, c *build.Context) (bool, er
 	return strings.Contains(string(help), "-Dtarget="), nil
 }
 
+// dirArgs are the options of zig build that name the directories it keeps
+// what it fetches and caches in, all in the work directory of the build, out
+// of the sources: --cache-dir, and --pkg-dir for a zig that takes it
+// (pkgDirSince), unless the env of the build names a directory of the
+// packages of its own, ZIG_LOCAL_PKG_DIR. Without one, zig 0.17 fetches the
+// dependencies of build.zig.zon into zig-pkg/ beside it, which the layout
+// leaves out (Backend.Exclude).
+func dirArgs(ctx context.Context, c *build.Context) ([]string, error) {
+	args := append(make([]string, 0, 4), //nolint:mnd // Two options of a value each.
+		"--cache-dir", filepath.Join(c.Dirs.Work, cacheDir))
+
+	if c.Env[pkgDirEnv] != "" {
+		return args, nil
+	}
+
+	version, err := c.Output(c.Command(ctx, zigTool, "version"))
+	if err != nil {
+		return nil, err
+	}
+
+	if !takesPkgDir(strings.TrimSpace(string(version))) {
+		return args, nil
+	}
+
+	return append(args, "--pkg-dir", filepath.Join(c.Dirs.Work, pkgDir)), nil
+}
+
+// takesPkgDir reports whether zig of version takes --pkg-dir: it is not older
+// than pkgDirSince, a development version of that release being older. A
+// version tt cannot read is taken to be older.
+func takesPkgDir(version string) bool {
+	version, _, _ = strings.Cut(version, "+")
+
+	core, pre, _ := strings.Cut(version, "-")
+
+	parts := strings.Split(core, ".")
+	if len(parts) != len(pkgDirSince) {
+		return false
+	}
+
+	numbers := make([]int, 0, len(parts))
+
+	for _, part := range parts {
+		number, err := strconv.Atoi(part)
+		if err != nil || number < 0 {
+			return false
+		}
+
+		numbers = append(numbers, number)
+	}
+
+	if cmp := slices.Compare(numbers, pkgDirSince[:]); cmp != 0 {
+		return cmp > 0
+	}
+
+	return pre == ""
+}
+
 // args builds the zig build argv of a build whose work directory is work,
-// for the zig target triple target, or for the host when it is empty.
-func (b zigBuild) args(work, target string) []string {
+// with the options of its directories dirs (dirArgs), for the zig target
+// triple target, or for the host when it is empty.
+func (b zigBuild) args(work string, dirs []string, target string) []string {
 	args := append([]string{"build"}, b.config.Steps...)
 
-	args = append(args,
-		"-p", filepath.Join(work, prefixDir),
-		"--cache-dir", filepath.Join(work, cacheDir))
+	args = append(args, "-p", filepath.Join(work, prefixDir))
+	args = append(args, dirs...)
 
 	if mode := releaseModes[b.optimize()]; mode != "" {
 		args = append(args, "--release="+mode)
