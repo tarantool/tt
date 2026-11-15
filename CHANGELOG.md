@@ -259,7 +259,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   data files their builds make, whatever backend made them. The preflight,
   the inputs of an incremental build and a file check are given the context
   of the build, and a build whose method of one of them has another
-  signature, which tt would never call, fails the check of the manifest.
+  signature, which tt would never call, fails the check of the manifest. A
+  build that leaves a file of a type its backend does not produce - a
+  module of a backend of data files - fails with exit code 2, where the
+  file was installed and recorded as made.
 - The SDK gives a module the project it works on as tt package works on it,
   where only the core could: `Project().Root()`, the project the directory
   of the command is in, as the project commands of tt find it;

@@ -315,8 +315,9 @@ func (b builder) runBackends(
 }
 
 // runComponent runs the build of a component and returns what it made, by
-// type (runWritingBackend); recorded is what an earlier build of it made.
-// What it made is checked (checkMade). An incremental one is skipped when its
+// type (runWritingBackend); recorded is what an earlier build of it made,
+// of which only the types its backend produces are taken. What it made is
+// checked (checkMade). An incremental one is skipped when its
 // inputs are those of its last build and what that build left is still there
 // (see skipUnchanged), and then made what that build did; its build records
 // what it made and the files of the component the layout takes. Those, and
@@ -347,7 +348,10 @@ func (b builder) runComponent(
 		}
 	}
 
-	made, err := runWritingBackend(ctx, run, recorded.join(state.last.made()))
+	// What an earlier build made of a type the backend makes none of - one
+	// of another backend, say - is not taken as made: the stage drops it.
+	made, err := runWritingBackend(ctx, run,
+		recorded.join(state.last.made()).only(run.backend.Produces))
 	if err == nil {
 		err = checkMade(run, b.stage, made)
 	}

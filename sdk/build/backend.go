@@ -66,6 +66,10 @@ type Backend struct {
 	// Produces are the types of what the builds of the backend make, each
 	// once. A block that asks for another type is refused: a file of
 	// output whose to names it, a build that says it makes it ([Producer]).
+	// A build that makes another type all the same fails, with
+	// [ErrNotProduced]: what it left in the directory of that type, or the
+	// program it names ([ProgramNamer]); what an earlier build, of another
+	// backend say, left there is not taken as made, and leaves the package.
 	Produces []Result
 	// Config returns a fresh, empty configuration: a pointer to a struct
 	// whose fields are the fields of the build block the backend has, named
@@ -111,6 +115,12 @@ type Backend struct {
 // [Preflighter] wraps it, so that a missing tool is told from a build that
 // failed.
 var ErrNoTool = errors.New("build tool not found")
+
+// ErrNotProduced reports a build that made a file of a type its backend does
+// not produce ([Backend.Produces]): one it left in the directory of that type
+// ([Dirs.Of]), or a program it named ([ProgramNamer]). The core fails the
+// build with it, and buildtest the run of the build.
+var ErrNotProduced = errors.New("the build made what its backend does not produce")
 
 // Component is the component a build block builds.
 type Component struct {
@@ -198,7 +208,8 @@ type Build interface {
 	// for data, [Dirs.Programs] for a program - keeping what it may reuse
 	// next time in [Dirs.Work]. The core takes as made what Run left in
 	// these directories, by their types, and what output lists
-	// ([Backend.OutputFrom]).
+	// ([Backend.OutputFrom]); a file in the directory of a type the backend
+	// does not produce fails the build ([ErrNotProduced]).
 	Run(ctx context.Context, c *Context) error
 }
 
