@@ -220,11 +220,11 @@ components tarawasm builds; see
 | `incremental` | `make`, `shell`, `zig` | `true` skips the build when its inputs are those of the last one and what it left is still there |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
-| `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
+| `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `rpath`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
 | `cflags` | `c`, `lua-c` | flags of the compiles of the C and assembler sources, one per entry, after tt's own and before `CFLAGS` of the environment; see below |
 | `cxxflags` | `c`, `lua-c` | flags of the compiles of the C++ sources, one per entry, after tt's own and before `CXXFLAGS` of the environment |
 | `module` | `cargo` | builds the library of the package as the module of this name; a block with neither `module` nor `bin` builds the library under its own name |
-| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `cxxflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
+| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `rpath`, `defines`, `cflags`, `cxxflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
 | `static` | all | `true`: what the build makes needs nothing of the machine it is installed on, and the build checks it; see below |
 | `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the objects; see below |
@@ -473,7 +473,7 @@ otherwise:
 
 ```console
 $CXX -shared -Wl,-Bsymbolic-functions <ldflags> -o <module>.so <objects> \
-    -L<library_dirs> -Wl,-rpath,<library_dirs> -l<libraries> <$LDFLAGS>
+    -L<library_dirs> -l<libraries> -Wl,-rpath,<rpath> <$LDFLAGS>
 ```
 
 The flags of a compile are tt's, then the project's, then the user's:
@@ -511,8 +511,8 @@ $(LDLIBS)` has them, so that `-Wl,--as-needed` acts on the `-l` that follow;
 `LDFLAGS` of the environment ends the line. A list of `platforms.<os>` goes
 after the one of the build; `<os>` is `linux` or `darwin`, the OSes tt
 builds for, and another, `macos` say, is an error. On macOS `-shared` is
-`-bundle -undefined dynamic_lookup -all_load`, and no `-Wl,-rpath` and no
-`-Wl,-Bsymbolic-functions` are given.
+`-bundle -undefined dynamic_lookup -all_load`, and no
+`-Wl,-Bsymbolic-functions` is given.
 
 On Linux `-Wl,-Bsymbolic-functions` binds the calls of the module to the
 functions it defines itself. Without it the loader resolves a call to a
@@ -538,6 +538,18 @@ cannot be read, nothing is compared.
 ```text
    ⚠ .../lib/hashkit/fnv.so exports 2 symbols that the tarantool /opt/sdk/tarantool exports too: crc32, curl_easy_init; the loader resolves a name to one symbol, that of Tarantool, for the other modules, ffi, and the module itself where its calls are not bound to its own: make them static, or hidden (__attribute__((visibility("hidden"))) or -fvisibility=hidden)
 ```
+
+`library_dirs` is where the linker looks for `libraries`, not where the
+loader looks when Tarantool loads the module: a directory of the build
+machine means nothing on the machine the package is installed on. The
+loader looks where `rpath` says, each entry `-Wl,-rpath,<entry>`:
+`$ORIGIN`, or `${ORIGIN}`, is the directory of the module, so
+`rpath = ["$ORIGIN"]` finds a library installed beside the module, and is
+`@loader_path` on macOS. An absolute entry names a directory of the machine
+the module is installed on. An empty entry, a relative one - which the
+loader would resolve against the working directory of the process - and
+one with a comma are errors. `zig cc` building for the host adds an rpath
+of each directory of a shared library it links, as zig does.
 
 `CC` and `CXX` are split into words as a shell splits a command, with
 `'...'`, `"..."` and `\` and without expansions, so a compiler may be run

@@ -15,23 +15,23 @@ import (
 )
 
 // linuxToolchain is the toolchain of a build for linux, as toolchainOf
-// derives it there: -shared and an rpath for every library directory, so
-// that placement can be asserted without depending on the host OS.
+// derives it there: -shared and $ORIGIN, so that placement can be asserted
+// without depending on the host OS.
 func linuxToolchain() toolchain {
 	return toolchain{
-		cc: []string{"cc"}, cxx: []string{"c++"}, libFlag: []string{"-shared"}, rpath: true,
-		includeDir: "/tt/include",
+		cc: []string{"cc"}, cxx: []string{"c++"}, libFlag: []string{"-shared"},
+		origin: "$ORIGIN", includeDir: "/tt/include",
 	}
 }
 
 // darwinToolchain is the toolchain of a build for darwin: the -bundle flags
-// and no rpath.
+// and @loader_path.
 func darwinToolchain() toolchain {
 	return toolchain{
 		cc:         []string{"cc"},
 		cxx:        []string{"c++"},
 		libFlag:    []string{"-bundle", "-undefined", "dynamic_lookup", "-all_load"},
-		rpath:      false,
+		origin:     "@loader_path",
 		includeDir: "/tt/include",
 	}
 }
@@ -249,6 +249,7 @@ func sampleConfig() Config {
 		IncludeDirs: []string{"/inc/base"},
 		LibraryDirs: []string{"/lib/base"},
 		Libraries:   []string{"m", "z"},
+		Rpath:       []string{"$ORIGIN", "/opt/lib"},
 		Cflags:      []string{"-std=gnu99", "-Werror"},
 		Cxxflags:    []string{"-std=c++17", "-fno-rtti"},
 		Ldflags:     []string{"-Wl,--as-needed"},
@@ -258,6 +259,7 @@ func sampleConfig() Config {
 				IncludeDirs: []string{"/inc/lin"},
 				LibraryDirs: []string{"/lib/lin"},
 				Libraries:   []string{"linlib"},
+				Rpath:       []string{"${ORIGIN}/lin"},
 				Cflags:      []string{"-Wno-psabi"},
 				Cxxflags:    []string{"-Wno-class-memaccess"},
 				Ldflags:     []string{"-Wl,-z,defs"},
@@ -267,6 +269,7 @@ func sampleConfig() Config {
 				IncludeDirs: []string{"/inc/dar"},
 				LibraryDirs: []string{"/lib/dar"},
 				Libraries:   []string{"darlib"},
+				Rpath:       []string{"${ORIGIN}/dar"},
 				Cflags:      []string{"-Wno-deprecated-declarations"},
 				Cxxflags:    []string{"-stdlib=libc++"},
 				Ldflags:     []string{"-Wl,-dead_strip"},
@@ -279,7 +282,7 @@ func sampleConfig() Config {
 func moduleConfig(sources ...string) Config {
 	return Config{
 		Module: "m", Sources: sources, IncludeDirs: nil, Libraries: nil, LibraryDirs: nil,
-		Defines: nil, Cflags: nil, Cxxflags: nil, Ldflags: nil, Platforms: nil,
+		Rpath: nil, Defines: nil, Cflags: nil, Cxxflags: nil, Ldflags: nil, Platforms: nil,
 	}
 }
 
@@ -398,11 +401,13 @@ func TestLinkArgsLinuxPlacement(t *testing.T) {
 		"-o", "/out/mymod.so",
 		// objects, in the order of the sources.
 		"/w/a.o", "/w/b.o",
-		// library dirs with interleaved rpath, base then overlay.
-		"-L/lib/base", "-Wl,-rpath,/lib/base",
-		"-L/lib/lin", "-Wl,-rpath,/lib/lin",
+		// library dirs, no rpath of theirs, base then overlay.
+		"-L/lib/base",
+		"-L/lib/lin",
 		// libraries: base order preserved, then overlay.
 		"-lm", "-lz", "-llinlib",
+		// rpath, base then overlay, ${ORIGIN} as $ORIGIN.
+		"-Wl,-rpath,$ORIGIN", "-Wl,-rpath,/opt/lib", "-Wl,-rpath,$ORIGIN/lin",
 	}
 	assert.Equal(t, want, args)
 }
@@ -420,10 +425,11 @@ func TestLinkArgsDarwinPlacement(t *testing.T) {
 		"-Wl,--as-needed", "-Wl,-dead_strip",
 		"-o", "/out/mymod.dylib",
 		"/w/a.o", "/w/b.o",
-		// library dirs, no rpath on darwin, base then overlay.
 		"-L/lib/base",
 		"-L/lib/dar",
 		"-lm", "-lz", "-ldarlib",
+		// $ORIGIN is @loader_path on darwin.
+		"-Wl,-rpath,@loader_path", "-Wl,-rpath,/opt/lib", "-Wl,-rpath,@loader_path/dar",
 	}
 	assert.Equal(t, want, args)
 }
