@@ -298,7 +298,7 @@ func TestCompileFlagsLinux(t *testing.T) {
 		"-I/inc/base", "-I/inc/lin",
 	}
 
-	cflags := []string{"-O2", "-fPIC", "-std=gnu99", "-Werror", "-Wno-psabi"}
+	cflags := []string{"-O2", "-g", "-fPIC", "-std=gnu99", "-Werror", "-Wno-psabi"}
 
 	for _, lang := range []language{langC, langAsmCpp, langAsm} {
 		assert.Equal(t, concat(cflags, tail),
@@ -306,7 +306,8 @@ func TestCompileFlagsLinux(t *testing.T) {
 	}
 
 	assert.Equal(t,
-		concat([]string{"-O2", "-fPIC", "-std=c++17", "-fno-rtti", "-Wno-class-memaccess"}, tail),
+		concat([]string{"-O2", "-g", "-fPIC", "-std=c++17", "-fno-rtti", "-Wno-class-memaccess"},
+			tail),
 		compileFlags(sampleConfig(), linuxToolchain(), noEnvFlags(), "linux", langCXX))
 }
 
@@ -316,17 +317,19 @@ func TestCompileFlagsDarwin(t *testing.T) {
 	tail := []string{"-I/tt/include", "-DBASE=1", "-DDARWIN", "-I/inc/base", "-I/inc/dar"}
 
 	assert.Equal(t,
-		concat([]string{"-O2", "-fPIC", "-std=gnu99", "-Werror", "-Wno-deprecated-declarations"},
-			tail),
+		concat([]string{
+			"-O2", "-g", "-fPIC", "-std=gnu99", "-Werror", "-Wno-deprecated-declarations",
+		}, tail),
 		compileFlags(sampleConfig(), darwinToolchain(), noEnvFlags(), "darwin", langC))
 	assert.Equal(t,
-		concat([]string{"-O2", "-fPIC", "-std=c++17", "-fno-rtti", "-stdlib=libc++"}, tail),
+		concat([]string{"-O2", "-g", "-fPIC", "-std=c++17", "-fno-rtti", "-stdlib=libc++"}, tail),
 		compileFlags(sampleConfig(), darwinToolchain(), noEnvFlags(), "darwin", langCXX))
 }
 
 // TestCompileFlagsUserFlagsComeLast pins where the flags of the environment
 // go: CFLAGS after the project's cflags, CXXFLAGS after its cxxflags, so
-// that the user's win a conflict, each in place of tt's -O2 of its language.
+// that the user's win a conflict, each in place of tt's -O2 -g of its
+// language.
 func TestCompileFlagsUserFlagsComeLast(t *testing.T) {
 	t.Parallel()
 
@@ -347,13 +350,13 @@ func TestCompileFlagsUserFlagsComeLast(t *testing.T) {
 
 	assert.Equal(t, []string{"-fPIC", "-I/tt/include"},
 		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langC))
-	assert.Equal(t, []string{"-O2", "-fPIC", "-I/tt/include"},
+	assert.Equal(t, []string{"-O2", "-g", "-fPIC", "-I/tt/include"},
 		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langCXX))
 
 	env = noEnvFlags()
 	env.cxxflagsSet = true
 
-	assert.Equal(t, []string{"-O2", "-fPIC", "-I/tt/include"},
+	assert.Equal(t, []string{"-O2", "-g", "-fPIC", "-I/tt/include"},
 		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langC))
 	assert.Equal(t, []string{"-fPIC", "-I/tt/include"},
 		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langCXX))
@@ -368,7 +371,7 @@ func TestCompileFlagsWithoutIncludeDir(t *testing.T) {
 
 	tools.includeDir = ""
 
-	assert.Equal(t, []string{"-O2", "-fPIC"},
+	assert.Equal(t, []string{"-O2", "-g", "-fPIC"},
 		compileFlags(moduleConfig("m.c"), tools, noEnvFlags(), "linux", langC))
 }
 
@@ -520,12 +523,12 @@ func TestCompileStepArgs(t *testing.T) {
 
 	step := compileStep{
 		source: "src/a.c", lang: langC, object: "/w/obj/a.c.1.o",
-		compiler: []string{"ccache", "cc"}, flags: []string{"-O2", "-fPIC"},
+		compiler: []string{"ccache", "cc"}, flags: []string{"-O2", "-g", "-fPIC"},
 	}
 
 	assert.Equal(t, []string{
-		"ccache", "cc", "-O2", "-fPIC", "-MD", "-MF", "/w/obj/a.c.1.o.d", "-MQ", "/w/obj/a.c.1.o",
-		"-c", "src/a.c", "-o", "/w/obj/a.c.1.o.tmp",
+		"ccache", "cc", "-O2", "-g", "-fPIC", "-MD", "-MF", "/w/obj/a.c.1.o.d",
+		"-MQ", "/w/obj/a.c.1.o", "-c", "src/a.c", "-o", "/w/obj/a.c.1.o.tmp",
 	}, step.args("/w/obj/a.c.1.o.tmp"))
 }
 

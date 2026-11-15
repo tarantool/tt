@@ -451,7 +451,7 @@ func TestRunMixed(t *testing.T) {
 	assert.Equal(t, []string{
 		"fakec++ -fPIC -std=c++17 -g -I/tt/include/tarantool -MD -MF " + objB + ".d -MQ " +
 			objB + " -c sub/b.cpp -o " + objB + ".tmp",
-		"fakecc -O2 -fPIC -std=c11 -I/tt/include/tarantool -MD -MF " + objA + ".d -MQ " +
+		"fakecc -O2 -g -fPIC -std=c11 -I/tt/include/tarantool -MD -MF " + objA + ".d -MQ " +
 			objA + " -c a.c -o " + objA + ".tmp",
 		"fakec++ -shared -Wl,-Bsymbolic-functions -static-libstdc++ -Wl,--exclude-libs,ALL " +
 			"-o " + out + " " + objA + " " + objB,
@@ -466,7 +466,7 @@ func TestRunMixed(t *testing.T) {
 	require.Len(t, commands, 2)
 	assert.Equal(t, compileCommand{
 		Directory: facts.Dirs.Cwd,
-		Arguments: []string{"fakecc", "-O2", "-fPIC", "-std=c11", "-I/tt/include/tarantool",
+		Arguments: []string{"fakecc", "-O2", "-g", "-fPIC", "-std=c11", "-I/tt/include/tarantool",
 			"-MD", "-MF", objA + ".d", "-MQ", objA, "-c", "a.c", "-o", objA},
 		File:   "a.c",
 		Output: objA,
@@ -527,7 +527,7 @@ func TestRunFailedCompile(t *testing.T) {
 	err := harness.Run(t.Context(), bld)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "compiling a.c: exit status 1")
-	assert.Contains(t, err.Error(), "failingcc -O2 -fPIC")
+	assert.Contains(t, err.Error(), "failingcc -O2 -g -fPIC")
 	assert.Contains(t, err.Error(), "a.c: error: broken")
 
 	object := filepath.Join(harness.Context.Dirs.Work, "obj", objectName("a.c"))
