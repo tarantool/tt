@@ -217,16 +217,48 @@ func TestCheckStaticModuleGlibc(t *testing.T) {
 
 	requireModuleCC(t)
 
+	checkModuleGlibc(t, "cc", "m.c", "#include <stdlib.h>\n#include <string.h>\n"+
+		"long m(const char *s) { return strtol(s, 0, 10) + (long)strlen(s); }\n")
+}
+
+// TestCheckStaticModuleGlibcOfCxx: a module of C++ linked as the c and lua-c
+// backends link one with static = true on Linux, libstdc++ in it, passes
+// the check, and with a warning where that libstdc++ needs a newer glibc
+// than Tarantool: that of gcc 15 needs glibc 2.38, true of the system 2.34
+// on a host of glibc 2.43.
+func TestCheckStaticModuleGlibcOfCxx(t *testing.T) {
+	t.Parallel()
+
+	requireModuleCC(t)
+
+	_, err := exec.LookPath("c++")
+	if err != nil {
+		t.Skip("c++ not found in PATH")
+	}
+
+	checkModuleGlibc(t, "c++", "m.cpp", "#include <string>\n"+
+		"extern \"C\" long m(const char *s) { return std::stol(std::string(s)); }\n",
+		"-static-libstdc++", "-Wl,--exclude-libs,ALL")
+}
+
+// checkModuleGlibc links source, the file name of body, with compiler and
+// the given flags into a module and checks it as one of a build with
+// static = true, the true of the system standing for Tarantool: it passes,
+// with the warning of a newer glibc when it needs one.
+func checkModuleGlibc(t *testing.T, compiler, name, body string, flags ...string) {
+	t.Helper()
+
 	tarantool := hostProgram(t)
 	dir := t.TempDir()
 	module := filepath.Join(dir, "m.so")
-	src := filepath.Join(dir, "m.c")
+	src := filepath.Join(dir, name)
 
-	writeFile(t, src, "#include <stdlib.h>\n#include <string.h>\n"+
-		"long m(const char *s) { return strtol(s, 0, 10) + (long)strlen(s); }\n")
+	writeFile(t, src, body)
 
-	out, err := exec.CommandContext(t.Context(), "cc", "-shared", "-fPIC", "-o", module,
-		src).CombinedOutput()
+	args := append([]string{"-shared", "-fPIC"}, flags...)
+
+	out, err := exec.CommandContext(t.Context(), compiler,
+		append(args, "-o", module, src)...).CombinedOutput()
 	require.NoError(t, err, string(out))
 
 	moduleProg, err := native.InspectProgram(module)
