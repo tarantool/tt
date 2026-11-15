@@ -42,7 +42,7 @@ func testContract() contract {
 		pkg:         "pkg",
 		version:     "1.2.3",
 		target:      sdkbuild.Target{OS: "linux", Arch: "amd64"},
-		tarantool:   sdkbuild.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
+		tarantool:   sdkbuild.Tarantool{Prefix: "", IncludeDir: "", Version: "", Executable: ""},
 		hook:        false,
 	}
 }
@@ -130,6 +130,7 @@ func TestHookContract(t *testing.T) {
 	hook.hook = true
 	hook.tarantool = sdkbuild.Tarantool{
 		Prefix: "/opt/tarantool", IncludeDir: "/opt/tarantool/include/tarantool", Version: "",
+		Executable: "",
 	}
 
 	got := hook.environ()

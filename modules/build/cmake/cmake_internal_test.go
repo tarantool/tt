@@ -326,7 +326,9 @@ func answerHarness(t *testing.T) *buildtest.Harness {
 		"answer.c":       answerC,
 	})
 
-	harness.SetTarantool(build.Tarantool{Prefix: prefix, IncludeDir: includeDir, Version: ""})
+	harness.SetTarantool(build.Tarantool{
+		Prefix: prefix, IncludeDir: includeDir, Version: "", Executable: "",
+	})
 
 	return harness
 }

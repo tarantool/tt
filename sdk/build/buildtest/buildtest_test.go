@@ -418,7 +418,7 @@ func TestHarnessEnvironment(t *testing.T) {
 	harness.Context.Env["TT_VERSION"] = "1.2.3"
 	harness.SetTarantool(build.Tarantool{
 		Prefix: "/opt/tarantool", IncludeDir: "/opt/tarantool/include/tarantool",
-		Version: "3.4.0",
+		Version: "3.4.0", Executable: "",
 	})
 
 	require.NoError(t, harness.Run(t.Context(), versionBuild{seen: &seen}))
@@ -429,7 +429,9 @@ func TestHarnessEnvironment(t *testing.T) {
 	assert.Equal(t, "3.4.0", harness.Context.Tarantool.Version)
 
 	// A Tarantool tt knows no headers of: no TT_TARANTOOL_INCLUDE_DIR.
-	harness.SetTarantool(build.Tarantool{Prefix: "/opt/t", IncludeDir: "", Version: ""})
+	harness.SetTarantool(build.Tarantool{
+		Prefix: "/opt/t", IncludeDir: "", Version: "", Executable: "",
+	})
 
 	assert.Equal(t, "/opt/t", harness.Context.Env["TT_TARANTOOL_PREFIX"])
 	assert.NotContains(t, harness.Context.Env, "TT_TARANTOOL_INCLUDE_DIR")

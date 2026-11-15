@@ -11,6 +11,7 @@ import (
 
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 // treeManifest builds a module and a program with tree, a backend that
@@ -138,4 +139,21 @@ func TestTarantoolDirs(t *testing.T) {
 	gotPrefix, gotInclude = tarantoolDirs(rocks.TarantoolInfo{Executable: "/usr/bin/tarantool"})
 	assert.Empty(t, gotPrefix)
 	assert.Empty(t, gotInclude)
+}
+
+// TestBuilderTellsTheExecutable checks that a build is told the tarantool
+// tt found, with its prefix, headers and version.
+func TestBuilderTellsTheExecutable(t *testing.T) {
+	t.Parallel()
+
+	prefix := fakeTarantoolPrefix(t)
+	opts := Options{Tarantool: rocks.TarantoolInfo{
+		Executable: "/opt/bin/tarantool", Prefix: prefix, Version: "3.3.5",
+	}}
+
+	builder := newBuilder(opts, project{}, t.TempDir(), version.Version{})
+	assert.Equal(t, sdkbuild.Tarantool{
+		Prefix: prefix, IncludeDir: filepath.Join(prefix, "include", "tarantool"),
+		Version: "3.3.5", Executable: "/opt/bin/tarantool",
+	}, builder.tarantool)
 }

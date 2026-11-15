@@ -52,6 +52,7 @@ func newBuilder(opts Options, proj project, stage string, ver version.Version) b
 		target: sdkbuild.Target{OS: host.OS, Arch: host.Arch},
 		tarantool: sdkbuild.Tarantool{
 			Prefix: prefix, IncludeDir: includeDir, Version: opts.Tarantool.Version,
+			Executable: opts.Tarantool.Executable,
 		},
 		version: ver.SemVer,
 	}

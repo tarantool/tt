@@ -289,7 +289,7 @@ component and build.
 | `Component` | the component |
 | `Target` | the platform, as `GOOS` and `GOARCH` name it: always the machine tt runs on; `ModuleExt` is `.so`, or `.dylib` on darwin |
 | `Dirs` | the directories of the build, see below |
-| `Tarantool` | the Tarantool the component is built against: `Prefix`, `IncludeDir` (its C headers, `module.h` and `lua.h`), `Version`, each empty when tt does not know it |
+| `Tarantool` | the Tarantool the component is built against: `Prefix`, `IncludeDir` (its C headers, `module.h` and `lua.h`), `Version`, `Executable` (the `tarantool` tt found, to check what the build made, a module that loads say, never needed to build), each empty when tt does not know it |
 | `Env` | the `env` of the block and the `TT_*` variables of the build |
 | `Fresh` | set by `tt package build --rebuild`, and for a component whose block changed since its last build: drop what `Work` keeps and build from scratch |
 | `Locked` | set by `--locked`: a tool of the build must not move a version either; `LockedVersion` returns the version the lock pins a rock at |
