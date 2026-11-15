@@ -402,8 +402,42 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   what it would write. The content hash of a local module, and its copy in
   a bundle, leave `go.work` and `go.work.sum` out: the build does not read
   them.
+- C++ in `c` and `lua-c` builds: a source of `.cc`, `.cpp`, `.cxx` or `.c++`
+  is compiled with `CXX` of the environment, `c++` by default, with
+  `cxxflags` of the block (and of `platforms.<os>`) and `CXXFLAGS` of the
+  environment, and the module is linked with `CXX` when a source is C++. On
+  Linux a build with `static = true` links `libstdc++` into the module,
+  `-static-libstdc++ -Wl,--exclude-libs,ALL`, as Tarantool has it linked in;
+  without `static` the module needs the `libstdc++.so.6` of the machine, as
+  the static one of a new gcc needs a new glibc. `zig c++` links its own
+  `libc++` in anyway, and its link gets neither flag. On macOS
+  `static = true` allows `/usr/lib/libc++.1.dylib`, which Tarantool needs
+  itself. `CXX` and
+  `CXXFLAGS` in `env` of the block are refused, as `CC` and `CFLAGS` are.
+- `c` and `lua-c` builds compile only what changed: an object is compiled
+  again when its command line, the compiler, an environment variable the
+  compiler reads, its source or a header its last compile read changed, and
+  the module is linked again when an object or the link changed or the
+  module is gone; the cache is in `_build/component/<component>/`, and
+  `--rebuild` drops it. Every build writes
+  `_build/component/<component>/compile_commands.json` there too, for
+  clangd and other tools.
+- A `lua-c` build fails when its module exports no `luaopen_<name>`, the
+  function `require` calls, or needs functions of the Lua API by their C++
+  names - a C++ source that includes `lua.h` rather than `lua.hpp` - which
+  failed only when the module was loaded, with `undefined symbol`.
 
 ### Changed
+
+- A `c` or `lua-c` build compiles each source on its own into an object of
+  `_build/component/<component>/obj/`, as many at once as the machine has
+  CPUs, and links the objects into the module: `cflags` and `CFLAGS` reach
+  the C and assembler sources only, and no flag of the compilers reaches the
+  link, so a flag both need, `-pthread` or `-fsanitize=address`, goes into
+  `ldflags` too. `CC` and `CXX` are split into words as a shell splits them,
+  so `CC="ccache cc"` and `CC="zig cc"` work. A source that is not C, C++ or
+  assembler, a header or an archive say, is refused in `sources`, and so is
+  a source listed twice.
 
 - A build and a hook look the programs they run up in their own `PATH`
   only: `.tarantool/bin` of the project, then the `PATH` of the `env` of the

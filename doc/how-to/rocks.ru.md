@@ -210,22 +210,35 @@ $ tt run -e "local h = require('hashkit') print(h.VERSION, h.hash('a'), h.bucket
 Пока в репозитории нет коммитов, версия имеет вид `0.0.0-dev.0+dirty`; см.
 [Версионирование](#version-it).
 
-`tt -V package build` выводит командную строку компилятора перед её
-запуском:
+Сборка компилирует только то, что изменилось с прошлой сборки.
+`tt -V package build` сообщает об этом после двух команд, определяющих,
+каким компилятором является `cc`:
 
 ```console
-$ tt -V package build 2>&1 | grep running
-   · running cc -O2 -fPIC -std=gnu99 -Wall -Wextra -Werror -I/usr/include/tarantool -shared -Wl,--as-needed -o .../hashkit/_build/rock/default/lib/hashkit/fnv.so fnv.c dir=.../hashkit/hashkit
+$ tt -V package build 2>&1 | grep 'probing\|up to date'
+   · probing the compiler backend=lua-c command="cc -dumpmachine"
+   · probing the compiler backend=lua-c command="cc --version"
+   · fnv.c is up to date: .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o backend=lua-c
+   · .../hashkit/_build/rock/default/lib/hashkit/fnv.so is up to date backend=lua-c
 ```
 
 Сначала идут флаги самого tt, затем `cflags`, а после них `CFLAGS` из
 окружения, которые при конфликте имеют приоритет; установка переменной
-`CFLAGS`, даже в пустое значение, отменяет `-O2` от tt. Сборка для отладчика:
+`CFLAGS`, даже в пустое значение, отменяет `-O2` от tt. Другие флаги дают
+другой объектный файл, поэтому сборка для отладчика компилирует `fnv.c`
+заново в `_build/component/hashkit/obj/` и компонует модуль из него;
+`tt -V` выводит каждую команду перед её запуском:
 
 ```console
 $ CFLAGS='-O0 -g' tt -V package build 2>&1 | grep running
-   · running cc -fPIC -std=gnu99 -Wall -Wextra -Werror -O0 -g -I/usr/include/tarantool -shared -Wl,--as-needed -o .../hashkit/_build/rock/default/lib/hashkit/fnv.so fnv.c dir=.../hashkit/hashkit
+   · running cc -fPIC -std=gnu99 -Wall -Wextra -Werror -O0 -g -I/usr/include/tarantool -MD -MF .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o.d -MQ .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o -c fnv.c -o .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o.tmp backend=lua-c dir=.../hashkit/hashkit
+   · running cc -shared -Wl,--as-needed -o .../hashkit/_build/rock/default/lib/hashkit/fnv.so .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o dir=.../hashkit/hashkit
 ```
+
+Следующая сборка без `CFLAGS` снова компилирует его с `-O2`. Файл
+`_build/component/hashkit/compile_commands.json` содержит команду для каждого
+исходника для редактора кода; см.
+[справочник](../reference/app-manifest.md#componentsnamebuild).
 
 `tt test` собирает пакет и запускает luatest по каталогу `test/`; пути
 ограничивают набор тестов, их можно передать сколько угодно, а аргументы
@@ -1041,7 +1054,7 @@ Tarantool и таких предупреждений не получает.
 
 ```text
 ⨯ invalid manifest: components.hashkit.build.env.CFLAGS: does nothing on backend "lua-c": put the flags of the compiler into cflags; CFLAGS of the environment tt runs in comes after them
-⨯ invalid manifest: components.hashkit.build.env.CPPFLAGS: does nothing on backend "lua-c": put the macros into defines, the directories of headers into include_dirs and other flags of the preprocessor into cflags
+⨯ invalid manifest: components.hashkit.build.env.CPPFLAGS: does nothing on backend "lua-c": put the macros into defines, the directories of headers into include_dirs and other flags of the preprocessor into cflags and cxxflags
 ```
 
 Поле другого backend'а не действует на текущем, а операционной системой для

@@ -89,7 +89,7 @@ myapp/
 ├── _build/rock/<product>.json # какой компонент положил туда каждый файл (генерируется)
 ├── _build/results.json        # что собрал каждый компонент: модули, файлы данных, программы (генерируется)
 ├── _build/cache/              # хеши и артефакты предыдущих инкрементальных сборок (генерируется)
-├── _build/component/<component>/ # TT_BUILD_DIR каждого компонента: дерево сборки cmake (генерируется)
+├── _build/component/<component>/ # TT_BUILD_DIR каждого компонента: дерево сборки cmake, объектные файлы и кеш c и lua-c (генерируется)
 ├── _build/cargo/              # каталог target cargo-компонентов (генерируется)
 ├── _build/tt.lock             # блокировка проекта, которую сохраняет tt package clean (генерируется)
 ├── .env/                      # activate.sh, deactivate.sh (генерируется)

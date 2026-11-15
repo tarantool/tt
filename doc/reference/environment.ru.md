@@ -8,7 +8,7 @@
 | `TT_SYSTEM_ROOT` | корневой каталог системного scope вместо `/opt/tarantool`; абсолютный путь |
 | `XDG_DATA_HOME` | пользовательский scope располагается в `$XDG_DATA_HOME/tarantool`, если значение является абсолютным путём |
 | `TT_USE_SYSTEM_TARANTOOL` | любое значение, кроме пустого, `0` или `false`: проект запускается на `tarantool` из `PATH`, даже если в проекте установлен свой; на установленные приложения не влияет |
-| `TT_CLI_TARANTOOL_PREFIX` | префикс каталога с заголовочными файлами Tarantool, под которые собираются rock-модули с частью на C; задаётся в `.env/activate.sh` |
+| `TT_CLI_TARANTOOL_PREFIX` | префикс каталога с заголовочными файлами Tarantool, `<prefix>/include/tarantool`, под которые собираются rock'и с частью на C и компоненты `c` и `lua-c`, вместо тех, которые tt находит рядом с `tarantool` ([Заголовки для rock'ов с частью на C](../how-to/binaries.md#headers-for-rocks-with-a-c-part)); задаётся в `.env/activate.sh` |
 | `TT_PROJECT_DIR` | каталог проекта; задаётся в `.env/activate.sh` |
 | `TT_CLI_EE_USERNAME`, `TT_CLI_EE_PASSWORD` | учётные данные customer-zone для Enterprise, TCM и SDK, если не передан флаг `--credentials-file` |
 | `CMAKE_POLICY_VERSION_MINIMUM` | версия политик, с которой CMake 4 конфигурирует проект для более старого CMake; tt устанавливает её в `3.5` для `cmake` и `make`, собирающих Tarantool из исходников, и для собираемых им rock-модулей, если только переменная не задана (включая пустое значение) |

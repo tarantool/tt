@@ -23,6 +23,7 @@ commentf
 configcartridgecustom
 connpool
 containsf
+CPLUS
 debugf
 demoter
 desynchronize
@@ -39,6 +40,8 @@ falsef
 finalizer*
 fixnum
 flightrec
+flto
+fsanitize
 getfixturevalue
 GKTTBACKUPTEST
 goconst
@@ -51,6 +54,8 @@ inprogress
 iproto
 ispytest
 itest
+lauxlib
+LDLIBS
 leaderuuid
 linecomment
 lsns
@@ -119,6 +124,7 @@ sslcertfile
 sslciphers
 sslkeyfile
 stateboard
+Statei
 svacer
 synchro
 sysdetect
@@ -153,6 +159,8 @@ vshard
 vylog
 wals
 warnf
+Werror
+Wextra
 xcall
 xdir
 xlog*

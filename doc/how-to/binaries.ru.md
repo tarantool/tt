@@ -39,7 +39,7 @@ tt Enterprise - ссылку `tt`.
 создаёт `.env/activate.sh` и `.env/deactivate.sh`; существующие скрипты не
 перезаписываются. Командам управления инстансами проекта эти скрипты не
 нужны: они запускают Tarantool проекта сами. Не нужны они и сборке его
-компонентов: бэкенд сборки и хук находят программы из `.tarantool/bin` раньше,
+компонентов: backend сборки и hook находят программы из `.tarantool/bin` раньше,
 чем в `PATH`.
 
 Релизы Community ставятся из готовых бинарных файлов там, где они есть, -
@@ -166,13 +166,43 @@ $ tt binary search sdk
 не влияет на то, откуда берутся доступные версии. SDK отображается как
 активный, когда активны все его компоненты.
 
-## Заголовочные файлы для rock-модулей с частью на C {#headers-for-rocks-with-a-c-part}
+## Заголовки для rock'ов с частью на C {#headers-for-rocks-with-a-c-part}
 
-`tt rocks` и `tt package build` собирают rock-модуль с частью на C с
-заголовочными файлами того Tarantool, под которым они запущены:
-`.tarantool/include/tarantool` для Tarantool проекта,
-`TT_CLI_TARANTOOL_PREFIX` для внешнего Tarantool, а в остальных случаях - по
-префиксу каталога, куда был установлен Tarantool. Если Tarantool не найден,
-`tt package build`, `fetch` и `pack` собирают то, в чём нет части на C, а
-rock-модуль или компонент `c` или `lua-c` с такой частью завершается с
-ошибкой: заголовочных файлов нет.
+`tt rocks` и `tt package build`, `install` и `pack` собирают rock с
+частью на C и компонент `c` или `lua-c` с заголовочными файлами того
+Tarantool, под которым они работают, `<prefix>/include/tarantool`. Префиксом
+становится первое из следующего:
+
+1. `.tarantool` для Tarantool проекта, затем `TT_CLI_TARANTOOL_PREFIX`:
+   берутся как есть, независимо от наличия заголовков.
+2. Каталог исполняемого файла, содержащий `include/tarantool/module.h`:
+   сначала по его реальному пути (с разрешением символических ссылок),
+   затем по пути, по которому он был найден. В каждом случае сначала
+   проверяется каталог уровнем выше исполняемого файла
+   (`<prefix>/bin/tarantool`), затем сам каталог исполняемого файла
+   (Enterprise SDK или `<root>/versions/tarantool/tarantool_<version>/`
+   команды `tt binary install`). Исполняемый файл `tarantool`
+   пользовательского или системного scope, найденный в `PATH` как
+   `<root>/bin/tarantool`, получает заголовки своей версии, а если у неё их
+   нет - активные заголовки scope'а из его `<root>/include/tarantool`.
+3. `CMAKE_INSTALL_PREFIX`, о котором сообщает `tarantool --version`, затем
+   `/usr`, если там есть `include/tarantool/module.h`. Этот префикс указывает,
+   куда предполагалась установка сборки, где перемещённая или статическая
+   сборка не находится.
+
+Заголовки версии, отличной от версии `tarantool`, вызывают предупреждение с
+указанием обеих версий и каталога заголовков: модуль, собранный с ними, может
+не загрузиться.
+
+Если заголовки не найдены, то, что не содержит части на C, собирается как
+обычно, а компонент `c` или `lua-c` завершается с ошибкой до начала сборки с
+перечислением проверенных каталогов:
+
+```text
+   ⨯ building component "ipc": tarantool development headers not found: cannot compile c/lua-c component: none found for /opt/bin/tarantool, no module.h in /opt/include/tarantool, /opt/bin/include/tarantool, /tarantool/static-build/tarantool-prefix/include/tarantool, /usr/include/tarantool: set TT_CLI_TARANTOOL_PREFIX to the install prefix of Tarantool, the directory holding include/tarantool
+```
+
+Команда `tt rocks`, собирающая rock, добавляет то же самое к своей ошибке.
+Если Tarantool не найден вовсе, `tt package build`, `fetch` и `pack` собирают
+то, в чём нет части на C, а rock или компонент `c` или `lua-c` с такой частью
+завершается ошибкой из-за отсутствия заголовков.
