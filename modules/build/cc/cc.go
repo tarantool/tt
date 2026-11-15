@@ -315,6 +315,10 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 
 	run := newRunner(ctx, c, built)
 
+	if b.name == LuaCName {
+		run.required = requireName(c.Component.Namespace, b.config.Module)
+	}
+
 	err = compileAll(ctx, built.steps, maxJobs(), run.compile)
 	if err != nil {
 		return err
@@ -334,13 +338,16 @@ type runner struct {
 	// its command line.
 	identities map[string]string
 	hashes     *fileHashes
+	// required is the name require loads the module by, of lua-c, whose
+	// module is checked once it is linked (checkLuaModule); empty for c.
+	required string
 }
 
 // newRunner returns the runner of built in c, its compilers probed once.
 func newRunner(ctx context.Context, c *build.Context, built plan) runner {
 	run := runner{
 		c: c, built: built, environ: c.Command(ctx, built.linker[0]).Env,
-		identities: map[string]string{}, hashes: newFileHashes(),
+		identities: map[string]string{}, hashes: newFileHashes(), required: "",
 	}
 
 	for _, words := range built.compilers() {
@@ -425,7 +432,33 @@ func (r runner) link(ctx context.Context, libraries []string) error {
 		return err
 	}
 
+	// The record comes after the check: a module that fails it is linked,
+	// and checked, again by the next build.
+	if r.required != "" {
+		err = r.checkLuaModule(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	return recordLink(work, out, key)
+}
+
+// checkLuaModule checks the module of lua-c just linked (checkLuaModule). A
+// file that is neither ELF nor Mach-O, or that cannot be read, is not
+// checked: the check is to tell why a module would not load, not to fail a
+// build of a toolchain it does not know.
+func (r runner) checkLuaModule(ctx context.Context) error {
+	out := r.built.out
+
+	symbols, err := readSymbols(out)
+	if err != nil {
+		logger(r.c).DebugContext(ctx, "the entry point of "+out+" is not checked: "+err.Error())
+
+		return nil //nolint:nilerr // A module the check cannot read is not checked.
+	}
+
+	return checkLuaModule(out, r.required, symbols)
 }
 
 // logger is the logger of the build of c, one that discards for a Context

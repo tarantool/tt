@@ -4,6 +4,8 @@ package cc
 
 import (
 	"debug/elf"
+	"debug/macho"
+	"encoding/binary"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -92,7 +94,7 @@ func TestCcCompilesMultiSource(t *testing.T) {
 		"part_b.c": "int a(void);\nint b(void) { return a() + 1; }\n",
 	})
 
-	hostBuild(t, harness, LuaC(),
+	hostBuild(t, harness, C(),
 		map[string]any{"module": "parts", "sources": []any{"part_a.c", "part_b.c"}}, "parts")
 }
 
@@ -447,4 +449,179 @@ func TestCacheWithTheCompiler(t *testing.T) {
 	assert.True(t, linked, "a source dropped")
 	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Work, "obj", objectName("b.c")))
 	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Work, "obj", objectName("a.c")))
+}
+
+// TestLuaCChecksTheModule checks the check of a lua-c module with the
+// compilers of the host: a C++ source that includes lua.h fails the build
+// with the hint of lua.hpp, a module of another name than its entry point
+// fails with the name it wants, and one of a namespace wants the entry
+// point of <namespace>.<module>.
+func TestLuaCChecksTheModule(t *testing.T) {
+	t.Parallel()
+
+	includeDir, _ := requireHostHeaders(t)
+	requireCXX(t)
+
+	cxx := hostHarness(t, includeDir, map[string]string{
+		"plain.cpp": "#include <lua.h>\n#include <lauxlib.h>\n\n" +
+			"extern \"C\" int luaopen_plain(lua_State *L) {\n" +
+			"\tluaL_checkstack(L, 1, \"no room\");\n\tlua_pushinteger(L, 1);\n\treturn 1;\n}\n",
+	})
+
+	bld, err := buildtest.Validate(LuaC(), flatComponent(),
+		block(map[string]any{"module": "plain", "sources": []any{"plain.cpp"}}, nil))
+	require.NoError(t, err)
+
+	err = cxx.Run(t.Context(), bld)
+	require.ErrorIs(t, err, errCxxLuaAPI)
+	assert.Contains(t, err.Error(), "_Z15luaL_checkstackP9lua_StateiPKc")
+	assert.Contains(t, err.Error(), "<lua.hpp>")
+
+	// The record of the link is written after the check: the build fails
+	// again rather than taking the module for up to date.
+	require.ErrorIs(t, cxx.Run(t.Context(), bld), errCxxLuaAPI)
+
+	wrong := hostHarness(t, includeDir, map[string]string{"fast_hash.c": fastHashC})
+
+	bld, err = buildtest.Validate(LuaC(), flatComponent(),
+		block(map[string]any{"module": "fast", "sources": []any{"fast_hash.c"}}, nil))
+	require.NoError(t, err)
+
+	err = wrong.Run(t.Context(), bld)
+	require.ErrorIs(t, err, errNoEntry)
+	assert.Contains(t, err.Error(), `exports no luaopen_fast, the function require("fast")`)
+
+	// The same block is a c build, which Tarantool loads by its functions.
+	bld, err = buildtest.Validate(C(), flatComponent(),
+		block(map[string]any{"module": "fast", "sources": []any{"fast_hash.c"}}, nil))
+	require.NoError(t, err)
+	require.NoError(t, wrong.Run(t.Context(), bld))
+
+	namespaced := buildtest.New(t, LuaC(), component())
+
+	namespaced.SetTarantool(build.Tarantool{
+		Prefix: filepath.Dir(filepath.Dir(includeDir)), IncludeDir: includeDir, Version: "",
+	})
+	writeFile(t, namespaced, "hash.c", strings.ReplaceAll(fastHashC, "luaopen_fast_hash",
+		"luaopen_demo_hash"))
+
+	bld, err = buildtest.Validate(LuaC(), component(),
+		block(map[string]any{"module": "hash", "sources": []any{"hash.c"}}, nil))
+	require.NoError(t, err)
+	require.NoError(t, namespaced.Run(t.Context(), bld), "require('demo.hash')")
+}
+
+// TestReadSymbolsOfMachO reads the symbols of Mach-O modules zig links for
+// macOS, thin and universal, and checks them as a lua-c module is checked:
+// the Mach-O half of the check, on a host of another OS.
+func TestReadSymbolsOfMachO(t *testing.T) {
+	t.Parallel()
+
+	_, err := exec.LookPath("zig")
+	if err != nil {
+		t.Skipf("zig not found in PATH: %v", err)
+	}
+
+	dir := t.TempDir()
+	source := filepath.Join(dir, "m.c")
+
+	// cxx_api is the C++ name of luaL_checkstack, which a C++ source that
+	// includes lua.h needs; Mach-O names a symbol of C with a leading _.
+	require.NoError(t, os.WriteFile(source, []byte(
+		"extern int cxx_api(void) __asm__(\"__Z15luaL_checkstackP9lua_StateiPKc\");\n"+
+			"int lua_settop(void *, int);\n"+
+			"int luaopen_m(void *L) { return lua_settop(L, 0) + cxx_api(); }\n"), 0o600))
+
+	thin := map[string]string{}
+
+	for _, arch := range []string{"x86_64", "aarch64"} {
+		out := filepath.Join(dir, arch+".dylib")
+
+		// zig keeps what it builds for a target in its global cache, so
+		// the test takes long once.
+		printed, err := exec.CommandContext(t.Context(), "zig", "cc", "-target", arch+"-macos",
+			"-shared", "-Wl,-undefined,dynamic_lookup", "-o", out, source).CombinedOutput()
+		require.NoError(t, err, string(printed))
+
+		thin[arch] = out
+	}
+
+	symbols, err := readSymbols(thin["x86_64"])
+	require.NoError(t, err)
+	require.Len(t, symbols, 1)
+	assert.Contains(t, symbols[0].defined, "luaopen_m")
+	assert.Contains(t, symbols[0].undefined, "lua_settop")
+	assert.Contains(t, symbols[0].undefined, "_Z15luaL_checkstackP9lua_StateiPKc")
+
+	err = checkLuaModule(thin["x86_64"], "m", symbols)
+	require.ErrorIs(t, err, errCxxLuaAPI)
+	require.NotErrorIs(t, err, errNoEntry)
+
+	fat := filepath.Join(dir, "fat.dylib")
+	writeFat(t, fat, thin["x86_64"], thin["aarch64"])
+
+	symbols, err = readSymbols(fat)
+	require.NoError(t, err)
+	require.Len(t, symbols, 2)
+	assert.NotEmpty(t, symbols[0].arch)
+	assert.NotEqual(t, symbols[0].arch, symbols[1].arch)
+
+	err = checkLuaModule(fat, "other", symbols)
+	require.ErrorIs(t, err, errNoEntry)
+	assert.Contains(t, err.Error(), fat+" ("+symbols[0].arch+")")
+}
+
+// writeFat writes into path the universal Mach-O file of the thin files of
+// slices, as lipo -create does: the fat header and its table of the slices,
+// big-endian, then each slice at an offset aligned to a page.
+func writeFat(t *testing.T, path string, slices ...string) {
+	t.Helper()
+
+	const (
+		fatMagic  = 0xcafebabe
+		pageAlign = 14 // 2^14, the page of arm64.
+	)
+
+	var header []byte
+
+	bodies := make([][]byte, 0, len(slices))
+	be32 := func(value uint32) {
+		header = binary.BigEndian.AppendUint32(header, value)
+	}
+
+	be32(fatMagic)
+	be32(uint32(len(slices))) //nolint:gosec // A few slices.
+
+	offset := uint32(1 << pageAlign)
+
+	for _, slice := range slices {
+		file, err := macho.Open(slice)
+		require.NoError(t, err)
+
+		cpu, sub := file.Cpu, file.SubCpu
+
+		require.NoError(t, file.Close())
+
+		body, err := os.ReadFile(slice)
+		require.NoError(t, err)
+
+		be32(uint32(cpu))
+		be32(sub)
+		be32(offset)
+		be32(uint32(len(body))) //nolint:gosec // A test module is small.
+		be32(pageAlign)
+
+		bodies = append(bodies, body)
+
+		offset += (uint32(len(body)) + 1<<pageAlign - 1) &^ (1<<pageAlign - 1) //nolint:gosec
+	}
+
+	data := header
+
+	for _, body := range bodies {
+		data = append(data, make([]byte, (1<<pageAlign-len(data)%(1<<pageAlign))%(1<<pageAlign))...)
+		data = append(data, body...)
+	}
+
+	require.NoError(t, os.WriteFile(path, data, 0o600))
 }
