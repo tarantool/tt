@@ -421,6 +421,11 @@ func runBuild(
 	proj := packageProject(opts.ProjectDir, man, productName)
 	stage := packageStage(opts.ProjectDir, productName)
 
+	// The preflight comes before the lock is gated, to fail before a hook
+	// and the resolution run: it reads the versions of a lock on disk that
+	// is fresh, and none of another.
+	proj.pinned = freshPins(opts.ProjectDir, man, productName)
+
 	err = newBuilder(opts, proj, adapter, stage, version.Version{}).preflight(ctx, components)
 	if err != nil {
 		return nil, err
@@ -510,8 +515,10 @@ type project struct {
 	// product is the product built.
 	product string
 	// pinned is the closure the lock of the build pins, which the backends
-	// read the versions of rocks from (sdkbuild.Context.LockedVersion);
-	// empty before the lock is gated.
+	// read the versions of rocks from (sdkbuild.Context.LockedVersion).
+	// Before the lock is gated, during the preflight, it is the closure of
+	// the lock on disk when that lock is fresh (freshPins), and empty
+	// otherwise.
 	pinned manifest.LockProduct
 }
 

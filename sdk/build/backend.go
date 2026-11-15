@@ -219,7 +219,12 @@ type Build interface {
 // built: a tool in PATH, a target the platform has. The core asks every
 // component it is about to build before it builds the first one, and
 // before the version of the package is known: the directories of the
-// Context may not exist yet, and TT_VERSION is empty. ctx is that of the
+// Context may not exist yet, and TT_VERSION is empty. It runs before the
+// lock is gated, too, so that it fails before a hook and the resolution
+// run: [Context.LockedVersion] answers from the lock on disk when that lock
+// is fresh, and pins nothing when it is stale or missing, which the build
+// resolves afterwards - under --locked such a lock fails the build, so
+// there the answer is exact. ctx is that of the
 // build: a command Preflight runs is made with it ([Context.Command]), so
 // that it stops when the build is cancelled.
 //

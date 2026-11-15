@@ -2,7 +2,9 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +15,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
@@ -83,6 +86,81 @@ func TestRun_pathDependencyOfUnknownBackend(t *testing.T) {
 		`no module of this tt provides backend "zig"`)
 	assert.False(t, exists(t, filepath.Join(app, buildDirName, pathDirName, "contrib",
 		stageDirName)))
+}
+
+// errProbed stops a build at the preflight of lockProbe.
+var errProbed = errors.New("probed")
+
+// lockProbe is a build whose preflight records what the lock pins the rock
+// wasm at, and stops the build.
+type lockProbe struct {
+	locked *[]string
+}
+
+func (p lockProbe) Preflight(_ context.Context, c *sdkbuild.Context) error {
+	version, ok := c.LockedVersion("wasm")
+	*p.locked = append(*p.locked, fmt.Sprintf("%s %t", version, ok))
+
+	return errProbed
+}
+
+func (lockProbe) Run(context.Context, *sdkbuild.Context) error { return nil }
+
+// TestRun_preflightReadsAFreshLock checks that a preflight, which runs before
+// the lock is gated, reads the versions of a lock on disk that is fresh,
+// and of none that is stale or missing.
+func TestRun_preflightReadsAFreshLock(t *testing.T) {
+	t.Parallel()
+
+	var locked []string
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("wasm", []sdkbuild.Backend{{
+		Name:     "probe",
+		Produces: []sdkbuild.Result{sdkbuild.Data},
+		Config:   func() any { return new(struct{}) },
+		New: func(any, sdkbuild.Component, sdkbuild.Common) (sdkbuild.Build, error) {
+			return lockProbe{locked: &locked}, nil
+		},
+	}}, nil))
+
+	source := manifestHead + "\n[dependencies]\nwasm = '0.1.0'\n\n" +
+		"[components.calc]\npath = 'calc'\n\n[components.calc.build]\nbackend = 'probe'\n"
+	dir := setupProject(t, source, map[string]string{"calc/main.py": ""})
+
+	man, _, err := manifest.ParseManifest([]byte(source))
+	require.NoError(t, err)
+
+	lock := &manifest.Lock{
+		LockVersion: manifest.LockVersion, ManifestVersion: "0.1", GeneratedBy: "tt test",
+		ManifestHash: man.Hash(),
+		Products: map[string]manifest.LockProduct{"default": {Dependencies: []manifest.LockDependency{
+			{Name: "wasm", Version: "0.1.0-1", Source: "registry"},
+		}}},
+	}
+
+	data, err := lock.Marshal()
+	require.NoError(t, err)
+	writeFile(t, filepath.Join(dir, lockFileName), string(data))
+
+	opts := dryOptions(dir)
+
+	opts.Backends = backends
+
+	// Fresh: the version the lock pins.
+	require.ErrorIs(t, Run(context.Background(), opts), errProbed)
+
+	// Stale: the manifest changed since; nothing is pinned yet.
+	writeFile(t, filepath.Join(dir, manifestFileName),
+		strings.Replace(source, "wasm = '0.1.0'", "wasm = '>=0.1.0'", 1))
+	require.ErrorIs(t, Run(context.Background(), opts), errProbed)
+
+	// Missing.
+	require.NoError(t, os.Remove(filepath.Join(dir, lockFileName)))
+	require.ErrorIs(t, Run(context.Background(), opts), errProbed)
+
+	assert.Equal(t, []string{"0.1.0-1 true", " false", " false"}, locked)
+	assert.NoFileExists(t, filepath.Join(dir, lockFileName))
 }
 
 // TestRun_preflightOfAModuleBackend checks that the build of a component of

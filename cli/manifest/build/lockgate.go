@@ -46,6 +46,36 @@ func loadLock(projectDir string) (*manifest.Lock, error) {
 	return lock, nil
 }
 
+// freshPins returns the closure of product and the dev closure the lock on
+// disk of the project in projectDir pins, when that lock is fresh for man
+// (resolve.IsStale): what a build will build against unless it resolves.
+// It resolves nothing and reports nothing: a lock that is missing, stale,
+// does not parse or holds no closure of product pins nothing here, and the
+// gate of the lock (gateLock) says what is wrong with it.
+func freshPins(projectDir string, man *manifest.Manifest, product string) manifest.LockProduct {
+	data, err := os.ReadFile(filepath.Join(projectDir, lockFileName))
+	if err != nil {
+		return manifest.LockProduct{}
+	}
+
+	lock, err := manifest.ParseLock(data)
+	if err != nil {
+		return manifest.LockProduct{}
+	}
+
+	stale, _, err := resolve.IsStale(projectDir, man, lock)
+	if err != nil || stale {
+		return manifest.LockProduct{}
+	}
+
+	closure, ok := lock.Products[product]
+	if !ok {
+		return manifest.LockProduct{}
+	}
+
+	return pinnedClosure(closure.Dependencies, lock.DevDependencies)
+}
+
 // gateLock resolves the lock per the --locked gate and reports whether the lock
 // was rewritten:
 //

@@ -216,7 +216,10 @@ func (c *Context) LookPath(name string) (string, error) {
 
 // LockedVersion returns the version of the rock the lock of the project
 // pins, and whether it pins one: for a tool whose version follows that of a
-// rock.
+// rock. The closure is that of the product built and the development one.
+// During [Preflighter.Preflight], before the build has gated its lock, it is
+// that of the lock on disk when the lock is fresh, and no rock is pinned
+// when the lock is stale or missing: the build will resolve it.
 func (c *Context) LockedVersion(rock string) (string, bool) {
 	return c.mustHost().LockedVersion(rock)
 }
