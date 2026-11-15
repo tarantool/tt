@@ -306,7 +306,13 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		}
 	}
 
-	built := planOf(b.config, tools, environFlags(b.lookupEnv), c)
+	env := environFlags(b.lookupEnv)
+	identities := identify(ctx, c, planOf(b.config, tools, env, c).compilers())
+
+	// The plan again, with the flags its compilers take.
+	probeReproducible(ctx, c, &tools, planOf(b.config, tools, env, c), identities)
+
+	built := planOf(b.config, tools, env, c)
 
 	err = writeCompileCommands(c.Dirs.Work, c.Dirs.Cwd, built.steps)
 	if err != nil {
@@ -318,7 +324,7 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	run := newRunner(ctx, c, built)
+	run := newRunner(ctx, c, built, identities)
 
 	if b.name == LuaCName {
 		run.required = requireName(c.Component.Namespace, b.config.Module)
@@ -356,19 +362,28 @@ type runner struct {
 	output *compilerOutput
 }
 
-// newRunner returns the runner of built in c, its compilers probed once.
-func newRunner(ctx context.Context, c *build.Context, built plan) runner {
-	run := runner{
+// newRunner returns the runner of built in c, whose compilers are of
+// identities (identify).
+func newRunner(ctx context.Context, c *build.Context, built plan,
+	identities map[string]string,
+) runner {
+	return runner{
 		c: c, built: built, environ: c.Command(ctx, built.linker[0]).Env,
-		identities: map[string]string{}, hashes: newFileHashes(), required: "",
+		identities: identities, hashes: newFileHashes(), required: "",
 		output: newCompilerOutput(),
 	}
+}
 
-	for _, words := range built.compilers() {
-		run.identities[commandLine(words)] = compilerIdentity(ctx, c, words)
+// identify returns the compilerIdentity of each of compilers, by its command
+// line, each probed once a build.
+func identify(ctx context.Context, c *build.Context, compilers [][]string) map[string]string {
+	identities := make(map[string]string, len(compilers))
+
+	for _, words := range compilers {
+		identities[commandLine(words)] = compilerIdentity(ctx, c, words)
 	}
 
-	return run
+	return identities
 }
 
 // compile compiles the object of step unless it is up to date, and records
@@ -531,6 +546,11 @@ type toolchain struct {
 	// build.Tarantool.IncludeDir: include/tarantool under its prefix, empty
 	// when module.h is not there.
 	includeDir string
+	// reproducible are the flags that keep the paths of the machine out of
+	// the objects (reproducibleFlags) the compiler of each language takes,
+	// langC of C and assembler, langCXX of C++, probed (probeReproducible);
+	// none before they are.
+	reproducible map[language][]string
 }
 
 // toolchainOf returns the toolchain of the build of c, CC and CXX read with
@@ -539,7 +559,7 @@ type toolchain struct {
 func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchain, error) {
 	tools := toolchain{
 		cc: []string{"cc"}, cxx: []string{cxxName}, libFlag: []string{"-shared"}, rpath: true,
-		includeDir: "",
+		includeDir: "", reproducible: nil,
 	}
 
 	for _, compiler := range []struct {

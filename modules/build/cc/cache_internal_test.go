@@ -361,9 +361,10 @@ func TestCache(t *testing.T) {
 	sources, linked = rebuild(t, harness, bld)
 	assert.Empty(t, sources, "nothing changed")
 	assert.False(t, linked, "nothing changed")
-	// Three compiles and a link, and the two probes of each of the two
-	// compilers in each build.
-	assert.Len(t, allCalls(t, harness), 3+1+2*2+2*2, "the compilers are probed each build")
+	// Three compiles and a link, the two probes of each of the two
+	// compilers in each build, and the probes of the two reproducible flags
+	// of each in the first build alone, which keeps the answers.
+	assert.Len(t, allCalls(t, harness), 3+1+2*2+2*2+2*2, "the compilers are probed each build")
 
 	// The module of a build up to date is touched, so that the core takes
 	// it as made.

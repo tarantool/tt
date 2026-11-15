@@ -126,10 +126,15 @@ var defaultCFLAGS = []string{"-O2", "-g"}
 // compileFlags are the flags a source of the language lang is compiled
 // with, of a build for goos:
 //
-//	[-O2 -g unless CFLAGS is set] -fPIC <cflags...> <$CFLAGS...> \
-//	    -I<Tarantool incdir> -D<define...> -I<incdir...>
+//	[-O2 -g unless CFLAGS is set] -fPIC \
+//	    [-ffile-prefix-map=<project>=. -gno-record-gcc-switches] \
+//	    <cflags...> <$CFLAGS...> -I<Tarantool incdir> -D<define...> -I<incdir...>
 //
-// for C and assembler, and the same with cxxflags and CXXFLAGS for C++.
+// for C and assembler, and the same with cxxflags and CXXFLAGS for C++. The
+// flags that keep the paths of the machine out of the object are those the
+// compiler of the language takes (toolchain.reproducible), whatever CFLAGS
+// is, so that a module built from the same sources in another directory is
+// the same.
 //
 // The flags of the language come in three parts: tt's defaults, the
 // project's (cflags or cxxflags) and the user's (CFLAGS or CXXFLAGS of the
@@ -163,6 +168,7 @@ func compileFlags(config Config, tools toolchain, env envFlags, goos string,
 	}
 
 	args = append(args, "-fPIC")
+	args = append(args, tools.reproducibleOf(lang)...)
 	args = append(args, langFlags...)
 	args = append(args, envLang...)
 

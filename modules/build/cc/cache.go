@@ -519,12 +519,14 @@ func recordLink(work, out, key string) error {
 }
 
 // dropCache removes the cache of the build of work: the objects and their
-// records, and the record of the link. The core empties the work directory
-// of a build from scratch itself; a build told Fresh drops what it keeps
-// all the same, so that nothing of an earlier build is reused whoever runs
-// it.
+// records, the record of the link and that of the flags probed. The core
+// empties the work directory of a build from scratch itself; a build told
+// Fresh drops what it keeps all the same, so that nothing of an earlier
+// build is reused whoever runs it.
 func dropCache(work string) error {
-	for _, path := range []string{objectDir(work), filepath.Join(work, linkRecordFile)} {
+	for _, path := range []string{
+		objectDir(work), filepath.Join(work, linkRecordFile), filepath.Join(work, probeFile),
+	} {
 		err := os.RemoveAll(path)
 		if err != nil {
 			return fmt.Errorf("removing %s: %w", path, err)
