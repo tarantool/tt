@@ -3,7 +3,10 @@ skip = 'go.sum, **/go.sum, **/third_party, tarantool-*, mage, **/zones_gen.go'
 # Keep API names, GOST, WIT (the WebAssembly interface language), the crash-test
 # fixture, the accepted spelling "unparseable" and the time zone abbreviations
 # ECT and IST. zones_gen.go is the list of abbreviations of Tarantool.
-ignore-words-list = ["atleast", "crasher", "ect", "fo", "gost", "ist", "unparseable", "wit"]
+# UpToDate, commandIn and goIn are Go names; "templat" is the misspelt field
+# the build backend how-to shows the error of.
+ignore-words-list = ["atleast", "commandin", "crasher", "ect", "fo", "goin", "gost", "ist", "templat",
+  "unparseable", "uptodate", "wit"]
 count = false
 quiet-level = 3
 
