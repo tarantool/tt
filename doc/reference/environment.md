@@ -8,7 +8,7 @@
 | `TT_SYSTEM_ROOT` | the root of the system scope instead of `/opt/tarantool`; an absolute path |
 | `XDG_DATA_HOME` | the user scope is `$XDG_DATA_HOME/tarantool` when it is an absolute path |
 | `TT_USE_SYSTEM_TARANTOOL` | any value but empty, `0` or `false`: a project runs on the `tarantool` on `PATH` even when it has its own; installed applications are not affected |
-| `TT_CLI_TARANTOOL_PREFIX` | the prefix of the Tarantool headers, `<prefix>/include/tarantool`, that rocks with a C part and `c` and `lua-c` components are built against, instead of the ones tt finds beside the `tarantool` ([Headers for rocks with a C part](../how-to/binaries.md#headers-for-rocks-with-a-c-part)); `.env/activate.sh` sets it |
+| `TT_CLI_TARANTOOL_PREFIX` | the prefix of the Tarantool headers, `<prefix>/include/tarantool`, that rocks with a C part and `c` and `lua-c` components are built against, instead of the ones tt finds beside the `tarantool`, or of its version in its `CMAKE_INSTALL_PREFIX` or `/usr`; taken whatever version they are of, a warning when it is not the version of the `tarantool` ([Headers for rocks with a C part](../how-to/binaries.md#headers-for-rocks-with-a-c-part)); `.env/activate.sh` sets it |
 | `TT_PROJECT_DIR` | set by `.env/activate.sh` to the project directory |
 | `TT_CLI_EE_USERNAME`, `TT_CLI_EE_PASSWORD` | the customer-zone credentials for Enterprise, TCM and the SDK, when `--credentials-file` is not given |
 | `CMAKE_POLICY_VERSION_MINIMUM` | the policy version CMake 4 configures a project of an older CMake with; tt sets it to `3.5` for the `cmake` and `make` that build Tarantool from source and for the rocks it builds, unless it is set, the empty value included |

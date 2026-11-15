@@ -178,20 +178,24 @@ of:
    `<root>/bin/tarantool` gets the headers of its own version, and the
    active ones of `<root>/include/tarantool` when its version has none.
 3. The `CMAKE_INSTALL_PREFIX` that `tarantool --version` reports, then
-   `/usr`, when its `include/tarantool/module.h` is there. That prefix is
-   where the build was to be installed, which a relocated or static build
-   is not.
+   `/usr`, when its `include/tarantool/module.h` is there and of the
+   version of the `tarantool`, major.minor.patch. That prefix is where the
+   build was to be installed, which a relocated or static build is not,
+   and `/usr` may hold the headers of another Tarantool, installed from
+   the packages of the system: headers of another version there are not
+   taken.
 
-Headers of another version than the `tarantool` are a warning, naming both
-versions and the directory of the headers: a module built against them may
-not load.
+Headers of another version than the `tarantool` taken from 1 or 2 are a
+warning, naming both versions and the directory of the headers: a module
+built against them may not load.
 
 With no headers found, what has no C part builds all the same, and a `c`
 or `lua-c` component fails before anything is built, listing the
-directories it looked into:
+directories it looked into, and why the headers of another version it
+found were not taken:
 
 ```text
-   ⨯ building component "ipc": tarantool development headers not found: cannot compile c/lua-c component: none found for /opt/bin/tarantool, no module.h in /opt/include/tarantool, /opt/bin/include/tarantool, /tarantool/static-build/tarantool-prefix/include/tarantool, /usr/include/tarantool: set TT_CLI_TARANTOOL_PREFIX to the install prefix of Tarantool, the directory holding include/tarantool
+   ⨯ building component "ipc": tarantool development headers not found: cannot compile c/lua-c component: none found for /opt/bin/tarantool, no module.h in /opt/include/tarantool, /opt/bin/include/tarantool, /tarantool/static-build/tarantool-prefix/include/tarantool; /usr/include/tarantool: headers of 3.9.0-0-g6c3e9c0, the tarantool is 3.8.1-0-ge643f88a5e0c: set TT_CLI_TARANTOOL_PREFIX to the install prefix of Tarantool, the directory holding include/tarantool
 ```
 
 A `tt rocks` command that builds a rock adds the same to its error. With no

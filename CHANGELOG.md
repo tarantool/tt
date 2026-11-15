@@ -741,14 +741,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `CMAKE_INSTALL_PREFIX` of `tarantool --version`, where the build was to
   be installed, `/usr` for the SDK and the static build, so that a `c` or
   `lua-c` component compiled with `-I/usr/include/tarantool` and failed on
-  `lua.h: No such file or directory`. That prefix is now taken only when it
-  has `include/tarantool/module.h`, `TT_CLI_TARANTOOL_PREFIX` and the
-  `.tarantool` of the project still come first, and all of these commands
-  resolve the prefix by the same rule. With no headers found, a `c` or
-  `lua-c` component fails before anything is built, naming the directories
-  tt looked into and `TT_CLI_TARANTOOL_PREFIX`, and so does a `tt rocks`
-  build of a rock; headers of another version than the `tarantool` are a
-  warning.
+  `lua.h: No such file or directory`. That prefix, and `/usr` after it, are
+  now taken only when they have `include/tarantool/module.h` of the version
+  of the `tarantool`, major.minor.patch - `/usr` may hold the headers of
+  another Tarantool, installed from the packages of the system -
+  `TT_CLI_TARANTOOL_PREFIX` and the `.tarantool` of the project still come
+  first, and all of these commands resolve the prefix by the same rule.
+  With no headers found, a `c` or `lua-c` component fails before anything
+  is built, naming the directories tt looked into, why the headers of
+  another version it found were not taken, and `TT_CLI_TARANTOOL_PREFIX`,
+  and so does a `tt rocks` build of a rock; headers of another version than
+  the `tarantool` found beside it or named are a warning.
 - A `zig` component built with zig 0.17 no longer puts the packages zig
   fetches for its `build.zig.zon` into the package: zig 0.17 fetches them
   into `zig-pkg/` beside `build.zig.zon`, and the files of zig-tarantool,
