@@ -387,7 +387,7 @@ func TestRunCopiesTheBinary(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(facts.Dirs.Programs, "agent"))
 	require.NoError(t, err)
 	assert.Equal(t, "bin\n", string(data))
-	assert.NoFileExists(t, filepath.Join(facts.Dirs.Output, "agent"))
+	assert.NoFileExists(t, filepath.Join(facts.Dirs.Modules, "agent"))
 
 	assert.Equal(t, "compiling\n", harness.Printed(), "stdout is read, not shown")
 }
@@ -410,10 +410,10 @@ func TestRunCopiesTheLibraryAndTheBinary(t *testing.T) {
 
 		ext := facts.Target.ModuleExt()
 
-		assert.FileExists(t, filepath.Join(facts.Dirs.Output, "agent_mod"+ext))
+		assert.FileExists(t, filepath.Join(facts.Dirs.Modules, "agent_mod"+ext))
 		assert.FileExists(t, filepath.Join(facts.Dirs.Programs, "agent"))
 		assert.NoFileExists(t, filepath.Join(facts.Dirs.Programs, "agent_mod"+ext))
-		assert.NoFileExists(t, filepath.Join(facts.Dirs.Output, "agent"))
+		assert.NoFileExists(t, filepath.Join(facts.Dirs.Modules, "agent"))
 
 		runs := readLines(t, log+".runs")
 		require.Len(t, runs, 2)
@@ -455,13 +455,13 @@ func TestRunCopiesTheLibrary(t *testing.T) {
 
 	ext := facts.Target.ModuleExt()
 
-	data, err := os.ReadFile(filepath.Join(facts.Dirs.Output, "agent_lib"+ext))
+	data, err := os.ReadFile(filepath.Join(facts.Dirs.Modules, "agent_lib"+ext))
 	require.NoError(t, err)
 	assert.Equal(t, "lib\n", string(data))
 
 	require.NoError(t, harness.Run(t.Context(), validate(t, module(),
 		map[string]any{"module": "agent"}, false)))
-	assert.FileExists(t, filepath.Join(facts.Dirs.Output, "agent"+ext))
+	assert.FileExists(t, filepath.Join(facts.Dirs.Modules, "agent"+ext))
 }
 
 // TestRunKeepsTheTargetDirOfTheEnvironment: a target directory the
@@ -690,10 +690,10 @@ func TestBuildsAModuleAndABinary(t *testing.T) {
 	require.NoError(t, harness.Run(t.Context(), validate(t, both(),
 		map[string]any{"profile": "dev", "module": "agent_lib", "bin": "agent"}, false)))
 
-	library := filepath.Join(dirs.Output, "agent_lib"+ext)
+	library := filepath.Join(dirs.Modules, "agent_lib"+ext)
 	assert.FileExists(t, library)
 	assert.Equal(t, "agent", runProgram(t, filepath.Join(dirs.Programs, "agent")))
-	assert.NoFileExists(t, filepath.Join(dirs.Output, "agent"))
+	assert.NoFileExists(t, filepath.Join(dirs.Modules, "agent"))
 	assert.NoDirExists(t, filepath.Join(dirs.Component, "target"))
 	assert.Equal(t, "42", requireModule(t, library, "agent_lib"))
 }
@@ -703,7 +703,7 @@ func TestBuildsAModule(t *testing.T) {
 	requireCargo(t, "")
 
 	harness := crateHarness(t, module())
-	out := harness.Context.Dirs.Output
+	out := harness.Context.Dirs.Modules
 	ext := harness.Context.Target.ModuleExt()
 
 	// The module is named after the library cargo builds, agent_lib.
@@ -768,7 +768,7 @@ func TestBuildsInTheTargetDir(t *testing.T) {
 
 		file := filepath.Join(facts.Dirs.Programs, "agent")
 		if component.Wants == nil {
-			file = filepath.Join(facts.Dirs.Output, "agent_lib"+facts.Target.ModuleExt())
+			file = filepath.Join(facts.Dirs.Modules, "agent_lib"+facts.Target.ModuleExt())
 		}
 
 		for range 2 {

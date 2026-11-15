@@ -26,13 +26,12 @@ func (t Target) ModuleExt() string {
 }
 
 // Dirs are the directories of a build, all of them absolute. The core
-// creates Work, Output, Share and Programs before the build runs and takes
-// as made what the build leaves in Output, Share and Programs, each by its
+// creates Work, Modules, Share and Programs before the build runs and takes
+// as made what the build leaves in Modules, Share and Programs, each by its
 // type ([Result]) - a type its backend does not produce fails the build
 // ([ErrNotProduced]) - and anything else there that no build made is
-// removed. The
-// build of a hook has no Component, Work, Output, Share and Programs: they
-// are empty.
+// removed. The build of a hook has no Component, Work, Modules, Share and
+// Programs: they are empty.
 type Dirs struct {
 	// Project is the root of the project the component is of: the package,
 	// or a path dependency or a source rock being built.
@@ -46,10 +45,10 @@ type Dirs struct {
 	// between builds too, out of the sources: emptied when the build is
 	// Fresh.
 	Work string
-	// Output is where the build puts the modules it makes ([Module]): lib/
+	// Modules is where the build puts the modules it makes ([Module]): lib/
 	// of the stage of the package, under the namespace of the component,
 	// TT_OUTPUT_DIR.
-	Output string
+	Modules string
 	// Share is where the build puts the data files it makes ([Data]): what
 	// Tarantool reads as files rather than loads as modules, such as .wasm,
 	// under the namespace of the component, beside its Lua sources.
@@ -71,12 +70,12 @@ type Dirs struct {
 	Tree string
 }
 
-// Of returns the directory the results of the type result go to: Output,
+// Of returns the directory the results of the type result go to: Modules,
 // Share or Programs; empty for no type of [Results].
 func (d Dirs) Of(result Result) string {
 	switch result {
 	case Module:
-		return d.Output
+		return d.Modules
 	case Data:
 		return d.Share
 	case Program:
@@ -154,7 +153,7 @@ type Context struct {
 	Args []string
 	// Hook is set for the build of a lifecycle hook ([Backend.Hook]), which
 	// runs around the builds of all the components rather than for one:
-	// Component is the zero one, Dirs has no Component, Work, Output, Share
+	// Component is the zero one, Dirs has no Component, Work, Modules, Share
 	// and Programs, and Env has no TT_OUTPUT_DIR, TT_COMPONENT_NAME and
 	// TT_BUILD_DIR. The files output lists are not copied for a hook.
 	Hook bool

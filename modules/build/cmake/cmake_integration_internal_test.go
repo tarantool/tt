@@ -158,10 +158,10 @@ func TestCompilesAgainstTarantoolHeaders(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
-	assert.FileExists(t, filepath.Join(facts.Dirs.Output, "answer"+facts.Target.ModuleExt()))
+	assert.FileExists(t, filepath.Join(facts.Dirs.Modules, "answer"+facts.Target.ModuleExt()))
 
 	printed, err := exec.CommandContext(t.Context(), tarantool.executable,
-		filepath.Join(facts.Dirs.Cwd, "check.lua"), facts.Dirs.Output).CombinedOutput()
+		filepath.Join(facts.Dirs.Cwd, "check.lua"), facts.Dirs.Modules).CombinedOutput()
 	require.NoError(t, err, string(printed))
 	assert.Equal(t, "42", strings.TrimSpace(string(printed)))
 }

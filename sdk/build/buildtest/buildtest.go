@@ -194,7 +194,7 @@ type Harness struct {
 // package demo unless it names another, in directories of tb.TempDir():
 // <tmp>/project is the project, with the component at its Path in it (its
 // name when Path is empty), its .tarantool/bin and .rocks; <tmp>/work,
-// <tmp>/output, <tmp>/share, <tmp>/bin and <tmp>/state are the other
+// <tmp>/lib, <tmp>/share, <tmp>/bin and <tmp>/state are the other
 // directories of the build. All of them but the tree exist. The target is
 // the machine the test runs on, and no Tarantool is known
 // ([Harness.SetTarantool] tells one).
@@ -228,7 +228,7 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 		Component: filepath.Join(project, path),
 		Cwd:       filepath.Join(project, path),
 		Work:      filepath.Join(root, "work"),
-		Output:    filepath.Join(root, "output"),
+		Modules:   filepath.Join(root, "lib"),
 		Share:     filepath.Join(root, "share"),
 		Programs:  filepath.Join(root, "bin"),
 		State:     filepath.Join(root, "state"),
@@ -236,7 +236,7 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 		Tree:      filepath.Join(project, ".rocks"),
 	}
 
-	for _, dir := range []string{dirs.Component, dirs.Work, dirs.Output, dirs.Share,
+	for _, dir := range []string{dirs.Component, dirs.Work, dirs.Modules, dirs.Share,
 		dirs.Programs, dirs.State, dirs.Tools} {
 		err := os.MkdirAll(dir, dirPerm)
 		if err != nil {
@@ -252,7 +252,7 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 		Dirs:      dirs,
 		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
 		Env: map[string]string{
-			"TT_OUTPUT_DIR":     dirs.Output,
+			"TT_OUTPUT_DIR":     dirs.Modules,
 			"TT_PROJECT_ROOT":   dirs.Project,
 			"TT_PACKAGE":        component.Package,
 			"TT_COMPONENT_NAME": component.Name,
@@ -300,7 +300,7 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 		Component: "",
 		Cwd:       project,
 		Work:      "",
-		Output:    "",
+		Modules:   "",
 		Share:     "",
 		Programs:  "",
 		State:     filepath.Join(root, "state"),

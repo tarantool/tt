@@ -231,7 +231,7 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 	}
 
 	tools := toolchainOf(c, b.lookupEnv)
-	out := filepath.Join(c.Dirs.Output, b.config.Module+c.Target.ModuleExt())
+	out := filepath.Join(c.Dirs.Modules, b.config.Module+c.Target.ModuleExt())
 	args := ccArgs(b.config, tools, environFlags(b.lookupEnv), out, c.Target.OS)
 
 	return c.Run(c.Command(ctx, tools.cc, args...))

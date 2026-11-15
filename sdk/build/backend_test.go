@@ -38,9 +38,12 @@ func TestDirsOf(t *testing.T) {
 	t.Parallel()
 
 	//nolint:exhaustruct // Only the directories of the results matter.
-	dirs := build.Dirs{Output: "/stage/lib/app", Share: "/stage/lua/app", Programs: "/stage/bin"}
+	dirs := build.Dirs{Modules: "/stage/lib/app", Share: "/stage/lua/app", Programs: "/stage/bin"}
 
 	assert.Equal(t, []build.Result{build.Module, build.Data, build.Program}, build.Results())
+	// The values of the types never change: a Result is stored and compared
+	// as the string it is.
+	assert.Equal(t, []build.Result{"module", "data", "program"}, build.Results())
 	assert.Equal(t, "/stage/lib/app", dirs.Of(build.Module))
 	assert.Equal(t, "/stage/lua/app", dirs.Of(build.Data))
 	assert.Equal(t, "/stage/bin", dirs.Of(build.Program))

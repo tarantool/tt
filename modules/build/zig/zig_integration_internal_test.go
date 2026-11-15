@@ -196,7 +196,7 @@ func TestBuildsAModuleAndAProgram(t *testing.T) {
 	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
 		map[string]any{"module": "answer", "bin": "answer-cli"}, false)), harness.Printed())
 
-	module := filepath.Join(dirs.Output, "answer"+ext)
+	module := filepath.Join(dirs.Modules, "answer"+ext)
 	assert.FileExists(t, module)
 	assert.Equal(t, "answer 42", runProgram(t, filepath.Join(dirs.Programs, "answer-cli")))
 	assert.NoDirExists(t, filepath.Join(dirs.Component, "zig-out"))
@@ -343,7 +343,7 @@ func TestBuildsAModuleAndAProgramOfZigTarantool(t *testing.T) {
 	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
 		map[string]any{"module": "hello", "bin": "hello-client"}, false)), harness.Printed())
 
-	module := filepath.Join(dirs.Output, "hello"+ext)
+	module := filepath.Join(dirs.Modules, "hello"+ext)
 	program := filepath.Join(dirs.Programs, "hello-client")
 
 	assert.FileExists(t, module)
@@ -505,7 +505,7 @@ func TestBuildsAModuleOfAFetchedDependency(t *testing.T) {
 	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
 		map[string]any{"module": "hello"}, false)), harness.Printed())
 
-	module := filepath.Join(dirs.Output, "hello"+ext)
+	module := filepath.Join(dirs.Modules, "hello"+ext)
 	assert.FileExists(t, module)
 	assert.NoDirExists(t, filepath.Join(dirs.Component, "zig-pkg"))
 	assert.FileExists(t, filepath.Join(dirs.Work, "zig-pkg", hash, "build.zig.zon"))

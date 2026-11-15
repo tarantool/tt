@@ -163,7 +163,7 @@ func (b touchBuild) Run(ctx context.Context, facts *sdkbuild.Context) error {
 			continue
 		}
 
-		err = os.WriteFile(filepath.Join(facts.Dirs.Output, module), out, 0o600)
+		err = os.WriteFile(filepath.Join(facts.Dirs.Modules, module), out, 0o600)
 		if err != nil {
 			return err
 		}
@@ -306,7 +306,7 @@ func TestRun_moduleBackend(t *testing.T) {
 		Component: filepath.Join(dir, "fast"),
 		Cwd:       filepath.Join(dir, "fast"),
 		Work:      filepath.Join(dir, buildDirName, componentDirName, "fast"),
-		Output:    filepath.Join(stage, "lib", "my-app"),
+		Modules:   filepath.Join(stage, "lib", "my-app"),
 		Share:     filepath.Join(stage, "lua", "my-app"),
 		Programs:  filepath.Join(stage, "bin"),
 		State:     filepath.Join(dir, buildDirName),
@@ -317,7 +317,7 @@ func TestRun_moduleBackend(t *testing.T) {
 	assert.Equal(t, "/nonexistent", fast.Tarantool.Prefix)
 	assert.Equal(t, "fast", fast.Env["TT_COMPONENT_NAME"])
 	assert.Equal(t, "1.2.3", fast.Env["TT_VERSION"])
-	assert.Equal(t, fast.Dirs.Output, fast.Env["TT_OUTPUT_DIR"])
+	assert.Equal(t, fast.Dirs.Modules, fast.Env["TT_OUTPUT_DIR"])
 
 	// A component of kind = "executable" has the directories of any other,
 	// and is told to put its programs into TT_OUTPUT_DIR.
@@ -325,7 +325,7 @@ func TestRun_moduleBackend(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []sdkbuild.Result{sdkbuild.Program}, tool.Component.Wants)
 	assert.Equal(t, filepath.Join(stage, "bin"), tool.Dirs.Programs)
-	assert.Equal(t, filepath.Join(stage, "lib", "my-app"), tool.Dirs.Output)
+	assert.Equal(t, filepath.Join(stage, "lib", "my-app"), tool.Dirs.Modules)
 	assert.Equal(t, tool.Dirs.Programs, tool.Env["TT_OUTPUT_DIR"])
 
 	assert.Equal(t, 1, runs(t, dir, "fast"))
@@ -735,7 +735,7 @@ cwd = 'gen'
 		assert.Equal(t, sdkbuild.Component{}, facts.Component) //nolint:exhaustruct // None.
 		assert.Empty(t, facts.Dirs.Component)
 		assert.Empty(t, facts.Dirs.Work)
-		assert.Empty(t, facts.Dirs.Output)
+		assert.Empty(t, facts.Dirs.Modules)
 		assert.Empty(t, facts.Dirs.Share)
 		assert.Equal(t, dir, facts.Dirs.Project)
 		assert.NotContains(t, facts.Env, "TT_OUTPUT_DIR")

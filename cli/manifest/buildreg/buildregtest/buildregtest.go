@@ -347,7 +347,7 @@ func (b libBuild) Preflight(_ context.Context, c *build.Context) error {
 func (b libBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(ctx, c)
 	if err == nil {
-		err = copyHostProgram(filepath.Join(c.Dirs.Output, b.module+".so"))
+		err = copyHostProgram(filepath.Join(c.Dirs.Modules, b.module+".so"))
 	}
 
 	return err
@@ -444,7 +444,7 @@ func (b bothBuild) Programs() ([]string, bool) {
 // Run makes the module and the program, copies of a program of the host.
 func (b bothBuild) Run(_ context.Context, c *build.Context) error {
 	if b.module != "" {
-		err := copyHostProgram(filepath.Join(c.Dirs.Output, b.module+".so"))
+		err := copyHostProgram(filepath.Join(c.Dirs.Modules, b.module+".so"))
 		if err != nil {
 			return err
 		}

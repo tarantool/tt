@@ -31,8 +31,8 @@ const (
 // skipped build needs to be there.
 type incrementalRecord struct {
 	Inputs string `json:"inputs"`
-	// Written is what the build wrote into its output directory
-	// (sdkbuild.Dirs.Output), relative to it: the modules under its
+	// Written is what the build wrote into its modules directory
+	// (sdkbuild.Dirs.Modules), relative to it: the modules under its
 	// namespace.
 	Written []string `json:"written,omitempty"`
 	// Shared is what the build wrote into its share directory
