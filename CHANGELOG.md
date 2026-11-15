@@ -463,6 +463,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   them, where a function of the name of one Tarantool exports - Tarantool
   Enterprise exports 1373 symbols, `curl_easy_init` among them - got the one
   of Tarantool called, even from within the module.
+- Breaking: `library_dirs` of a `c` or `lua-c` build no longer adds an
+  rpath to the module. Each directory got `-Wl,-rpath,<dir>`, as LuaRocks
+  has it: an absolute one is a directory of the build machine, baked into a
+  module that is installed elsewhere, and a relative one was resolved
+  against the working directory of the process, not the module. The new
+  `rpath = [...]` (and `platforms.<os>.rpath`) lists the directories the
+  loader looks in, each `-Wl,-rpath,<entry>`: `$ORIGIN` (or `${ORIGIN}`) is
+  the directory of the module, `@loader_path` on macOS, and an absolute
+  entry names a directory of the machine the module is installed on. An
+  empty or relative entry, and one with a comma, is refused. A module that
+  found its libraries by the rpath of `library_dirs` lists the directory in
+  `rpath`. `zig cc` of the host still adds an rpath of each directory of a
+  shared library it links, as zig does.
 - A `c` or `lua-c` build compiles each source on its own into an object of
   `_build/component/<component>/obj/`, as many at once as the machine has
   CPUs, and links the objects into the module: `cflags` and `CFLAGS` reach

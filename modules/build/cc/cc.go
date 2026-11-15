@@ -102,9 +102,13 @@ type Config struct {
 	IncludeDirs []string `toml:"include_dirs"`
 	// Libraries are linked, -l, in their order.
 	Libraries []string `toml:"libraries"`
-	// LibraryDirs are where they are, -L, with an rpath where the toolchain
-	// has one.
+	// LibraryDirs are where they are, -L: where the linker looks, not where
+	// the loader does (Rpath).
 	LibraryDirs []string `toml:"library_dirs"`
+	// Rpath are the directories the loader looks for the libraries of the
+	// module in, -Wl,-rpath,<dir>, each absolute or under $ORIGIN, the
+	// directory of the module (rpathFlag).
+	Rpath []string `toml:"rpath"`
 	// Defines are the macros defined, -D.
 	Defines []string `toml:"defines"`
 	// Cflags are flags of the C compiler, of the C and assembler sources,
@@ -129,6 +133,7 @@ type Overlay struct {
 	IncludeDirs []string `toml:"include_dirs"`
 	Libraries   []string `toml:"libraries"`
 	LibraryDirs []string `toml:"library_dirs"`
+	Rpath       []string `toml:"rpath"`
 	Defines     []string `toml:"defines"`
 	Cflags      []string `toml:"cflags"`
 	Cxxflags    []string `toml:"cxxflags"`
@@ -165,6 +170,7 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 	flags := []flagList{
 		{"cflags", config.Cflags}, {"cxxflags", config.Cxxflags}, {"ldflags", config.Ldflags},
 	}
+	rpaths := []flagList{{"rpath", config.Rpath}}
 	oses := build.SupportedOS()
 
 	for _, goos := range slices.Sorted(maps.Keys(config.Platforms)) {
@@ -182,6 +188,7 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 			flagList{prefix + "cflags", overlay.Cflags},
 			flagList{prefix + "cxxflags", overlay.Cxxflags},
 			flagList{prefix + "ldflags", overlay.Ldflags})
+		rpaths = append(rpaths, flagList{prefix + "rpath", overlay.Rpath})
 	}
 
 	for _, list := range flags {
@@ -190,7 +197,82 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 		}
 	}
 
+	for _, list := range rpaths {
+		err = checkRpath(list)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return ccBuild{name: name, config: *config, lookupEnv: os.LookupEnv}, nil
+}
+
+// How the loaders name the directory of the module in an rpath: $ORIGIN of
+// Linux, which an entry of rpath writes as well on darwin, and @loader_path
+// of darwin.
+const (
+	originToken = "$ORIGIN"
+	loaderPath  = "@loader_path"
+)
+
+// originTokens are how an entry of rpath names the directory of the module:
+// $ORIGIN and ${ORIGIN}, as the loader of Linux spells it.
+var originTokens = []string{"${ORIGIN}", originToken}
+
+// checkRpath checks the entries of an rpath list: none is empty, each is an
+// absolute directory or one under $ORIGIN (originTokens), and none has a
+// comma, which would split -Wl,-rpath,<entry> into more arguments of the
+// linker. A relative directory is refused: the loader resolves it against
+// the working directory of the process that loads the module, not the
+// directory of the module, which $ORIGIN is.
+func checkRpath(list flagList) error {
+	for index, entry := range list.flags {
+		field := fmt.Sprintf("%s[%d]", list.name, index)
+
+		switch {
+		case entry == "":
+			return build.FieldErrorf(list.name, "must not contain an empty entry")
+		case strings.Contains(entry, ","):
+			return build.FieldErrorf(field, "%q has a comma, which -Wl,-rpath,<dir> "+
+				"would split", entry)
+		case !filepath.IsAbs(entry) && !originRelative(entry):
+			return build.FieldErrorf(field, "%q is relative, which the loader resolves "+
+				"against the working directory of the process: write $ORIGIN/%s for a "+
+				"directory beside the module, or an absolute one", entry, entry)
+		}
+	}
+
+	return nil
+}
+
+// originRelative reports whether the entry of rpath is $ORIGIN, or a path
+// under it.
+func originRelative(entry string) bool {
+	for _, token := range originTokens {
+		rest, ok := strings.CutPrefix(entry, token)
+		if ok && (rest == "" || rest[0] == '/') {
+			return true
+		}
+	}
+
+	return false
+}
+
+// rpathFlag is the flag of the link that has the loader look for the
+// libraries of the module in the directory entry of rpath: -Wl,-rpath,<entry>,
+// $ORIGIN made origin, the way the loader of the target names the directory
+// of the module (toolchain.origin). The argument reaches the linker as it
+// is, with no shell to expand $ORIGIN.
+func rpathFlag(entry, origin string) string {
+	for _, token := range originTokens {
+		if rest, ok := strings.CutPrefix(entry, token); ok {
+			entry = origin + rest
+
+			break
+		}
+	}
+
+	return "-Wl,-rpath," + entry
 }
 
 // checkSources checks that each of sources is of a language tt compiles
@@ -539,9 +621,9 @@ type toolchain struct {
 	// or -bundle -undefined dynamic_lookup -all_load on darwin, whose
 	// loader resolves the symbols of Tarantool when it loads the module.
 	libFlag []string
-	// rpath reports whether each -L<dir> is followed by -Wl,-rpath,<dir>:
-	// not on darwin.
-	rpath bool
+	// origin is how the loader of the target names the directory of the
+	// module in an rpath: $ORIGIN, @loader_path on darwin.
+	origin string
 	// includeDir is the directory of the headers of Tarantool,
 	// build.Tarantool.IncludeDir: include/tarantool under its prefix, empty
 	// when module.h is not there.
@@ -558,8 +640,8 @@ type toolchain struct {
 // is unset.
 func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchain, error) {
 	tools := toolchain{
-		cc: []string{"cc"}, cxx: []string{cxxName}, libFlag: []string{"-shared"}, rpath: true,
-		includeDir: "", reproducible: nil,
+		cc: []string{"cc"}, cxx: []string{cxxName}, libFlag: []string{"-shared"},
+		origin: originToken, includeDir: "", reproducible: nil,
 	}
 
 	for _, compiler := range []struct {
@@ -578,7 +660,7 @@ func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchai
 
 	if c.Target.OS == "darwin" {
 		tools.libFlag = []string{"-bundle", "-undefined", "dynamic_lookup", "-all_load"}
-		tools.rpath = false
+		tools.origin = loaderPath
 	}
 
 	tools.includeDir = c.Tarantool.IncludeDir

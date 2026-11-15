@@ -261,7 +261,7 @@ const cxxName = "c++"
 //	<LIBFLAG...> [-Wl,-Bsymbolic-functions] \
 //	    [-static-libstdc++ -Wl,--exclude-libs,ALL] <ldflags...> \
 //	    -o <out> <objects...> \
-//	    {-L<libdir> [-Wl,-rpath,<libdir> with an rpath]}... -l<lib...> <$LDFLAGS...>
+//	    -L<libdir...> -l<lib...> -Wl,-rpath,<rpath...> <$LDFLAGS...>
 //
 // The project's ldflags go before the objects, as make's
 // $(CC) $(LDFLAGS) -o out objs $(LDLIBS) has them, so that an option like
@@ -273,10 +273,14 @@ const cxxName = "c++"
 // them when symbolic is set (bindsLocally), and the static C++ library
 // (staticLibstdcxx) is linked when staticCXX is set (linksLibstdcxx).
 //
-// ldflags, library dirs and libraries come from config, each merged
+// ldflags, library dirs, libraries and rpath come from config, each merged
 // (append-only) with its overlay of platforms for goos; library order is
-// preserved because link order matters. Each -L is immediately followed by
-// its -Wl,-rpath, entry when the toolchain has rpaths.
+// preserved because link order matters. A directory of library_dirs is where
+// the linker looks, and no rpath: one of the build machine baked into a
+// module shipped elsewhere names a directory that is not there, and a
+// relative one would be resolved against the working directory of the
+// process. The loader looks where rpath says, $ORIGIN the directory of the
+// module (rpathFlag).
 func linkArgs(config Config, tools toolchain, env envFlags, goos string,
 	symbolic, staticCXX bool, objects []string, out string,
 ) []string {
@@ -301,13 +305,14 @@ func linkArgs(config Config, tools toolchain, env envFlags, goos string,
 
 	for _, dir := range concat(config.LibraryDirs, overlay.LibraryDirs) {
 		args = append(args, "-L"+dir)
-		if tools.rpath {
-			args = append(args, "-Wl,-rpath,"+dir)
-		}
 	}
 
 	for _, lib := range concat(config.Libraries, overlay.Libraries) {
 		args = append(args, "-l"+lib)
+	}
+
+	for _, entry := range concat(config.Rpath, overlay.Rpath) {
+		args = append(args, rpathFlag(entry, tools.origin))
 	}
 
 	return append(args, env.ldflags...)

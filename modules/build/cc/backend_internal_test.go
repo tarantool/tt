@@ -66,8 +66,8 @@ func TestBackends(t *testing.T) {
 	fields, err := C().Fields()
 	require.NoError(t, err)
 	assert.Equal(t, []string{
-		"module", "sources", "include_dirs", "libraries", "library_dirs", "defines", "cflags",
-		"cxxflags", "ldflags", "platforms",
+		"module", "sources", "include_dirs", "libraries", "library_dirs", "rpath", "defines",
+		"cflags", "cxxflags", "ldflags", "platforms",
 	}, fields)
 }
 
@@ -80,6 +80,7 @@ func TestConfig(t *testing.T) {
 		"include_dirs": []any{"include"},
 		"libraries":    []any{"m"},
 		"library_dirs": []any{"/opt/lib"},
+		"rpath":        []any{"$ORIGIN"},
 		"defines":      []any{"NDEBUG"},
 		"cflags":       []any{"-Wall"},
 		"cxxflags":     []any{"-std=c++17"},
@@ -87,7 +88,7 @@ func TestConfig(t *testing.T) {
 		"platforms": map[string]any{
 			"linux": map[string]any{
 				"libraries": []any{"rt"}, "cflags": []any{"-pthread"},
-				"cxxflags": []any{"-pthread"},
+				"cxxflags": []any{"-pthread"}, "rpath": []any{"$ORIGIN/lib"},
 			},
 		},
 	})
@@ -99,13 +100,15 @@ func TestConfig(t *testing.T) {
 		IncludeDirs: []string{"include"},
 		Libraries:   []string{"m"},
 		LibraryDirs: []string{"/opt/lib"},
+		Rpath:       []string{"$ORIGIN"},
 		Defines:     []string{"NDEBUG"},
 		Cflags:      []string{"-Wall"},
 		Cxxflags:    []string{"-std=c++17"},
 		Ldflags:     []string{"-Wl,--as-needed"},
 		Platforms: map[string]Overlay{
 			"linux": {
-				IncludeDirs: nil, Libraries: []string{"rt"}, LibraryDirs: nil, Defines: nil,
+				IncludeDirs: nil, Libraries: []string{"rt"}, LibraryDirs: nil,
+				Rpath: []string{"$ORIGIN/lib"}, Defines: nil,
 				Cflags: []string{"-pthread"}, Cxxflags: []string{"-pthread"}, Ldflags: nil,
 			},
 		},
@@ -189,6 +192,20 @@ func TestValidateErrors(t *testing.T) {
 		{"an empty ldflag of a platform", module(map[string]any{
 			"platforms": map[string]any{"darwin": map[string]any{"ldflags": []any{""}}},
 		}), nil, "platforms.darwin.ldflags", "must not contain an empty entry"},
+		{"an empty rpath", module(map[string]any{"rpath": []any{"$ORIGIN", ""}}), nil,
+			"rpath", "must not contain an empty entry"},
+		{"a relative rpath", module(map[string]any{"rpath": []any{"lib"}}), nil,
+			"rpath[0]", `"lib" is relative, which the loader resolves against the working ` +
+				"directory of the process: write $ORIGIN/lib for a directory beside the " +
+				"module, or an absolute one"},
+		{"an rpath under $ORIGINAL", module(map[string]any{"rpath": []any{"$ORIGINAL"}}), nil,
+			"rpath[0]", `"$ORIGINAL" is relative, which the loader resolves against the ` +
+				"working directory of the process: write $ORIGIN/$ORIGINAL for a directory " +
+				"beside the module, or an absolute one"},
+		{"an rpath with a comma", module(map[string]any{
+			"platforms": map[string]any{"linux": map[string]any{"rpath": []any{"/a,b"}}},
+		}), nil, "platforms.linux.rpath[0]", `"/a,b" has a comma, which -Wl,-rpath,<dir> ` +
+			"would split"},
 		{"cflags of a wrong type", module(map[string]any{"cflags": "-Wall"}), nil,
 			"cflags", "must be an array, not a string"},
 		{"a source of a wrong type", map[string]any{"module": "m", "sources": []any{int64(1)}},
