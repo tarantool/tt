@@ -197,13 +197,15 @@ func TestExplainMissingHeaders(t *testing.T) {
 	prefix := tarantool.Prefix{
 		Dir: "/usr", Origin: tarantool.PrefixOriginGuess, IncludeDir: "",
 		Tried:      []string{"/opt/include/tarantool", "/usr/include/tarantool"},
+		Rejected:   map[string]string{"/usr/include/tarantool": "headers of 3.9.0"},
 		Executable: "/opt/bin/tarantool", Version: "3.8.1", HeadersVersion: "", Warnings: nil,
 	}
 
 	err := explainMissingHeaders(failed, prefix, []string{"install", "--tree", "x", "rock"})
 	require.ErrorIs(t, err, failed)
 	require.ErrorIs(t, err, ErrNoHeaders)
-	assert.Contains(t, err.Error(), "/opt/include/tarantool, /usr/include/tarantool")
+	assert.Contains(t, err.Error(),
+		"no module.h in /opt/include/tarantool; /usr/include/tarantool: headers of 3.9.0")
 	assert.Contains(t, err.Error(), tarantool.PrefixEnv)
 
 	// A command that builds nothing is not told of the headers.

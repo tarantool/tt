@@ -272,16 +272,16 @@ def test_build_fetch_and_pack_need_no_tarantool(tt_cmd, tmp_path):
     assert not (project / ".rocks" / "lib").exists()
 
 
-def stub_tarantool(directory: Path) -> Path:
-    """Write a tarantool into directory whose build names /usr as its prefix,
-    as a static build and an Enterprise SDK do, and return it."""
+def stub_tarantool(directory: Path, built: Path) -> Path:
+    """Write a tarantool 3.3.5 into directory whose build names built as its
+    prefix, as a static build and an Enterprise SDK do, and return it."""
     directory.mkdir(parents=True, exist_ok=True)
     tarantool = directory / "tarantool"
     tarantool.write_text(
         "#!/bin/sh\n"
         "echo 'Tarantool 3.3.5-0-gabcdef'\n"
         "echo 'Target: Linux-x86_64-RelWithDebInfo'\n"
-        "echo 'Build options: cmake . -DCMAKE_INSTALL_PREFIX=/nonexistent/prefix "
+        f"echo 'Build options: cmake . -DCMAKE_INSTALL_PREFIX={built} "
         "-DENABLE_BACKTRACE=TRUE'\n",
     )
     tarantool.chmod(0o755)
@@ -293,9 +293,11 @@ def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
     """A lua-c component compiles against the headers beside the tarantool.
 
     The tarantool is an Enterprise SDK, the executable and include/tarantool
-    side by side, whose build names a prefix that does not exist. Without the
-    headers the build fails before anything is built, naming the directories
-    tt looked into and TT_CLI_TARANTOOL_PREFIX.
+    side by side, whose build names a prefix that has the headers of another
+    Tarantool, as /usr of a host with a Tarantool package installed. Without
+    the headers beside it the build fails before anything is built, naming
+    the directories tt looked into, why the headers of the other Tarantool
+    were not taken, and TT_CLI_TARANTOOL_PREFIX.
     """
     project = make_project(tmp_path / "project", dependency=False)
     (project / "VERSION").write_text("1.0.0\n")
@@ -310,8 +312,15 @@ def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
         + LUA_C_COMPONENT,
     )
 
+    system = tmp_path / "system"
+    (system / "include" / "tarantool").mkdir(parents=True)
+    (system / "include" / "tarantool" / "lua.h").write_text("/* lua.h */\n")
+    (system / "include" / "tarantool" / "module.h").write_text(
+        '#define PACKAGE_VERSION "3.9.0-0-g123456"\n',
+    )
+
     sdk = tmp_path / "sdk"
-    stub_tarantool(sdk)
+    stub_tarantool(sdk, system)
     env = {
         "PATH": f"{sdk}:{os.path.dirname(shutil.which('cc'))}:/usr/bin:/bin",
         "HOME": str(tmp_path / "home"),
@@ -323,6 +332,10 @@ def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
     assert "tarantool development headers not found" in result.stderr
     assert f"no module.h in {tmp_path}/include/tarantool, {sdk}/include/tarantool" in (
         result.stderr
+    )
+    assert (
+        f"{system}/include/tarantool: headers of 3.9.0-0-g123456, the tarantool is 3.3.5-0-gabcdef"
+        in result.stderr
     )
     assert "set TT_CLI_TARANTOOL_PREFIX" in result.stderr
     assert not (project / ".rocks" / "lib").exists()

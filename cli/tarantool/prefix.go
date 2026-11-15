@@ -81,7 +81,10 @@ const (
 	// PrefixOriginDefault is DefaultPrefix, which holds the headers.
 	PrefixOriginDefault
 	// PrefixOriginGuess is no prefix that holds the headers: the
-	// CMAKE_INSTALL_PREFIX of the build when it exists, else DefaultPrefix.
+	// CMAKE_INSTALL_PREFIX of the build when it exists, else DefaultPrefix,
+	// else the directory above the executable - the first of them whose
+	// include/tarantool has no headers of another Tarantool, so that nothing
+	// compiles against those.
 	PrefixOriginGuess
 )
 
@@ -111,6 +114,10 @@ type Prefix struct {
 	// Tried are the include directories looked into for module.h, in order,
 	// IncludeDir the last of them when it is set.
 	Tried []string
+	// Rejected are the directories of Tried that have a module.h which was
+	// not taken, each with the reason: the headers of another version at a
+	// prefix that is only a guess, CMAKE_INSTALL_PREFIX or DefaultPrefix.
+	Rejected map[string]string
 	// Executable is the tarantool of the query.
 	Executable string
 	// Version is the version of the executable, from the first line of
@@ -139,17 +146,21 @@ type Prefix struct {
 //  3. CMAKE_INSTALL_PREFIX of tarantool --version, the prefix the build was
 //     to be installed into, then DefaultPrefix.
 //
-// From 2 on a prefix is only taken when its include/tarantool has module.h.
-// With none of them it is the guess of PrefixOriginGuess, and IncludeDir is
-// empty: [Prefix.MissingHeaders] says where it looked.
+// From 2 on a prefix is only taken when its include/tarantool has module.h,
+// and in 3, which only guesses where the headers of the executable are, when
+// they are of its version, major.minor.patch: the headers of /usr may be
+// those of another Tarantool installed on the system. With none of them it
+// is the guess of PrefixOriginGuess, and IncludeDir is empty:
+// [Prefix.MissingHeaders] says where it looked, and why the headers it
+// passed over were not taken.
 //
-// Headers of another version than the executable are a warning.
+// Headers of another version than the executable, of 1 or 2, are a warning.
 //
 // An executable that cannot be run, or whose tarantool --version names no
 // CMAKE_INSTALL_PREFIX, is an error when the prefix is to be taken from it.
 func ResolvePrefix(query PrefixQuery) (Prefix, error) {
 	res := Prefix{
-		Dir: "", Origin: PrefixOriginUnknown, IncludeDir: "", Tried: nil,
+		Dir: "", Origin: PrefixOriginUnknown, IncludeDir: "", Tried: nil, Rejected: nil,
 		Executable: query.Executable, Version: "", HeadersVersion: "", Warnings: nil,
 	}
 
@@ -203,10 +214,33 @@ func (p Prefix) MissingHeaders() string {
 			"tt binary install tarantool installs it with its headers", moduleHeader,
 			strings.Join(p.Tried, ", "))
 	default:
-		return fmt.Sprintf("none found for %s, no %s in %s: set %s to the install prefix "+
-			"of Tarantool, the directory holding include/tarantool", p.Executable, moduleHeader,
-			strings.Join(p.Tried, ", "), PrefixEnv)
+		return fmt.Sprintf("none found for %s, %s: set %s to the install prefix "+
+			"of Tarantool, the directory holding include/tarantool", p.Executable,
+			p.triedDirs(), PrefixEnv)
 	}
+}
+
+// triedDirs lists the directories of Tried: those with no module.h, then
+// those whose headers were passed over, each with the reason.
+func (p Prefix) triedDirs() string {
+	var missing, rejected []string
+
+	for _, dir := range p.Tried {
+		if reason, ok := p.Rejected[dir]; ok {
+			rejected = append(rejected, dir+": "+reason)
+		} else {
+			missing = append(missing, dir)
+		}
+	}
+
+	parts := make([]string, 0, len(rejected)+1)
+	if len(missing) > 0 {
+		parts = append(parts, fmt.Sprintf("no %s in %s", moduleHeader, strings.Join(missing, ", ")))
+	}
+
+	parts = append(parts, rejected...)
+
+	return strings.Join(parts, "; ")
 }
 
 // searchPrefix looks for the prefix of the executable of res with banner,
@@ -232,21 +266,37 @@ func searchPrefix(res *Prefix, banner []string, bannerErr error) error {
 	}
 
 	switch {
-	case lookForHeaders(res, built):
+	case lookForOwnHeaders(res, built):
 		res.Origin = PrefixOriginBuild
-	case lookForHeaders(res, DefaultPrefix):
+	case lookForOwnHeaders(res, DefaultPrefix):
 		res.Origin = PrefixOriginDefault
 	default:
 		res.Origin = PrefixOriginGuess
-		res.Dir = DefaultPrefix
-
-		info, statErr := os.Stat(built)
-		if statErr == nil && info.IsDir() {
-			res.Dir = built
-		}
+		res.Dir = guessPrefix(res, built)
 	}
 
 	return nil
+}
+
+// guessPrefix is the prefix of PrefixOriginGuess: built when it exists,
+// else DefaultPrefix, else the directory above the executable. A prefix is
+// passed over when its headers were rejected, since a build is given
+// <prefix>/include/tarantool, and a compile would take the headers of
+// another Tarantool from there.
+func guessPrefix(res *Prefix, built string) string {
+	candidates := append([]string{built, DefaultPrefix}, executableDirs(res.Executable)...)
+	for _, dir := range candidates {
+		if _, rejected := res.Rejected[filepath.Join(dir, "include", "tarantool")]; rejected {
+			continue
+		}
+
+		info, err := os.Stat(dir)
+		if err == nil && info.IsDir() {
+			return dir
+		}
+	}
+
+	return DefaultPrefix
 }
 
 // lookForHeaders adds <dir>/include/tarantool to the tried directories of
@@ -270,6 +320,81 @@ func lookForHeaders(res *Prefix, dir string) bool {
 	return true
 }
 
+// lookForOwnHeaders is lookForHeaders for a prefix that is only a guess of
+// where the headers of the executable are, CMAKE_INSTALL_PREFIX or
+// DefaultPrefix: the headers there are taken only when they are of the very
+// version of the executable, major.minor.patch. Headers of another version,
+// as of another Tarantool installed on the system, are passed over, the
+// reason in res.Rejected.
+func lookForOwnHeaders(res *Prefix, dir string) bool {
+	include := filepath.Join(dir, "include", "tarantool")
+	if slices.Contains(res.Tried, include) {
+		return false
+	}
+
+	res.Tried = append(res.Tried, include)
+
+	version, same, err := headersOfVersion(include, res.Version)
+	if err != nil {
+		return false
+	}
+
+	if !same {
+		if res.Rejected == nil {
+			res.Rejected = map[string]string{}
+		}
+
+		res.Rejected[include] = fmt.Sprintf("headers of %s, the tarantool is %s",
+			orUnknown(version), orUnknown(res.Version))
+
+		return false
+	}
+
+	res.Dir, res.IncludeDir = dir, include
+
+	return true
+}
+
+// orUnknown is version, or "unknown version" when it is empty.
+func orUnknown(version string) string {
+	if version == "" {
+		return "unknown version"
+	}
+
+	return version
+}
+
+// headersOfVersion reads the version of the module.h of include, and
+// reports whether its major.minor.patch is that of exeVersion; a version
+// that is not known on either side is not the same. An include directory
+// with no module.h is an error.
+func headersOfVersion(include, exeVersion string) (string, bool, error) {
+	header, err := readModuleHeader(include)
+	if err != nil {
+		return "", false, err
+	}
+
+	version, headerParts := headerVersion(string(header))
+
+	exeParts := versionRe.FindStringSubmatch(exeVersion)
+	if headerParts == nil || exeParts == nil {
+		return version, false, nil
+	}
+
+	return version, strings.Join(headerParts, ".") == strings.Join(exeParts[1:], "."), nil
+}
+
+// readModuleHeader reads the module.h of include; a module.h that is a
+// directory is an error as well.
+func readModuleHeader(include string) ([]byte, error) {
+	header, err := os.ReadFile(filepath.Join(include, moduleHeader))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the headers of Tarantool: %w", err)
+	}
+
+	return header, nil
+}
+
 // checkHeadersVersion reads the version of the headers of res, and warns
 // when it is not the version of the executable.
 func checkHeadersVersion(res *Prefix) {
@@ -277,7 +402,7 @@ func checkHeadersVersion(res *Prefix) {
 		return
 	}
 
-	header, err := os.ReadFile(filepath.Join(res.IncludeDir, moduleHeader))
+	header, err := readModuleHeader(res.IncludeDir)
 	if err != nil {
 		return
 	}

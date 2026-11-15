@@ -66,14 +66,16 @@ func writeHeaders(t *testing.T, prefix, version string) string {
 	return include
 }
 
-// skipSystemHeaders skips a test that wants no headers anywhere on a host
-// whose DefaultPrefix has some.
-func skipSystemHeaders(t *testing.T) {
+// skipSystemHeaders skips a test that wants no headers of version anywhere
+// on a host whose DefaultPrefix has some: those of another version are not
+// taken.
+func skipSystemHeaders(t *testing.T, version string) {
 	t.Helper()
 
-	_, err := os.Stat(filepath.Join(tarantool.DefaultPrefix, "include", "tarantool", "module.h"))
-	if err == nil {
-		t.Skipf("%s has the headers of Tarantool", tarantool.DefaultPrefix)
+	header, err := os.ReadFile(
+		filepath.Join(tarantool.DefaultPrefix, "include", "tarantool", "module.h"))
+	if err == nil && strings.Contains(string(header), "\""+version) {
+		t.Skipf("%s has the headers of Tarantool %s", tarantool.DefaultPrefix, version)
 	}
 }
 
@@ -202,8 +204,51 @@ func TestResolvePrefixBuild(t *testing.T) {
 	assert.Equal(t, tarantool.PrefixOriginBuild, prefix.Origin)
 }
 
+func TestResolvePrefixBuildOtherVersion(t *testing.T) {
+	skipSystemHeaders(t, "3.3.5")
+
+	// Another Tarantool installed into the prefix the build names, or into
+	// /usr, is not the tarantool run: its headers are passed over.
+	built := tempDir(t)
+	include := writeHeaders(t, built, "3.9.0")
+
+	dir := tempDir(t)
+	exe := filepath.Join(dir, "bin", "tarantool")
+	stubTarantool(t, exe, "3.3.5-0-gabcdef", built)
+
+	prefix := resolve(t, exe)
+	assert.NotEqual(t, built, prefix.Dir, "the guess is no prefix of the headers passed over")
+	assert.NoFileExists(t, filepath.Join(prefix.Dir, "include", "tarantool", "module.h"))
+	assert.Empty(t, prefix.IncludeDir)
+	assert.Equal(t, tarantool.PrefixOriginGuess, prefix.Origin)
+	assert.Empty(t, prefix.Warnings)
+	assert.Equal(t, "headers of 3.9.0-0-gabcdef, the tarantool is 3.3.5-0-gabcdef",
+		prefix.Rejected[include])
+	assert.Contains(t, prefix.MissingHeaders(),
+		include+": headers of 3.9.0-0-gabcdef, the tarantool is 3.3.5-0-gabcdef")
+	assert.Contains(t, prefix.MissingHeaders(),
+		"no module.h in "+filepath.Join(dir, "include", "tarantool")+", ")
+
+	// Of the version of the executable, major.minor.patch, they are taken.
+	writeHeaders(t, built, "3.3.5")
+
+	prefix = resolve(t, exe)
+	assert.Equal(t, include, prefix.IncludeDir)
+	assert.Equal(t, tarantool.PrefixOriginBuild, prefix.Origin)
+	assert.Empty(t, prefix.Rejected)
+
+	// A version that is not known is not the same.
+	writeScript(t, exe, "Tarantool dev\nTarget: Linux\nBuild options: cmake . "+
+		"-DCMAKE_INSTALL_PREFIX="+built+" -DA=1\n")
+
+	prefix = resolve(t, exe)
+	assert.Empty(t, prefix.IncludeDir)
+	assert.Equal(t, "headers of 3.3.5-0-gabcdef, the tarantool is dev",
+		prefix.Rejected[include])
+}
+
 func TestResolvePrefixBuildWithoutHeaders(t *testing.T) {
-	skipSystemHeaders(t)
+	skipSystemHeaders(t, "3.3.5")
 
 	built := tempDir(t)
 	dir := tempDir(t)
@@ -237,7 +282,7 @@ func TestResolvePrefixRelocated(t *testing.T) {
 }
 
 func TestResolvePrefixNothingFound(t *testing.T) {
-	skipSystemHeaders(t)
+	skipSystemHeaders(t, "3.8.1")
 
 	dir := tempDir(t)
 	exe := filepath.Join(dir, "tarantool")
