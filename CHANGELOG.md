@@ -732,6 +732,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt package build`, `install` and `pack` and `tt rocks` find the headers
+  of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
+  `include/tarantool/` side by side), a static or relocated build in
+  `<prefix>/bin`, and a `tarantool` of the user or system scope of
+  `tt binary install` found on `PATH`, whose headers are those of its own
+  version, else the active ones of the scope. They were taken from the
+  `CMAKE_INSTALL_PREFIX` of `tarantool --version`, where the build was to
+  be installed, `/usr` for the SDK and the static build, so that a `c` or
+  `lua-c` component compiled with `-I/usr/include/tarantool` and failed on
+  `lua.h: No such file or directory`. That prefix is now taken only when it
+  has `include/tarantool/module.h`, `TT_CLI_TARANTOOL_PREFIX` and the
+  `.tarantool` of the project still come first, and all of these commands
+  resolve the prefix by the same rule. With no headers found, a `c` or
+  `lua-c` component fails before anything is built, naming the directories
+  tt looked into and `TT_CLI_TARANTOOL_PREFIX`, and so does a `tt rocks`
+  build of a rock; headers of another version than the `tarantool` are a
+  warning.
 - A `zig` component built with zig 0.17 no longer puts the packages zig
   fetches for its `build.zig.zon` into the package: zig 0.17 fetches them
   into `zig-pkg/` beside `build.zig.zon`, and the files of zig-tarantool,

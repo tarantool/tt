@@ -161,10 +161,40 @@ shown as active when all of its components are.
 
 ## Headers for rocks with a C part
 
-`tt rocks` and `tt package build` build a rock with a C part against the
-headers of the Tarantool they run: `.tarantool/include/tarantool` for the
-Tarantool of the project, `TT_CLI_TARANTOOL_PREFIX` for another one, and
-otherwise the prefix that Tarantool was installed into. With no Tarantool
-found, `tt package build`, `fetch` and `pack` build what has no C part, and
-a rock or a `c` or `lua-c` component with one fails for want of the
-headers.
+`tt rocks` and `tt package build`, `install` and `pack` build a rock with a
+C part, and a `c` or `lua-c` component, against the headers of the
+Tarantool they run, `<prefix>/include/tarantool`. The prefix is the first
+of:
+
+1. `.tarantool` for the Tarantool of the project, then
+   `TT_CLI_TARANTOOL_PREFIX`: taken as they are, headers there or not.
+2. A directory of the executable that holds `include/tarantool/module.h`:
+   first along its real path, symbolic links resolved, then along the path
+   it was found by. Of each, the directory above the one of the executable
+   comes first (`<prefix>/bin/tarantool`), then the directory of the
+   executable itself (an Enterprise SDK, or
+   `<root>/versions/tarantool/tarantool_<version>/` of `tt binary install`).
+   A `tarantool` of the user or system scope found on `PATH` as
+   `<root>/bin/tarantool` gets the headers of its own version, and the
+   active ones of `<root>/include/tarantool` when its version has none.
+3. The `CMAKE_INSTALL_PREFIX` that `tarantool --version` reports, then
+   `/usr`, when its `include/tarantool/module.h` is there. That prefix is
+   where the build was to be installed, which a relocated or static build
+   is not.
+
+Headers of another version than the `tarantool` are a warning, naming both
+versions and the directory of the headers: a module built against them may
+not load.
+
+With no headers found, what has no C part builds all the same, and a `c`
+or `lua-c` component fails before anything is built, listing the
+directories it looked into:
+
+```text
+   ⨯ building component "ipc": tarantool development headers not found: cannot compile c/lua-c component: none found for /opt/bin/tarantool, no module.h in /opt/include/tarantool, /opt/bin/include/tarantool, /tarantool/static-build/tarantool-prefix/include/tarantool, /usr/include/tarantool: set TT_CLI_TARANTOOL_PREFIX to the install prefix of Tarantool, the directory holding include/tarantool
+```
+
+A `tt rocks` command that builds a rock adds the same to its error. With no
+Tarantool found at all, `tt package build`, `fetch` and `pack` build what
+has no C part, and a rock or a `c` or `lua-c` component with one fails for
+want of the headers.

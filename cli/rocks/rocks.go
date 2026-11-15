@@ -8,32 +8,25 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
+	"sync"
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/cmakepolicy"
-)
-
-var (
-	errPrefixPathExpectedMoreData = errors.New("failed to get prefix path: expected more data")
-	errPrefixPathRegexpMismatch   = errors.New("failed to get prefix path: regexp does not match")
 )
 
 //go:embed completions/*
 var EmbedCompletions embed.FS
 
 const (
-	repoRocksPathEnvVarName   = "TT_CLI_REPO_ROCKS"
-	tarantoolPrefixEnvVarName = "TT_CLI_TARANTOOL_PREFIX"
-	tarantoolDefaultPrefixDir = "/usr"
-	minVersionOutputLines     = 3
-	serverFlag                = "--server"
-	onlyServerFlag            = "--only-server"
+	repoRocksPathEnvVarName = "TT_CLI_REPO_ROCKS"
+	serverFlag              = "--server"
+	onlyServerFlag          = "--only-server"
 )
 
 // addLuarocksRepoOpts adds the rocks repository repo to the luarocks command
@@ -69,53 +62,46 @@ func addLuarocksRepoOpts(repo string, args []string) []string {
 	return args
 }
 
-// GetTarantoolPrefix returns tarantool installation prefix: the directory
-// tt binary installed the tarantool of cli under, which holds its headers in
-// include/tarantool, else TT_CLI_TARANTOOL_PREFIX, else the install prefix
-// the tarantool was built with.
+// GetTarantoolPrefix returns the install prefix of the tarantool of cli, the
+// directory whose include/tarantool holds its headers (ResolveTarantoolPrefix).
 func GetTarantoolPrefix(cli *cmdcontext.CliCtx) (string, error) {
-	if cli.TarantoolPrefix != "" {
-		log.Debugf("Tarantool prefix path: %q", cli.TarantoolPrefix)
-
-		return cli.TarantoolPrefix, nil
-	}
-
-	if prefixPathFromEnv := os.Getenv(tarantoolPrefixEnvVarName); prefixPathFromEnv != "" {
-		log.Debugf("Tarantool prefix path: %q", prefixPathFromEnv)
-
-		return prefixPathFromEnv, nil
-	}
-
-	output, err := exec.CommandContext(
-		context.Background(), cli.TarantoolCli.Executable, "--version").Output()
+	prefix, err := ResolveTarantoolPrefix(cli)
 	if err != nil {
-		return "", fmt.Errorf("failed to get tarantool version: %w", err)
+		return "", err
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	if len(lines) < minVersionOutputLines {
-		return "", errPrefixPathExpectedMoreData
+	return prefix.Dir, nil
+}
+
+// warnedPrefixes are the warnings of ResolveTarantoolPrefix already shown: a
+// command that resolves the prefix more than once shows each once.
+var warnedPrefixes sync.Map
+
+// ResolveTarantoolPrefix resolves the install prefix of the tarantool of cli
+// by the one rule of tarantool.ResolvePrefix: the prefix of the project
+// scope, TT_CLI_TARANTOOL_PREFIX, the directories of the executable, then its
+// CMAKE_INSTALL_PREFIX. Its warnings - headers of another version - are shown
+// once per command.
+func ResolveTarantoolPrefix(cli *cmdcontext.CliCtx) (tarantool.Prefix, error) {
+	prefix, err := tarantool.ResolvePrefix(tarantool.PrefixQuery{
+		Project:    cli.TarantoolPrefix,
+		Env:        os.Getenv(tarantool.PrefixEnv),
+		Executable: cli.TarantoolCli.Executable,
+	})
+	if err != nil {
+		return tarantool.Prefix{}, err
 	}
 
-	re := regexp.MustCompile(`^.*\s-DCMAKE_INSTALL_PREFIX=(?P<prefix>\/.*)\s.*$`)
-	matches := util.FindNamedMatches(re, lines[2])
+	log.Debugf("Tarantool prefix path: %q (headers: %q, looked in %q)",
+		prefix.Dir, prefix.IncludeDir, prefix.Tried)
 
-	if len(matches) == 0 {
-		return "", errPrefixPathRegexpMismatch
+	for _, warning := range prefix.Warnings {
+		if _, shown := warnedPrefixes.LoadOrStore(warning, true); !shown {
+			log.Warn(warning)
+		}
 	}
 
-	prefixDir := matches["prefix"]
-
-	if !util.IsDir(prefixDir) {
-		log.Debugf("%q does not exist or is not a directory. Using default: %q",
-			prefixDir, tarantoolDefaultPrefixDir)
-
-		prefixDir = tarantoolDefaultPrefixDir
-	}
-
-	log.Debugf("Tarantool prefix path: %q", prefixDir)
-
-	return prefixDir, nil
+	return prefix, nil
 }
 
 // Exec runs a LuaRocks command through the embedded LuaRocks engine
@@ -166,10 +152,12 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 		return err
 	}
 
-	tarantoolPrefixDir, err := GetTarantoolPrefix(&cmdCtx.Cli)
+	prefix, err := ResolveTarantoolPrefix(&cmdCtx.Cli)
 	if err != nil {
 		return err
 	}
+
+	tarantoolPrefixDir := prefix.Dir
 
 	tarantoolIncludeDir, err := util.JoinAbspath(tarantoolPrefixDir, "include", "tarantool")
 	if err != nil {
@@ -222,10 +210,32 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	// the admin sub-CLI.
 	err = rocksClient.Exec(ctx, os.Args[0]+" rocks", args)
 	if err != nil {
-		return explainPackFailure(fmt.Errorf("failed to run luarocks: %w", err), args)
+		err = explainPackFailure(fmt.Errorf("failed to run luarocks: %w", err), args)
+
+		return explainMissingHeaders(err, prefix, args)
 	}
 
 	return checkSrcRocks(ctx, root, before)
+}
+
+// ErrNoHeaders says that a LuaRocks run failed with no headers of Tarantool
+// to compile a rock of C against.
+var ErrNoHeaders = errors.New("tarantool development headers not found")
+
+// buildingCommands are the LuaRocks commands that may compile a rock.
+var buildingCommands = map[string]bool{"install": true, "build": true, "make": true}
+
+// explainMissingHeaders adds ErrNoHeaders, with where they were looked for,
+// to err, the failure of a LuaRocks run of args, when args may compile a rock
+// and prefix has no headers: a rock of C then fails to find lua.h or
+// module.h, and says no more.
+func explainMissingHeaders(err error, prefix tarantool.Prefix, args []string) error {
+	hint := prefix.MissingHeaders()
+	if hint == "" || !buildingCommands[luarocksCommand(args)] {
+		return err
+	}
+
+	return fmt.Errorf("%w (%w: %s)", err, ErrNoHeaders, hint)
 }
 
 // ErrNoZip says why LuaRocks failed to pack a rock on a system with no zip.

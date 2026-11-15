@@ -423,9 +423,12 @@ Tarantool it builds for, a build also gets `TT_TARANTOOL_PREFIX`, the
 install prefix of that Tarantool, and `TT_TARANTOOL_INCLUDE_DIR`, the
 directory of its `module.h` and `lua.h`, `<prefix>/include/tarantool`, which
 the `c` and `lua-c` backends compile against; either is unset when tt does
-not know it. `env` of the build cannot override them. Where tt finds no
-Tarantool at all, a `c` or `lua-c` component fails the build before
-anything is built, for want of the headers.
+not know it, `TT_TARANTOOL_INCLUDE_DIR` when `module.h` is not there (see
+[Headers for rocks with a C part](../how-to/binaries.md#headers-for-rocks-with-a-c-part)
+for where tt looks for them). `env` of the build cannot override them.
+Where tt finds no Tarantool at all, or none of its headers, a `c` or
+`lua-c` component fails the build before anything is built, for want of
+the headers, naming the directories tt looked into.
 
 `TT_BUILD_DIR` is a directory of the build's own for what it makes on the
 way, out of the sources: object files, a build tree. It is

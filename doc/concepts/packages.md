@@ -163,7 +163,10 @@ manifest.
   built, and a rock of a server with a C part. A `make`, `shell` or `cmake`
   build is not told where Tarantool is, `TT_TARANTOOL_PREFIX` and
   `TT_TARANTOOL_INCLUDE_DIR` unset, and fails on its own if it needs the
-  headers.
+  headers. A Tarantool whose headers tt does not find
+  ([where it looks](../how-to/binaries.md#headers-for-rocks-with-a-c-part))
+  builds the same, and a `c` or `lua-c` component fails naming the
+  directories tt looked into.
 
 The version of a package is, in order:
 

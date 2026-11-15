@@ -813,6 +813,9 @@ linters:
             # rock of a tt package LuaRocks built nothing of is refused.
             - "github.com/tarantool/tt/v3/cli/manifest/rocktree"
             - "github.com/tarantool/tt/v3/cli/rocks"
+            # The install prefix of Tarantool, its headers, is resolved by
+            # the one rule of tarantool.ResolvePrefix.
+            - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/cli/util"
             # The rocks LuaRocks builds get the CMake policy version.
             - "github.com/tarantool/tt/v3/internal/cmakepolicy"

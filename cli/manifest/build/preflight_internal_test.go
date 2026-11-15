@@ -18,6 +18,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // zigBuild is the build of the zig backend of a module, whose tool is
@@ -202,4 +203,72 @@ func TestRun_preflightOfAModuleBackend(t *testing.T) {
 		`no-such-zig-of-tt`)
 	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
 	assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
+
+	// Where tt looked for the headers of Tarantool is no news to a build
+	// that failed for another reason.
+	opts.Tarantool = rocks.TarantoolInfo{Prefix: t.TempDir(), MissingHeaders: "looked nowhere"}
+
+	err = Run(context.Background(), opts)
+	require.ErrorIs(t, err, sdkbuild.ErrNoTool)
+	assert.NotContains(t, err.Error(), "looked nowhere")
+}
+
+// headersBuild is the build of a backend that compiles against the headers
+// of Tarantool, as c and lua-c do.
+type headersBuild struct{}
+
+func (headersBuild) Preflight(_ context.Context, c *sdkbuild.Context) error {
+	if c.Tarantool.IncludeDir == "" {
+		return fmt.Errorf("%w: cannot compile", sdkbuild.ErrNoHeaders)
+	}
+
+	return nil
+}
+
+func (headersBuild) Run(context.Context, *sdkbuild.Context) error { return nil }
+
+// TestRun_preflightWithoutHeaders checks that a build that fails for want of
+// the headers of Tarantool says where tt looked for them, and that a prefix
+// with module.h gives the build its include directory.
+func TestRun_preflightWithoutHeaders(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, zigManifest, map[string]string{"fast/build.zig": ""})
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("zig", []sdkbuild.Backend{{
+		Name:     "zig",
+		Produces: []sdkbuild.Result{sdkbuild.Module},
+		Config: func() any {
+			return new(struct {
+				Steps []string `toml:"steps"`
+			})
+		},
+		New: func(any, sdkbuild.Component, sdkbuild.Common) (sdkbuild.Build, error) {
+			return headersBuild{}, nil
+		},
+		Incremental: false,
+		OutputFrom:  sdkbuild.OutputNone,
+		Exclude:     nil,
+		Hook:        false,
+	}}, nil))
+
+	opts := dryOptions(dir)
+
+	opts.Backends = backends
+	opts.Tarantool = rocks.TarantoolInfo{
+		Executable: "/opt/tnt/tarantool", Prefix: t.TempDir(), Version: "3.3.5",
+		MissingHeaders: "none found for /opt/tnt/tarantool, no module.h in /opt/include/tarantool",
+	}
+
+	err := Run(context.Background(), opts)
+	require.ErrorIs(t, err, sdkbuild.ErrNoHeaders)
+	require.EqualError(t, err, `building component "fast": tarantool development headers `+
+		`not found: cannot compile: none found for /opt/tnt/tarantool, no module.h in `+
+		`/opt/include/tarantool`)
+	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
+
+	opts.Tarantool = rocks.TarantoolInfo{Prefix: fakeTarantoolPrefix(t), Version: "3.3.5"}
+
+	require.NoError(t, Run(context.Background(), opts))
 }

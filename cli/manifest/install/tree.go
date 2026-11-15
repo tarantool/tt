@@ -23,7 +23,9 @@ func openTree(opts Options, lay state.Layout, executable string) (*tree.Tree, er
 	info := opts.Tarantool
 	if executable != "" && executable != info.Executable {
 		// The wrappers only name the interpreter; nothing is built here.
-		info = rocks.TarantoolInfo{Executable: executable, Prefix: "", Version: ""}
+		info = rocks.TarantoolInfo{
+			Executable: executable, Prefix: "", Version: "", MissingHeaders: "",
+		}
 	}
 
 	cfg := rocks.BuildConfig(info, rocks.ConfigOptions{

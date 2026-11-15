@@ -13,7 +13,8 @@ import (
 
 // TarantoolInfo carries the Tarantool facts the adapter needs to build a
 // luarocks.Config. The caller fills it from cmdcontext (the resolved binary
-// path and cached version) and the install prefix (tt's GetTarantoolPrefix);
+// path and cached version) and the install prefix (tt's
+// ResolveTarantoolPrefix, the one rule `tt rocks` resolves it by too);
 // tests fill it directly. The library never parses `tarantool --version`
 // itself, so these come from one source of truth on the tt side.
 //
@@ -28,6 +29,11 @@ type TarantoolInfo struct {
 	Prefix string
 	// Version is the "x.y.z" string used in diagnostic / golden headers.
 	Version string
+	// MissingHeaders says, for a Prefix without the headers of Tarantool,
+	// where they were looked for and how to point tt at them, for a build
+	// that needs them to report; empty when they are there, or when there is
+	// no Tarantool.
+	MissingHeaders string
 }
 
 // IncludeDir returns the Tarantool C-header directory under the prefix

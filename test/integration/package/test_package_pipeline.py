@@ -272,6 +272,75 @@ def test_build_fetch_and_pack_need_no_tarantool(tt_cmd, tmp_path):
     assert not (project / ".rocks" / "lib").exists()
 
 
+def stub_tarantool(directory: Path) -> Path:
+    """Write a tarantool into directory whose build names /usr as its prefix,
+    as a static build and an Enterprise SDK do, and return it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    tarantool = directory / "tarantool"
+    tarantool.write_text(
+        "#!/bin/sh\n"
+        "echo 'Tarantool 3.3.5-0-gabcdef'\n"
+        "echo 'Target: Linux-x86_64-RelWithDebInfo'\n"
+        "echo 'Build options: cmake . -DCMAKE_INSTALL_PREFIX=/nonexistent/prefix "
+        "-DENABLE_BACKTRACE=TRUE'\n",
+    )
+    tarantool.chmod(0o755)
+    return tarantool
+
+
+@pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler")
+def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
+    """A lua-c component compiles against the headers beside the tarantool.
+
+    The tarantool is an Enterprise SDK, the executable and include/tarantool
+    side by side, whose build names a prefix that does not exist. Without the
+    headers the build fails before anything is built, naming the directories
+    tt looked into and TT_CLI_TARANTOOL_PREFIX.
+    """
+    project = make_project(tmp_path / "project", dependency=False)
+    (project / "VERSION").write_text("1.0.0\n")
+    (project / "native").mkdir()
+    (project / "native" / "fast.c").write_text(
+        "#include <lua.h>\n#include <module.h>\n"
+        "int luaopen_app_fast(void *L) { (void)L; return 0; }\n",
+    )
+    manifest = project / "app.manifest.toml"
+    manifest.write_text(
+        manifest.read_text().replace("components = ['lua']", "components = ['lua', 'native']")
+        + LUA_C_COMPONENT,
+    )
+
+    sdk = tmp_path / "sdk"
+    stub_tarantool(sdk)
+    env = {
+        "PATH": f"{sdk}:{os.path.dirname(shutil.which('cc'))}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"),
+    }
+    registry = ("--registry", str(ROCKS_REPO))
+
+    result = run(tt_cmd, project, "package", "build", *registry, env=env)
+    assert result.returncode == 2
+    assert "tarantool development headers not found" in result.stderr
+    assert f"no module.h in {tmp_path}/include/tarantool, {sdk}/include/tarantool" in (
+        result.stderr
+    )
+    assert "set TT_CLI_TARANTOOL_PREFIX" in result.stderr
+    assert not (project / ".rocks" / "lib").exists()
+
+    headers = sdk / "include" / "tarantool"
+    headers.mkdir(parents=True)
+    (headers / "lua.h").write_text("/* lua.h */\n")
+    (headers / "module.h").write_text(
+        "#define PACKAGE_VERSION_MAJOR 3\n#define PACKAGE_VERSION_MINOR 3\n"
+        '#define PACKAGE_VERSION_PATCH 5\n#define PACKAGE_VERSION "3.3.5-0-gabcdef"\n',
+    )
+
+    result = run(tt_cmd, project, "package", "build", *registry, env=env)
+    assert result.returncode == 0, result.stderr
+    assert "the headers of Tarantool" not in result.stderr
+    assert (project / ".rocks" / "lib" / "tarantool" / "my-app" / "fast.so").is_file()
+
+
 @pytest.mark.parametrize("formats", [("rock",), ("tt,rock", "--without-deps")], ids=["rock", "tt"])
 def test_pack_rock_into_the_default_output_dir(tt_cmd, tmp_path, formats):
     """With no --out the rock lands in _build/pack, and stays there.
