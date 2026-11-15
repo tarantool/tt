@@ -459,6 +459,11 @@ func (r runner) link(ctx context.Context, libraries []string) error {
 		}
 	}
 
+	err = r.testLoad(ctx)
+	if err != nil {
+		return err
+	}
+
 	r.checkClashes()
 
 	return recordLink(work, out, key)
