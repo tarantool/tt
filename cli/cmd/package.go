@@ -59,6 +59,9 @@ var (
 	packageFormats  []string
 	packageOut      string
 	packageRevision int
+	// packageDebugInfo is --debuginfo of tt package pack: keep or strip the
+	// debug information of the native files the package's builds made.
+	packageDebugInfo string
 )
 
 // Flags shared by the scope-addressed subcommands: install, list and uninstall.
@@ -872,6 +875,10 @@ func newPackagePackCmd() *cobra.Command {
 		"directory to write into (default _build/pack of the project)")
 	packCmd.Flags().IntVar(&packageRevision, "revision", 1,
 		"LuaRocks revision of the rock: raise it to publish a new build of a version")
+	packCmd.Flags().StringVar(&packageDebugInfo, "debuginfo", pack.DebugInfoKeep,
+		"debug information of the modules and programs the package's builds made: keep, "+
+			"or strip it (strip --strip-debug; strip -S on macOS) from what is packed; "+
+			"the project's own files, the bundled runtime and the dependencies are not touched")
 	addRegistryFlag(packCmd)
 
 	// The flag exists when the integrity provider of the distribution signs,
@@ -951,8 +958,9 @@ func runPackagePack() error {
 			Check:      nil,
 			Backends:   buildreg.Process(),
 		},
-		Runtime: runtimeRequest(ctx, projectDir, tntInfo),
-		Warn:    func(msg string) { log.Warn(msg) },
+		Runtime:   runtimeRequest(ctx, projectDir, tntInfo),
+		Warn:      func(msg string) { log.Warn(msg) },
+		DebugInfo: packageDebugInfo,
 	})
 	if err != nil {
 		return err

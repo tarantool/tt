@@ -216,7 +216,7 @@ func packRocks(
 	result := rockResult{Rock: "", SrcRock: "", Rockspec: filepath.Join(dir, base+rockspecExt)}
 
 	if opts.makes(FormatRock) {
-		result.Rock, err = packBinaryRock(opts, built.Manifest, built.Stage, dir, spec)
+		result.Rock, err = packBinaryRock(ctx, opts, built.Manifest, built.Stage, dir, spec)
 		if err != nil {
 			return rockResult{}, err
 		}
@@ -271,8 +271,9 @@ func componentPaths(man *manifest.Manifest, product string) []string {
 
 // packBinaryRock packs stage as the rock of spec into dir and returns its
 // path: the binary rock of the host, or the .all rock (rockArch), with the
-// license files of the package in its doc/ (rockFiles).
-func packBinaryRock(
+// license files of the package in its doc/ (rockFiles), and its native files
+// without their debug information when the pack strips it (strippedStage).
+func packBinaryRock(ctx context.Context,
 	opts Options, man *manifest.Manifest, stage, dir string, spec *luarocks.Rockspec,
 ) (string, error) {
 	arch, err := rockArch(stage)
@@ -287,6 +288,17 @@ func packBinaryRock(
 	err = os.MkdirAll(temp, dirPerm)
 	if err != nil {
 		return "", fmt.Errorf("creating %s: %w", temp, err)
+	}
+
+	if opts.stripsDebugInfo() {
+		stripped, cleanup, err := strippedStage(ctx, temp, stage)
+		if err != nil {
+			return "", err
+		}
+
+		defer cleanup()
+
+		stage = stripped
 	}
 
 	files, cleanup, err := rockFiles(temp, stage, opts.ProjectDir, man.Package.LicenseFiles)
