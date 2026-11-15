@@ -56,7 +56,7 @@ func hostBuild(
 func TestCcCompilesSingleSource(t *testing.T) {
 	t.Parallel()
 
-	includeDir := requireHostHeaders(t)
+	includeDir, _ := requireHostHeaders(t)
 
 	harness := hostHarness(t, includeDir, map[string]string{
 		"answer.c": "int answer(void) { return 42; }\n",
@@ -69,7 +69,7 @@ func TestCcCompilesSingleSource(t *testing.T) {
 func TestCcCompilesMultiSource(t *testing.T) {
 	t.Parallel()
 
-	includeDir := requireHostHeaders(t)
+	includeDir, _ := requireHostHeaders(t)
 
 	// part_b references a from part_a, so a passing link proves both objects
 	// end up in one module; the prototype avoids an implicit-declaration
@@ -88,7 +88,7 @@ func TestCcCompilesMultiSource(t *testing.T) {
 // -Wno-error of CFLAGS of the environment, which comes after it, builds it.
 // t.Setenv keeps the test out of parallel runs.
 func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
-	includeDir := requireHostHeaders(t)
+	includeDir, _ := requireHostHeaders(t)
 
 	sources := map[string]string{"warn.c": "int warn(void) { int unused; return 0; }\n"}
 	rest := map[string]any{
@@ -116,7 +116,7 @@ func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
 func TestCcCompilesAgainstTarantoolHeaders(t *testing.T) {
 	t.Parallel()
 
-	includeDir := requireHostHeaders(t)
+	includeDir, _ := requireHostHeaders(t)
 
 	harness := hostHarness(t, includeDir, map[string]string{
 		"headercheck.c": "#include <module.h>\n" +
@@ -143,15 +143,12 @@ int luaopen_fast_hash(lua_State *L) {
 `
 
 // TestLuaCModuleLoadsInTarantool builds a Lua C module with lua-c, static
-// and not, against the headers of the Tarantool in PATH, and loads it in
-// that Tarantool.
+// and not, against the headers of the host's Tarantool (see
+// requireHostHeaders), and loads it in that Tarantool.
 func TestLuaCModuleLoadsInTarantool(t *testing.T) {
 	t.Parallel()
 
-	includeDir := requireHostHeaders(t)
-
-	tarantool, err := exec.LookPath("tarantool")
-	require.NoError(t, err)
+	includeDir, tarantool := requireHostHeaders(t)
 
 	for _, static := range []bool{false, true} {
 		harness := hostHarness(t, includeDir, map[string]string{
