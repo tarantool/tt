@@ -448,7 +448,10 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path, offline):
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
 def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tarantool_prefix):
     with tempfile.TemporaryDirectory() as tmp_path:
-        # Rocks install must fail due to not found tarantool headers.
+        # TT_CLI_TARANTOOL_PREFIX comes first: a prefix with no headers
+        # fails the build of a rock, naming where it looked.
+        no_headers = os.path.join(tmp_path, "no-headers")
+        os.mkdir(no_headers)
         rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
         rc, output = run_command_and_get_output(
             rocks_cmd,
@@ -457,14 +460,21 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tarantool_prefix
                 os.environ,
                 PWD=tmp_path,
                 PATH=os.path.join(tarantool_prefix, "bin") + ":" + os.environ["PATH"],
+                TT_CLI_TARANTOOL_PREFIX=no_headers,
             ),
         )
 
         assert rc == 1  # Tarantool headers are not found.
         assert re.search("Error: Failed finding Lua header files", output)
+        assert "tarantool development headers not found" in output
+        assert os.path.join(no_headers, "include", "tarantool") in output
 
-        # Set env var to find tarantool headers.
-        rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
+        # Without it the headers are found beside the tarantool: the
+        # tarantool of the project scope found on PATH is <scope>/bin/
+        # tarantool, a link into versions/, and its headers are in its
+        # version directory and <scope>/include/tarantool. tt took the
+        # CMAKE_INSTALL_PREFIX of the build, a directory of the build that
+        # is gone, and then /usr, and failed with no headers there.
         rc, output = run_command_and_get_output(
             rocks_cmd,
             cwd=tmp_path,
@@ -472,11 +482,10 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tarantool_prefix
                 os.environ,
                 PWD=tmp_path,
                 PATH=os.path.join(tarantool_prefix, "bin") + ":" + os.environ["PATH"],
-                TT_CLI_TARANTOOL_PREFIX=str(tarantool_prefix),
             ),
         )
 
-        assert rc == 0
+        assert rc == 0, output
         assert "crud 1.1.1-1 is now installed" in output
 
         assert os.path.exists(os.path.join(tmp_path, ".rocks", "share", "tarantool", "crud"))
