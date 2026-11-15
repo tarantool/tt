@@ -68,9 +68,12 @@ const (
 //
 // The core calls Config and New when it checks a manifest - by every
 // command that reads one, before anything is built - and may call them more
-// than once for one block, so neither may have side effects. A backend that
-// is not well formed ([Backend.Validate]) is refused when tt starts, and
-// buildtest refuses it alike.
+// than once for one block, so neither may have side effects, and both are
+// to be cheap. New is given no directory of the project: it checks the
+// shape of the block, and leaves what needs a file or a tool to Preflight
+// ([Preflighter]) and Run. A backend that is not well formed
+// ([Backend.Validate]) is refused when tt starts, and buildtest refuses it
+// alike.
 type Backend struct {
 	// Name is the value of backend in a build block that selects it: a
 	// lowercase letter, then lowercase letters, digits and dashes. No two
@@ -255,6 +258,11 @@ type Build interface {
 	// these directories, by their types, and what output lists
 	// ([Backend.OutputFrom]); a file in the directory of a type the backend
 	// does not produce fails the build ([ErrNotProduced]).
+	//
+	// The core runs one Run at a time: the components of a project are
+	// built one after another, under the lock of the project, so builds
+	// of one backend in one tt need no lock between them. Another tt may
+	// build another project at the same time.
 	Run(ctx context.Context, c *Context) error
 }
 
