@@ -64,6 +64,11 @@ type stageFiles struct {
 	Written []string `json:"written,omitempty"`
 	// LaidOut is what the layout copied from the files of the component.
 	LaidOut []string `json:"laid_out,omitempty"`
+	// Block is the digest of the build block Written was made by
+	// (blockDigest); empty for a component of no block, and in the record
+	// of an older tt. A build of another block starts the component afresh
+	// (builder.runBackends).
+	Block string `json:"block,omitempty"`
 }
 
 // stageRecordPath is where the record of stage is.
@@ -159,6 +164,9 @@ type stageBuild struct {
 	// (layoutComponents).
 	written map[string][]string
 	laidOut map[string][]string
+	// blocks maps a component it ran the backend of to the digest of its
+	// build block (blockDigest).
+	blocks map[string]string
 	// generated is what the build generated itself: version.lua.
 	generated []string
 }
@@ -183,6 +191,7 @@ func settleStage(stage string, proj project, last stageRecord, build stageBuild)
 			files = stageFiles{
 				Written: inDir(stage, build.written[name]),
 				LaidOut: inDir(stage, build.laidOut[name]),
+				Block:   build.blocks[name],
 			}
 			ok = true
 		}

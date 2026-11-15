@@ -115,6 +115,32 @@ func componentInputs(projectDir, dir string, build manifest.Build, extra []strin
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
+// blockDigest is the digest of a build block, in the canonical form of
+// manifest_hash, which the record of a stage keeps for what the build of the
+// block wrote there (stageFiles.Block).
+func blockDigest(build manifest.Build) (string, error) {
+	block, err := build.Canonical()
+	if err != nil {
+		return "", err
+	}
+
+	sum := sha256.Sum256(block)
+
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// removeFiles removes the files of paths that are there.
+func removeFiles(paths []string) error {
+	for _, path := range paths {
+		err := os.Remove(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("removing %s: %w", path, err)
+		}
+	}
+
+	return nil
+}
+
 // skipInput leaves out of the inputs of a component the hidden files (.git,
 // the state of a tool, the .gitignore files themselves) and what is in _build and
 // _runtime.

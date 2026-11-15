@@ -430,7 +430,8 @@ anything is built, for want of the headers.
 way, out of the sources: object files, a build tree. It is
 `_build/component/<component>/`, there when the build starts, and it stays
 between builds, so that a `make` build rebuilds what changed only;
-`--rebuild` empties it first. A `make` or `shell` build that writes there
+`--rebuild` empties it first, and so does a build of a block that changed
+since the last build. A `make` or `shell` build that writes there
 rather than beside its sources leaves the directory of the component as it
 is, and that of a path dependency, another checkout, too.
 

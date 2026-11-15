@@ -137,7 +137,11 @@ so does what the other components put there when `--component` builds one.
 A file a backend wrote into `TT_OUTPUT_DIR` once and leaves alone since
 stays its own, as an up-to-date `make` target does; `--rebuild` starts from
 an empty `_build/rock/<product>/`, so only what the build writes again
-stays. A build also removes from
+stays. A component whose `build` block changed is built as `--rebuild`
+builds it: what its last build made leaves `_build/rock/<product>/` before
+the build runs, `TT_BUILD_DIR` is emptied, and only what the build makes
+stays - a module renamed in the block, `module = "hello"` made `module =
+"greet"`, leaves no `hello.so` behind. A build also removes from
 `.rocks/` the versions of the dependencies the lock pins other than the one
 it pins, and repairs a `.rocks/` an older tt left out of step with its
 manifest.

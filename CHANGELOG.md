@@ -680,6 +680,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   unless the `env` of the block sets `ZIG_LOCAL_PKG_DIR`, and the layout
   leaves out a `zig-pkg/` of the component, which `zig fetch --save` run
   there makes. zig 0.16, which refuses `--pkg-dir`, is given none.
+- A module renamed in the `build` block of a component, `module = "hello"`
+  made `module = "greet"`, no longer stays in `.rocks/` and the archive
+  until `tt package build --rebuild`: what an earlier build wrote counted
+  as made while it was there, as an up-to-date `make` target writes
+  nothing. A component whose block changed since its last build is built
+  as `--rebuild` builds it: what that build made leaves the stage first,
+  its `TT_BUILD_DIR` is emptied and the backend is told `Fresh`. The record
+  of the stage, `_build/rock/<product>.json`, keeps the digest of the block
+  of each component. `--rebuild --component <name>` drops what the earlier
+  builds of that component made as well.
 - `tt -V package build` no longer says `library=go-luarocks` of what tt
   itself logs: `component is up to date component=<name>` of an incremental
   build skipped, and `removed <rock> <version>, which the lock does not pin`.

@@ -162,28 +162,27 @@ func TestRun_stageOfAComponentBuild(t *testing.T) {
 }
 
 // TestRun_stageRebuildDropsWhatAnEarlierBuildWrote pins that a module a
-// backend no longer writes stays its own while it is there, as a make target
-// that is up to date is, and that --rebuild, which starts from an empty
-// stage, drops it.
+// backend of the same block no longer writes stays its own while it is
+// there, as a make target that is up to date is, and that --rebuild, which
+// starts from an empty stage, drops it.
 func TestRun_stageRebuildDropsWhatAnEarlierBuildWrote(t *testing.T) {
 	t.Parallel()
 
-	write := func(name string) string {
-		return strings.Replace(baseManifest,
-			"args = ['-c', 'echo built > fast_hash.so']\noutput = ['fast_hash.so']",
-			`args = ['-c', 'mkdir -p "$TT_OUTPUT_DIR" && echo built > "$TT_OUTPUT_DIR/`+
-				name+`"']`, 1)
-	}
+	// The name of the module is in a file of the component, not in the
+	// block.
+	manifest := strings.Replace(baseManifest,
+		"args = ['-c', 'echo built > fast_hash.so']\noutput = ['fast_hash.so']",
+		`args = ['-c', 'echo built > "$TT_OUTPUT_DIR/$(cat name.txt)"']`, 1)
 
-	dir := setupProject(t, write("old.so"), map[string]string{
-		"init.lua": "-- init", "native/x.txt": "x",
+	dir := setupProject(t, manifest, map[string]string{
+		"init.lua": "-- init", "native/name.txt": "old.so",
 	})
 	staged := filepath.Join(packageStage(dir, "default"), "lib", "my-app")
 
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 	require.FileExists(t, filepath.Join(staged, "old.so"))
 
-	writeFile(t, filepath.Join(dir, manifestFileName), write("new.so"))
+	writeFile(t, filepath.Join(dir, "native", "name.txt"), "new.so")
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 	assert.FileExists(t, filepath.Join(staged, "old.so"))
 	assert.FileExists(t, filepath.Join(staged, "new.so"))
@@ -192,10 +191,88 @@ func TestRun_stageRebuildDropsWhatAnEarlierBuildWrote(t *testing.T) {
 
 	rebuild.Rebuild = true
 
+	// --rebuild of the component alone, which keeps the stage of the
+	// others, drops what the earlier builds of the component made.
+	writeFile(t, filepath.Join(dir, "native", "name.txt"), "other.so")
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	require.FileExists(t, filepath.Join(staged, "new.so"))
+
+	component := rebuild
+	component.Component = "native"
+
+	require.NoError(t, Run(context.Background(), component))
+	assert.NoFileExists(t, filepath.Join(staged, "new.so"))
+	assert.FileExists(t, filepath.Join(staged, "other.so"))
+
+	writeFile(t, filepath.Join(dir, "native", "name.txt"), "new.so")
 	require.NoError(t, Run(context.Background(), rebuild))
 	assert.NoFileExists(t, filepath.Join(staged, "old.so"))
+	assert.NoFileExists(t, filepath.Join(staged, "other.so"))
 	assert.FileExists(t, filepath.Join(staged, "new.so"))
 	assert.NoFileExists(t, filepath.Join(dir, rocksDirName, "lib/tarantool/my-app/old.so"))
+}
+
+// TestRun_stageOfAChangedBlock pins that a component whose build block
+// changed is built afresh with no --rebuild: a module the old block made
+// and the new one does not, after module = "hello" became module = "greet"
+// say, leaves the stage and .rocks/, and what the build made before is
+// removed first, so that a make target up to date before is made again
+// rather than lost. The same block keeps what it made, written or not.
+func TestRun_stageOfAChangedBlock(t *testing.T) {
+	t.Parallel()
+
+	// The script writes its module only when the module is not there yet,
+	// as a make target does.
+	write := func(name, env string) string {
+		return strings.Replace(baseManifest,
+			"args = ['-c', 'echo built > fast_hash.so']\noutput = ['fast_hash.so']",
+			`args = ['-c', 'test -f "$TT_OUTPUT_DIR/`+name+`" || `+
+				`echo built > "$TT_OUTPUT_DIR/`+name+`"']`+env, 1)
+	}
+
+	dir := setupProject(t, write("old.so", ""), map[string]string{
+		"init.lua": "-- init", "native/x.txt": "x",
+	})
+	stage := packageStage(dir, "default")
+	staged := filepath.Join(stage, "lib", "my-app")
+	installed := filepath.Join(dir, rocksDirName, "lib", "tarantool", "my-app")
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	require.FileExists(t, filepath.Join(staged, "old.so"))
+
+	record, ok := readStageRecord(stage)
+	require.True(t, ok)
+
+	block := record.Components["native"].Block
+	assert.Len(t, block, 64, "the digest of the block")
+
+	// The same block writes nothing, and its module stays made.
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	assert.FileExists(t, filepath.Join(staged, "old.so"))
+	assert.FileExists(t, filepath.Join(installed, "old.so"))
+
+	// Another block: the module of the old one goes.
+	writeFile(t, filepath.Join(dir, manifestFileName), write("new.so", ""))
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	assert.NoFileExists(t, filepath.Join(staged, "old.so"))
+	assert.FileExists(t, filepath.Join(staged, "new.so"))
+	assert.NoFileExists(t, filepath.Join(installed, "old.so"))
+	assert.FileExists(t, filepath.Join(installed, "new.so"))
+
+	results := readResults(filepath.Join(dir, buildDirName), nil)
+	assert.Equal(t, []string{"new.so"}, results["native"].Modules)
+
+	record, ok = readStageRecord(stage)
+	require.True(t, ok)
+	assert.NotEqual(t, block, record.Components["native"].Block)
+
+	// A block that makes the same module otherwise: the script, which
+	// writes nothing while its module is there, makes it again.
+	writeFile(t, filepath.Join(dir, manifestFileName),
+		write("new.so", "\nenv = { A = '1' }"))
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	assert.FileExists(t, filepath.Join(staged, "new.so"))
+	assert.FileExists(t, filepath.Join(installed, "new.so"))
 }
 
 // TestRun_stageOfAPathDependency pins that a Lua file deleted from a path
