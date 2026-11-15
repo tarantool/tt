@@ -12,7 +12,6 @@ package buildtest
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -386,13 +385,18 @@ type host struct {
 func (s host) Command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	environ := s.environ()
 
-	program, err := lookPath(name, environ)
-	if err != nil {
-		// Running it fails as running a program that is not there does.
+	program, lookErr := lookPath(name, environ)
+	if lookErr != nil {
 		program = name
 	}
 
 	cmd := exec.CommandContext(ctx, program, args...)
+	if lookErr != nil {
+		// Running it fails as running a program that is not there does,
+		// even when the PATH of the test has it.
+		cmd.Path = name
+		cmd.Err = lookErr
+	}
 
 	cmd.Args[0] = name
 	cmd.Dir = s.h.Context.Dirs.Cwd
@@ -432,7 +436,21 @@ func (s host) Output(cmd *exec.Cmd) ([]byte, error) {
 }
 
 func (s host) LookPath(name string) (string, error) {
-	return lookPath(name, s.environ())
+	if !strings.Contains(name, "/") {
+		return lookPath(name, s.environ())
+	}
+
+	path := name
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(s.h.Context.Dirs.Cwd, path)
+	}
+
+	path, err := exec.LookPath(path)
+	if err != nil {
+		return "", fmt.Errorf("buildtest: looking for %s: %w", name, err)
+	}
+
+	return path, nil
 }
 
 func (s host) LockedVersion(rock string) (string, bool) {
@@ -468,25 +486,22 @@ func (s host) environ() []string {
 	return append(environ, "PATH="+facts.Dirs.Tools+string(os.PathListSeparator)+path)
 }
 
-// errNotFound reports a program that is not in the PATH of the build.
-var errNotFound = errors.New("not found in PATH")
-
-// lookPath finds name in the last PATH of environ; a name with a slash is
-// taken as it is.
+// lookPath finds name in the last PATH of environ, and only there, as the
+// core does: a name with a slash is taken as it is, a relative entry of
+// PATH is skipped, and a name found nowhere is an *exec.Error wrapping
+// exec.ErrNotFound.
 func lookPath(name string, environ []string) (string, error) {
 	if strings.Contains(name, "/") {
 		return name, nil
 	}
 
-	var path string
-
-	for _, entry := range environ {
-		if value, ok := strings.CutPrefix(entry, "PATH="); ok {
-			path = value
-		}
-	}
+	path, _ := build.LookupEnv(environ, "PATH")
 
 	for _, dir := range filepath.SplitList(path) {
+		if !filepath.IsAbs(dir) {
+			continue
+		}
+
 		candidate := filepath.Join(dir, name)
 
 		info, err := os.Stat(candidate)
@@ -495,5 +510,5 @@ func lookPath(name string, environ []string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("%s: %w", name, errNotFound)
+	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 }

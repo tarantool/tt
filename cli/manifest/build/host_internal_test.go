@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -243,11 +244,58 @@ func TestLookPathInSkipsRelativeEntries(t *testing.T) {
 	relative, err := filepath.Rel(wd, ProjectBinDir(project))
 	require.NoError(t, err)
 
-	assert.Equal(t, "tool", lookPathIn("tool", []string{"PATH=" + relative}))
-	assert.Equal(t, filepath.Join(ProjectBinDir(project), "tool"),
-		lookPathIn("tool", []string{"PATH=" + strings.Join(
-			[]string{relative, ProjectBinDir(project)}, string(os.PathListSeparator))}))
-	assert.Equal(t, "./tool", lookPathIn("./tool", []string{"PATH=" + ProjectBinDir(project)}))
+	_, err = lookPathIn("tool", []string{"PATH=" + relative})
+	require.ErrorIs(t, err, exec.ErrNotFound)
+
+	path, err := lookPathIn("tool", []string{"PATH=" + strings.Join(
+		[]string{relative, ProjectBinDir(project)}, string(os.PathListSeparator))})
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(ProjectBinDir(project), "tool"), path)
+
+	path, err = lookPathIn("./tool", []string{"PATH=" + ProjectBinDir(project)})
+	require.NoError(t, err)
+	assert.Equal(t, "./tool", path)
+}
+
+// TestHostLooksOnlyInThePathOfTheBuild: a PATH the env of a build block sets
+// is where its programs are looked for, and the only place: a program of the
+// PATH of tt is not found by LookPath, and a command of it fails to start
+// with exec.ErrNotFound, rather than run the program tt would.
+func TestHostLooksOnlyInThePathOfTheBuild(t *testing.T) {
+	t.Parallel()
+
+	// sh is in the PATH of tt, and in no directory of the PATH of the build.
+	_, err := exec.LookPath("sh")
+	require.NoError(t, err)
+
+	cwd := t.TempDir()
+	host := testHost("", cwd, map[string]string{"PATH": t.TempDir()})
+
+	_, err = host.LookPath("sh")
+	require.ErrorIs(t, err, exec.ErrNotFound)
+
+	cmd := host.Command(context.Background(), "sh", "-c", "true")
+	assert.Equal(t, []string{"sh", "-c", "true"}, cmd.Args)
+
+	err = host.Run(cmd)
+	require.ErrorIs(t, err, exec.ErrNotFound)
+
+	_, err = host.Output(host.Command(context.Background(), "sh", "-c", "true"))
+	require.ErrorIs(t, err, exec.ErrNotFound)
+
+	// An empty PATH has nothing either.
+	host = testHost("", cwd, map[string]string{"PATH": ""})
+
+	_, err = host.LookPath("sh")
+	require.ErrorIs(t, err, exec.ErrNotFound)
+
+	// A path is taken as it is, relative to the working directory of the
+	// build.
+	require.NoError(t, execfile.WriteFile(filepath.Join(cwd, "tool"), []byte("#!/bin/sh\n"), 0o755))
+
+	path, err := host.LookPath("./tool")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(cwd, "tool"), path)
 }
 
 // testHost is the host of a build of the project at project, in cwd.

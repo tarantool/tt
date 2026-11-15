@@ -270,6 +270,48 @@ func TestRun_missingToolFailsFirst(t *testing.T) {
 	assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
 }
 
+// TestRun_toolOnlyInThePathOfTt: a PATH that [build].env sets is the whole
+// PATH of the build. A tool that is in the PATH of tt only fails the
+// preflight of a build that looks for it, and a command of a build that
+// runs it fails to start, rather than run the program of tt's PATH.
+func TestRun_toolOnlyInThePathOfTt(t *testing.T) {
+	t.Parallel()
+
+	_, err := exec.LookPath("sh")
+	require.NoError(t, err)
+
+	empty := t.TempDir()
+
+	dir := setupProject(t, manifestHead+`
+[components.gw]
+path = 'gw'
+
+[components.gw.build]
+backend = 'exe'
+tool = 'sh'
+env = { PATH = '`+empty+`' }
+`, exeFiles)
+
+	err = Run(context.Background(), dryOptions(dir))
+	require.ErrorIs(t, err, sdkbuild.ErrNoTool)
+	assert.Contains(t, err.Error(), `the exe backend runs "sh"`)
+
+	dir = setupProject(t, manifestHead+`
+[components.gen]
+path = 'gen'
+
+[components.gen.build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'true']
+env = { PATH = '`+empty+`' }
+`, map[string]string{"gen/init.lua": "return {}\n"})
+
+	err = Run(context.Background(), dryOptions(dir))
+	require.ErrorIs(t, err, exec.ErrNotFound)
+	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
+}
+
 // TestPreflightFindsTheProjectBin: a toolchain in .tarantool/bin of the
 // project being built, and nowhere else, passes the preflight, as the build
 // finds it there; and so does one in the PATH of [build].env, the project's

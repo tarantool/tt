@@ -3,6 +3,7 @@ package buildtest_test
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -268,9 +269,29 @@ func TestHarnessBin(t *testing.T) {
 	assert.Equal(t, "tool\n", string(out))
 
 	_, err = facts.LookPath("no-such-tool-of-buildtest")
-	require.Error(t, err)
+	require.ErrorIs(t, err, exec.ErrNotFound)
 
 	err = facts.Run(facts.Command(t.Context(), "sh", "-c", "exit 3"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "running sh -c exit 3")
+}
+
+// TestHarnessOnlyThePathOfTheBuild: a PATH of the Env of the Context is the
+// whole PATH of the build, after Tools, as the core has it: a program of the
+// PATH of the test alone is not found, and a command of it fails to start.
+func TestHarnessOnlyThePathOfTheBuild(t *testing.T) {
+	t.Parallel()
+
+	_, err := exec.LookPath("sh")
+	require.NoError(t, err)
+
+	facts := buildtest.New(t, component()).Context
+
+	facts.Env["PATH"] = t.TempDir()
+
+	_, err = facts.LookPath("sh")
+	require.ErrorIs(t, err, exec.ErrNotFound)
+
+	err = facts.Run(facts.Command(t.Context(), "sh", "-c", "true"))
+	require.ErrorIs(t, err, exec.ErrNotFound)
 }

@@ -469,6 +469,9 @@ last build is in `_build/cache/<component>.json`, and `--rebuild` of
 `.tarantool/bin` of the project, where `tt binary` and `tt wasm prepare`
 put the programs of the project, comes first on the `PATH` of a build and of
 a hook: a `command` names such a program without `.env/activate.sh` sourced.
+A program is looked for in that `PATH` only: a block whose `env` sets
+`PATH` gets the programs of that `PATH` and of `.tarantool/bin`, and a
+program only tt's own `PATH` has is not found.
 
 `tt -V package build` logs every command a build or a hook runs, and the
 directory it runs in, before running it, and shows what the command
