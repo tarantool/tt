@@ -536,8 +536,14 @@ included. A `target/` of a component cargo builds is not laid out. See
 
 ```console
 zig build <steps>... -p _build/component/<component>/zig-out \
-    --cache-dir _build/component/<component>/zig-cache [--release=<mode>] -D<name>=<value>...
+    --cache-dir _build/component/<component>/zig-cache \
+    [--pkg-dir _build/component/<component>/zig-pkg] [--release=<mode>] -D<name>=<value>...
 ```
+
+`--pkg-dir`, where zig 0.17 keeps the packages it fetches for
+`build.zig.zon`, `zig-pkg/` beside it by default, is given to zig 0.17
+and later, unless the `env` of the block sets `ZIG_LOCAL_PKG_DIR`; zig
+0.16 keeps them in its global cache and refuses the flag.
 
 `optimize` is given as `--release=safe`, `fast` or `small`, and `Debug` as
 no flag, so a `build.zig` that does not declare `-Doptimize` takes it too;
@@ -550,8 +556,8 @@ and copied as `<module>.so`, `<module>.dylib` on macOS; a dotted module,
 component. The program `bin` is taken from `bin/` of the prefix. A block
 that names neither is an error, and so is a module or a program the build
 did not install, which names what it installed. `--rebuild` empties the
-prefix and the cache. A `zig-out/` of a component zig builds is not laid
-out. The inputs of an `incremental` build are also the version of zig and
+prefix, the cache and the packages. A `zig-out/` and a `zig-pkg/` of a
+component zig builds are not laid out. The inputs of an `incremental` build are also the version of zig and
 `build.zig` and `build.zig.zon` of `cwd`. zig fetches the dependencies of
 `build.zig.zon` itself as it builds. See
 [Build a module in Zig](../how-to/zig-modules.md).
