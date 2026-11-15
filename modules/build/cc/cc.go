@@ -109,6 +109,11 @@ type Config struct {
 	// module in, -Wl,-rpath,<dir>, each absolute or under $ORIGIN, the
 	// directory of the module (rpathFlag).
 	Rpath []string `toml:"rpath"`
+	// PkgConfig are the packages pkg-config gives the flags of, each as
+	// pkg-config takes it, "openssl" or "libsasl2 >= 2.1": those of
+	// --cflags go to every compile, those of --libs to the link, after
+	// libraries (pkgconfig.go).
+	PkgConfig []string `toml:"pkg_config"`
 	// Defines are the macros defined, -D.
 	Defines []string `toml:"defines"`
 	// Cflags are flags of the C compiler, of the C and assembler sources,
@@ -134,6 +139,7 @@ type Overlay struct {
 	Libraries   []string `toml:"libraries"`
 	LibraryDirs []string `toml:"library_dirs"`
 	Rpath       []string `toml:"rpath"`
+	PkgConfig   []string `toml:"pkg_config"`
 	Defines     []string `toml:"defines"`
 	Cflags      []string `toml:"cflags"`
 	Cxxflags    []string `toml:"cxxflags"`
@@ -169,6 +175,7 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 
 	flags := []flagList{
 		{"cflags", config.Cflags}, {"cxxflags", config.Cxxflags}, {"ldflags", config.Ldflags},
+		{"pkg_config", config.PkgConfig},
 	}
 	rpaths := []flagList{{"rpath", config.Rpath}}
 	oses := build.SupportedOS()
@@ -187,7 +194,8 @@ func newBuild(name string, config *Config, common build.Common) (build.Build, er
 		flags = append(flags,
 			flagList{prefix + "cflags", overlay.Cflags},
 			flagList{prefix + "cxxflags", overlay.Cxxflags},
-			flagList{prefix + "ldflags", overlay.Ldflags})
+			flagList{prefix + "ldflags", overlay.Ldflags},
+			flagList{prefix + "pkg_config", overlay.PkgConfig})
 		rpaths = append(rpaths, flagList{prefix + "rpath", overlay.Rpath})
 	}
 
@@ -310,9 +318,11 @@ type flagList struct {
 // envVars are the variables of make and autotools a user would set in env
 // of a c or lua-c build to compile it with, with what to write instead. The
 // compiler reads none of them, so one of env reaches nothing: CC, CXX,
-// CFLAGS, CXXFLAGS and LDFLAGS tt reads from the environment it runs in to
-// put the command lines together, CPPFLAGS, LIBS and LDLIBS from nowhere,
-// since the build has fields of its own for what they carry.
+// CFLAGS, CXXFLAGS, LDFLAGS and PKG_CONFIG tt reads from the environment it
+// runs in to put the command lines together, CPPFLAGS, LIBS and LDLIBS from
+// nowhere, since the build has fields of its own for what they carry. The
+// variables pkg-config reads itself, PKG_CONFIG_PATH say, are not among
+// them: pkg-config runs with the environment of the build, env included.
 var envVars = []struct {
 	name    string
 	instead string
@@ -329,6 +339,8 @@ var envVars = []struct {
 		"LDFLAGS of the environment tt runs in comes after them"},
 	{"LIBS", "put the libraries into libraries and their directories into library_dirs"},
 	{"LDLIBS", "put the libraries into libraries and their directories into library_dirs"},
+	{"PKG_CONFIG", "pkg-config is PKG_CONFIG of the environment tt runs in, pkg-config " +
+		"by default; PKG_CONFIG_PATH in env reaches it"},
 }
 
 // ccBuild is a checked c or lua-c build block.
@@ -343,24 +355,36 @@ type ccBuild struct {
 
 // Preflight checks that the build has the headers of a Tarantool to compile
 // against: a tt with no Tarantool builds what needs none, and the build
-// would otherwise fail only once its turn came, saying nothing of why.
-func (b ccBuild) Preflight(_ context.Context, c *build.Context) error {
-	tools, err := toolchainOf(c, b.lookupEnv)
+// would otherwise fail only once its turn came, saying nothing of why. It
+// checks that pkg-config is there and knows the packages of pkg_config too.
+func (b ccBuild) Preflight(ctx context.Context, c *build.Context) error {
+	tools, err := b.toolchain(c)
 	if err != nil {
 		return err
+	}
+
+	return checkPkgConfig(ctx, c, tools, pkgPackages(b.config, c.Target.OS))
+}
+
+// toolchain returns the toolchain of the build in c (toolchainOf), checking
+// that it has the headers of a Tarantool.
+func (b ccBuild) toolchain(c *build.Context) (toolchain, error) {
+	tools, err := toolchainOf(c, b.lookupEnv)
+	if err != nil {
+		return toolchain{}, err
 	}
 
 	if tools.includeDir == "" {
 		if c.Tarantool.Prefix != "" {
 			// A Tarantool without headers: the core adds where it looked
 			// for them and how to point tt at them.
-			return ErrMissingHeaders
+			return toolchain{}, ErrMissingHeaders
 		}
 
-		return fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
+		return toolchain{}, fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
 	}
 
-	return nil
+	return tools, nil
 }
 
 // Run compiles each source into its object in the work directory, writes
@@ -371,12 +395,9 @@ func (b ccBuild) Preflight(_ context.Context, c *build.Context) error {
 // compiled again, nor the module linked again when its objects and the link
 // are those of the last one and it is still there (cache.go).
 func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
-	err := b.Preflight(ctx, c)
-	if err != nil {
-		return err
-	}
-
-	tools, err := toolchainOf(c, b.lookupEnv)
+	// What Preflight checks of pkg-config, the run finds as it asks it for
+	// the flags.
+	tools, err := b.toolchain(c)
 	if err != nil {
 		return err
 	}
@@ -388,13 +409,20 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		}
 	}
 
+	packages := pkgPackages(b.config, c.Target.OS)
+
+	pkg, err := pkgConfigFlags(ctx, c, tools, packages, c.Static)
+	if err != nil {
+		return err
+	}
+
 	env := environFlags(b.lookupEnv)
-	identities := identify(ctx, c, planOf(b.config, tools, env, c).compilers())
+	identities := identify(ctx, c, planOf(b.config, tools, env, pkg, c).compilers())
 
 	// The plan again, with the flags its compilers take.
-	probeReproducible(ctx, c, &tools, planOf(b.config, tools, env, c), identities)
+	probeReproducible(ctx, c, &tools, planOf(b.config, tools, env, pkg, c), identities)
 
-	built := planOf(b.config, tools, env, c)
+	built := planOf(b.config, tools, env, pkg, c)
 
 	err = writeCompileCommands(c.Dirs.Work, c.Dirs.Cwd, built.steps)
 	if err != nil {
@@ -407,6 +435,10 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 	}
 
 	run := newRunner(ctx, c, built, identities)
+
+	if len(packages) > 0 {
+		run.keyEnv = pkgConfigEnv
+	}
 
 	if b.name == LuaCName {
 		run.required = requireName(c.Component.Namespace, b.config.Module)
@@ -442,6 +474,10 @@ type runner struct {
 	// output is what the compilers printed, of the compiles of this build
 	// and of the records of the objects up to date.
 	output *compilerOutput
+	// keyEnv are the variables of the environment of the build that are of
+	// the key of every object and of the link besides those the compilers
+	// read: those of pkg-config, of a build that runs it (pkgConfigEnv).
+	keyEnv []string
 }
 
 // newRunner returns the runner of built in c, whose compilers are of
@@ -452,7 +488,7 @@ func newRunner(ctx context.Context, c *build.Context, built plan,
 	return runner{
 		c: c, built: built, environ: c.Command(ctx, built.linker[0]).Env,
 		identities: identities, hashes: newFileHashes(), required: "",
-		output: newCompilerOutput(),
+		output: newCompilerOutput(), keyEnv: nil,
 	}
 }
 
@@ -474,7 +510,7 @@ func identify(ctx context.Context, c *build.Context, compilers [][]string) map[s
 func (r runner) compile(ctx context.Context, step compileStep) error {
 	c := r.c
 	key := objectKey(step, c.Dirs.Cwd, c.Target, r.identities[commandLine(step.compiler)],
-		envOf(r.environ, languageEnv(step.lang)))
+		envOf(r.environ, concat(languageEnv(step.lang), r.keyEnv)))
 
 	if record, ok := upToDate(step, key, r.hashes); ok {
 		logger(c).DebugContext(ctx, step.source+" is up to date: "+step.object)
@@ -519,7 +555,7 @@ func (r runner) link(ctx context.Context, libraries []string) error {
 	out := r.built.out
 
 	key, err := linkKey(r.built, c.Target, r.identities[commandLine(r.built.linker)],
-		envOf(r.environ, linkEnv), libraries, r.hashes)
+		envOf(r.environ, concat(linkEnv, r.keyEnv)), libraries, r.hashes)
 	if err != nil {
 		return err
 	}
@@ -617,6 +653,9 @@ type toolchain struct {
 	// c++ by default. It compiles the C++ sources and links a module with
 	// one.
 	cxx []string
+	// pkgConfig is pkg-config, in words as cc is: PKG_CONFIG of the
+	// environment, pkg-config by default.
+	pkgConfig []string
 	// libFlag are the flags that link a module Tarantool loads: -shared,
 	// or -bundle -undefined dynamic_lookup -all_load on darwin, whose
 	// loader resolves the symbols of Tarantool when it loads the module.
@@ -635,19 +674,19 @@ type toolchain struct {
 	reproducible map[language][]string
 }
 
-// toolchainOf returns the toolchain of the build of c, CC and CXX read with
-// lookup. A value that splitWords cannot split is an error; one of no words
-// is unset.
+// toolchainOf returns the toolchain of the build of c, CC, CXX and
+// PKG_CONFIG read with lookup. A value that splitWords cannot split is an
+// error; one of no words is unset.
 func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchain, error) {
 	tools := toolchain{
-		cc: []string{"cc"}, cxx: []string{cxxName}, libFlag: []string{"-shared"},
-		origin: originToken, includeDir: "", reproducible: nil,
+		cc: []string{"cc"}, cxx: []string{cxxName}, pkgConfig: []string{pkgConfigName},
+		libFlag: []string{"-shared"}, origin: originToken, includeDir: "", reproducible: nil,
 	}
 
 	for _, compiler := range []struct {
 		variable string
 		words    *[]string
-	}{{"CC", &tools.cc}, {"CXX", &tools.cxx}} {
+	}{{"CC", &tools.cc}, {"CXX", &tools.cxx}, {"PKG_CONFIG", &tools.pkgConfig}} {
 		words, err := compilerOf(lookup, compiler.variable)
 		if err != nil {
 			return toolchain{}, err
@@ -668,9 +707,9 @@ func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchai
 	return tools, nil
 }
 
-// compilerOf returns the words of the compiler that variable, CC or CXX, of
-// the environment tt runs in names, read with lookup: none when it is unset
-// or blank.
+// compilerOf returns the words of the program that variable, CC, CXX or
+// PKG_CONFIG, of the environment tt runs in names, read with lookup: none
+// when it is unset or blank.
 func compilerOf(lookup func(string) (string, bool), variable string) ([]string, error) {
 	value, _ := lookup(variable)
 

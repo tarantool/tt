@@ -170,3 +170,60 @@ func TestRpath(t *testing.T) {
 
 	assert.Equal(t, []string{"$ORIGIN/../vendor", "/opt/foo/lib"}, runPaths(t, module))
 }
+
+// zlibC is a lua-c module zver whose function returns the version of zlib
+// it is linked with, which a source compiles only with the headers of zlib.
+const zlibC = `#include <lua.h>
+#include <zlib.h>
+
+static int l_version(lua_State *L) {
+	lua_pushstring(L, zlibVersion());
+	return 1;
+}
+
+int luaopen_zver(lua_State *L) {
+	lua_pushcfunction(L, l_version);
+	return 1;
+}
+`
+
+// requirePkgConfig skips the calling test when pkg-config of PATH does not
+// know the package pkg.
+func requirePkgConfig(t *testing.T, pkg string) {
+	t.Helper()
+
+	err := exec.CommandContext(t.Context(), "pkg-config", "--exists", pkg).Run()
+	if err != nil {
+		t.Skipf("pkg-config knows no %s: %v", pkg, err)
+	}
+}
+
+// TestPkgConfigWithZlib builds a lua-c module of zlib with pkg_config and
+// the pkg-config of the host, and loads it in the host's Tarantool.
+func TestPkgConfigWithZlib(t *testing.T) {
+	t.Parallel()
+
+	requirePkgConfig(t, "zlib")
+
+	includeDir, tarantool := requireHostHeaders(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"zver.c": zlibC,
+		"check.lua": "package.cpath = arg[1] .. '/?.so;' .. arg[1] .. '/?.dylib;' .. " +
+			"package.cpath\nprint(require('zver')())\nos.exit(0)\n",
+	})
+
+	hostBuild(t, harness, LuaC(), map[string]any{
+		"module": "zver", "sources": []any{"zver.c"}, "pkg_config": []any{"zlib >= 1.2"},
+	}, "zver")
+
+	version, err := exec.CommandContext(t.Context(), "pkg-config", "--modversion",
+		"zlib").Output()
+	require.NoError(t, err)
+
+	printed, err := exec.CommandContext(t.Context(), tarantool,
+		filepath.Join(harness.Context.Dirs.Cwd, "check.lua"),
+		harness.Context.Dirs.Modules).CombinedOutput()
+	require.NoError(t, err, string(printed))
+	assert.Equal(t, strings.TrimSpace(string(version)), strings.TrimSpace(string(printed)))
+}
