@@ -15,7 +15,7 @@ import (
 // that placement can be asserted without depending on the host OS.
 func linuxToolchain() toolchain {
 	return toolchain{
-		cc: "cc", libFlag: []string{"-shared"}, rpath: true, includeDir: "/tt/include",
+		cc: []string{"cc"}, libFlag: []string{"-shared"}, rpath: true, includeDir: "/tt/include",
 	}
 }
 
@@ -23,7 +23,7 @@ func linuxToolchain() toolchain {
 // and no rpath.
 func darwinToolchain() toolchain {
 	return toolchain{
-		cc:         "cc",
+		cc:         []string{"cc"},
 		libFlag:    []string{"-bundle", "-undefined", "dynamic_lookup", "-all_load"},
 		rpath:      false,
 		includeDir: "/tt/include",
@@ -38,7 +38,9 @@ func TestToolchainOf(t *testing.T) {
 	t.Parallel()
 
 	noEnv := func(string) (string, bool) { return "", false }
-	clang := func(key string) (string, bool) { return "clang", key == "CC" }
+	withCC := func(value string) func(string) (string, bool) {
+		return func(key string) (string, bool) { return value, key == "CC" }
+	}
 
 	linux := build.NewContext(build.Context{
 		Target:    build.Target{OS: "linux", Arch: "amd64"},
@@ -49,11 +51,34 @@ func TestToolchainOf(t *testing.T) {
 
 	want.includeDir = "/tt/include/tarantool"
 
-	assert.Equal(t, want, toolchainOf(linux, func(string) (string, bool) { return "", true }))
+	for _, unset := range []string{"", " \t"} {
+		tools, err := toolchainOf(linux, withCC(unset))
+		require.NoError(t, err)
+		assert.Equal(t, want, tools, "CC=%q", unset)
+	}
 
-	want.cc = "clang"
+	for value, words := range map[string][]string{
+		"clang":                 {"clang"},
+		"ccache cc":             {"ccache", "cc"},
+		"zig cc -target x86_64": {"zig", "cc", "-target", "x86_64"},
+		"'/opt/my tools/cc'":    {"/opt/my tools/cc"},
+	} {
+		want.cc = words
 
-	assert.Equal(t, want, toolchainOf(linux, clang))
+		tools, err := toolchainOf(linux, withCC(value))
+		require.NoError(t, err)
+		assert.Equal(t, want, tools, "CC=%q", value)
+	}
+
+	for value, wantErr := range map[string]error{
+		"'cc":   errUnterminatedQuote,
+		"cc \\": errTrailingBackslash,
+		"'' cc": errNoProgram,
+	} {
+		_, err := toolchainOf(linux, withCC(value))
+		require.ErrorIs(t, err, wantErr, "CC=%q", value)
+		assert.Contains(t, err.Error(), "CC=", "CC=%q", value)
+	}
 
 	darwin := build.NewContext(build.Context{
 		Target:    build.Target{OS: "darwin", Arch: "arm64"},
@@ -63,7 +88,59 @@ func TestToolchainOf(t *testing.T) {
 	want = darwinToolchain()
 	want.includeDir = ""
 
-	assert.Equal(t, want, toolchainOf(darwin, noEnv))
+	tools, err := toolchainOf(darwin, noEnv)
+	require.NoError(t, err)
+	assert.Equal(t, want, tools)
+}
+
+// TestSplitWords pins how CC is split: as a shell splits a simple command,
+// with its quoting and without its expansions.
+func TestSplitWords(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		in   string
+		want []string
+	}{
+		{"", nil},
+		{" \t\r\n", nil},
+		{"cc", []string{"cc"}},
+		{"  ccache   cc  ", []string{"ccache", "cc"}},
+		{"zig cc", []string{"zig", "cc"}},
+		{"'/opt/my tools/cc' -m64", []string{"/opt/my tools/cc", "-m64"}},
+		{`"/opt/my tools/cc"`, []string{"/opt/my tools/cc"}},
+		{`/opt/my\ tools/cc`, []string{"/opt/my tools/cc"}},
+		{`a'b c'd`, []string{"ab cd"}},
+		{`'' x`, []string{"", "x"}},
+		{`""`, []string{""}},
+		{`'a\b'`, []string{`a\b`}},
+		{`"a\b"`, []string{`a\b`}},
+		{`"a\"b\\c\$d"`, []string{`a"b\c$d`}},
+		{"\"a\\\nb\"", []string{"ab"}},
+		{"a\\\nb", []string{"ab"}},
+		{`\'x`, []string{"'x"}},
+		{`$CC ~/cc *.c`, []string{"$CC", "~/cc", "*.c"}},
+		{`"it's"`, []string{"it's"}},
+		{`'say "hi"'`, []string{`say "hi"`}},
+	}
+
+	for _, test := range tests {
+		words, err := splitWords(test.in)
+		require.NoError(t, err, "%q", test.in)
+		assert.Equal(t, test.want, words, "%q", test.in)
+	}
+
+	for value, want := range map[string]error{
+		"'cc":     errUnterminatedQuote,
+		`"cc`:     errUnterminatedQuote,
+		`"cc\"`:   errUnterminatedQuote,
+		`cc\`:     errTrailingBackslash,
+		`'a' 'b`:  errUnterminatedQuote,
+		`"a" "b\`: errUnterminatedQuote,
+	} {
+		_, err := splitWords(value)
+		require.ErrorIs(t, err, want, "%q", value)
+	}
 }
 
 // noEnvFlags is an environment with neither CFLAGS nor LDFLAGS set.

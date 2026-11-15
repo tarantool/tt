@@ -210,7 +210,12 @@ type ccBuild struct {
 // against: a tt with no Tarantool builds what needs none, and the build
 // would otherwise fail only once its turn came, saying nothing of why.
 func (b ccBuild) Preflight(_ context.Context, c *build.Context) error {
-	if toolchainOf(c, b.lookupEnv).includeDir == "" {
+	tools, err := toolchainOf(c, b.lookupEnv)
+	if err != nil {
+		return err
+	}
+
+	if tools.includeDir == "" {
 		return fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
 	}
 
@@ -227,19 +232,24 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	tools := toolchainOf(c, b.lookupEnv)
+	tools, err := toolchainOf(c, b.lookupEnv)
+	if err != nil {
+		return err
+	}
+
 	out := filepath.Join(c.Dirs.Modules, b.config.Module+c.Target.ModuleExt())
 	args := ccArgs(b.config, tools, environFlags(b.lookupEnv), out, c.Target.OS)
 
-	return c.Run(c.Command(ctx, tools.cc, args...))
+	return c.Run(c.Command(ctx, tools.cc[0], concat(tools.cc[1:], args)...))
 }
 
 // toolchain is how tt compiles a C module Tarantool loads, as go-luarocks
 // compiles one of a builtin rock.
 type toolchain struct {
-	// cc is the C compiler: CC of the environment tt runs in, cc by
-	// default.
-	cc string
+	// cc is the C compiler, the program and the arguments it is run with
+	// first: CC of the environment tt runs in split into words
+	// (splitWords), cc by default.
+	cc []string
 	// libFlag are the flags that link a module Tarantool loads: -shared,
 	// or -bundle -undefined dynamic_lookup -all_load on darwin, whose
 	// loader resolves the symbols of Tarantool when it loads the module.
@@ -254,12 +264,18 @@ type toolchain struct {
 }
 
 // toolchainOf returns the toolchain of the build of c, CC read with lookup.
-func toolchainOf(c *build.Context, lookup func(string) (string, bool)) toolchain {
+// A CC that splitWords cannot split is an error; one of no words is unset.
+func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchain, error) {
 	tools := toolchain{
-		cc: "cc", libFlag: []string{"-shared"}, rpath: true, includeDir: "",
+		cc: []string{"cc"}, libFlag: []string{"-shared"}, rpath: true, includeDir: "",
 	}
 
-	if compiler, _ := lookup("CC"); compiler != "" {
+	compiler, err := compilerOf(lookup, "CC")
+	if err != nil {
+		return toolchain{}, err
+	}
+
+	if len(compiler) > 0 {
 		tools.cc = compiler
 	}
 
@@ -272,8 +288,29 @@ func toolchainOf(c *build.Context, lookup func(string) (string, bool)) toolchain
 		tools.includeDir = filepath.Join(c.Tarantool.Prefix, "include", "tarantool")
 	}
 
-	return tools
+	return tools, nil
 }
+
+// compilerOf returns the words of the compiler that variable, CC or CXX, of
+// the environment tt runs in names, read with lookup: none when it is unset
+// or blank.
+func compilerOf(lookup func(string) (string, bool), variable string) ([]string, error) {
+	value, _ := lookup(variable)
+
+	words, err := splitWords(value)
+	if err == nil && len(words) > 0 && words[0] == "" {
+		err = errNoProgram
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("%s=%q: %w", variable, value, err)
+	}
+
+	return words, nil
+}
+
+// errNoProgram reports a compiler whose first word, the program, is empty.
+var errNoProgram = errors.New("the first word, the program, is empty")
 
 // initialArgsCap pre-sizes the cc argument slice to avoid early regrows.
 const initialArgsCap = 16
