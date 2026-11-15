@@ -325,6 +325,11 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 	}
 
 	err = compileAll(ctx, built.steps, maxJobs(), run.compile)
+
+	// The warnings of the compiles that succeeded are shown when another
+	// failed too: they may tell why.
+	run.output.show(built.steps, warner(c))
+
 	if err != nil {
 		return err
 	}
@@ -346,6 +351,9 @@ type runner struct {
 	// required is the name require loads the module by, of lua-c, whose
 	// module is checked once it is linked (checkLuaModule); empty for c.
 	required string
+	// output is what the compilers printed, of the compiles of this build
+	// and of the records of the objects up to date.
+	output *compilerOutput
 }
 
 // newRunner returns the runner of built in c, its compilers probed once.
@@ -353,6 +361,7 @@ func newRunner(ctx context.Context, c *build.Context, built plan) runner {
 	run := runner{
 		c: c, built: built, environ: c.Command(ctx, built.linker[0]).Env,
 		identities: map[string]string{}, hashes: newFileHashes(), required: "",
+		output: newCompilerOutput(),
 	}
 
 	for _, words := range built.compilers() {
@@ -363,14 +372,16 @@ func newRunner(ctx context.Context, c *build.Context, built plan) runner {
 }
 
 // compile compiles the object of step unless it is up to date, and records
-// it.
+// it. What the compiler printed, of this compile or of the one the record
+// of an object up to date is of, is kept for the build to show.
 func (r runner) compile(ctx context.Context, step compileStep) error {
 	c := r.c
 	key := objectKey(step, c.Dirs.Cwd, c.Target, r.identities[commandLine(step.compiler)],
 		envOf(r.environ, languageEnv(step.lang)))
 
-	if upToDate(step, key, r.hashes) {
+	if record, ok := upToDate(step, key, r.hashes); ok {
 		logger(c).DebugContext(ctx, step.source+" is up to date: "+step.object)
+		r.output.add(step, record.Output)
 
 		return nil
 	}
@@ -384,14 +395,16 @@ func (r runner) compile(ctx context.Context, step compileStep) error {
 		}
 	}
 
-	err := compile(ctx, c, step)
+	printed, err := compile(ctx, c, step)
 	if err != nil {
 		return err
 	}
 
+	r.output.add(step, printed)
+
 	// The object is made: one that cannot be recorded is compiled again
 	// next time, which fails no build.
-	err = recordObject(step, c.Dirs.Cwd, key, r.hashes)
+	err = recordObject(step, c.Dirs.Cwd, key, printed, r.hashes)
 	if err != nil {
 		logger(c).DebugContext(ctx, "the object of "+step.source+" is not cached: "+err.Error())
 	}
@@ -464,6 +477,18 @@ func (r runner) checkLuaModule(ctx context.Context) error {
 	}
 
 	return checkLuaModule(out, r.required, symbols)
+}
+
+// warner is the Warn of the build of c, one that logs the warning at the
+// debug level for a Context made without one.
+func warner(c *build.Context) func(string) {
+	if c.Warn != nil {
+		return c.Warn
+	}
+
+	return func(warning string) {
+		logger(c).Debug(warning)
+	}
 }
 
 // logger is the logger of the build of c, one that discards for a Context

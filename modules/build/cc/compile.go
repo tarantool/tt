@@ -99,8 +99,9 @@ func compileAll(ctx context.Context, steps []compileStep, jobs int,
 // spinner of its own otherwise. So compile runs the command itself, keeping
 // what the compiler prints, and logs the command as the Host does; the
 // output of a compile that fails is in its error, that of one that succeeds
-// is logged at the debug level tt -V shows, each whole.
-func compile(ctx context.Context, c *build.Context, step compileStep) error {
+// - its warnings - is returned, whole, for the build to show and to keep in
+// the record of the object (runner.compile).
+func compile(ctx context.Context, c *build.Context, step compileStep) (string, error) {
 	tmp := step.object + ".tmp"
 	argv := step.args(tmp)
 	log := logger(c)
@@ -122,23 +123,66 @@ func compile(ctx context.Context, c *build.Context, step compileStep) error {
 		_ = os.Remove(tmp)
 
 		if ctx.Err() != nil {
-			return fmt.Errorf("compiling %s: %w", step.source, ctx.Err())
+			return "", fmt.Errorf("compiling %s: %w", step.source, ctx.Err())
 		}
 
-		return fmt.Errorf("compiling %s: %w\n%s\n%s", step.source, err, commandLine(cmd.Args),
-			printed)
-	}
-
-	if printed != "" {
-		log.DebugContext(ctx, "the compiler of "+step.source+" printed:\n"+printed)
+		return "", fmt.Errorf("compiling %s: %w\n%s\n%s", step.source, err,
+			commandLine(cmd.Args), printed)
 	}
 
 	err = os.Rename(tmp, step.object)
 	if err != nil {
-		return fmt.Errorf("compiling %s: %w", step.source, err)
+		return "", fmt.Errorf("compiling %s: %w", step.source, err)
 	}
 
-	return nil
+	return printed, nil
+}
+
+// compilerOutput keeps what the compilers of a build printed, the warnings
+// of the compiles that succeeded, each by the object it is of, for the build
+// to show once its compiles are done, in the order of the sources: the
+// compiles run at once, and their warnings would mix in the order they end.
+type compilerOutput struct {
+	mu      sync.Mutex
+	printed map[string]string
+}
+
+// newCompilerOutput returns an empty compilerOutput.
+func newCompilerOutput() *compilerOutput {
+	return &compilerOutput{mu: sync.Mutex{}, printed: map[string]string{}}
+}
+
+// add keeps printed, what the compile of step printed; nothing is kept for
+// a compile that printed nothing.
+func (o *compilerOutput) add(step compileStep, printed string) {
+	if printed == "" {
+		return
+	}
+
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	o.printed[step.object] = printed
+}
+
+// show shows with warn what the compiles of steps printed, each once, with
+// the source it is of, in the order of steps.
+func (o *compilerOutput) show(steps []compileStep, warn func(string)) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	for _, step := range steps {
+		printed, ok := o.printed[step.object]
+		if ok {
+			warn(compilerWarning(step.source, printed))
+		}
+	}
+}
+
+// compilerWarning is the warning of what the compile of source printed: the
+// output as the compiler printed it, after a line naming the source.
+func compilerWarning(source, printed string) string {
+	return "compiling " + source + ":\n" + printed
 }
 
 // compileCommandsFile is the compilation database of a build, in its work

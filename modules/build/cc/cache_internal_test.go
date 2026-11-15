@@ -468,6 +468,40 @@ func TestCache(t *testing.T) {
 	assert.False(t, linked, "TMPDIR is of no key")
 }
 
+// TestCompilerWarnings checks that what the compiler of a compile that
+// succeeds prints is shown, once an object, with its source, in the order of
+// the sources, and shown again when the object is taken from the cache.
+func TestCompilerWarnings(t *testing.T) {
+	t.Parallel()
+
+	harness, bld := cachedHarness(t, "a.c", "b.c", "c.c")
+
+	writeFile(t, harness, "c.c.warn", "c.c:1:1: warning: first\nc.c:2:1: warning: second\n")
+	writeFile(t, harness, "a.c.warn", "a.c:3:5: warning: unused variable 'x'\n")
+
+	shown := []string{
+		"compiling a.c:\na.c:3:5: warning: unused variable 'x'",
+		"compiling c.c:\nc.c:1:1: warning: first\nc.c:2:1: warning: second",
+	}
+
+	sources, _ := rebuild(t, harness, bld)
+	assert.Equal(t, []string{"a.c", "b.c", "c.c"}, sources)
+	assert.Equal(t, shown, harness.Warnings())
+
+	// Nothing is compiled again, and the warnings are shown all the same.
+	sources, _ = rebuild(t, harness, bld)
+	assert.Empty(t, sources)
+	assert.Equal(t, slices.Concat(shown, shown), harness.Warnings())
+
+	// The source fixed, its warning is gone.
+	require.NoError(t, os.Remove(filepath.Join(harness.Context.Dirs.Cwd, "a.c.warn")))
+	writeFile(t, harness, "a.c", "/* a.c fixed */\n")
+
+	sources, _ = rebuild(t, harness, bld)
+	assert.Equal(t, []string{"a.c"}, sources)
+	assert.Equal(t, slices.Concat(shown, shown, shown[1:]), harness.Warnings())
+}
+
 // TestCacheFlags checks that a change of the flags of one language compiles
 // the objects of that language alone, and one of the link links alone.
 func TestCacheFlags(t *testing.T) {
