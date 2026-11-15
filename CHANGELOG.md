@@ -436,6 +436,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   and what pkg-config printed. The flags, and `PKG_CONFIG_PATH`,
   `PKG_CONFIG_LIBDIR` and `PKG_CONFIG_SYSROOT_DIR`, are of the cache of the
   objects and of the link.
+- An entry of `libraries` of a `c` or `lua-c` build that has a `/` or ends
+  in `.a` is a library file, relative to `cwd`: `libraries =
+  ["vendor/libfoo.a"]` links it as it is, in its place among the `-l`, and
+  a change of the file links the module again. A build with
+  `static = true` links each library of `libraries` and of `pkg_config`
+  from its static library, `lib<name>.a`, found in `library_dirs`, the `-L`
+  of pkg-config or where the compiler finds it (`-print-file-name`), with
+  GNU ld, lld, ld64 and `zig cc` alike: `-lfoo` no longer takes
+  `libfoo.so` when `libfoo.a` is beside it. The libraries of the C library,
+  `c`, `m`, `dl`, `pthread`, `rt`, `gcc_s` and `System` on macOS, are linked
+  as they are, and so is a library with no static one, which the static
+  check then reports. A link that fails because a static library was not
+  built with `-fPIC` - `libz.a` of Debian and Ubuntu is not - says so,
+  naming the library.
 - A `lua-c` build fails when its module exports no `luaopen_<name>`, the
   function `require` calls, or needs functions of the Lua API by their C++
   names - a C++ source that includes `lua.h` rather than `lua.hpp` - which

@@ -455,7 +455,7 @@ The extensions are case-sensitive, and `.C` is none: on macOS `a.C` and
 `a.c` are one file. A source of another extension is an error -
 `components.hashkit.build.sources[1]: "fnv.h" is not a source tt compiles:
 want a name ending in .c, .cc, .cpp, .cxx, .c++, .S or .s; a prebuilt
-library goes into libraries and library_dirs` - and so is a source listed
+library goes into libraries, by name or as a file` - and so is a source listed
 twice. Each source is compiled on its own, the sources of a module at
 once, as many as the machine has CPUs:
 

@@ -157,13 +157,15 @@ func TestValidateErrors(t *testing.T) {
 		{"a source of no language", map[string]any{
 			"module": "m", "sources": []any{"m.c", "m.h"},
 		}, nil, "sources[1]", `"m.h" is not a source tt compiles: want a name ending in ` +
-			".c, .cc, .cpp, .cxx, .c++, .S or .s; a prebuilt library goes into libraries " +
-			"and library_dirs"},
+			".c, .cc, .cpp, .cxx, .c++, .S or .s; a prebuilt library goes into libraries, " +
+			"by name or as a file"},
 		{"an archive in sources", map[string]any{
 			"module": "m", "sources": []any{"vendor/libz.a"},
 		}, nil, "sources[0]", `"vendor/libz.a" is not a source tt compiles: want a name ` +
 			"ending in .c, .cc, .cpp, .cxx, .c++, .S or .s; a prebuilt library goes into " +
-			"libraries and library_dirs"},
+			"libraries, by name or as a file"},
+		{"an empty library", module(map[string]any{"libraries": []any{"m", ""}}), nil,
+			"libraries", "must not contain an empty entry"},
 		{"a source listed twice", map[string]any{
 			"module": "m", "sources": []any{"a.c", "b.cc", "./a.c"},
 		}, nil, "sources[2]", `"./a.c" is sources[0] again`},
@@ -630,21 +632,28 @@ func TestRunPkgConfig(t *testing.T) {
 		}
 
 		staticFlag, libs := "", "-lssl"
+
+		var probes []string
+
 		if static {
+			// The static libraries are looked for, and fakecc finds none.
 			staticFlag, libs = " --static", "-lssl -lcrypto -ldl"
+			probes = []string{"fakecc -print-file-name=libssl.a",
+				"fakecc -print-file-name=libcrypto.a"}
 		}
 
 		ran := calls(t, harness)
-		assert.Equal(t, []string{
+		assert.Equal(t, slices.Concat([]string{
 			"fakepkg --quiet --exists --print-errors openssl >= 3",
 			"fakepkg --quiet --exists --print-errors zlib",
 			"fakepkg --quiet --cflags" + staticFlag + " openssl >= 3 zlib",
 			"fakepkg --quiet --libs" + staticFlag + " openssl >= 3 zlib",
+		}, probes, []string{
 			"fakecc -O2 -g -fPIC " + reproducible(harness) +
 				" -I/tt/include/tarantool -I/opt/ssl/include -DNAME=a b -MD -MF " +
 				object + ".d -MQ " + object + " -c a.c -o " + object + ".tmp",
 			"fakecc " + libFlags + " -o " + out + " " + object + " " + libs,
-		}, ran, "static = %t", static)
+		}), ran, "static = %t", static)
 	}
 
 	// The variables pkg-config reads are of the keys: another

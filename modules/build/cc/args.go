@@ -263,8 +263,8 @@ const cxxName = "c++"
 //	<LIBFLAG...> [-Wl,-Bsymbolic-functions] \
 //	    [-static-libstdc++ -Wl,--exclude-libs,ALL] <ldflags...> \
 //	    -o <out> <objects...> \
-//	    -L<libdir...> -l<lib...> <pkg-config --libs...> -Wl,-rpath,<rpath...> \
-//	    <$LDFLAGS...>
+//	    -L<libdir...> {-l<lib> | <file>}... <pkg-config --libs...> \
+//	    -Wl,-rpath,<rpath...> <$LDFLAGS...>
 //
 // The project's ldflags go before the objects, as make's
 // $(CC) $(LDFLAGS) -o out objs $(LDLIBS) has them, so that an option like
@@ -276,17 +276,17 @@ const cxxName = "c++"
 // them when symbolic is set (bindsLocally), and the static C++ library
 // (staticLibstdcxx) is linked when staticCXX is set (linksLibstdcxx).
 //
-// ldflags, library dirs, libraries and rpath come from config, each merged
-// (append-only) with its overlay of platforms for goos; library order is
-// preserved because link order matters. A directory of library_dirs is where
-// the linker looks, and no rpath: one of the build machine baked into a
-// module shipped elsewhere names a directory that is not there, and a
-// relative one would be resolved against the working directory of the
-// process. The loader looks where rpath says, $ORIGIN the directory of the
-// module (rpathFlag). What pkg-config gives for the libraries of the packages
-// of pkg_config (pkg) comes after libraries, as the libraries of a package
-// may need those of libraries.
-func linkArgs(config Config, tools toolchain, env envFlags, pkg pkgFlags, goos string,
+// ldflags and rpath come from config, each merged (append-only) with its
+// overlay of platforms for goos, and the libraries from libs
+// (planLibraries): -L of library_dirs, libraries in their order, as link
+// order matters, then what pkg-config gives for the packages of pkg_config,
+// as the libraries of a package may need those of libraries. A directory of
+// library_dirs is where the linker looks, and no rpath: one of the build
+// machine baked into a module shipped elsewhere names a directory that is
+// not there, and a relative one would be resolved against the working
+// directory of the process. The loader looks where rpath says, $ORIGIN the
+// directory of the module (rpathFlag).
+func linkArgs(config Config, tools toolchain, env envFlags, libs libraryArgs, goos string,
 	symbolic, staticCXX bool, objects []string, out string,
 ) []string {
 	overlay := config.Platforms[goos]
@@ -307,16 +307,7 @@ func linkArgs(config Config, tools toolchain, env envFlags, pkg pkgFlags, goos s
 	args = append(args, overlay.Ldflags...)
 	args = append(args, "-o", out)
 	args = append(args, objects...)
-
-	for _, dir := range concat(config.LibraryDirs, overlay.LibraryDirs) {
-		args = append(args, "-L"+dir)
-	}
-
-	for _, lib := range concat(config.Libraries, overlay.Libraries) {
-		args = append(args, "-l"+lib)
-	}
-
-	args = append(args, pkg.libs...)
+	args = append(args, libs.args...)
 
 	for _, entry := range concat(config.Rpath, overlay.Rpath) {
 		args = append(args, rpathFlag(entry, tools.origin))
@@ -391,11 +382,26 @@ func (p plan) compilers() [][]string {
 	return compilers
 }
 
+// linkerOf are the words of the compiler that links the module of config
+// with tools: CXX when a source is C++, CC otherwise.
+func linkerOf(config Config, tools toolchain) []string {
+	for _, source := range config.Sources {
+		if lang, _ := languageOf(source); lang == langCXX {
+			return tools.cxx
+		}
+	}
+
+	return tools.cc
+}
+
 // planOf is the plan of the build of config in c, with the toolchain tools,
-// the flags of the environment env and those pkg-config gave, pkg: one
-// compile a source, in the order of sources, and the link of the objects in
-// that order into <module><ext> in the output directory.
-func planOf(config Config, tools toolchain, env envFlags, pkg pkgFlags, c *build.Context) plan {
+// the flags of the environment env, those pkg-config gave, pkg, and the
+// libraries of the link, libs: one compile a source, in the order of
+// sources, and the link of the objects in that order into <module><ext> in
+// the output directory.
+func planOf(config Config, tools toolchain, env envFlags, pkg pkgFlags, libs libraryArgs,
+	c *build.Context,
+) plan {
 	objects := objectDir(c.Dirs.Work)
 	built := plan{
 		steps:  make([]compileStep, 0, len(config.Sources)),
@@ -428,13 +434,9 @@ func planOf(config Config, tools toolchain, env envFlags, pkg pkgFlags, c *build
 		paths = append(paths, step.object)
 	}
 
-	built.linker = tools.cc
-	if built.cxx {
-		built.linker = tools.cxx
-	}
-
+	built.linker = linkerOf(config, tools)
 	built.link = concat(built.linker,
-		linkArgs(config, tools, env, pkg, c.Target.OS, bindsLocally(c.Target, built.linker),
+		linkArgs(config, tools, env, libs, c.Target.OS, bindsLocally(c.Target, built.linker),
 			linksLibstdcxx(c.Target, c.Static, built.cxx, built.linker), paths, built.out))
 
 	return built

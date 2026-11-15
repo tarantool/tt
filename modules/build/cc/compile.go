@@ -185,6 +185,47 @@ func compilerWarning(source, printed string) string {
 	return "compiling " + source + ":\n" + printed
 }
 
+// runLink runs the link of argv, the words of the compiler that links first,
+// as compile runs a compile: what the linker prints is in the error of a
+// link that fails, with a hint when it says that an object is not
+// position-independent (pieHint), and is logged at the debug level
+// otherwise.
+func runLink(ctx context.Context, c *build.Context, argv []string) error {
+	log := logger(c)
+	cmd := c.Command(ctx, argv[0], argv[1:]...)
+
+	var output bytes.Buffer
+
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
+	log.DebugContext(ctx, "running "+commandLine(cmd.Args), "dir", cmd.Dir)
+
+	err := cmd.Run()
+
+	printed := strings.TrimRight(output.String(), "\n")
+
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("linking: %w", ctx.Err())
+		}
+
+		err = fmt.Errorf("linking: %w\n%s\n%s", err, commandLine(cmd.Args), printed)
+
+		if hint := pieHint(printed); hint != "" {
+			err = fmt.Errorf("%w\n%s", err, hint)
+		}
+
+		return err
+	}
+
+	if printed != "" {
+		log.DebugContext(ctx, "the linker printed:\n"+printed)
+	}
+
+	return nil
+}
+
 // compileCommandsFile is the compilation database of a build, in its work
 // directory: the format of clang's JSON Compilation Database, which clangd
 // and other tools read to know how each source is compiled.
