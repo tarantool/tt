@@ -217,10 +217,10 @@ func removeStaleObjects(dir string, steps []compileStep) error {
 	return nil
 }
 
-// objectFiles are the files the compile of step keeps: its object and the
-// list of the files it read.
+// objectFiles are the files the compile of step keeps: its object, the list
+// of the files it read and its record.
 func objectFiles(step compileStep) []string {
-	return []string{step.object, step.depfile()}
+	return []string{step.object, step.depfile(), step.recordPath()}
 }
 
 // writeFileAtomic writes data into the file path through a temporary file of

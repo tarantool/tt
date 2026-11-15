@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/tarantool/tt/sdk/build"
 )
@@ -279,7 +280,9 @@ func (b ccBuild) Preflight(_ context.Context, c *build.Context) error {
 // compile_commands.json there, and links the objects into <module><ext> in
 // the output directory, the extension the one Tarantool loads on the target
 // (build.Target.ModuleExt). A dotted module is a file a.b.so, not a
-// directory a.
+// directory a. An object whose inputs are those of its last compile is not
+// compiled again, nor the module linked again when its objects and the link
+// are those of the last one and it is still there (cache.go).
 func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(ctx, c)
 	if err != nil {
@@ -291,26 +294,138 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	plan := planOf(b.config, tools, environFlags(b.lookupEnv), c)
+	if c.Fresh {
+		err = dropCache(c.Dirs.Work)
+		if err != nil {
+			return err
+		}
+	}
 
-	err = writeCompileCommands(c.Dirs.Work, c.Dirs.Cwd, plan.steps)
+	built := planOf(b.config, tools, environFlags(b.lookupEnv), c)
+
+	err = writeCompileCommands(c.Dirs.Work, c.Dirs.Cwd, built.steps)
 	if err != nil {
 		return err
 	}
 
-	err = removeStaleObjects(objectDir(c.Dirs.Work), plan.steps)
+	err = removeStaleObjects(objectDir(c.Dirs.Work), built.steps)
 	if err != nil {
 		return err
 	}
 
-	err = compileAll(ctx, plan.steps, maxJobs(), func(ctx context.Context, step compileStep) error {
-		return compile(ctx, c, step)
-	})
+	run := newRunner(ctx, c, built)
+
+	err = compileAll(ctx, built.steps, maxJobs(), run.compile)
 	if err != nil {
 		return err
 	}
 
-	return c.Run(c.Command(ctx, plan.link[0], plan.link[1:]...))
+	return run.link(ctx, libraryFiles(b.config, c.Target.OS, c.Dirs.Cwd))
+}
+
+// runner runs the compiles and the link of a plan, each unless it is up to
+// date.
+type runner struct {
+	c     *build.Context
+	built plan
+	// environ is the environment of the commands of the build.
+	environ []string
+	// identities are the compilerIdentity of each compiler of the plan, by
+	// its command line.
+	identities map[string]string
+	hashes     *fileHashes
+}
+
+// newRunner returns the runner of built in c, its compilers probed once.
+func newRunner(ctx context.Context, c *build.Context, built plan) runner {
+	run := runner{
+		c: c, built: built, environ: c.Command(ctx, built.linker[0]).Env,
+		identities: map[string]string{}, hashes: newFileHashes(),
+	}
+
+	for _, words := range built.compilers() {
+		run.identities[commandLine(words)] = compilerIdentity(ctx, c, words)
+	}
+
+	return run
+}
+
+// compile compiles the object of step unless it is up to date, and records
+// it.
+func (r runner) compile(ctx context.Context, step compileStep) error {
+	c := r.c
+	key := objectKey(step, c.Dirs.Cwd, c.Target, r.identities[commandLine(step.compiler)],
+		envOf(r.environ, compilerEnv))
+
+	if upToDate(step, key, r.hashes) {
+		logger(c).DebugContext(ctx, step.source+" is up to date: "+step.object)
+
+		return nil
+	}
+
+	// The depfile goes too: a compiler that writes none, a wrapper that
+	// drops -MD, would leave that of the last compile to be taken for its.
+	for _, path := range []string{step.recordPath(), step.depfile()} {
+		err := removeRecord(path)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := compile(ctx, c, step)
+	if err != nil {
+		return err
+	}
+
+	// The object is made: one that cannot be recorded is compiled again
+	// next time, which fails no build.
+	err = recordObject(step, c.Dirs.Cwd, key, r.hashes)
+	if err != nil {
+		logger(c).DebugContext(ctx, "the object of "+step.source+" is not cached: "+err.Error())
+	}
+
+	return nil
+}
+
+// link links the module unless it is up to date, libraries being the files
+// of the libraries of the build that are of the key (libraryFiles). A
+// module up to date is touched, so that the core takes it as made by this
+// build too.
+func (r runner) link(ctx context.Context, libraries []string) error {
+	c := r.c
+	work := c.Dirs.Work
+	out := r.built.out
+
+	key, err := linkKey(r.built, c.Target, r.identities[commandLine(r.built.linker)],
+		envOf(r.environ, linkEnv), libraries, r.hashes)
+	if err != nil {
+		return err
+	}
+
+	if linkUpToDate(work, out, key) {
+		logger(c).DebugContext(ctx, out+" is up to date")
+
+		now := time.Now()
+
+		err = os.Chtimes(out, now, now)
+		if err != nil {
+			return fmt.Errorf("touching %s: %w", out, err)
+		}
+
+		return nil
+	}
+
+	err = removeRecord(filepath.Join(work, linkRecordFile))
+	if err != nil {
+		return err
+	}
+
+	err = c.Run(c.Command(ctx, r.built.link[0], r.built.link[1:]...))
+	if err != nil {
+		return err
+	}
+
+	return recordLink(work, out, key)
 }
 
 // logger is the logger of the build of c, one that discards for a Context

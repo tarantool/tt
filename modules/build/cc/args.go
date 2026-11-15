@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/build"
@@ -287,9 +288,26 @@ type plan struct {
 	cxx bool
 	// out is the path of the module.
 	out string
-	// link is the argv of the link, the words of the compiler that links
-	// first.
+	// linker are the words of the compiler that links, CXX or CC.
+	linker []string
+	// link is the argv of the link, the words of linker first.
 	link []string
+}
+
+// compilers are the words of each compiler built runs, the one that links
+// included, each once.
+func (p plan) compilers() [][]string {
+	compilers := [][]string{p.linker}
+
+	for _, step := range p.steps {
+		if !slices.ContainsFunc(compilers, func(words []string) bool {
+			return slices.Equal(words, step.compiler)
+		}) {
+			compilers = append(compilers, step.compiler)
+		}
+	}
+
+	return compilers
 }
 
 // planOf is the plan of the build of config in c, with the toolchain tools
@@ -299,10 +317,11 @@ type plan struct {
 func planOf(config Config, tools toolchain, env envFlags, c *build.Context) plan {
 	objects := objectDir(c.Dirs.Work)
 	built := plan{
-		steps: make([]compileStep, 0, len(config.Sources)),
-		cxx:   false,
-		out:   filepath.Join(c.Dirs.Modules, config.Module+c.Target.ModuleExt()),
-		link:  nil,
+		steps:  make([]compileStep, 0, len(config.Sources)),
+		cxx:    false,
+		out:    filepath.Join(c.Dirs.Modules, config.Module+c.Target.ModuleExt()),
+		linker: nil,
+		link:   nil,
 	}
 
 	paths := make([]string, 0, len(config.Sources))
@@ -328,12 +347,12 @@ func planOf(config Config, tools toolchain, env envFlags, c *build.Context) plan
 		paths = append(paths, step.object)
 	}
 
-	linker := tools.cc
+	built.linker = tools.cc
 	if built.cxx {
-		linker = tools.cxx
+		built.linker = tools.cxx
 	}
 
-	built.link = concat(linker,
+	built.link = concat(built.linker,
 		linkArgs(config, tools, env, c.Target, c.Static, built.cxx, paths, built.out))
 
 	return built

@@ -44,21 +44,10 @@ func hostHarness(t *testing.T, includeDir string, sources map[string]string) *bu
 	})
 
 	for name, body := range sources {
-		writeSource(t, harness, name, body)
+		writeFile(t, harness, name, body)
 	}
 
 	return harness
-}
-
-// writeSource writes body into the file name of the working directory of
-// harness.
-func writeSource(t *testing.T, harness *buildtest.Harness, name, body string) {
-	t.Helper()
-
-	path := filepath.Join(harness.Context.Dirs.Cwd, name)
-
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 }
 
 // hostBuild runs the build of the block rest of backend in harness and
@@ -314,4 +303,148 @@ func TestLuaCMixedModuleLoadsInTarantool(t *testing.T) {
 			}
 		}
 	}
+}
+
+// wrapper is a compiler wrapper that logs each run, its arguments, to
+// $WRAP_LOG and runs them: CC="wrap cc" counts the runs of cc.
+const wrapper = `#!/bin/sh
+args="$*"
+printf '%s\n' "$args" >> "$WRAP_LOG"
+exec "$@"
+`
+
+// wrapLog is the log of wrapper, and how much of it was read.
+type wrapLog struct {
+	path string
+	read int
+}
+
+// wrappedBuild is the c build of rest in harness with CC and CXX of the
+// environment of the test behind wrapper, which logs into log.path.
+func wrappedBuild(t *testing.T, harness *buildtest.Harness, rest map[string]any,
+	log *wrapLog,
+) ccBuild {
+	t.Helper()
+
+	validated, err := buildtest.Validate(C(), flatComponent(), block(rest, nil))
+	require.NoError(t, err)
+
+	bld, ok := validated.(ccBuild)
+	require.True(t, ok)
+
+	// Written once: the wrapper written again is another compiler, its
+	// time of change another.
+	if _, set := harness.Context.Env["WRAP_LOG"]; !set {
+		writeTool(t, harness, "wrap", wrapper)
+	}
+
+	harness.Context.Env["WRAP_LOG"] = log.path
+
+	environ := map[string]string{"CC": "wrap cc", "CXX": "wrap c++"}
+
+	for _, variable := range []string{"CC", "CXX"} {
+		if value := os.Getenv(variable); value != "" {
+			environ[variable] = "wrap " + value
+		}
+	}
+
+	bld.lookupEnv = func(key string) (string, bool) {
+		value, set := environ[key]
+
+		return value, set
+	}
+
+	return bld
+}
+
+// next returns the sources the compiles logged since the last call compiled,
+// sorted, and whether a link was logged; the probes of the compilers are
+// left out.
+func (l *wrapLog) next(t *testing.T) ([]string, bool) {
+	t.Helper()
+
+	data, err := os.ReadFile(l.path)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+
+	var ran []string
+
+	for _, line := range lines[l.read:] {
+		if !strings.HasSuffix(line, " -dumpmachine") && !strings.HasSuffix(line, " --version") {
+			ran = append(ran, line)
+		}
+	}
+
+	l.read = len(lines)
+
+	return compiled(ran)
+}
+
+// TestCacheWithTheCompiler checks the cache with the compilers of the host: a
+// build with nothing changed runs no compile and no link, a header the
+// depfile lists compiles the objects that include it, cflags compile the C
+// objects, and a source the block drops has its object removed.
+func TestCacheWithTheCompiler(t *testing.T) {
+	t.Parallel()
+
+	includeDir, _ := requireHostHeaders(t)
+	requireCXX(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"include/common.h": "#define COMMON 1\n",
+		"a.c":              "#include \"common.h\"\nint a(void) { return COMMON; }\n",
+		"b.c":              "#include <module.h>\nint b(void) { return 2; }\n",
+		"c.cpp": "#include <vector>\n" +
+			"extern \"C\" int c() { return std::vector<int>(3).size(); }\n",
+	})
+
+	rest := map[string]any{
+		"module": "cached", "sources": []any{"a.c", "b.c", "c.cpp"},
+		"include_dirs": []any{"include"},
+	}
+
+	log := &wrapLog{path: filepath.Join(t.TempDir(), "wrap.log"), read: 0}
+	run := func(rest map[string]any) {
+		t.Helper()
+
+		require.NoError(t, harness.Run(t.Context(), wrappedBuild(t, harness, rest, log)),
+			harness.Printed())
+	}
+
+	run(rest)
+
+	sources, linked := log.next(t)
+	assert.Equal(t, []string{"a.c", "b.c", "c.cpp"}, sources)
+	assert.True(t, linked)
+
+	run(rest)
+
+	sources, linked = log.next(t)
+	assert.Empty(t, sources, "nothing changed")
+	assert.False(t, linked, "nothing changed")
+
+	writeFile(t, harness, "include/common.h", "#define COMMON 3\n")
+	run(rest)
+
+	sources, linked = log.next(t)
+	assert.Equal(t, []string{"a.c"}, sources, "a header of a.c")
+	assert.True(t, linked)
+
+	// The core would build a block that changed afresh; the backend alone
+	// compiles the objects whose flags changed.
+	rest["cflags"] = []any{"-Wall"}
+	run(rest)
+
+	sources, _ = log.next(t)
+	assert.Equal(t, []string{"a.c", "b.c"}, sources, "cflags")
+
+	rest["sources"] = []any{"a.c", "c.cpp"}
+	run(rest)
+
+	sources, linked = log.next(t)
+	assert.Empty(t, sources, "a source dropped")
+	assert.True(t, linked, "a source dropped")
+	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Work, "obj", objectName("b.c")))
+	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Work, "obj", objectName("a.c")))
 }

@@ -278,21 +278,32 @@ func TestMissingHeaders(t *testing.T) {
 }
 
 // fakeCC is a compiler that records each run as a line of
-// $TT_BUILD_DIR/calls - its name and its arguments - creates the file of its
-// -o, and writes the file of its -MF as a list of the source of its -c.
+// $TT_BUILD_DIR/calls - its name and its arguments - writes the file of its
+// -o, a copy of the source of its -c and its arguments, and writes the file
+// of its -MF as a list of the source and of what the file <source>.deps
+// lists, the headers it would have read.
 const fakeCC = `#!/bin/sh
 args="$*"
 # One write a run: the compiles run at once.
 printf '%s\n' "${0##*/} $args" >> "$TT_BUILD_DIR/calls"
 while [ $# -gt 0 ]; do
 	case "$1" in
-	-o) : > "$2"; shift ;;
+	-o) out=$2; shift ;;
 	-MF) dep=$2; shift ;;
 	-c) src=$2; shift ;;
 	esac
 	shift
 done
-if [ -n "$dep" ]; then printf 'x.o: %s\n' "$src" > "$dep"; fi
+if [ -n "$out" ]; then
+	{ if [ -n "$src" ]; then cat "$src"; fi; printf '%s\n' "$args"; } > "$out"
+fi
+if [ -n "$dep" ]; then
+	{
+		printf 'x.o: %s' "$src"
+		if [ -f "$src.deps" ]; then printf ' %s' "$(cat "$src.deps")"; fi
+		printf '\n'
+	} > "$dep"
+fi
 `
 
 // fakeHarness is a harness of backend that knows the Tarantool of the
@@ -328,8 +339,24 @@ func fakeHarness(t *testing.T, backend build.Backend, rest map[string]any,
 	return harness, bld
 }
 
-// calls are the runs of the fake compilers of harness so far, one a line.
+// calls are the runs of the fake compilers of harness so far, one a line,
+// but the probes of their identity (compilerIdentity).
 func calls(t *testing.T, harness *buildtest.Harness) []string {
+	t.Helper()
+
+	var ran []string
+
+	for _, call := range allCalls(t, harness) {
+		if !strings.HasSuffix(call, " -dumpmachine") && !strings.HasSuffix(call, " --version") {
+			ran = append(ran, call)
+		}
+	}
+
+	return ran
+}
+
+// allCalls are the runs of the fake compilers of harness so far, one a line.
+func allCalls(t *testing.T, harness *buildtest.Harness) []string {
 	t.Helper()
 
 	data, err := os.ReadFile(filepath.Join(harness.Context.Dirs.Work, "calls"))
