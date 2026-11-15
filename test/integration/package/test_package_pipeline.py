@@ -14,6 +14,7 @@ cannot assume.
 """
 
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -351,7 +352,9 @@ def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
     result = run(tt_cmd, project, "package", "build", *registry, env=env)
     assert result.returncode == 0, result.stderr
     assert "the headers of Tarantool" not in result.stderr
-    assert (project / ".rocks" / "lib" / "tarantool" / "my-app" / "fast.so").is_file()
+    # A module Tarantool loads on macOS is a .dylib.
+    module = "fast.dylib" if platform.system() == "Darwin" else "fast.so"
+    assert (project / ".rocks" / "lib" / "tarantool" / "my-app" / module).is_file()
 
 
 @pytest.mark.parametrize("formats", [("rock",), ("tt,rock", "--without-deps")], ids=["rock", "tt"])
