@@ -356,7 +356,17 @@ What a build makes has a type. The type says where it goes:
 
 One build may make all three. The core takes as made what `Run` left in
 these three directories, each by its type, and removes from them what no
-build made. Keep what a build writes to the types of `Produces`.
+build made. A file in the directory of a type the backend does not
+produce fails the build with exit code 2, `build.ErrNotProduced`, and so
+does a program a `ProgramNamer` names for a backend without
+`build.Program`:
+
+```text
+⨯ building component "config": the build made what its backend does not produce: backend "template" makes no modules: lib/myapp/defaults.so
+```
+
+What an earlier build left there, of another backend the block named
+before, is not taken as made by this one, and leaves the package.
 
 The core then checks what was made. Each program has to be an executable
 ELF or Mach-O program of the target, and a static one when the block says
@@ -677,7 +687,10 @@ ok  	example.com/tt-template	0.010s
   `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_COMPONENT_NAME`,
   `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_DIR`. A test may change
   the Context before it runs the build: `TestNoEnvsubst` empties `PATH`.
-- `harness.Run` runs `Preflight`, when the build has one, then `Run`.
+- `harness.Run` runs `Preflight`, when the build has one, then `Run`, and
+  fails, as the core does, when `Run` left a file in the directory of a
+  type the backend does not produce. It does not copy the files of
+  `output`, which the core does for `build.OutputCwd`.
   `Printed` returns what the commands printed, `Warnings` the warnings of
   the build, and `Locked` sets the versions `LockedVersion` answers.
 - `buildtest.ValidateHook` and `buildtest.NewHook(t, backend)` do the same
@@ -816,9 +829,9 @@ of `New`, a build of an optional method the core would never call,
 `output` or `incremental` of a backend that does not allow them, an
 `output` entry or a `Producer` type the backend does not produce, and a
 hook that names a backend without `Hook`. During the build, with exit code
-2: a failed `Preflight` or `Run`, a program that is not a program of the
-target, and a module or a program that is not static under
-`static = true`.
+2: a failed `Preflight` or `Run`, a file of a type the backend does not
+produce, a program that is not a program of the target, and a module or a
+program that is not static under `static = true`.
 
 ## The backends of tt
 

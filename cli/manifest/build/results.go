@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
@@ -56,6 +57,9 @@ var (
 	// errProgramOfModule reports a component of kind = "module" whose build
 	// made programs. It carries exit code 2.
 	errProgramOfModule = errors.New(`kind = "module", but the build made programs`)
+	// errNotProduced reports a build that made a file of a type its backend
+	// does not produce (sdkbuild.Backend.Produces). It carries exit code 2.
+	errNotProduced = sdkbuild.ErrNotProduced
 )
 
 // madeFiles are what the build of a component made, by type: the modules it
@@ -80,6 +84,38 @@ func (made madeFiles) join(other madeFiles) madeFiles {
 		Modules:  slices.Concat(made.Modules, other.Modules),
 		Data:     slices.Concat(made.Data, other.Data),
 		Programs: slices.Concat(made.Programs, other.Programs),
+	}
+}
+
+// of returns the files of made of the type result, relative to the
+// directory of the type.
+func (made madeFiles) of(result sdkbuild.Result) []string {
+	switch result {
+	case sdkbuild.Module:
+		return made.Modules
+	case sdkbuild.Data:
+		return made.Data
+	case sdkbuild.Program:
+		return made.Programs
+	default:
+		return nil
+	}
+}
+
+// only returns made without the files of the types results do not name.
+func (made madeFiles) only(results []sdkbuild.Result) madeFiles {
+	keep := func(result sdkbuild.Result) []string {
+		if slices.Contains(results, result) {
+			return made.of(result)
+		}
+
+		return nil
+	}
+
+	return madeFiles{
+		Modules:  keep(sdkbuild.Module),
+		Data:     keep(sdkbuild.Data),
+		Programs: keep(sdkbuild.Program),
 	}
 }
 
@@ -293,9 +329,9 @@ func madePrograms(run componentRun, before map[string]fileStamp, recorded []stri
 
 // checkMade checks what the build of run made: against the deprecated kind
 // of its component - kind = "executable" makes programs and nothing else,
-// kind = "module" makes no program - and that each program it made is a
-// program of the build platform, a static one when its block asks for one
-// (checkPrograms).
+// kind = "module" makes no program - then against what its backend produces
+// (checkProduced), and that each program it made is a program of the build
+// platform, a static one when its block asks for one (checkPrograms).
 func checkMade(run componentRun, stage string, made madeFiles) error {
 	dirs := run.context.Dirs
 
@@ -321,11 +357,37 @@ func checkMade(run componentRun, stage string, made madeFiles) error {
 		}
 	}
 
+	err := checkProduced(run, stage, made)
+	if err != nil {
+		return err
+	}
+
 	target := native.Platform{OS: run.context.Target.OS, Arch: run.context.Target.Arch}
 
-	err := checkPrograms(dirs.Programs, made.Programs, target, run.context.Static)
+	err = checkPrograms(dirs.Programs, made.Programs, target, run.context.Static)
 	if err != nil {
 		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
+	}
+
+	return nil
+}
+
+// checkProduced checks that what the build of run made is of the types its
+// backend produces (sdkbuild.Backend.Produces): a file it left in the
+// directory of another type fails the build, as the kind of a component
+// does, rather than be installed as what the backend says it never makes.
+// made holds no file an earlier build recorded of such a type: those are
+// not taken as made (runComponent), and are removed from the stage.
+func checkProduced(run componentRun, stage string, made madeFiles) error {
+	for _, result := range sdkbuild.Results() {
+		files := made.of(result)
+		if len(files) == 0 || slices.Contains(run.backend.Produces, result) {
+			continue
+		}
+
+		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w: backend %q makes no %s: %s",
+			run.name, errNotProduced, run.backend.Name, buildreg.Plural(result),
+			strings.Join(inDir(stage, joinDir(run.context.Dirs.Of(result), files)), ", "))
 	}
 
 	return nil

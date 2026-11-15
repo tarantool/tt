@@ -316,6 +316,39 @@ func TestHarnessBin(t *testing.T) {
 	assert.Contains(t, err.Error(), "running sh -c exit 3")
 }
 
+// TestHarnessChecksWhatTheBuildMade: a build that leaves a file in the
+// directory of a type its backend does not produce fails its run, as it
+// fails a build of the core.
+func TestHarnessChecksWhatTheBuildMade(t *testing.T) {
+	t.Parallel()
+
+	data := touch()
+
+	data.Produces = []build.Result{build.Data}
+
+	harness := buildtest.New(t, data, component())
+
+	err := harness.Run(t.Context(), touchBuild{file: "made.so"})
+	require.ErrorIs(t, err, build.ErrNotProduced)
+	require.EqualError(t, err, `buildtest: the build made what its backend does not produce: `+
+		`backend "touch" makes no module: `+
+		filepath.Join(harness.Context.Dirs.Output, "made.so"))
+
+	// A file that was there and that the build left alone is not one it made.
+	harness = buildtest.New(t, data, component())
+
+	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Output, "old.so"), nil,
+		0o600))
+	require.NoError(t, harness.Run(t.Context(), dataBuild{}))
+}
+
+// dataBuild makes a data file.
+type dataBuild struct{}
+
+func (dataBuild) Run(_ context.Context, c *build.Context) error {
+	return os.WriteFile(filepath.Join(c.Dirs.Share, "made.wasm"), nil, 0o600)
+}
+
 // TestHarnessOnlyThePathOfTheBuild: a PATH of the Env of the Context is the
 // whole PATH of the build, after Tools, as the core has it: a program of the
 // PATH of the test alone is not found, and a command of it fails to start.

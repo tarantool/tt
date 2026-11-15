@@ -28,7 +28,9 @@ func (t Target) ModuleExt() string {
 // Dirs are the directories of a build, all of them absolute. The core
 // creates Work, Output, Share and Programs before the build runs and takes
 // as made what the build leaves in Output, Share and Programs, each by its
-// type ([Result]); anything else there that no build made is removed. The
+// type ([Result]) - a type its backend does not produce fails the build
+// ([ErrNotProduced]) - and anything else there that no build made is
+// removed. The
 // build of a hook has no Component, Work, Output, Share and Programs: they
 // are empty.
 type Dirs struct {

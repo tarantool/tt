@@ -473,6 +473,65 @@ func TestRun_kindChecksTheBuild(t *testing.T) {
 	assert.Equal(t, 0, runs(t, dir, "gw"))
 }
 
+// TestRun_producesChecksTheBuild checks what a build made against what its
+// backend produces: a module of a backend of data files fails the build
+// with exit code 2, and is not recorded; a module an earlier build of
+// another backend made is not taken as made by a backend of data files, and
+// leaves the stage.
+func TestRun_producesChecksTheBuild(t *testing.T) {
+	t.Parallel()
+
+	recorder := &touchRecorder{mu: sync.Mutex{}, contexts: map[string]sdkbuild.Context{}}
+
+	data := touchBackend(recorder)
+
+	data.Name = "datatouch"
+	data.Produces = []sdkbuild.Result{sdkbuild.Data}
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("touch", []sdkbuild.Backend{touchBackend(recorder), data},
+		nil))
+
+	manifest := func(block string) string {
+		return manifestHead + "\n[components.gw]\npath = 'gw'\n\n[components.gw.build]\n" + block
+	}
+
+	dir := setupProject(t, manifest("backend = 'datatouch'\ndata = 'gw.wasm'\n"+
+		"stray_module = 'gw.so'\n"), map[string]string{"gw/.keep": ""})
+
+	opts := dryOptions(dir)
+
+	opts.Backends = backends
+
+	err := Run(context.Background(), opts)
+	require.ErrorIs(t, err, errNotProduced)
+	require.EqualError(t, err, `building component "gw": the build made what its backend `+
+		`does not produce: backend "datatouch" makes no modules: lib/my-app/gw.so`)
+	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
+	assert.NoFileExists(t, filepath.Join(dir, buildDirName, resultsFileName))
+
+	// A module of touch, then data of datatouch.
+	writeFile(t, filepath.Join(dir, manifestFileName),
+		manifest("backend = 'touch'\nmodule = 'gw.so'\n"))
+
+	_, err = RunResult(context.Background(), opts)
+	require.NoError(t, err)
+
+	stage := packageStage(dir, "default")
+	assert.FileExists(t, filepath.Join(stage, "lib", "my-app", "gw.so"))
+
+	writeFile(t, filepath.Join(dir, manifestFileName),
+		manifest("backend = 'datatouch'\ndata = 'gw.wasm'\n"))
+
+	_, err = RunResult(context.Background(), opts)
+	require.NoError(t, err)
+
+	record, err := os.ReadFile(filepath.Join(dir, buildDirName, resultsFileName))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"components": {"gw": {"data": ["gw.wasm"]}}}`, string(record))
+	assert.NoFileExists(t, filepath.Join(stage, "lib", "my-app", "gw.so"))
+}
+
 // TestRun_moduleBackendFieldErrors checks that the fields of a block of a
 // backend a module provides are checked as those of the core: one of
 // another backend names it, one no backend has is unknown, and New's error

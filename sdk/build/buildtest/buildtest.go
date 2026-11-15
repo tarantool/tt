@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -27,6 +28,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tarantool/tt/sdk/build"
 )
@@ -356,7 +358,11 @@ func toolchain(target build.Target) build.Toolchain {
 
 // Run runs bld, a build of the backend of the harness, as the core runs a
 // build: bld is checked ([build.Backend.ValidateBuild]), then its Preflight
-// runs, when it has one, then Run.
+// runs, when it has one, then Run; then what Run left in the directories
+// of the types the backend does not produce fails the run, wrapping
+// [build.ErrNotProduced], as it fails a build of the core, and so does a
+// program a [build.ProgramNamer] names. The files output lists are not
+// copied, which the core does for [build.OutputCwd].
 func (h *Harness) Run(ctx context.Context, bld build.Build) error {
 	err := h.backend.ValidateBuild(bld)
 	if err != nil {
@@ -370,7 +376,110 @@ func (h *Harness) Run(ctx context.Context, bld build.Build) error {
 		}
 	}
 
-	return bld.Run(ctx, h.Context)
+	before, err := stampResults(h.Context.Dirs)
+	if err != nil {
+		return err
+	}
+
+	err = bld.Run(ctx, h.Context)
+	if err != nil {
+		return err
+	}
+
+	after, err := stampResults(h.Context.Dirs)
+	if err != nil {
+		return err
+	}
+
+	return checkProduced(h.backend, bld, h.Context.Dirs, before, after)
+}
+
+// fileStamp tells a file that a build wrote from one it left alone.
+type fileStamp struct {
+	size    int64
+	modTime time.Time
+}
+
+// stamps are the files of the directories of the results of a build, by
+// type and by their paths relative to the directory of the type.
+type stamps map[build.Result]map[string]fileStamp
+
+// stampResults stamps the files of the directories of dirs of the types of
+// results; a directory a hook has not is left out.
+func stampResults(dirs build.Dirs) (stamps, error) {
+	stamped := stamps{}
+
+	for _, result := range build.Results() {
+		dir := dirs.Of(result)
+		if dir == "" {
+			continue
+		}
+
+		files := map[string]fileStamp{}
+
+		err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil || entry.IsDir() {
+				return err
+			}
+
+			info, err := entry.Info()
+			if err != nil {
+				return fmt.Errorf("stamping %s: %w", path, err)
+			}
+
+			rel, err := filepath.Rel(dir, path)
+			if err != nil {
+				return fmt.Errorf("stamping %s: %w", path, err)
+			}
+
+			files[rel] = fileStamp{size: info.Size(), modTime: info.ModTime()}
+
+			return nil
+		})
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("buildtest: %w", err)
+		}
+
+		stamped[result] = files
+	}
+
+	return stamped, nil
+}
+
+// checkProduced checks that what bld, a build of backend, made in dirs
+// between the stamps before and after is of the types backend produces,
+// and so are the programs it names.
+func checkProduced(backend build.Backend, bld build.Build, dirs build.Dirs,
+	before, after stamps,
+) error {
+	for _, result := range build.Results() {
+		if slices.Contains(backend.Produces, result) {
+			continue
+		}
+
+		var made []string
+
+		for path, stamp := range after[result] {
+			if old, ok := before[result][path]; !ok || old != stamp {
+				made = append(made, filepath.Join(dirs.Of(result), path))
+			}
+		}
+
+		if namer, ok := bld.(build.ProgramNamer); ok && result == build.Program {
+			names, _ := namer.Programs()
+
+			made = append(made, names...)
+		}
+
+		if len(made) > 0 {
+			slices.Sort(made)
+
+			return fmt.Errorf("buildtest: %w: backend %q makes no %s: %s", build.ErrNotProduced,
+				backend.Name, result, strings.Join(slices.Compact(made), ", "))
+		}
+	}
+
+	return nil
 }
 
 // Printed returns what the commands of the build printed so far, but the
