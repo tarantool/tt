@@ -272,6 +272,46 @@ func TestCcLoadsTheModuleIntoTarantool(t *testing.T) {
 	assert.Contains(t, err.Error(), "no_such_function_of_tt")
 }
 
+// TestCcKeepsTheProjectOutOfTheModule proves with the compilers of the host
+// that a module has debug information, and that it names no path of the
+// project: -ffile-prefix-map makes the project ".", whose sources are found
+// from a debugger started there.
+func TestCcKeepsTheProjectOutOfTheModule(t *testing.T) {
+	t.Parallel()
+
+	includeDir, _ := requireHostHeaders(t)
+	requireCXX(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"a.c":     "#include \"inc/a.h\"\nint a(void) { return A; }\n",
+		"b.cpp":   "extern \"C\" int b() { return 2; }\n",
+		"inc/a.h": "#define A 1\n",
+	})
+	facts := harness.Context
+
+	// The compiles run in the project, which -g records the directory of.
+	require.True(t, strings.HasPrefix(facts.Dirs.Cwd, facts.Dirs.Project))
+
+	hostBuild(t, harness, C(), map[string]any{"module": "paths", "sources": []any{"a.c", "b.cpp"}},
+		"paths")
+
+	module := filepath.Join(facts.Dirs.Modules, "paths"+facts.Target.ModuleExt())
+
+	data, err := os.ReadFile(module)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), harness.Context.Dirs.Project)
+	assert.NotContains(t, string(data), harness.Context.Dirs.Work)
+
+	if runtime.GOOS == "linux" {
+		file, err := elf.Open(module)
+		require.NoError(t, err)
+
+		defer func() { _ = file.Close() }()
+
+		assert.NotNil(t, file.Section(".debug_info"), "-g by default")
+	}
+}
+
 // TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
 // against the real Tarantool C module API: the source includes <module.h> and
 // exports a luaopen_ entry point, so it compiles only when the include
@@ -594,8 +634,8 @@ func wrappedBuildOf(t *testing.T, harness *buildtest.Harness, backend build.Back
 }
 
 // next returns the sources the compiles logged since the last call compiled,
-// sorted, and whether a link was logged; the probes of the compilers are
-// left out.
+// sorted, and whether a link was logged; the probes of the compilers and
+// of their flags are left out.
 func (l *wrapLog) next(t *testing.T) ([]string, bool) {
 	t.Helper()
 
@@ -607,7 +647,8 @@ func (l *wrapLog) next(t *testing.T) ([]string, bool) {
 	var ran []string
 
 	for _, line := range lines[l.read:] {
-		if !strings.HasSuffix(line, " -dumpmachine") && !strings.HasSuffix(line, " --version") {
+		if !strings.HasSuffix(line, " -dumpmachine") && !strings.HasSuffix(line, " --version") &&
+			!isFlagProbe(line) {
 			ran = append(ran, line)
 		}
 	}

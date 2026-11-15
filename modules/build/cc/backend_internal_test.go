@@ -356,19 +356,32 @@ func fakeHarness(t *testing.T, backend build.Backend, rest map[string]any,
 }
 
 // calls are the runs of the fake compilers of harness so far, one a line,
-// but the probes of their identity (compilerIdentity).
+// but the probes of their identity (compilerIdentity) and of their flags
+// (prober.probe).
 func calls(t *testing.T, harness *buildtest.Harness) []string {
 	t.Helper()
 
 	var ran []string
 
 	for _, call := range allCalls(t, harness) {
-		if !strings.HasSuffix(call, " -dumpmachine") && !strings.HasSuffix(call, " --version") {
+		if !strings.HasSuffix(call, " -dumpmachine") && !strings.HasSuffix(call, " --version") &&
+			!isFlagProbe(call) {
 			ran = append(ran, call)
 		}
 	}
 
 	return ran
+}
+
+// isFlagProbe reports whether call is the compile of a probe of a flag.
+func isFlagProbe(call string) bool {
+	return strings.Contains(call, "/flag_check.c ") || strings.Contains(call, "/flag_check.cpp ")
+}
+
+// reproducible are the flags of the compiles of a harness the fake
+// compilers take all (reproducibleFlags).
+func reproducible(harness *buildtest.Harness) string {
+	return strings.Join(reproducibleFlags(harness.Context.Dirs.Project), " ")
 }
 
 // allCalls are the runs of the fake compilers of harness so far, one a line.
@@ -415,8 +428,8 @@ func TestRun(t *testing.T) {
 		assert.NoFileExists(t, object+".tmp")
 
 		assert.Equal(t, []string{
-			"fakecc --wrapped -fPIC -I/tt/include/tarantool -MD -MF " + object + ".d -MQ " +
-				object + " -c a.c -o " + object + ".tmp",
+			"fakecc --wrapped -fPIC " + reproducible(harness) + " -I/tt/include/tarantool " +
+				"-MD -MF " + object + ".d -MQ " + object + " -c a.c -o " + object + ".tmp",
 			"fakecc --wrapped " + strings.Join(link[goos], " ") + " -o " + out + " " + object,
 		}, calls(t, harness), goos)
 	}
@@ -449,10 +462,10 @@ func TestRunMixed(t *testing.T) {
 	// The compiles run at once, in any order.
 	slices.Sort(ran[:2])
 	assert.Equal(t, []string{
-		"fakec++ -fPIC -std=c++17 -g -I/tt/include/tarantool -MD -MF " + objB + ".d -MQ " +
-			objB + " -c sub/b.cpp -o " + objB + ".tmp",
-		"fakecc -O2 -g -fPIC -std=c11 -I/tt/include/tarantool -MD -MF " + objA + ".d -MQ " +
-			objA + " -c a.c -o " + objA + ".tmp",
+		"fakec++ -fPIC " + reproducible(harness) + " -std=c++17 -g -I/tt/include/tarantool " +
+			"-MD -MF " + objB + ".d -MQ " + objB + " -c sub/b.cpp -o " + objB + ".tmp",
+		"fakecc -O2 -g -fPIC " + reproducible(harness) + " -std=c11 -I/tt/include/tarantool " +
+			"-MD -MF " + objA + ".d -MQ " + objA + " -c a.c -o " + objA + ".tmp",
 		"fakec++ -shared -Wl,-Bsymbolic-functions -static-libstdc++ -Wl,--exclude-libs,ALL " +
 			"-o " + out + " " + objA + " " + objB,
 	}, ran)
@@ -466,8 +479,11 @@ func TestRunMixed(t *testing.T) {
 	require.Len(t, commands, 2)
 	assert.Equal(t, compileCommand{
 		Directory: facts.Dirs.Cwd,
-		Arguments: []string{"fakecc", "-O2", "-g", "-fPIC", "-std=c11", "-I/tt/include/tarantool",
-			"-MD", "-MF", objA + ".d", "-MQ", objA, "-c", "a.c", "-o", objA},
+		Arguments: slices.Concat([]string{"fakecc", "-O2", "-g", "-fPIC"},
+			reproducibleFlags(facts.Dirs.Project), []string{
+				"-std=c11", "-I/tt/include/tarantool",
+				"-MD", "-MF", objA + ".d", "-MQ", objA, "-c", "a.c", "-o", objA,
+			}),
 		File:   "a.c",
 		Output: objA,
 	}, commands[0])
