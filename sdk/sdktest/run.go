@@ -2,6 +2,7 @@ package sdktest
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/log/logtest"
 )
 
@@ -78,6 +80,62 @@ func (s *Services) Run(ctor sdk.Constructor, args ...string) Result {
 		Stdout:  s.Stdout(),
 		Stderr:  s.Stderr(),
 		Records: s.Records(),
+	}
+}
+
+// RunModule runs a module's command in new Services: see
+// [Services.RunModule].
+func RunModule(tb testing.TB, ctor sdk.ModuleConstructor, args ...string) Result {
+	tb.Helper()
+
+	return New(tb).RunModule(ctor, args...)
+}
+
+// RunModule is Run for a module that contributes more than commands, whose
+// constructor is an [sdk.ModuleConstructor]: it runs the commands of the
+// Module ctor returns as Run runs those of an [sdk.Constructor]. The test
+// fails, besides, on what of the Module the core would refuse when tt
+// starts: a backend that is not well formed ([build.Backend.Validate]), two
+// backends of one name, and a file check that is not well formed
+// ([build.FileCheck.Validate]).
+func (s *Services) RunModule(ctor sdk.ModuleConstructor, args ...string) Result {
+	s.tb.Helper()
+
+	return s.Run(func(services sdk.Services) []sdk.Mount {
+		module := ctor(services)
+
+		s.checkModule(module)
+
+		return module.Commands
+	}, args...)
+}
+
+// checkModule fails the test on a backend or a file check of module the core
+// would refuse.
+func (s *Services) checkModule(module sdk.Module) {
+	s.tb.Helper()
+
+	names := make(map[string]bool, len(module.Backends))
+
+	for _, backend := range module.Backends {
+		err := backend.Validate()
+		if err == nil && names[backend.Name] {
+			err = fmt.Errorf("%w %q: two backends of the module have the name",
+				build.ErrBackend, backend.Name)
+		}
+
+		if err != nil {
+			s.tb.Fatalf("sdktest: %v", err)
+		}
+
+		names[backend.Name] = true
+	}
+
+	for _, check := range module.FileChecks {
+		err := check.Validate()
+		if err != nil {
+			s.tb.Fatalf("sdktest: %v", err)
+		}
 	}
 }
 
