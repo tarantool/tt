@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -66,8 +67,8 @@ func TestBackends(t *testing.T) {
 	fields, err := C().Fields()
 	require.NoError(t, err)
 	assert.Equal(t, []string{
-		"module", "sources", "include_dirs", "libraries", "library_dirs", "rpath", "defines",
-		"cflags", "cxxflags", "ldflags", "platforms",
+		"module", "sources", "include_dirs", "libraries", "library_dirs", "rpath", "pkg_config",
+		"defines", "cflags", "cxxflags", "ldflags", "platforms",
 	}, fields)
 }
 
@@ -101,6 +102,7 @@ func TestConfig(t *testing.T) {
 		Libraries:   []string{"m"},
 		LibraryDirs: []string{"/opt/lib"},
 		Rpath:       []string{"$ORIGIN"},
+		PkgConfig:   nil,
 		Defines:     []string{"NDEBUG"},
 		Cflags:      []string{"-Wall"},
 		Cxxflags:    []string{"-std=c++17"},
@@ -108,7 +110,7 @@ func TestConfig(t *testing.T) {
 		Platforms: map[string]Overlay{
 			"linux": {
 				IncludeDirs: nil, Libraries: []string{"rt"}, LibraryDirs: nil,
-				Rpath: []string{"$ORIGIN/lib"}, Defines: nil,
+				Rpath: []string{"$ORIGIN/lib"}, PkgConfig: nil, Defines: nil,
 				Cflags: []string{"-pthread"}, Cxxflags: []string{"-pthread"}, Ldflags: nil,
 			},
 		},
@@ -179,6 +181,14 @@ func TestValidateErrors(t *testing.T) {
 		{"LDLIBS in env", module(nil), map[string]string{"LDLIBS": "-lm"},
 			"env.LDLIBS", `does nothing on backend "%s": put the libraries into libraries and ` +
 				"their directories into library_dirs"},
+		{"PKG_CONFIG in env", module(nil), map[string]string{"PKG_CONFIG": "pkgconf"},
+			"env.PKG_CONFIG", `does nothing on backend "%s": pkg-config is PKG_CONFIG of the ` +
+				"environment tt runs in, pkg-config by default; PKG_CONFIG_PATH in env reaches it"},
+		{"an empty pkg_config", module(map[string]any{"pkg_config": []any{"zlib", ""}}), nil,
+			"pkg_config", "must not contain an empty entry"},
+		{"an empty pkg_config of a platform", module(map[string]any{
+			"platforms": map[string]any{"darwin": map[string]any{"pkg_config": []any{""}}},
+		}), nil, "platforms.darwin.pkg_config", "must not contain an empty entry"},
 		{"a platform of no OS", module(map[string]any{
 			"platforms": map[string]any{"macos": map[string]any{}},
 		}), nil, "platforms.macos", `"macos" is not an OS tt builds for (want linux or darwin)`},
@@ -565,4 +575,133 @@ func TestRunFailedCompile(t *testing.T) {
 	assert.NoFileExists(t, object)
 	assert.NoFileExists(t, object+".tmp")
 	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Modules, "m.so"))
+}
+
+// fakePkgConfig is a pkg-config that records each run as a line of
+// $TT_BUILD_DIR/calls, knows no package whose name starts with "nosuch",
+// and gives flags of its own for the others, those of --cflags with a quoted
+// blank, as pkg-config escapes one, and --libs its own with --static.
+const fakePkgConfig = `#!/bin/sh
+printf '%s\n' "${0##*/} $*" >> "$TT_BUILD_DIR/calls"
+static= query=
+for arg; do
+	case "$arg" in
+	nosuch*) echo "Package '$arg' was not found" >&2; exit 1 ;;
+	--static) static=1 ;;
+	--cflags|--libs) query=$arg ;;
+	esac
+done
+case "$query" in
+--cflags) echo '-I/opt/ssl/include -DNAME=a\ b' ;;
+--libs) if [ -n "$static" ]; then echo '-lssl -lcrypto -ldl'; else echo '-lssl'; fi ;;
+esac
+`
+
+// TestRunPkgConfig checks that a build asks pkg-config for the packages of
+// pkg_config, an entry an argument of its own, the overlay of the target
+// after the build's, and takes its --cflags into every compile and its
+// --libs into the link, both with --static for a static build; that a
+// package pkg-config does not know fails the preflight naming the entry;
+// and that pkg-config not being there is build.ErrNoTool.
+func TestRunPkgConfig(t *testing.T) {
+	t.Parallel()
+
+	rest := map[string]any{
+		"module": "m", "sources": []any{"a.c"}, "pkg_config": []any{"openssl >= 3"},
+		"platforms": map[string]any{runtime.GOOS: map[string]any{"pkg_config": []any{"zlib"}}},
+	}
+
+	for _, static := range []bool{false, true} {
+		harness, bld := fakeHarness(t, C(), rest,
+			map[string]string{"CC": "fakecc", "PKG_CONFIG": "fakepkg --quiet"})
+
+		writeTool(t, harness, "fakepkg", fakePkgConfig)
+
+		harness.Context.Static = static
+
+		require.NoError(t, harness.Run(t.Context(), bld))
+
+		object := filepath.Join(harness.Context.Dirs.Work, "obj", objectName("a.c"))
+		out := filepath.Join(harness.Context.Dirs.Modules, "m"+harness.Context.Target.ModuleExt())
+		libFlags := "-shared -Wl,-Bsymbolic-functions"
+
+		if runtime.GOOS == "darwin" {
+			libFlags = "-bundle -undefined dynamic_lookup -all_load"
+		}
+
+		staticFlag, libs := "", "-lssl"
+		if static {
+			staticFlag, libs = " --static", "-lssl -lcrypto -ldl"
+		}
+
+		ran := calls(t, harness)
+		assert.Equal(t, []string{
+			"fakepkg --quiet --exists --print-errors openssl >= 3",
+			"fakepkg --quiet --exists --print-errors zlib",
+			"fakepkg --quiet --cflags" + staticFlag + " openssl >= 3 zlib",
+			"fakepkg --quiet --libs" + staticFlag + " openssl >= 3 zlib",
+			"fakecc -O2 -g -fPIC " + reproducible(harness) +
+				" -I/tt/include/tarantool -I/opt/ssl/include -DNAME=a b -MD -MF " +
+				object + ".d -MQ " + object + " -c a.c -o " + object + ".tmp",
+			"fakecc " + libFlags + " -o " + out + " " + object + " " + libs,
+		}, ran, "static = %t", static)
+	}
+
+	// The variables pkg-config reads are of the keys: another
+	// PKG_CONFIG_PATH compiles and links again, though pkg-config gives the
+	// same flags.
+	harness, bld := fakeHarness(t, C(), rest,
+		map[string]string{"CC": "fakecc", "PKG_CONFIG": "fakepkg"})
+
+	writeTool(t, harness, "fakepkg", fakePkgConfig)
+	writeFile(t, harness, "a.c", "/* a.c */\n")
+
+	ranSince := func() []string {
+		before := len(calls(t, harness))
+
+		require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+
+		var ran []string
+
+		for _, call := range calls(t, harness)[before:] {
+			if !strings.HasPrefix(call, "fakepkg ") {
+				ran = append(ran, call)
+			}
+		}
+
+		return ran
+	}
+
+	assert.Len(t, ranSince(), 2, "the compile and the link")
+	assert.Empty(t, ranSince(), "nothing changed")
+
+	harness.Context.Env["PKG_CONFIG_PATH"] = "/opt/ssl/lib/pkgconfig"
+
+	assert.Len(t, ranSince(), 2, "PKG_CONFIG_PATH changed")
+
+	missing := map[string]any{
+		"module": "m", "sources": []any{"a.c"}, "pkg_config": []any{"zlib", "nosuchlib"},
+	}
+
+	harness, bld = fakeHarness(t, C(), missing,
+		map[string]string{"CC": "fakecc", "PKG_CONFIG": "fakepkg"})
+
+	writeTool(t, harness, "fakepkg", fakePkgConfig)
+
+	err := bld.Preflight(t.Context(), harness.Context)
+
+	var fieldErr *build.FieldError
+
+	require.ErrorAs(t, err, &fieldErr)
+	assert.Equal(t, "pkg_config[1]", fieldErr.Field)
+	assert.Contains(t, fieldErr.Msg, `"nosuchlib": fakepkg --exists --print-errors nosuchlib: `+
+		"exit status 1: Package 'nosuchlib' was not found")
+
+	harness, bld = fakeHarness(t, C(), missing,
+		map[string]string{"CC": "fakecc", "PKG_CONFIG": "nosuch-pkg-config"})
+
+	err = bld.Preflight(t.Context(), harness.Context)
+	require.ErrorIs(t, err, build.ErrNoTool)
+	assert.Contains(t, err.Error(), `pkg_config lists "zlib" and "nosuchlib", which the `+
+		`build asks "nosuch-pkg-config" about, and it is not in PATH`)
 }

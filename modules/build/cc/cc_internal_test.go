@@ -19,8 +19,8 @@ import (
 // without depending on the host OS.
 func linuxToolchain() toolchain {
 	return toolchain{
-		cc: []string{"cc"}, cxx: []string{"c++"}, libFlag: []string{"-shared"},
-		origin: "$ORIGIN", includeDir: "/tt/include",
+		cc: []string{"cc"}, cxx: []string{"c++"}, pkgConfig: []string{"pkg-config"},
+		libFlag: []string{"-shared"}, origin: "$ORIGIN", includeDir: "/tt/include",
 	}
 }
 
@@ -30,6 +30,7 @@ func darwinToolchain() toolchain {
 	return toolchain{
 		cc:         []string{"cc"},
 		cxx:        []string{"c++"},
+		pkgConfig:  []string{"pkg-config"},
 		libFlag:    []string{"-bundle", "-undefined", "dynamic_lookup", "-all_load"},
 		origin:     "@loader_path",
 		includeDir: "/tt/include",
@@ -94,9 +95,17 @@ func TestToolchainOf(t *testing.T) {
 		tools, err = toolchainOf(linux, withEnv("CXX", value))
 		require.NoError(t, err)
 		assert.Equal(t, wantCXX, tools, "CXX=%q", value)
+
+		wantPkgConfig := want
+
+		wantPkgConfig.pkgConfig = words
+
+		tools, err = toolchainOf(linux, withEnv("PKG_CONFIG", value))
+		require.NoError(t, err)
+		assert.Equal(t, wantPkgConfig, tools, "PKG_CONFIG=%q", value)
 	}
 
-	for _, variable := range []string{"CC", "CXX"} {
+	for _, variable := range []string{"CC", "CXX", "PKG_CONFIG"} {
 		for value, wantErr := range map[string]error{
 			"'cc":   errUnterminatedQuote,
 			"cc \\": errTrailingBackslash,
@@ -228,6 +237,40 @@ func noEnvFlags() envFlags {
 	}
 }
 
+// noPkgFlags are the flags of a build without pkg_config.
+func noPkgFlags() pkgFlags {
+	return pkgFlags{cflags: nil, libs: nil}
+}
+
+// samplePkgFlags are flags pkg-config could give for openssl.
+func samplePkgFlags() pkgFlags {
+	return pkgFlags{
+		cflags: []string{"-I/opt/ssl/include", "-DOPENSSL_API"},
+		libs:   []string{"-L/opt/ssl/lib", "-lssl", "-lcrypto", "-pthread"},
+	}
+}
+
+// TestPkgConfigPlacement pins where the flags pkg-config gives go: those of
+// --cflags after the macros and the headers of every compile, C and C++,
+// those of --libs after libraries, before rpath and LDFLAGS.
+func TestPkgConfigPlacement(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []language{langC, langCXX} {
+		flags := compileFlags(sampleConfig(), linuxToolchain(), noEnvFlags(), samplePkgFlags(),
+			"linux", lang)
+		assert.Equal(t, []string{"-I/inc/lin", "-I/opt/ssl/include", "-DOPENSSL_API"},
+			flags[len(flags)-3:], lang)
+	}
+
+	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), samplePkgFlags(),
+		linux.OS, true, false, []string{"/w/a.o"}, "/out/mymod.so")
+	assert.Equal(t, []string{
+		"-lm", "-lz", "-llinlib", "-L/opt/ssl/lib", "-lssl", "-lcrypto", "-pthread",
+		"-Wl,-rpath,$ORIGIN", "-Wl,-rpath,/opt/lib", "-Wl,-rpath,$ORIGIN/lin", "-Wl,-z,now",
+	}, args[len(args)-11:])
+}
+
 // userEnvFlags is an environment with CFLAGS, CXXFLAGS and LDFLAGS set.
 func userEnvFlags() envFlags {
 	return envFlags{
@@ -282,7 +325,8 @@ func sampleConfig() Config {
 func moduleConfig(sources ...string) Config {
 	return Config{
 		Module: "m", Sources: sources, IncludeDirs: nil, Libraries: nil, LibraryDirs: nil,
-		Rpath: nil, Defines: nil, Cflags: nil, Cxxflags: nil, Ldflags: nil, Platforms: nil,
+		Rpath: nil, PkgConfig: nil, Defines: nil, Cflags: nil, Cxxflags: nil, Ldflags: nil,
+		Platforms: nil,
 	}
 }
 
@@ -305,13 +349,15 @@ func TestCompileFlagsLinux(t *testing.T) {
 
 	for _, lang := range []language{langC, langAsmCpp, langAsm} {
 		assert.Equal(t, concat(cflags, tail),
-			compileFlags(sampleConfig(), linuxToolchain(), noEnvFlags(), "linux", lang), lang)
+			compileFlags(sampleConfig(), linuxToolchain(), noEnvFlags(), noPkgFlags(), "linux",
+				lang), lang)
 	}
 
 	assert.Equal(t,
 		concat([]string{"-O2", "-g", "-fPIC", "-std=c++17", "-fno-rtti", "-Wno-class-memaccess"},
 			tail),
-		compileFlags(sampleConfig(), linuxToolchain(), noEnvFlags(), "linux", langCXX))
+		compileFlags(sampleConfig(), linuxToolchain(), noEnvFlags(), noPkgFlags(), "linux",
+			langCXX))
 }
 
 func TestCompileFlagsDarwin(t *testing.T) {
@@ -323,10 +369,12 @@ func TestCompileFlagsDarwin(t *testing.T) {
 		concat([]string{
 			"-O2", "-g", "-fPIC", "-std=gnu99", "-Werror", "-Wno-deprecated-declarations",
 		}, tail),
-		compileFlags(sampleConfig(), darwinToolchain(), noEnvFlags(), "darwin", langC))
+		compileFlags(sampleConfig(), darwinToolchain(), noEnvFlags(), noPkgFlags(), "darwin",
+			langC))
 	assert.Equal(t,
 		concat([]string{"-O2", "-g", "-fPIC", "-std=c++17", "-fno-rtti", "-stdlib=libc++"}, tail),
-		compileFlags(sampleConfig(), darwinToolchain(), noEnvFlags(), "darwin", langCXX))
+		compileFlags(sampleConfig(), darwinToolchain(), noEnvFlags(), noPkgFlags(), "darwin",
+			langCXX))
 }
 
 // TestCompileFlagsUserFlagsComeLast pins where the flags of the environment
@@ -340,11 +388,11 @@ func TestCompileFlagsUserFlagsComeLast(t *testing.T) {
 
 	assert.Equal(t,
 		concat([]string{"-fPIC", "-std=gnu99", "-Werror", "-Wno-psabi", "-O0", "-g"}, tail),
-		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), "linux", langC))
+		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), "linux", langC))
 	assert.Equal(t,
 		concat([]string{"-fPIC", "-std=c++17", "-fno-rtti", "-Wno-class-memaccess", "-O1", "-g3"},
 			tail),
-		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), "linux", langCXX))
+		compileFlags(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), "linux", langCXX))
 
 	// CFLAGS alone set keeps the -O2 of C++, and the other way round.
 	env := noEnvFlags()
@@ -352,17 +400,17 @@ func TestCompileFlagsUserFlagsComeLast(t *testing.T) {
 	env.cflagsSet = true
 
 	assert.Equal(t, []string{"-fPIC", "-I/tt/include"},
-		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langC))
+		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, noPkgFlags(), "linux", langC))
 	assert.Equal(t, []string{"-O2", "-g", "-fPIC", "-I/tt/include"},
-		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langCXX))
+		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, noPkgFlags(), "linux", langCXX))
 
 	env = noEnvFlags()
 	env.cxxflagsSet = true
 
 	assert.Equal(t, []string{"-O2", "-g", "-fPIC", "-I/tt/include"},
-		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langC))
+		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, noPkgFlags(), "linux", langC))
 	assert.Equal(t, []string{"-fPIC", "-I/tt/include"},
-		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, "linux", langCXX))
+		compileFlags(moduleConfig("m.c"), linuxToolchain(), env, noPkgFlags(), "linux", langCXX))
 }
 
 // TestCompileFlagsWithoutIncludeDir pins that a toolchain without the
@@ -375,7 +423,7 @@ func TestCompileFlagsWithoutIncludeDir(t *testing.T) {
 	tools.includeDir = ""
 
 	assert.Equal(t, []string{"-O2", "-g", "-fPIC"},
-		compileFlags(moduleConfig("m.c"), tools, noEnvFlags(), "linux", langC))
+		compileFlags(moduleConfig("m.c"), tools, noEnvFlags(), noPkgFlags(), "linux", langC))
 }
 
 // linux and darwin are the targets of the link tests.
@@ -387,8 +435,8 @@ var (
 func TestLinkArgsLinuxPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(), linux.OS, true, false,
-		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.so")
+	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(), noPkgFlags(), linux.OS,
+		true, false, []string{"/w/a.o", "/w/b.o"}, "/out/mymod.so")
 
 	want := []string{
 		// per-OS shared-link flag.
@@ -415,8 +463,8 @@ func TestLinkArgsLinuxPlacement(t *testing.T) {
 func TestLinkArgsDarwinPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(), darwin.OS, false, false,
-		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
+	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(), noPkgFlags(), darwin.OS,
+		false, false, []string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
 
 	want := []string{
 		// per-OS shared-link flag (bundle list on darwin).
@@ -439,8 +487,8 @@ func TestLinkArgsDarwinPlacement(t *testing.T) {
 func TestLinkArgsUserFlagsComeLast(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), linux.OS, true, false,
-		[]string{"/w/a.o"}, "/out/mymod.so")
+	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), noPkgFlags(), linux.OS,
+		true, false, []string{"/w/a.o"}, "/out/mymod.so")
 
 	assert.Equal(t, "-Wl,-z,now", args[len(args)-1])
 
@@ -458,14 +506,14 @@ func TestLinkArgsStaticLibstdcxx(t *testing.T) {
 
 	objects := []string{"/w/a.o"}
 
-	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), linux.OS, true,
-		true, objects, "/out/m.so")
+	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), noPkgFlags(),
+		linux.OS, true, true, objects, "/out/m.so")
 	assert.Equal(t, []string{
 		"-shared", "-Wl,-Bsymbolic-functions", "-static-libstdc++", "-Wl,--exclude-libs,ALL",
 		"-o", "/out/m.so", "/w/a.o",
 	}, static)
 	assert.NotContains(t, linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(),
-		linux.OS, true, false, objects, "/out/m.so"), "-static-libstdc++")
+		noPkgFlags(), linux.OS, true, false, objects, "/out/m.so"), "-static-libstdc++")
 
 	gxx := []string{"c++"}
 
@@ -562,7 +610,7 @@ func TestPlanOf(t *testing.T) {
 	config.Cflags = []string{"-std=c11"}
 	config.Cxxflags = []string{"-std=c++17"}
 
-	built := planOf(config, tools, noEnvFlags(), context(true))
+	built := planOf(config, tools, noEnvFlags(), noPkgFlags(), context(true))
 
 	require.Len(t, built.steps, 3)
 	assert.True(t, built.cxx)
@@ -596,12 +644,12 @@ func TestPlanOf(t *testing.T) {
 		built.link)
 
 	gcc := linuxToolchain()
-	gxx := planOf(config, gcc, noEnvFlags(), context(true))
+	gxx := planOf(config, gcc, noEnvFlags(), noPkgFlags(), context(true))
 
 	assert.Equal(t, concat([]string{"c++", "-shared", "-Wl,-Bsymbolic-functions",
 		"-static-libstdc++", "-Wl,--exclude-libs,ALL", "-o", "/lib/m.so"}, objects), gxx.link)
 
-	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), context(true))
+	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), noPkgFlags(), context(true))
 	assert.False(t, withoutCXX.cxx)
 	assert.Equal(t, []string{"zig", "cc", "-shared", "-o", "/lib/m.so"}, withoutCXX.link[:5])
 }

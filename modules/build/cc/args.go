@@ -128,13 +128,15 @@ var defaultCFLAGS = []string{"-O2", "-g"}
 //
 //	[-O2 -g unless CFLAGS is set] -fPIC \
 //	    [-ffile-prefix-map=<project>=. -gno-record-gcc-switches] \
-//	    <cflags...> <$CFLAGS...> -I<Tarantool incdir> -D<define...> -I<incdir...>
+//	    <cflags...> <$CFLAGS...> -I<Tarantool incdir> -D<define...> -I<incdir...> \
+//	    <pkg-config --cflags...>
 //
 // for C and assembler, and the same with cxxflags and CXXFLAGS for C++. The
 // flags that keep the paths of the machine out of the object are those the
 // compiler of the language takes (toolchain.reproducible), whatever CFLAGS
 // is, so that a module built from the same sources in another directory is
-// the same.
+// the same. What pkg-config gives for the packages of pkg_config (pkg) is of
+// both.
 //
 // The flags of the language come in three parts: tt's defaults, the
 // project's (cflags or cxxflags) and the user's (CFLAGS or CXXFLAGS of the
@@ -148,7 +150,7 @@ var defaultCFLAGS = []string{"-O2", "-g"}
 // Each list is merged (append-only) with its overlay of platforms for goos.
 // It is a pure function, so the flags are testable without a compiler or
 // Tarantool headers.
-func compileFlags(config Config, tools toolchain, env envFlags, goos string,
+func compileFlags(config Config, tools toolchain, env envFlags, pkg pkgFlags, goos string,
 	lang language,
 ) []string {
 	overlay := config.Platforms[goos]
@@ -184,7 +186,7 @@ func compileFlags(config Config, tools toolchain, env envFlags, goos string,
 		args = append(args, "-I"+inc)
 	}
 
-	return args
+	return append(args, pkg.cflags...)
 }
 
 // staticLibstdcxx are the flags that link the C++ library of gcc into a
@@ -261,7 +263,8 @@ const cxxName = "c++"
 //	<LIBFLAG...> [-Wl,-Bsymbolic-functions] \
 //	    [-static-libstdc++ -Wl,--exclude-libs,ALL] <ldflags...> \
 //	    -o <out> <objects...> \
-//	    -L<libdir...> -l<lib...> -Wl,-rpath,<rpath...> <$LDFLAGS...>
+//	    -L<libdir...> -l<lib...> <pkg-config --libs...> -Wl,-rpath,<rpath...> \
+//	    <$LDFLAGS...>
 //
 // The project's ldflags go before the objects, as make's
 // $(CC) $(LDFLAGS) -o out objs $(LDLIBS) has them, so that an option like
@@ -280,8 +283,10 @@ const cxxName = "c++"
 // module shipped elsewhere names a directory that is not there, and a
 // relative one would be resolved against the working directory of the
 // process. The loader looks where rpath says, $ORIGIN the directory of the
-// module (rpathFlag).
-func linkArgs(config Config, tools toolchain, env envFlags, goos string,
+// module (rpathFlag). What pkg-config gives for the libraries of the packages
+// of pkg_config (pkg) comes after libraries, as the libraries of a package
+// may need those of libraries.
+func linkArgs(config Config, tools toolchain, env envFlags, pkg pkgFlags, goos string,
 	symbolic, staticCXX bool, objects []string, out string,
 ) []string {
 	overlay := config.Platforms[goos]
@@ -310,6 +315,8 @@ func linkArgs(config Config, tools toolchain, env envFlags, goos string,
 	for _, lib := range concat(config.Libraries, overlay.Libraries) {
 		args = append(args, "-l"+lib)
 	}
+
+	args = append(args, pkg.libs...)
 
 	for _, entry := range concat(config.Rpath, overlay.Rpath) {
 		args = append(args, rpathFlag(entry, tools.origin))
@@ -384,11 +391,11 @@ func (p plan) compilers() [][]string {
 	return compilers
 }
 
-// planOf is the plan of the build of config in c, with the toolchain tools
-// and the flags of the environment env: one compile a source, in the order
-// of sources, and the link of the objects in that order into
-// <module><ext> in the output directory.
-func planOf(config Config, tools toolchain, env envFlags, c *build.Context) plan {
+// planOf is the plan of the build of config in c, with the toolchain tools,
+// the flags of the environment env and those pkg-config gave, pkg: one
+// compile a source, in the order of sources, and the link of the objects in
+// that order into <module><ext> in the output directory.
+func planOf(config Config, tools toolchain, env envFlags, pkg pkgFlags, c *build.Context) plan {
 	objects := objectDir(c.Dirs.Work)
 	built := plan{
 		steps:  make([]compileStep, 0, len(config.Sources)),
@@ -414,7 +421,7 @@ func planOf(config Config, tools toolchain, env envFlags, c *build.Context) plan
 			lang:     lang,
 			object:   filepath.Join(objects, objectName(source)),
 			compiler: compiler,
-			flags:    compileFlags(config, tools, env, c.Target.OS, lang),
+			flags:    compileFlags(config, tools, env, pkg, c.Target.OS, lang),
 		}
 
 		built.steps = append(built.steps, step)
@@ -427,7 +434,7 @@ func planOf(config Config, tools toolchain, env envFlags, c *build.Context) plan
 	}
 
 	built.link = concat(built.linker,
-		linkArgs(config, tools, env, c.Target.OS, bindsLocally(c.Target, built.linker),
+		linkArgs(config, tools, env, pkg, c.Target.OS, bindsLocally(c.Target, built.linker),
 			linksLibstdcxx(c.Target, c.Static, built.cxx, built.linker), paths, built.out))
 
 	return built

@@ -422,6 +422,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `--rebuild` drops it. Every build writes
   `_build/component/<component>/compile_commands.json` there too, for
   clangd and other tools.
+- `pkg_config = ["openssl", "libsasl2 >= 2.1"]` of a `c` or `lua-c` build
+  (and of `platforms.<os>`) takes the flags of the packages from
+  pkg-config: those of `--cflags` go to every compile, C and C++, after
+  `defines` and `include_dirs`, those of `--libs` to the link, after
+  `libraries`, both with `--static` for a build with `static = true`. The
+  program is `PKG_CONFIG` of the environment tt runs in, `pkg-config` by
+  default, split into words as `CC` is, and looked up in the `PATH` of the
+  build; `PKG_CONFIG` in `env` of the block is refused, while
+  `PKG_CONFIG_PATH` there reaches it, as pkg-config runs with the
+  environment of the build. A program that is not there, or a package it
+  does not know, fails the build before anything is built, naming the entry
+  and what pkg-config printed. The flags, and `PKG_CONFIG_PATH`,
+  `PKG_CONFIG_LIBDIR` and `PKG_CONFIG_SYSROOT_DIR`, are of the cache of the
+  objects and of the link.
 - A `lua-c` build fails when its module exports no `luaopen_<name>`, the
   function `require` calls, or needs functions of the Lua API by their C++
   names - a C++ source that includes `lua.h` rather than `lua.hpp` - which
