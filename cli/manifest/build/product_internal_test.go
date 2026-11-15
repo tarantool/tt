@@ -106,6 +106,20 @@ func TestSelectComponents_one(t *testing.T) {
 	assert.Equal(t, []string{"native"}, got)
 }
 
+// TestSelectComponents_several checks that several components are built in
+// the order of the product, each once.
+func TestSelectComponents_several(t *testing.T) {
+	t.Parallel()
+
+	product := manifest.Product{Components: []string{"lua", "native", "wasm"}}
+	got, err := selectComponents(product, "wasm", "lua", "", "wasm")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lua", "wasm"}, got)
+
+	_, err = selectComponents(product, "lua", "nope")
+	require.ErrorIs(t, err, errUnknownComponent)
+}
+
 func TestSelectComponents_unknown(t *testing.T) {
 	t.Parallel()
 

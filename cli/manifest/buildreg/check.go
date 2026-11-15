@@ -160,7 +160,9 @@ func common(backend build.Backend, block manifest.Build, target manifest.BuildTa
 // OutputFiles returns the files of output, the output of a build block of
 // backend for a component of the deprecated kind, each with its type
 // (OutputType); nil for none.
-func OutputFiles(backend build.Backend, output manifest.OutputList, kind string) []build.OutputFile {
+func OutputFiles(
+	backend build.Backend, output manifest.OutputList, kind string,
+) []build.OutputFile {
 	if output == nil {
 		return nil
 	}

@@ -35,17 +35,23 @@ func selectProduct(man *manifest.Manifest, name string) (string, manifest.Produc
 }
 
 // selectComponents returns the component names the build processes for product:
-// every component of the product, or the single named one when component is
-// non-empty (errUnknownComponent if that name is not in the product).
-func selectComponents(product manifest.Product, component string) ([]string, error) {
-	if component == "" {
+// every component of the product, or those named when names are given, in
+// the order of the product (errUnknownComponent if a name is not in the
+// product). An empty name names none.
+func selectComponents(product manifest.Product, names ...string) ([]string, error) {
+	names = slices.DeleteFunc(slices.Clone(names), func(name string) bool { return name == "" })
+	if len(names) == 0 {
 		return product.Components, nil
 	}
 
-	if slices.Contains(product.Components, component) {
-		return []string{component}, nil
+	for _, name := range names {
+		if !slices.Contains(product.Components, name) {
+			return nil, fmt.Errorf("%w: %q is not a component of the selected product",
+				errUnknownComponent, name)
+		}
 	}
 
-	return nil, fmt.Errorf("%w: %q is not a component of the selected product",
-		errUnknownComponent, component)
+	return slices.DeleteFunc(slices.Clone(product.Components), func(name string) bool {
+		return !slices.Contains(names, name)
+	}), nil
 }

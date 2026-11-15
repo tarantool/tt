@@ -37,6 +37,12 @@ var (
 	// errUnknownComponent reports that a component argument names a component
 	// the selected product does not build.
 	errUnknownComponent = errors.New("unknown component")
+	// errArgsOfComponents reports arguments of a build (Options.Args) of a
+	// run that builds other than one component.
+	errArgsOfComponents = errors.New("arguments of a build of other than one component")
+	// errNoBuild reports a component ComponentContext is asked for that has
+	// no build block.
+	errNoBuild = errors.New("the component has no build block")
 	// errUnknownSource reports a lock dependency whose source is neither
 	// registry nor path.
 	errUnknownSource = errors.New("unknown dependency source")

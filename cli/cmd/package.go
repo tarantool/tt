@@ -428,6 +428,14 @@ func dependencyOptionsIn(projectDir string, registries []string) (deps.Options, 
 		return deps.Options{}, err
 	}
 
+	return dependencyOptionsWith(projectDir, registries, tntInfo)
+}
+
+// dependencyOptionsWith is dependencyOptionsIn with the Tarantool facts
+// tntInfo, for a resolution that goes without a Tarantool as a build does.
+func dependencyOptionsWith(
+	projectDir string, registries []string, tntInfo manifestrocks.TarantoolInfo,
+) (deps.Options, error) {
 	sources, err := registrySources(registries)
 	if err != nil {
 		return deps.Options{}, err
@@ -928,6 +936,8 @@ func runPackagePack() error {
 			ProjectDir: "",
 			Product:    "",
 			Component:  "",
+			Components: nil,
+			Args:       nil,
 			Locked:     false,
 			FetchOnly:  false,
 			TtVersion:  lockStamp(),
@@ -1032,20 +1042,26 @@ func runPackage(args []string, fetchOnly bool) error {
 	return buildPackage(ctx, packageRun{
 		product:    packageProduct,
 		component:  component,
+		components: nil,
 		locked:     packageLocked,
 		fetchOnly:  fetchOnly,
 		rebuild:    packageRebuild,
 		registries: packageRegistries,
+		showOutput: false,
+		args:       nil,
 	})
 }
 
 // packageRun is what one run of the build pipeline is asked to do: the
-// choices the flags of tt package build and tt package fetch make.
+// choices the flags of tt package build and tt package fetch make, and
+// those a module's project makes (BuildProject).
 type packageRun struct {
 	// product is the product to build; "" is the default one.
 	product string
 	// component narrows the build to one component; "" builds them all.
 	component string
+	// components narrow the build to these components, with component.
+	components []string
 	// locked fails on a stale lock instead of re-resolving it.
 	locked bool
 	// fetchOnly materializes .rocks/ from the lock and builds nothing.
@@ -1054,6 +1070,11 @@ type packageRun struct {
 	rebuild bool
 	// registries are the rock servers of --registry.
 	registries []string
+	// showOutput shows what the tools print, as --verbose does.
+	showOutput bool
+	// args are passed through to the build of the one component built
+	// (build.Options.Args).
+	args []string
 }
 
 // buildPackage assembles build.Options for run from the environment and
@@ -1071,27 +1092,38 @@ func buildPackage(ctx context.Context, run packageRun) error {
 // module's project gives it: the directory it works in, with nothing searched
 // for.
 func buildPackageIn(ctx context.Context, projectDir string, run packageRun) error {
+	_, err := buildPackageResult(ctx, projectDir, run)
+
+	return err
+}
+
+// buildPackageResult is buildPackageIn, reporting what the build did.
+func buildPackageResult(ctx context.Context, projectDir string, run packageRun) (
+	*build.Result, error,
+) {
 	//nolint:contextcheck // tarantool --version is asked once, and takes no context.
 	tntInfo, err := buildTarantoolInfo()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	sources, err := registrySources(run.registries)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return build.Run(ctx, build.Options{
+	return build.RunResult(ctx, build.Options{
 		ProjectDir: projectDir,
 		Product:    run.product,
 		Component:  run.component,
+		Components: run.components,
+		Args:       run.args,
 		Locked:     run.locked,
 		FetchOnly:  run.fetchOnly,
 		TtVersion:  lockStamp(),
 		Tarantool:  tntInfo,
 		Registries: sources,
-		ShowOutput: cmdCtx.Cli.Verbose,
+		ShowOutput: cmdCtx.Cli.Verbose || run.showOutput,
 		Rebuild:    run.rebuild,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),

@@ -107,6 +107,8 @@ func runTest(subPaths, luatestArgs []string) error {
 		ProjectDir: root,
 		Product:    "",
 		Component:  "",
+		Components: nil,
+		Args:       nil,
 		Locked:     false,
 		FetchOnly:  false,
 		TtVersion:  lockStamp(),
