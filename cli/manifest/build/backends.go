@@ -237,11 +237,23 @@ func (b builder) preflight(ctx context.Context, components []string) error {
 
 		err = preflighter.Preflight(ctx, run.context)
 		if err != nil {
-			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name,
+				b.explainNoHeaders(err))
 		}
 	}
 
 	return nil
+}
+
+// explainNoHeaders adds to err, the failure of a build for want of the
+// headers of Tarantool (sdkbuild.ErrNoHeaders), where tt looked for them and
+// how to point it at them, when the Tarantool of the build has none.
+func (b builder) explainNoHeaders(err error) error {
+	if !errors.Is(err, sdkbuild.ErrNoHeaders) || b.opts.Tarantool.MissingHeaders == "" {
+		return err
+	}
+
+	return fmt.Errorf("%w: %s", err, b.opts.Tarantool.MissingHeaders)
 }
 
 // runBackends runs the build backend of every selected component that declares

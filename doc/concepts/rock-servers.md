@@ -191,7 +191,9 @@ equivalent of. It queries the servers of `TT_REGISTRIES` or of the manifest
 instead of its own defaults when either is set. A rock with a C part is
 built against the headers of the Tarantool that runs it: those of the
 project's `.tarantool/include/tarantool`, of `TT_CLI_TARANTOOL_PREFIX`, or
-the install prefix of that Tarantool.
+the first found beside its executable, then under the install prefix it was
+built with (see
+[Headers for rocks with a C part](../how-to/binaries.md#headers-for-rocks-with-a-c-part)).
 
 LuaRocks reads manifests only, not a [rock index](#a-rock-index). A server
 that publishes nothing but the index is left out of those servers, and of

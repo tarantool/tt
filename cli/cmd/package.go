@@ -382,7 +382,9 @@ func runPackageDeps(format *output.FormatFlag) error {
 	report, err := deps.Deps(deps.Options{
 		ProjectDir: projectDir,
 		TtVersion:  "",
-		Tarantool:  manifestrocks.TarantoolInfo{Executable: "", Prefix: "", Version: ""},
+		Tarantool: manifestrocks.TarantoolInfo{
+			Executable: "", Prefix: "", Version: "", MissingHeaders: "",
+		},
 		Registries: manifestrocks.Sources{
 			Flag:       nil,
 			Env:        nil,
@@ -1500,7 +1502,8 @@ func luarocksLogger() *slog.Logger {
 
 // tarantoolInfo gathers the Tarantool facts the rocks adapter needs from the
 // configured CLI context: the executable path, its version and its install
-// prefix.
+// prefix, resolved as tt rocks resolves it (oldrocks.ResolveTarantoolPrefix),
+// with where its headers were looked for when they are not there.
 func tarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 	if cmdCtx.Cli.TarantoolCli.Executable == "" {
 		return manifestrocks.TarantoolInfo{}, ErrNoTarantool
@@ -1511,15 +1514,16 @@ func tarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 		return manifestrocks.TarantoolInfo{}, err
 	}
 
-	prefix, err := oldrocks.GetTarantoolPrefix(&cmdCtx.Cli)
+	prefix, err := oldrocks.ResolveTarantoolPrefix(&cmdCtx.Cli)
 	if err != nil {
 		return manifestrocks.TarantoolInfo{}, err
 	}
 
 	return manifestrocks.TarantoolInfo{
-		Executable: cmdCtx.Cli.TarantoolCli.Executable,
-		Prefix:     prefix,
-		Version:    ver.Str,
+		Executable:     cmdCtx.Cli.TarantoolCli.Executable,
+		Prefix:         prefix.Dir,
+		Version:        ver.Str,
+		MissingHeaders: prefix.MissingHeaders(),
 	}, nil
 }
 
@@ -1537,7 +1541,9 @@ func buildTarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 	if errors.Is(err, ErrNoTarantool) {
 		log.Debugf("Building without a Tarantool: %s", err)
 
-		return manifestrocks.TarantoolInfo{Executable: "", Prefix: "", Version: ""}, nil
+		return manifestrocks.TarantoolInfo{
+			Executable: "", Prefix: "", Version: "", MissingHeaders: "",
+		}, nil
 	}
 
 	return info, err

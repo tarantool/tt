@@ -456,7 +456,11 @@ Without the flag, credentials come from `TT_CLI_EE_USERNAME` and
 `tt rocks` and `tt package build` build a rock with a C part against the
 headers of the `tarantool` they run: the ones in `.tarantool/include/tarantool`
 for the `tarantool` of the project, `TT_CLI_TARANTOOL_PREFIX` for another one,
-and otherwise the install prefix that `tarantool` was built with.
+and otherwise the first `include/tarantool/module.h` found beside the
+executable (`<prefix>/bin/tarantool`, an Enterprise SDK, a version of
+`tt binary install`), then under the install prefix that `tarantool` was
+built with. Without headers a `c` or `lua-c` component fails, naming the
+directories looked into.
 
 ### Rock servers
 

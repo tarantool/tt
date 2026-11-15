@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/tarantool"
 )
 
 func TestAddLuarocksRepoOpts(t *testing.T) {
@@ -110,7 +111,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData0}] = prefixOutput{
-		err: errPrefixPathRegexpMismatch,
+		err: tarantool.ErrBannerNoPrefix,
 	}
 
 	tntBadData1 := []byte("#!/bin/sh\n" +
@@ -120,7 +121,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData1}] = prefixOutput{
-		err: errPrefixPathExpectedMoreData,
+		err: tarantool.ErrBannerShort,
 	}
 
 	// The prefix of a tarantool tt binary installed comes first, before
@@ -138,7 +139,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	}
 
 	for input, output := range testCases {
-		_ = os.Unsetenv(tarantoolPrefixEnvVarName)
+		_ = os.Unsetenv(tarantool.PrefixEnv)
 
 		tntFile, err := os.Create(tntBinPath)
 		require.NoError(t, err)
@@ -152,12 +153,12 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		require.NoError(t, err)
 
 		if input.tntPrefixEnv != "" {
-			t.Setenv(tarantoolPrefixEnvVarName, input.tntPrefixEnv)
+			t.Setenv(tarantool.PrefixEnv, input.tntPrefixEnv)
 		}
 
 		tarantoolPrefix, err := GetTarantoolPrefix(&input.cli)
 
-		_ = os.Unsetenv(tarantoolPrefixEnvVarName)
+		_ = os.Unsetenv(tarantool.PrefixEnv)
 
 		if err == nil {
 			require.NoError(t, err)
@@ -168,6 +169,41 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 		_ = os.Remove(tntBinPath)
 	}
+
+	// The headers beside the executable come before the prefix its build
+	// names, and a LuaRocks build is not told where else to look.
+	require.NoError(t, os.WriteFile(tntBinPath, tntOkData, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(testDir, "include", "tarantool"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(testDir, "include", "tarantool", "module.h"),
+		[]byte("#define PACKAGE_VERSION \"2.10.2-0-gb924f0b\"\n"), 0o600))
+
+	cli := cmdcontext.CliCtx{TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath}}
+
+	prefix, err := ResolveTarantoolPrefix(&cli)
+	require.NoError(t, err)
+	assert.Equal(testDir, prefix.Dir)
+	assert.Empty(prefix.Warnings)
+
+	failed := errors.New("failed to run luarocks")
+	require.Equal(t, failed, explainMissingHeaders(failed, prefix, []string{"make"}))
+}
+
+func TestExplainMissingHeaders(t *testing.T) {
+	failed := errors.New("failed to run luarocks")
+	prefix := tarantool.Prefix{
+		Dir: "/usr", Origin: tarantool.PrefixOriginGuess, IncludeDir: "",
+		Tried:      []string{"/opt/include/tarantool", "/usr/include/tarantool"},
+		Executable: "/opt/bin/tarantool", Version: "3.8.1", HeadersVersion: "", Warnings: nil,
+	}
+
+	err := explainMissingHeaders(failed, prefix, []string{"install", "--tree", "x", "rock"})
+	require.ErrorIs(t, err, failed)
+	require.ErrorIs(t, err, ErrNoHeaders)
+	assert.Contains(t, err.Error(), "/opt/include/tarantool, /usr/include/tarantool")
+	assert.Contains(t, err.Error(), tarantool.PrefixEnv)
+
+	// A command that builds nothing is not told of the headers.
+	require.Equal(t, failed, explainMissingHeaders(failed, prefix, []string{"search", "rock"}))
 }
 
 func TestLuarocksCommand(t *testing.T) {
