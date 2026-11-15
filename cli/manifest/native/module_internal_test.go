@@ -65,8 +65,27 @@ func TestProgramModuleExtras(t *testing.T) {
 		},
 		{name: "libSystem", platforms: darwin, needed: []string{libSystem}},
 		{
-			name: "libc++", platforms: darwin, needed: []string{libcxx, libSystem},
-			want: []string{libcxx},
+			name: "libc++, which Tarantool needs", platforms: darwin,
+			needed: []string{libcxx, libSystem},
+		},
+		{
+			name: "libc++ of a universal file", platforms: universal,
+			needed: []string{libSystem, libcxx},
+		},
+		{
+			name: "libc++abi, which Tarantool needs through libc++ only", platforms: darwin,
+			needed: []string{"/usr/lib/libc++abi.dylib", libcxx},
+			want:   []string{"/usr/lib/libc++abi.dylib"},
+		},
+		{
+			name: "libc++ of macOS on Linux", platforms: linux,
+			needed: []string{libcxx},
+			want:   []string{libcxx},
+		},
+		{
+			name: "libc++ of Linux", platforms: linux,
+			needed: []string{"libc++.so.1", "libc.so.6"},
+			want:   []string{"libc++.so.1"},
 		},
 		{
 			name: "libresolv, which a Go program may need", platforms: darwin,
@@ -101,20 +120,31 @@ func TestProgramModuleExtras(t *testing.T) {
 }
 
 // TestInspectModuleUniversal pins that every slice of a universal Mach-O
-// module is checked: libc++ of one slice is an extra of the file.
+// module is checked: libz of one slice is an extra of the file, libc++ of
+// one is not.
 func TestInspectModuleUniversal(t *testing.T) {
 	t.Parallel()
 
-	const libcxx = "/usr/lib/libc++.1.dylib"
+	const (
+		libcxx = "/usr/lib/libc++.1.dylib"
+		libz   = "/usr/lib/libz.1.dylib"
+	)
 
 	cpus := []macho.Cpu{macho.CpuAmd64, macho.CpuArm64}
 
 	prog, err := inspect(t, universalMacho(t, cpus, [][]byte{
 		machoWithDylib(t, macho.CpuAmd64, libSystem),
-		machoWithDylib(t, macho.CpuArm64, libcxx, libSystem),
+		machoWithDylib(t, macho.CpuArm64, libz, libSystem),
 	}))
 	require.NoError(t, err)
-	assert.Equal(t, []string{libcxx}, prog.ModuleExtras())
+	assert.Equal(t, []string{libz}, prog.ModuleExtras())
+
+	prog, err = inspect(t, universalMacho(t, cpus, [][]byte{
+		machoWithDylib(t, macho.CpuAmd64, libcxx, libSystem),
+		machoWithDylib(t, macho.CpuArm64, libSystem),
+	}))
+	require.NoError(t, err)
+	assert.Empty(t, prog.ModuleExtras())
 
 	prog, err = inspect(t, universalMacho(t, cpus, [][]byte{
 		machoWithDylib(t, macho.CpuAmd64, libSystem),
