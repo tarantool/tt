@@ -239,6 +239,39 @@ func TestCcWarnsOfTheSymbolsOfTarantool(t *testing.T) {
 	assert.Len(t, harness.Warnings(), 1, "a static function is no clash")
 }
 
+// TestCcLoadsTheModuleIntoTarantool proves with the host's tarantool that a
+// module just linked is loaded into it: a lua-c module and a c one that
+// load build, and a module that needs a function no library of the link
+// has fails its build with what the loader says.
+func TestCcLoadsTheModuleIntoTarantool(t *testing.T) {
+	t.Parallel()
+
+	includeDir, tarantool := requireHostHeaders(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"fast_hash.c": fastHashC,
+		"answer.c":    "int answer(void) { return 42; }\n",
+		"missing.c": "int no_such_function_of_tt(void);\n" +
+			"int missing(void) { return no_such_function_of_tt(); }\n",
+	})
+
+	harness.Context.Tarantool.Executable = tarantool
+
+	hostBuild(t, harness, LuaC(),
+		map[string]any{"module": "fast_hash", "sources": []any{"fast_hash.c"}}, "fast_hash")
+	hostBuild(t, harness, C(),
+		map[string]any{"module": "answer", "sources": []any{"answer.c"}}, "answer")
+
+	bld, err := buildtest.Validate(C(), flatComponent(),
+		block(map[string]any{"module": "missing", "sources": []any{"missing.c"}}, nil))
+	require.NoError(t, err)
+
+	err = harness.Run(t.Context(), bld)
+	require.ErrorIs(t, err, errNoLoad)
+	assert.Contains(t, err.Error(), "the module does not load into "+tarantool)
+	assert.Contains(t, err.Error(), "no_such_function_of_tt")
+}
+
 // TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
 // against the real Tarantool C module API: the source includes <module.h> and
 // exports a luaopen_ entry point, so it compiles only when the include
