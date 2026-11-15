@@ -198,6 +198,7 @@ func TestRun_stageRebuildDropsWhatAnEarlierBuildWrote(t *testing.T) {
 	require.FileExists(t, filepath.Join(staged, "new.so"))
 
 	component := rebuild
+
 	component.Component = "native"
 
 	require.NoError(t, Run(context.Background(), component))
