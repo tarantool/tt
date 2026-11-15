@@ -265,7 +265,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   and pins nothing when it is stale or missing. A
   build that leaves a file of a type its backend does not produce - a
   module of a backend of data files - fails with exit code 2, where the
-  file was installed and recorded as made.
+  file was installed and recorded as made. The contract carries no fact of
+  one language or of a deprecated manifest form: a backend is told what a
+  component wants (`Component.Wants`), the `kind` of `manifest_version
+  0.1` staying the core's, and which Tarantool it builds for, while the C
+  toolchain is that of `c` and `lua-c`. The result types, module, data and
+  program, are a closed set on purpose, the places of a rock; the
+  directory of the modules is `Dirs.Modules`. `build.Typed` makes the `New`
+  of a backend of a function of its own configuration type, and
+  `sdktest.RunModule` runs the commands of a module of backends and checks
+  them as tt does when it starts. `sdk.RegistryFlagUsage` and
+  `DependencyMove.String` give a module the help of `--registry` and the
+  lines of the moves of a lock that `tt package` prints.
 - The SDK gives a module the project it works on as tt package works on it,
   where only the core could: `Project().Root()`, the project the directory
   of the command is in, as the project commands of tt find it;
@@ -286,8 +297,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   build of one component (`Context.Args`), and says what each made and
   whether it was up to date; and `Project().BuildContext()`, the Context a
   build of a component runs in, with nothing built, for a command that runs
-  the tools of its backend; `Project().StateDir()`, its
-  `.tarantool`; `Project().PrepareEnvironment()`, which writes
+  the tools of its backend; `Project().ScopeDir()`, its
+  `.tarantool`, the project scope; `Project().PrepareEnvironment()`, which writes
   `.env/activate.sh` as the first `tt binary install` into the project
   does; and `Rocks().Index()`, which makes a directory a rock server with
   the rock index of tt, as `tt package index` does. `sdk/execfile` writes a

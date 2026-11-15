@@ -101,19 +101,14 @@ func Backend() build.Backend {
 		Name:        Name,
 		Produces:    []build.Result{build.Data},
 		Config:      func() any { return new(Config) },
-		New:         newBuild,
+		New:         build.Typed(newBuild),
 		Incremental: true,
 		OutputFrom:  build.OutputNone,
 	}
 }
 
 // newBuild checks a template build block.
-func newBuild(cfg any, _ build.Component, _ build.Common) (build.Build, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+func newBuild(config *Config, _ build.Component, _ build.Common) (build.Build, error) {
 	switch {
 	case config.Template == "":
 		return nil, build.FieldErrorf("", "template is required for backend %q", Name)
@@ -212,9 +207,9 @@ A `build.Backend` is a value. Its fields tell the core what the backend is:
 | Field | |
 | --- | --- |
 | `Name` | the value of `backend` that selects it: a lowercase letter, then lowercase letters, digits and dashes; no two backends of a tt share one |
-| `Produces` | the types of what its builds make, each once: `build.Module`, `build.Data`, `build.Program` |
+| `Produces` | the types of what its builds make, each once: `build.Module`, `build.Data`, `build.Program` (see [Results](#results)) |
 | `Config` | returns a fresh, empty configuration: a pointer to a struct of the fields of the block |
-| `New` | checks a block and returns the build |
+| `New` | checks a block and returns the build; `build.Typed(newBuild)` makes it of a function that takes the configuration as its own type, `*Config` |
 | `Incremental` | allows `incremental = true` in the block |
 | `OutputFrom` | whether the block has `output`, and who copies what it lists |
 | `Exclude` | gitignore patterns of files the backend's tool leaves in the component, which are never laid out: `/target/` of `cargo` |
@@ -223,9 +218,10 @@ A `build.Backend` is a value. Its fields tell the core what the backend is:
 
 The core calls `Config` and `New` whenever it checks a manifest: every
 command that reads the manifest does, `tt package add` included, and it may
-call them more than once for one block. Neither may have side effects.
-`New` looks at the block only; a tool the build needs is looked for later,
-in `Preflight`.
+call them more than once for one block. Neither may have side effects, and
+both are to be cheap. `New` looks at the block only, and is given no
+directory of the project; a tool or a file the build needs is looked for
+later, in `Preflight`.
 
 ## The fields of the block
 
@@ -256,7 +252,9 @@ have it.
 ## Check the block
 
 `New` gets the decoded configuration, the component and the common fields.
-It returns the build, or an error.
+It returns the build, or an error. The field `New` of `build.Backend` takes
+the configuration as `any`, since backends of different configurations sit
+in one list; `build.Typed` hands it to `newBuild` as the `*Config` it is.
 
 An error of a field is a `build.FieldError`, made by `build.FieldErrorf`.
 Its `Field` is the path of the field from the block, as the block writes
@@ -274,11 +272,14 @@ Any other error of `New` is reported for the block. There are no tags for
 required fields or defaults: `New` checks them.
 
 `build.Component` is the component: its `Name`, its `Path` relative to the
-project, its `Namespace` and its `Package`. `Expects` is what the deprecated
-`kind` of a component of `manifest_version = "0.1"` says the build makes,
-and nil when there is no `kind`; a backend that picks what to build when the
-block does not say may follow it, as `cargo` does. `build.Common` has `Cwd`,
-`Env`, `Output` and `Static` of the block.
+project, its `Namespace` and its `Package`. `Wants` are the types of
+results the manifest asks the component for besides its build block, nil
+when it asks for none, as a manifest is to. The core checks the build
+against them; a backend that picks what to build when the block does not
+say may follow them, as `cargo` and `zig` build the program named after the
+component when `Wants` is `build.Program` alone. The one form of a manifest
+that asks so far is deprecated, so a new backend may leave them to the
+core. `build.Common` has `Cwd`, `Env`, `Output` and `Static` of the block.
 
 ## Run the build
 
@@ -290,8 +291,7 @@ component and build.
 | `Component` | the component |
 | `Target` | the platform, as `GOOS` and `GOARCH` name it: always the machine tt runs on; `ModuleExt` is `.so`, or `.dylib` on darwin |
 | `Dirs` | the directories of the build, see below |
-| `Tarantool` | the Tarantool the component is built against: `Prefix`, `IncludeDir`, `Version`, each empty when tt does not know it |
-| `Toolchain` | how tt compiles a C module: `CC`, `LibFlag`, `Rpath`, `IncludeDir` |
+| `Tarantool` | the Tarantool the component is built against: `Prefix`, `IncludeDir` (its C headers, `module.h` and `lua.h`), `Version`, each empty when tt does not know it |
 | `Env` | the `env` of the block and the `TT_*` variables of the build |
 | `Fresh` | set by `tt package build --rebuild`, and for a component whose block changed since its last build: drop what `Work` keeps and build from scratch |
 | `Locked` | set by `--locked`: a tool of the build must not move a version either; `LockedVersion` returns the version the lock pins a rock at |
@@ -308,14 +308,21 @@ The directories, all absolute, for a component of the package:
 | `Component` | the directory of the component |
 | `Cwd` | where the build runs: `cwd` of the block, relative to the project, or `Component` |
 | `Work` | `_build/component/<name>/`, `TT_BUILD_DIR`: intermediate files, kept between builds, emptied by `--rebuild` and when the block changed |
-| `Output` | where modules go: `_build/rock/<product>/lib/<namespace>/`, `TT_OUTPUT_DIR` |
+| `Modules` | where modules go: `_build/rock/<product>/lib/<namespace>/`, `TT_OUTPUT_DIR` |
 | `Share` | where data files go: `_build/rock/<product>/lua/<namespace>/` |
 | `Programs` | where programs go: `_build/rock/<product>/bin/`, shared by the components |
 | `State` | `_build/`, the state of the build of the project |
 | `Tools` | `.tarantool/bin/` of the project |
 | `Tree` | `.rocks/`, the rocks tree the dependencies are installed into |
 
-The core creates `Work`, `Output`, `Share` and `Programs` before `Run`.
+The core creates `Work`, `Modules`, `Share` and `Programs` before `Run`.
+
+The Context says which Tarantool the build is for, not how to compile for
+it: a backend that compiles C takes the headers from `Tarantool.IncludeDir`
+(`TT_TARANTOOL_INCLUDE_DIR`) and links a module as Tarantool loads one,
+`-shared`, or `-bundle -undefined dynamic_lookup` on darwin, with the
+compiler it chooses. `c` and `lua-c` (`modules/build/cc`) do so with `CC` of
+tt's environment, as LuaRocks builds a builtin rock.
 
 ### Commands
 
@@ -351,9 +358,19 @@ What a build makes has a type. The type says where it goes:
 
 | Result | The build puts it into | It is installed into |
 | --- | --- | --- |
-| `build.Module`, a compiled module Tarantool loads | `Dirs.Output` | `.rocks/lib/tarantool/<namespace>/` |
+| `build.Module`, a compiled module Tarantool loads | `Dirs.Modules` | `.rocks/lib/tarantool/<namespace>/` |
 | `build.Data`, a file beside the Lua sources, such as `.wasm` or a generated Lua file | `Dirs.Share` | `.rocks/share/tarantool/<namespace>/` |
 | `build.Program`, a program the instances run | `Dirs.Programs` | `.rocks/bin/`, where `tt instance` finds it |
+
+The three types are the places of a rock, `lib`, `share` and `bin`, which
+the core lays out, records and cleans, and which `to` of `output` names.
+The set is the core's: a backend says which of the types it makes and adds
+none of its own, and `Validate` refuses a backend that names another. What
+is no module and no program, a `.wasm` say, is a data file. A type a later
+version of the SDK adds comes with a directory of `Dirs` and an entry of
+`build.Results()`; the values of the types, `module`, `data` and `program`,
+never change, so a backend that handles the types it produces is not
+broken by a new one.
 
 One build may make all three. The core takes as made what `Run` left in
 these three directories, each by its type, and removes from them what no
@@ -440,7 +457,6 @@ package template
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -462,18 +478,15 @@ func RenderBackend() build.Backend {
 		Name:       "render",
 		Produces:   []build.Result{build.Data},
 		Config:     func() any { return new(RenderConfig) },
-		New:        newRender,
+		New:        build.Typed(newRender),
 		OutputFrom: build.OutputCwd,
 	}
 }
 
 // newRender checks a render build block: a template, and one file of output.
-func newRender(cfg any, _ build.Component, common build.Common) (build.Build, error) {
-	config, ok := cfg.(*RenderConfig)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+func newRender(config *RenderConfig, _ build.Component, common build.Common) (
+	build.Build, error,
+) {
 	switch {
 	case config.Template == "":
 		return nil, build.FieldErrorf("", "template is required for backend %q", "render")
@@ -619,7 +632,7 @@ The backends of tt that have a `Preflight` call it at the start of `Run`
 too. The other interfaces:
 
 - `build.Producer`: `Produces()` says what this block asks for, each type
-  among `Backend.Produces`. The core checks it against the deprecated `kind`
+  among `Backend.Produces`. The core checks it against `Component.Wants`
   before anything is built. `cargo` and `zig` make a module, a program or
   both, as `module` and `bin` say.
 - `build.ProgramNamer`: `Programs()` names the programs the build makes, and
@@ -660,7 +673,7 @@ A backend without `Incremental` refuses the field:
 `tt package clean` removes what the builds of a package made. The core
 removes what is its own: for a clean of the whole package, all of
 `Dirs.State`, `_build/` - `Dirs.Work` of every component, the records of the
-builds, the stage that `Dirs.Output`, `Dirs.Share` and `Dirs.Programs` are
+builds, the stage that `Dirs.Modules`, `Dirs.Share` and `Dirs.Programs` are
 in - but the lock of the project, `_build/tt.lock`; for
 `tt package clean NAME`, `Dirs.Work` of the component, its records and its
 files in the stage. Either way the rock of the package leaves `Dirs.Tree`.
@@ -736,7 +749,7 @@ func TestRenderClean(t *testing.T) {
 	banner := build.Component{Name: "banner", Path: "banner", Namespace: "app", Package: "app"}
 	block := buildtest.Block{
 		Common: build.Common{Output: []build.OutputFile{{Path: "dist/banner.txt", To: build.Data}}},
-		Rest:   map[string]any{"template": "banner.txt.in"},
+		Fields: map[string]any{"template": "banner.txt.in"},
 	}
 
 	bld, err := buildtest.Validate(template.RenderBackend(), banner, block)
@@ -786,7 +799,7 @@ package, after the `Clean` of the backends. A hook names a backend with
 `hooks.pre_build: backend "template" is not supported (want make or shell)`.
 The core checks the block of a hook as it checks a build block, `New` given
 the zero `Component`. The build runs in a Context whose `Hook` is set. It
-has no component, and `Dirs` has no `Component`, `Work`, `Output`, `Share`
+has no component, and `Dirs` has no `Component`, `Work`, `Modules`, `Share`
 and `Programs`. `Env` has no `TT_OUTPUT_DIR`, `TT_COMPONENT_NAME` and
 `TT_BUILD_DIR`, and the files `output` lists are not copied.
 
@@ -883,7 +896,7 @@ var component = build.Component{Name: "config", Path: "config", Namespace: "app"
 
 func TestBuild(t *testing.T) {
 	bld, err := buildtest.Validate(template.Backend(), component, buildtest.Block{
-		Rest: map[string]any{
+		Fields: map[string]any{
 			"template": "defaults.lua.in", "vars": map[string]any{"PORT": "3301"},
 		},
 	})
@@ -901,8 +914,8 @@ func TestBuild(t *testing.T) {
 
 func TestBlockErrors(t *testing.T) {
 	for _, tc := range []struct {
-		rest map[string]any
-		want string
+		fields map[string]any
+		want   string
 	}{
 		{map[string]any{}, `template is required for backend "template"`},
 		{map[string]any{"template": "defaults.lua"},
@@ -913,14 +926,15 @@ func TestBlockErrors(t *testing.T) {
 		{map[string]any{"template": "a.in", "vars": map[string]any{"TT_PACKAGE": "x"}},
 			`vars.TT_PACKAGE: the TT_* variables are tt's`},
 	} {
-		_, err := buildtest.Validate(template.Backend(), component, buildtest.Block{Rest: tc.rest})
+		_, err := buildtest.Validate(template.Backend(), component,
+			buildtest.Block{Fields: tc.fields})
 		assert.EqualError(t, err, tc.want)
 	}
 }
 
 func TestNoEnvsubst(t *testing.T) {
 	bld, err := buildtest.Validate(template.Backend(), component, buildtest.Block{
-		Rest: map[string]any{"template": "defaults.lua.in"},
+		Fields: map[string]any{"template": "defaults.lua.in"},
 	})
 	require.NoError(t, err)
 
@@ -956,7 +970,7 @@ ok  	example.com/tt-template	0.010s
 ```
 
 - `buildtest.Block` is a build block as a test writes it: `Common`,
-  `Incremental`, and `Rest`, the fields of the backend as a TOML decoder
+  `Incremental`, and `Fields`, the fields of the backend as a TOML decoder
   makes them - strings, `int64`, `float64`, `bool`, `[]any` and
   `map[string]any`.
 - `buildtest.Validate` checks the backend as the core checks it before it
@@ -968,17 +982,16 @@ ok  	example.com/tt-template	0.010s
   `unknown field` here, where the core may say that another backend has it.
 - `buildtest.New(t, backend, component)` makes a `Context` for the builds
   of `backend` on directories of `t.TempDir()`:
-  `<tmp>/project` with the component in it, and `work`, `output`, `share`,
+  `<tmp>/project` with the component in it, and `work`, `lib`, `share`,
   `bin` and `state` beside it. The target is the machine the test runs on,
-  the toolchain is `cc` or `CC`, and no Tarantool is known. `Env` has the
+  and no Tarantool is known. `Env` has the
   `TT_*` variables of the core: `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
   `TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION` (`buildtest.Version`,
   `0.0.0-dev.0`), `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_DIR`.
   A test may change the Context before it runs the build: `TestNoEnvsubst`
   empties `PATH`, `Env["TT_VERSION"]` sets another version, and
   `harness.SetTarantool` tells the build a Tarantool as the core does, in
-  `Tarantool`, in `Toolchain.IncludeDir` and in `TT_TARANTOOL_PREFIX` and
-  `TT_TARANTOOL_INCLUDE_DIR`.
+  `Tarantool` and in `TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR`.
 - `harness.Run` runs `Preflight`, when the build has one, with `TT_VERSION`
   empty as the core has it there, then `Run`, and
   fails, as the core does, when `Run` left a file in the directory of a
@@ -1133,8 +1146,8 @@ The backends of the standard module `build` show the rest of the contract:
 | Package | Backends | Shows |
 | --- | --- | --- |
 | `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output` |
-| `modules/build/cc` | `c`, `lua-c` | the `Toolchain` and the `Tarantool` of the Context, `platforms.<os>` fields |
-| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Expects`, a module, a program or both |
+| `modules/build/cc` | `c`, `lua-c` | a C compiler driven against the `Tarantool` of the Context, `platforms.<os>` fields |
+| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
 | `modules/build/gobuild` | `go` | `NoSourceLayout`, `static` |
 | `modules/build/zig` | `zig` | `Incremental` with an `InputHasher` |
