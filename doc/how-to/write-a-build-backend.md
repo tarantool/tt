@@ -683,11 +683,17 @@ ok  	example.com/tt-template	0.010s
   of `backend` on directories of `t.TempDir()`:
   `<tmp>/project` with the component in it, and `work`, `output`, `share`,
   `bin` and `state` beside it. The target is the machine the test runs on,
-  the toolchain is `cc` or `CC`, and no Tarantool is known. `Env` has
-  `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_COMPONENT_NAME`,
-  `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_DIR`. A test may change
-  the Context before it runs the build: `TestNoEnvsubst` empties `PATH`.
-- `harness.Run` runs `Preflight`, when the build has one, then `Run`, and
+  the toolchain is `cc` or `CC`, and no Tarantool is known. `Env` has the
+  `TT_*` variables of the core: `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
+  `TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION` (`buildtest.Version`,
+  `0.0.0-dev.0`), `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_DIR`.
+  A test may change the Context before it runs the build: `TestNoEnvsubst`
+  empties `PATH`, `Env["TT_VERSION"]` sets another version, and
+  `harness.SetTarantool` tells the build a Tarantool as the core does, in
+  `Tarantool`, in `Toolchain.IncludeDir` and in `TT_TARANTOOL_PREFIX` and
+  `TT_TARANTOOL_INCLUDE_DIR`.
+- `harness.Run` runs `Preflight`, when the build has one, with `TT_VERSION`
+  empty as the core has it there, then `Run`, and
   fails, as the core does, when `Run` left a file in the directory of a
   type the backend does not produce. It does not copy the files of
   `output`, which the core does for `build.OutputCwd`.
