@@ -27,8 +27,8 @@ var Err = build.ErrNotProduced
 
 // TestWorkspaceOnThisCheckout writes the workspace of a distribution on the
 // core of this checkout for a module that requires sdk/build at a commit no
-// proxy has, and checks that the go command builds the module offline on
-// the SDK of the checkout.
+// proxy has, and checks that the go command builds the module on the SDK
+// of the checkout.
 func TestWorkspaceOnThisCheckout(t *testing.T) {
 	needGo(t)
 
@@ -48,12 +48,15 @@ func TestWorkspaceOnThisCheckout(t *testing.T) {
 	manifest := writeDistribution(t, filepath.Join(root, "dist"), "[core]\npath = \""+coreDir+"\"",
 		"produced = \"../tt-produced\"\n")
 
-	// The module cache of the machine has what sdk/build requires; nothing
-	// is fetched.
+	// What sdk/build requires comes from the proxy, or the module cache of
+	// the machine, which a CI runner has not filled for sdk/build. The
+	// modules of tt are private: the go command would take them from
+	// GitHub, which has no such commit, so only the workspace can give it.
 	env := append(slices.DeleteFunc(os.Environ(), func(entry string) bool {
 		return strings.HasPrefix(entry, "GOWORK=") || strings.HasPrefix(entry, "GOFLAGS=") ||
-			strings.HasPrefix(entry, "GOPROXY=")
-	}), "GOPROXY=off", "GOFLAGS=")
+			strings.HasPrefix(entry, "GOPRIVATE=") || strings.HasPrefix(entry, "GONOPROXY=") ||
+			strings.HasPrefix(entry, "GONOSUMDB=")
+	}), "GOPRIVATE=github.com/tarantool/tt", "GOFLAGS=")
 
 	result, err := Workspace(t.Context(), WorkspaceOptions{Manifest: manifest, Environ: env})
 	require.NoError(t, err)
