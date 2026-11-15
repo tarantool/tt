@@ -322,10 +322,11 @@ backend может предоставить эти проверки ядру. `b
 Контекст сообщает, для какого Tarantool выполняется сборка, но не то, как под
 него компилировать: backend, компилирующий код на C, берёт заголовки из
 `Tarantool.IncludeDir` (`TT_TARANTOOL_INCLUDE_DIR`) и компонует модуль так,
-как его загружает Tarantool: с флагом `-shared` (или `-bundle -undefined dynamic_lookup`
-на darwin) выбранным компилятором. `c` и `lua-c` (`modules/build/cc`) делают это
-с помощью `CC` из окружения tt, подобно тому как LuaRocks собирает встроенный
-rock.
+как его загружает Tarantool: с флагом `-shared` (или
+`-bundle -undefined dynamic_lookup` на darwin) выбранным компилятором. `c` и
+`lua-c` (`modules/build/cc`) делают это с помощью `CC` и `CXX` из окружения tt,
+подобно тому как LuaRocks собирает встроенный rock, по объекту на исходник
+в `Work`.
 
 ### Команды {#commands}
 
@@ -635,9 +636,12 @@ myapp 0.0.0-dev.0
 `--locked` устаревший локфайл приводит к ошибке, поэтому ответ в этом случае
 точный. Контекст `ctx` соответствует процессу сборки: команды, запускаемые в
 `Preflight`, создают с ним, чтобы они прерывались при отмене сборки. Ошибку
-отсутствия инструмента в `PATH` оборачивают в `build.ErrNoTool`, чтобы отличить
-отсутствующий инструмент от сбоя при сборке. Ошибка в `Preflight` приводит к
-завершению сборки с кодом 2:
+отсутствия инструмента в `PATH` оборачивают в `build.ErrNoTool`, чтобы
+отличить отсутствующий инструмент от сбоя при сборке, а `build.ErrNoHeaders` -
+для сборки, компилирующей с заголовочными файлами Tarantool, когда
+`Tarantool.IncludeDir` пуст: tt тогда добавляет каталоги, в которых искал
+заголовки, и то, как их указать. Ошибка в `Preflight` приводит к завершению
+сборки с кодом 2:
 
 ```text
 ⨯ building component "config": build tool not found: the template backend runs envsubst, which is not in PATH
@@ -1171,7 +1175,7 @@ Backend'ы стандартного модуля `build` демонстриру�
 | Пакет | Backend'ы | Что показывает |
 | --- | --- | --- |
 | `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, `Producer` и `ProgramNamer` на основе `output` |
-| `modules/build/cc` | `c`, `lua-c` | управление компилятором C с учётом `Tarantool` из контекста, поля `platforms.<os>` |
+| `modules/build/cc` | `c`, `lua-c` | компиляторы C и C++, вызываемые с учётом `Tarantool` из контекста, поля `platforms.<os>`, параллельный запуск команд, собственный кеш в `Work` с поддержкой `Fresh` |
 | `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, модуль, программа или и то, и другое |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, дерево сборки в `Work`, `Fresh` |
 | `modules/build/gobuild` | `go` | `NoSourceLayout`, `static` |

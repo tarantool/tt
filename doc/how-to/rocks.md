@@ -208,22 +208,33 @@ compiles the C module and lays the package out in `.rocks/` as the rock
 `hashkit`. The version is `0.0.0-dev.0+dirty` while the repository has no
 commit; see [Version it](#version-it).
 
-`tt -V package build` logs the command line of the compiler before it runs
-it:
+A build compiles only what changed since the last one. `tt -V package build`
+says so, after the two commands that tell it which compiler `cc` is:
 
 ```console
-$ tt -V package build 2>&1 | grep running
-   · running cc -O2 -fPIC -std=gnu99 -Wall -Wextra -Werror -I/usr/include/tarantool -shared -Wl,--as-needed -o .../hashkit/_build/rock/default/lib/hashkit/fnv.so fnv.c dir=.../hashkit/hashkit
+$ tt -V package build 2>&1 | grep 'probing\|up to date'
+   · probing the compiler backend=lua-c command="cc -dumpmachine"
+   · probing the compiler backend=lua-c command="cc --version"
+   · fnv.c is up to date: .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o backend=lua-c
+   · .../hashkit/_build/rock/default/lib/hashkit/fnv.so is up to date backend=lua-c
 ```
 
 tt's flags come first, then `cflags`, then `CFLAGS` of the environment,
 which so wins a conflict; setting `CFLAGS`, even to nothing, drops tt's
-`-O2`. A build for a debugger:
+`-O2`. Other flags make another object, so a build for a debugger compiles
+`fnv.c` again, into `_build/component/hashkit/obj/`, and links the module
+of it; `tt -V` logs each command before it runs it:
 
 ```console
 $ CFLAGS='-O0 -g' tt -V package build 2>&1 | grep running
-   · running cc -fPIC -std=gnu99 -Wall -Wextra -Werror -O0 -g -I/usr/include/tarantool -shared -Wl,--as-needed -o .../hashkit/_build/rock/default/lib/hashkit/fnv.so fnv.c dir=.../hashkit/hashkit
+   · running cc -fPIC -std=gnu99 -Wall -Wextra -Werror -O0 -g -I/usr/include/tarantool -MD -MF .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o.d -MQ .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o -c fnv.c -o .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o.tmp backend=lua-c dir=.../hashkit/hashkit
+   · running cc -shared -Wl,--as-needed -o .../hashkit/_build/rock/default/lib/hashkit/fnv.so .../hashkit/_build/component/hashkit/obj/fnv.c.040409a9.o dir=.../hashkit/hashkit
 ```
+
+The next build without `CFLAGS` compiles it again with `-O2`.
+`_build/component/hashkit/compile_commands.json` has the command of each
+source, for an editor; see
+[the reference](../reference/app-manifest.md#componentsnamebuild).
 
 `tt test` builds the package and runs luatest over `test/`; paths narrow the
 run, as many as you name, and the arguments after `--` go to luatest:
@@ -1011,7 +1022,7 @@ compiler does not read:
 
 ```text
 ⨯ invalid manifest: components.hashkit.build.env.CFLAGS: does nothing on backend "lua-c": put the flags of the compiler into cflags; CFLAGS of the environment tt runs in comes after them
-⨯ invalid manifest: components.hashkit.build.env.CPPFLAGS: does nothing on backend "lua-c": put the macros into defines, the directories of headers into include_dirs and other flags of the preprocessor into cflags
+⨯ invalid manifest: components.hashkit.build.env.CPPFLAGS: does nothing on backend "lua-c": put the macros into defines, the directories of headers into include_dirs and other flags of the preprocessor into cflags and cxxflags
 ```
 
 A field of another backend does nothing on this one, and the OS of

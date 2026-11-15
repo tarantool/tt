@@ -221,12 +221,13 @@ tarawasm; см. [Запуск компонентов WebAssembly](../how-to/wasm
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` обязательно |
 | `command`, `args` | `shell` | `command` обязательно |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` и `sources` обязательны |
-| `cflags` | `c`, `lua-c` | флаги компилятора, по одному в элементе, после собственных флагов tt и перед `CFLAGS` окружения; см. ниже |
+| `cflags` | `c`, `lua-c` | флаги компиляции исходников на C и ассемблере, по одному в элементе, после собственных флагов tt и перед `CFLAGS` окружения; см. ниже |
+| `cxxflags` | `c`, `lua-c` | флаги компиляции исходников на C++, по одному в элементе, после собственных флагов tt и перед `CXXFLAGS` окружения |
 | `module` | `cargo` | собирает библиотеку пакета как модуль с этим именем; блок без `module` и `bin` собирает библиотеку под её собственным именем |
-| `platforms.<os>` | `c`, `lua-c` | дополнительные `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` для одной ОС, `linux` или `darwin`, после списков сборки |
+| `platforms.<os>` | `c`, `lua-c` | дополнительные `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `cxxflags`, `ldflags` для одной ОС, `linux` или `darwin`, после списков сборки |
 | `package` | `go`, `cargo` | пакет Go (по умолчанию `.`) или пакет cargo |
 | `static` | все | `true`: то, что создаёт сборка, не требует ничего от машины установки, и сборка это проверяет; см. ниже |
-| `ldflags` | `go`, `c`, `lua-c` | флаги компоновщика, по одному в элементе: для `go build -ldflags` - после собственных флагов tt; для компоновки `c` и `lua-c` - перед исходниками; см. ниже |
+| `ldflags` | `go`, `c`, `lua-c` | флаги компоновщика, по одному в элементе: для `go build -ldflags` - после собственных флагов tt; для компоновки `c` и `lua-c` - перед объектами; см. ниже |
 | `name`, `tags`, `cgo` | `go` | по умолчанию `name` - имя компонента; cgo по умолчанию выключен |
 | `bin`, `features`, `profile` | `cargo` | `bin` собирает бинарный файл с этим именем, программу с тем же именем; `profile` по умолчанию `release` |
 | `module`, `bin` | `zig` | модуль и программа, которые сборка берёт из установленного `zig build`; блок указывает одно из них или оба |
@@ -419,12 +420,16 @@ fields are not checked` для команд, которые ничего не с
 компонента с `kind = "executable"` - программы), `TT_PROJECT_ROOT`,
 `TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION`, `TT_PLATFORM_OS` и
 `TT_PLATFORM_ARCH`. Если tt знает Tarantool, под который выполняется сборка,
-сборка также получает `TT_TARANTOOL_PREFIX` (префикс установки этого Tarantool) и
-`TT_TARANTOOL_INCLUDE_DIR` (каталог его файлов `module.h` и `lua.h`,
+сборка также получает `TT_TARANTOOL_PREFIX` (префикс установки этого Tarantool)
+и `TT_TARANTOOL_INCLUDE_DIR` (каталог его файлов `module.h` и `lua.h`,
 `<prefix>/include/tarantool`, под которые компилируют backend'ы `c` и `lua-c`);
-если tt его не знает, обе переменные не заданы. Поле `env` блока сборки не может
-их переопределить. Если tt не находит Tarantool вовсе, компонент `c` или `lua-c`
-завершает сборку ошибкой ещё до её начала из-за отсутствия заголовков.
+если tt его не знает, обе переменные не заданы, как и
+`TT_TARANTOOL_INCLUDE_DIR`, если `module.h` отсутствует (см.
+[Заголовки для rock'ов с частью на C](../how-to/binaries.md#headers-for-rocks-with-a-c-part),
+где описано, где tt их ищет). Поле `env` блока сборки не может их
+переопределить. Если tt не находит Tarantool вовсе или не находит его
+заголовков, компонент `c` или `lua-c` завершает сборку ошибкой ещё до её
+начала из-за отсутствия заголовков с указанием каталогов, где tt их искал.
 
 `TT_BUILD_DIR` - собственный каталог сборки для промежуточных результатов,
 создаваемых из исходников: объектных файлов, дерева сборки. Это
@@ -435,44 +440,106 @@ fields are not checked` для команд, которые ничего не с
 исходниками, оставляет каталог компонента нетронутым, как и каталог зависимости
 по пути - другого рабочего дерева.
 
-`c` и `lua-c` компилируют `sources` относительно `cwd` в один модуль,
-`<module>.so` (`<module>.dylib` на macOS), в `TT_OUTPUT_DIR` за один запуск
-компилятора C, `$CC` (`cc` по умолчанию):
+`c` и `lua-c` компилируют каждый исходник из `sources` относительно `cwd`
+в объектный файл в `TT_BUILD_DIR` и компонуют объекты в один модуль,
+`<module>.so` (`<module>.dylib` на macOS), в каталоге `TT_OUTPUT_DIR`.
+Расширение исходного файла определяет его язык, а значит, компилятор и его
+флаги:
+
+| Расширение | Язык | Компилятор | Флаги языка |
+| --- | --- | --- | --- |
+| `.c` | C | `$CC`, `cc` по умолчанию | `cflags`, `$CFLAGS` |
+| `.cc`, `.cpp`, `.cxx`, `.c++` | C++ | `$CXX`, `c++` по умолчанию | `cxxflags`, `$CXXFLAGS` |
+| `.S`, `.s` | ассемблер, `.S` проходит через препроцессор | `$CC` | `cflags`, `$CFLAGS` |
+
+Расширения чувствительны к регистру, а `.C` не поддерживается: на macOS `a.C`
+и `a.c` - один и тот же файл. Исходник с другим расширением считается
+ошибкой: `components.hashkit.build.sources[1]: "fnv.h" is not a source tt
+compiles: want a name ending in .c, .cc, .cpp, .cxx, .c++, .S or .s; a
+prebuilt library goes into libraries and library_dirs` - как и исходник,
+указанный дважды. Каждый исходник компилируется отдельно, исходники модуля -
+одновременно, в столько потоков, сколько у машины ядер процессора:
 
 ```console
 $CC -O2 -fPIC <cflags> <$CFLAGS> -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
-    -shared <ldflags> -o <module>.so <sources> \
+    -MD -MF <object>.d -MQ <object> -c <source> -o <object>
+$CXX -O2 -fPIC <cxxflags> <$CXXFLAGS> -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
+    -MD -MF <object>.d -MQ <object> -c <source> -o <object>
+```
+
+а объектные файлы компонуются с помощью `$CXX`, если среди исходников есть C++,
+и с помощью `$CC` в противном случае:
+
+```console
+$CXX -shared <ldflags> -o <module>.so <objects> \
     -L<library_dirs> -Wl,-rpath,<library_dirs> -l<libraries> <$LDFLAGS>
 ```
 
-Флаги компилятора выстраиваются по цепочке: сначала собственные флаги tt, затем
-проекта, затем пользователя: `-O2`, опускаемый, когда `CFLAGS` задан (даже
-пустым), и `-fPIC`; затем `cflags`; затем разбитая по пробелам переменная
-`CFLAGS` окружения, которая идёт последней и потому разрешает конфликты в свою
-пользу, аналогично тому, как `CFLAGS` идёт после `AM_CFLAGS` в autotools:
-`CFLAGS="-O0 -g"` выполняет сборку для отладчика, а `CFLAGS=-Wno-error`
-собирает проект, в чьих `cflags` указан `-Werror`, компилятором, выдающим новые
-предупреждения. Флаги `ldflags` идут перед исходниками, как в вызове
+Флаги компиляции выстраиваются по цепочке: сначала собственные флаги tt,
+затем проекта, затем пользователя: `-O2`, опускаемый, когда переменная
+соответствующего языка, `CFLAGS` или `CXXFLAGS`, задана (даже пустой), и
+`-fPIC`; затем `cflags` или `cxxflags`; затем разбитая по пробелам переменная
+`CFLAGS` или `CXXFLAGS` окружения, которая идёт последней и потому разрешает
+конфликты в свою пользу, аналогично тому, как `CFLAGS` идёт после `AM_CFLAGS`
+в autotools: `CFLAGS="-O0 -g"` компилирует исходники на C для отладчика, а
+`CFLAGS=-Wno-error` собирает проект, в чьих `cflags` указан `-Werror`,
+компилятором, выдающим новые предупреждения. Флаги одного языка не доходят
+до исходников другого (`-std=c11` привело бы к ошибке компиляции C++), тогда
+как `defines`, `include_dirs`, `-fPIC` и заголовки Tarantool передаются обоим.
+Компоновка не получает никаких флагов компиляторов: флаг, нужный как при
+компиляции, так и при компоновке (`-pthread`, `-fsanitize=address`, `-flto`,
+`-m32` или `--target=...`), указывается в `cflags` (и `cxxflags`) и в `ldflags`.
+Флаги `ldflags` идут перед объектными файлами, как в вызове
 `$(CC) $(LDFLAGS) -o out objs $(LDLIBS)` утилиты make, так что `-Wl,--as-needed`
 действует на последующие `-l`; строка завершается переменной `LDFLAGS`
 окружения. Список `platforms.<os>` идёт после списка самой сборки; `<os>` - это
 `linux` или `darwin`, операционные системы, для которых собирает tt, а любая
 другая (например, `macos`) считается ошибкой. На macOS вместо `-shared`
 передаётся `-bundle -undefined dynamic_lookup -all_load`, а `-Wl,-rpath` не
-передаётся. `CC`, `CFLAGS` и `LDFLAGS` берутся из окружения, в котором запущен
-tt, и компилятор не читает ни одну из них: в `env` сборки каждая из них
-считается ошибкой, поскольку никуда бы не дошла, а флаги проекта задаются в
-`cflags` и `ldflags`. То же относится к `CPPFLAGS`, `LIBS` и `LDLIBS`, которые
-не читают ни tt, ни компилятор: `defines`, `include_dirs` и `cflags` принимают то,
-что передавалось бы через `CPPFLAGS`, а `libraries` и `library_dirs` - через
-`LIBS`. Вызов отображается при `tt -V package build`.
+передаётся.
+
+Переменные `CC` и `CXX` делятся на слова так же, как shell делит команду, с
+поддержкой `'...'`, `"..."` и `\` и без подстановок, поэтому компилятор можно
+запускать через обёртку или с собственными аргументами: `CC="ccache cc"`,
+`CC="zig cc" CXX="zig c++"`, `CC="'/opt/my tools/gcc'"`. Первое слово ищется в
+`PATH` сборки. `CC`, `CXX`, `CFLAGS`, `CXXFLAGS` и `LDFLAGS` берутся из
+окружения, в котором запущен tt, и компилятор не читает ни одну из них: в `env`
+сборки каждая из них считается ошибкой, поскольку никуда бы не дошла, а флаги
+проекта задаются в `cflags`, `cxxflags` и `ldflags`. То же относится к
+`CPPFLAGS`, `LIBS` и `LDLIBS`, которые не читают ни tt, ни компилятор:
+`defines`, `include_dirs`, `cflags` и `cxxflags` принимают то, что
+передавалось бы через `CPPFLAGS`, а `libraries` и `library_dirs` - через `LIBS`.
+`tt -V package build` показывает каждую команду перед её запуском и вывод
+успешной компиляции (её предупреждения); без `-V` упавшая компиляция выводит
+свою команду и то, что она напечатала, в тексте ошибки.
+
+Модулю на C++ требуется библиотека C++. На Linux сборка с `static = true`
+линкует `libstdc++` в модуль с флагами
+`-static-libstdc++ -Wl,--exclude-libs,ALL`, причём второй флаг исключает её
+символы из экспорта модуля: в сам Tarantool библиотека `libstdc++` уже
+встроена, поэтому на машине выполнения `libstdc++.so.6` может отсутствовать.
+Однако статическая `libstdc++` из нового gcc требует glibc той машины, на
+которой она была собрана (так, gcc 15 требует glibc 2.38 там, где модулю на
+C достаточно 2.14), поэтому такой модуль загружается только там, где
+Tarantool работает на столь же новой glibc; сборка предупреждает, если эта
+версия новее glibc того Tarantool, под который собирается модуль. Без `static`
+модулю требуется `libstdc++.so.6` машины. На macOS модулю требуется
+`/usr/lib/libc++.1.dylib` - системная библиотека C++, которая нужна и самому
+Tarantool, и `static = true` её допускает. `zig c++` (`CXX="zig c++"` или
+компилятор, среди слов которого есть `zig`, а сразу за ним `cc` или `c++`: так
+его называют и через обёртку, `ccache zig cc`) линкует собственную `libc++` в
+каждый модуль статически со скрытием символов, поэтому его компоновка не
+получает ни одного из этих флагов (zig отклоняет `--exclude-libs`), а модуль не
+требует библиотеки C++ независимо от значения `static`. Скрипт другого имени,
+который запускает zig, за zig не считается.
 
 ```toml
 [components.memcached.build]
 backend = "lua-c"
 module = "datapath"
-sources = ["datapath.c"]
+sources = ["datapath.c", "ring.cpp"]
 cflags = ["-std=gnu99", "-Wall", "-Wextra", "-Werror"]
+cxxflags = ["-std=c++17", "-Wall"]
 
 [components.memcached.build.platforms.linux]
 ldflags = ["-Wl,--as-needed"]
@@ -480,6 +547,65 @@ ldflags = ["-Wl,--as-needed"]
 [components.memcached.build.platforms.darwin]
 cflags = ["-Wno-deprecated-declarations"]
 ```
+
+Исходник на C++ для `lua-c` подключает Lua API через `#include <lua.hpp>`:
+заголовочные файлы `lua.h`, `lauxlib.h` и `lualib.h` Tarantool не содержат
+`extern "C"`, поэтому исходник C++, подключающий их напрямую, объявляет Lua
+API с именами C++, и модуль не загружается: `undefined symbol:
+_Z15luaL_checkstackP9lua_StateiPKc`. Файл `module.h` объявляет собственные
+функции как `extern "C"`. Точка входа модуля на C++ также объявляется как
+`extern "C"`.
+
+`lua-c` проверяет модуль после компоновки: сборка завершается ошибкой, если
+модуль не экспортирует `luaopen_<name>` - функцию, которую вызывает
+`require('<name>')` (`<name>` - это `<namespace>.<module>` или `<module>`
+при `namespace = ""`, где точки заменены на `_`, а часть до первого `-`
+отброшена, как это делает Lua: `require('my-app.fast')` вызывает
+`luaopen_app_fast`), а также если модуль требует функции Lua API по их именам
+в C++. Проверяется каждый срез универсального файла Mach-O. Модуль `c`, чьи
+функции Tarantool вызывает по именам `box.schema.func`, этим проверкам не
+подлежит.
+
+```text
+⨯ building component "hashkit": .../hashkit/_build/rock/default/lib/hashkit/fnv.so: the module needs functions of the Lua API by their C++ names: _Z17luaL_checkintegerP9lua_Statei, _Z15lua_pushintegerP9lua_Statel: lua.h, lauxlib.h and lualib.h of Tarantool declare no extern "C", so a C++ source includes them through <lua.hpp>, which does, or within extern "C" { }
+⨯ building component "hashkit": .../hashkit/_build/rock/default/lib/hashkit/fnv.so: the module exports no luaopen_hashkit_fnv, the function require("hashkit.fnv") calls: define int luaopen_hashkit_fnv(lua_State *L), extern "C" in C++, or set module to the name the module is for
+```
+
+Сборка компилирует только то, что изменилось с прошлой сборки. Объектный
+файл компилируется заново, когда изменилась его командная строка, компилятор
+(его бинарный файл, размер и время изменения этого файла, вывод `-dumpmachine`
+и `--version`), переменная окружения, которую читает компилятор (`CPATH`,
+`SOURCE_DATE_EPOCH`, `SDKROOT`, `MACOSX_DEPLOYMENT_TARGET` и подобные,
+`C_INCLUDE_PATH` для исходников на C или ассемблере, `CPLUS_INCLUDE_PATH` для
+C++; но не `TMPDIR`), его исходник или файл, прочитанный прошлой компиляцией:
+каждый заголовок из списка `-MD`, включая заголовки Tarantool и системы. Модуль
+компонуется заново, когда изменился объектный файл, команда компоновки,
+компилятор компоновки, `LIBRARY_PATH` или файл из `libraries` в `library_dirs`,
+либо когда сам модуль отсутствует. Файл, указанный только во флаге (например,
+version script в `ldflags`), и библиотеки, найденные в других местах, не
+отслеживаются: `tt package build --rebuild` пересобирает всё заново, как и
+изменение блока сборки. Объектные файлы и записи сборки о них хранятся в
+`_build/component/<component>/obj/`.
+
+Каждая сборка также записывает
+`_build/component/<component>/compile_commands.json` - базу данных компиляции
+исходников компонента с командой для каждого из них, предназначенную для clangd
+и других читающих её инструментов. clangd ищет этот файл только в каталогах
+выше исходника и в их `build/`, поэтому для каждого компонента на C его
+указывают в файле `.clangd` проекта:
+
+```yaml
+If:
+  PathMatch: memcached/.*
+CompileFlags:
+  CompilationDatabase: _build/component/memcached
+```
+
+`CompilationDatabase` задаёт каталог этого файла относительно каталога
+`.clangd`. Для проекта с одним таким компонентом подходит и ссылка в корне
+проекта, которую clangd находит над любым исходником:
+`ln -s _build/component/memcached/compile_commands.json .` с добавлением
+`/compile_commands.json` в `.gitignore`.
 
 `cmake` собирает проект CMake из `cwd`, где расположен его `CMakeLists.txt`, вне
 исходников, в каталоге `TT_BUILD_DIR`:
@@ -584,16 +710,17 @@ namespace компонента. Программа `bin` берётся из `bi
   `libc.so.6`, `libm.so.6`, `libdl.so.2`, `libpthread.so.0`, `librt.so.1`,
   загрузчик `ld-linux-*` или (для musl) `ld-musl-*` и `libc.musl-*`, а также
   `libgcc_s.so.1` - среда выполнения GCC, необходимая любой сборке Tarantool; на
-  macOS - `/usr/lib/libSystem.B.dylib` и каждый срез универсального бинарного
-  файла. Нативными файлами считаются те, которые сборка записывает в
-  `TT_OUTPUT_DIR`, и файлы компонента, захватываемые раскладкой. От backend'а
-  ничего не требуется: библиотека, нужная модулю (например, `libsasl2.so.2`),
-  линкуется статически из своего `.a` либо загружается во время выполнения через
-  `dlopen`. Модуль на C++ линкует `libstdc++` статически через `-static-libstdc++`;
-  на macOS ему нужна `libc++`, которой среди них нет. Модуль, требующий более
-  новую glibc, чем Tarantool, под который он собран, собирается с
-  предупреждением: он не загрузится там, где этот Tarantool работает со старой
-  glibc.
+  macOS - `/usr/lib/libSystem.B.dylib` и `/usr/lib/libc++.1.dylib` (системная
+  библиотека C++, которая требуется и самому Tarantool) и каждый срез
+  универсального бинарного файла. Нативными файлами считаются те, которые сборка
+  записывает в `TT_OUTPUT_DIR`, и файлы компонента, захватываемые раскладкой. От
+  backend'а ничего не требуется, кроме `c` и `lua-c`, которые линкуют
+  `libstdc++` в модуль на C++ под Linux: библиотека, нужная модулю (например,
+  `libsasl2.so.2`), линкуется статически из своего `.a` либо загружается во
+  время выполнения через `dlopen`, а модуль на C++ другого backend'а линкует
+  `libstdc++` с флагом `-static-libstdc++`. Модуль, требующий более новую
+  glibc, чем Tarantool, под который он собран, собирается с предупреждением: он
+  не загрузится там, где этот Tarantool работает со старой glibc.
 
 Входными данными инкрементальной сборки `incremental` являются её блок сборки и
 файлы компонента, кроме скрытых, `_build/`, `_runtime/` и того, что игнорируют

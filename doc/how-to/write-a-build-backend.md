@@ -319,8 +319,9 @@ The Context says which Tarantool the build is for, not how to compile for
 it: a backend that compiles C takes the headers from `Tarantool.IncludeDir`
 (`TT_TARANTOOL_INCLUDE_DIR`) and links a module as Tarantool loads one,
 `-shared`, or `-bundle -undefined dynamic_lookup` on darwin, with the
-compiler it chooses. `c` and `lua-c` (`modules/build/cc`) do so with `CC` of
-tt's environment, as LuaRocks builds a builtin rock.
+compiler it chooses. `c` and `lua-c` (`modules/build/cc`) do so with `CC`
+and `CXX` of tt's environment, as LuaRocks builds a builtin rock, an object
+a source in `Work`.
 
 ### Commands
 
@@ -1144,7 +1145,7 @@ The backends of the standard module `build` show the rest of the contract:
 | Package | Backends | Shows |
 | --- | --- | --- |
 | `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output` |
-| `modules/build/cc` | `c`, `lua-c` | a C compiler driven against the `Tarantool` of the Context, `platforms.<os>` fields |
+| `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh` |
 | `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
 | `modules/build/gobuild` | `go` | `NoSourceLayout`, `static` |

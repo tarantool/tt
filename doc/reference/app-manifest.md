@@ -221,12 +221,13 @@ components tarawasm builds; see
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
-| `cflags` | `c`, `lua-c` | flags of the compiler, one per entry, after tt's own and before `CFLAGS` of the environment; see below |
+| `cflags` | `c`, `lua-c` | flags of the compiles of the C and assembler sources, one per entry, after tt's own and before `CFLAGS` of the environment; see below |
+| `cxxflags` | `c`, `lua-c` | flags of the compiles of the C++ sources, one per entry, after tt's own and before `CXXFLAGS` of the environment |
 | `module` | `cargo` | builds the library of the package as the module of this name; a block with neither `module` nor `bin` builds the library under its own name |
-| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
+| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `cxxflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
 | `static` | all | `true`: what the build makes needs nothing of the machine it is installed on, and the build checks it; see below |
-| `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the sources; see below |
+| `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the objects; see below |
 | `name`, `tags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
 | `bin`, `features`, `profile` | `cargo` | `bin` builds the binary of this name, the program of the same name; `profile` is `release` by default |
 | `module`, `bin` | `zig` | the module and the program the build takes from what `zig build` installed; a block names one or both |
@@ -435,42 +436,101 @@ since the last build. A `make` or `shell` build that writes there
 rather than beside its sources leaves the directory of the component as it
 is, and that of a path dependency, another checkout, too.
 
-`c` and `lua-c` compile `sources`, relative to `cwd`, into one module,
-`<module>.so`, `<module>.dylib` on macOS, in `TT_OUTPUT_DIR`, with one run
-of the C compiler, `$CC`, `cc` by default:
+`c` and `lua-c` compile each of `sources`, relative to `cwd`, into an
+object of `TT_BUILD_DIR`, and link the objects into one module,
+`<module>.so`, `<module>.dylib` on macOS, in `TT_OUTPUT_DIR`. The
+extension of a source says its language, and so its compiler and its
+flags:
+
+| Extension | Language | Compiler | Flags of the language |
+| --- | --- | --- | --- |
+| `.c` | C | `$CC`, `cc` by default | `cflags`, `$CFLAGS` |
+| `.cc`, `.cpp`, `.cxx`, `.c++` | C++ | `$CXX`, `c++` by default | `cxxflags`, `$CXXFLAGS` |
+| `.S`, `.s` | assembler, `.S` run through the preprocessor | `$CC` | `cflags`, `$CFLAGS` |
+
+The extensions are case-sensitive, and `.C` is none: on macOS `a.C` and
+`a.c` are one file. A source of another extension is an error -
+`components.hashkit.build.sources[1]: "fnv.h" is not a source tt compiles:
+want a name ending in .c, .cc, .cpp, .cxx, .c++, .S or .s; a prebuilt
+library goes into libraries and library_dirs` - and so is a source listed
+twice. Each source is compiled on its own, the sources of a module at
+once, as many as the machine has CPUs:
 
 ```console
 $CC -O2 -fPIC <cflags> <$CFLAGS> -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
-    -shared <ldflags> -o <module>.so <sources> \
+    -MD -MF <object>.d -MQ <object> -c <source> -o <object>
+$CXX -O2 -fPIC <cxxflags> <$CXXFLAGS> -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
+    -MD -MF <object>.d -MQ <object> -c <source> -o <object>
+```
+
+and the objects are linked with `$CXX` when a source is C++, with `$CC`
+otherwise:
+
+```console
+$CXX -shared <ldflags> -o <module>.so <objects> \
     -L<library_dirs> -Wl,-rpath,<library_dirs> -l<libraries> <$LDFLAGS>
 ```
 
-The flags of the compiler are tt's, then the project's, then the user's:
-`-O2`, left out when `CFLAGS` is set, even to nothing, and `-fPIC`; then
-`cflags`; then `CFLAGS` of the environment, split on blanks, which come last
+The flags of a compile are tt's, then the project's, then the user's:
+`-O2`, left out when the variable of the language, `CFLAGS` or `CXXFLAGS`,
+is set, even to nothing, and `-fPIC`; then `cflags` or `cxxflags`; then
+`CFLAGS` or `CXXFLAGS` of the environment, split on blanks, which come last
 and so win a conflict, as `CFLAGS` comes after `AM_CFLAGS` in autotools:
-`CFLAGS="-O0 -g"` builds for a debugger, and `CFLAGS=-Wno-error` builds a
-project whose `cflags` have `-Werror` with a compiler that warns of more.
-`ldflags` go before the sources, as make's `$(CC) $(LDFLAGS) -o out objs
+`CFLAGS="-O0 -g"` builds the C sources for a debugger, and
+`CFLAGS=-Wno-error` builds a project whose `cflags` have `-Werror` with a
+compiler that warns of more. The flags of one language do not reach the
+sources of the other - `-std=c11` would fail a C++ compile - while
+`defines`, `include_dirs`, `-fPIC` and the headers of Tarantool reach both.
+The link gets none of the flags of the compilers: a flag both the compiles
+and the link need, `-pthread`, `-fsanitize=address`, `-flto`, `-m32` or
+`--target=...`, goes into `cflags` (and `cxxflags`) and into `ldflags`.
+`ldflags` go before the objects, as make's `$(CC) $(LDFLAGS) -o out objs
 $(LDLIBS)` has them, so that `-Wl,--as-needed` acts on the `-l` that follow;
 `LDFLAGS` of the environment ends the line. A list of `platforms.<os>` goes
 after the one of the build; `<os>` is `linux` or `darwin`, the OSes tt
 builds for, and another, `macos` say, is an error. On macOS `-shared` is
 `-bundle -undefined dynamic_lookup -all_load`, and no `-Wl,-rpath` is
-given. `CC`, `CFLAGS` and `LDFLAGS` are those of the environment tt runs
-in, and the compiler reads none of them: in `env` of the build each is an
-error, as it would reach nothing, and the flags of the project go into
-`cflags` and `ldflags`. So are `CPPFLAGS`, `LIBS` and `LDLIBS`, which
-neither tt nor the compiler reads: `defines`, `include_dirs` and `cflags`
-take what `CPPFLAGS` would carry, `libraries` and `library_dirs` what
-`LIBS` would. `tt -V package build` shows the line.
+given.
+
+`CC` and `CXX` are split into words as a shell splits a command, with
+`'...'`, `"..."` and `\` and without expansions, so a compiler may be run
+through a wrapper or with arguments of its own: `CC="ccache cc"`,
+`CC="zig cc" CXX="zig c++"`, `CC="'/opt/my tools/gcc'"`. The first word is
+looked up in the `PATH` of the build. `CC`, `CXX`, `CFLAGS`, `CXXFLAGS` and
+`LDFLAGS` are those of the environment tt runs in, and the compiler reads
+none of them: in `env` of the build each is an error, as it would reach
+nothing, and the flags of the project go into `cflags`, `cxxflags` and
+`ldflags`. So are `CPPFLAGS`, `LIBS` and `LDLIBS`, which neither tt nor the
+compiler reads: `defines`, `include_dirs`, `cflags` and `cxxflags` take
+what `CPPFLAGS` would carry, `libraries` and `library_dirs` what `LIBS`
+would. `tt -V package build` shows each command before it runs it, and
+what a compile that succeeded printed, its warnings; without `-V` a compile
+that fails shows its command and what it printed in the error.
+
+A module of C++ needs the C++ library. On Linux a build with
+`static = true` links `libstdc++` into the module, with
+`-static-libstdc++ -Wl,--exclude-libs,ALL`, the second keeping its
+symbols out of what the module exports: Tarantool has `libstdc++` linked
+in, so the machine it runs on may have no `libstdc++.so.6`. The static
+`libstdc++` of a new gcc needs the glibc of the machine it was built on,
+though - that of gcc 15 needs glibc 2.38, where a module of C needs 2.14 -
+so such a module loads only where Tarantool runs on a glibc as new; the
+build warns when it is newer than the glibc of the Tarantool it is for.
+Without `static` the module needs the `libstdc++.so.6` of the machine. On
+macOS the module needs `/usr/lib/libc++.1.dylib`, the C++ library of the
+system, which Tarantool needs itself, and `static = true` allows it. `zig
+c++` (`CXX="zig c++"`, or any compiler whose words have a `zig` followed by
+`cc` or `c++`) links its own `libc++` into every module, statically and its
+symbols hidden, so its link gets neither flag - zig refuses
+`--exclude-libs` - and its module needs no C++ library, `static` or not.
 
 ```toml
 [components.memcached.build]
 backend = "lua-c"
 module = "datapath"
-sources = ["datapath.c"]
+sources = ["datapath.c", "ring.cpp"]
 cflags = ["-std=gnu99", "-Wall", "-Wextra", "-Werror"]
+cxxflags = ["-std=c++17", "-Wall"]
 
 [components.memcached.build.platforms.linux]
 ldflags = ["-Wl,--as-needed"]
@@ -478,6 +538,63 @@ ldflags = ["-Wl,--as-needed"]
 [components.memcached.build.platforms.darwin]
 cflags = ["-Wno-deprecated-declarations"]
 ```
+
+A C++ source of `lua-c` includes the Lua API as `#include <lua.hpp>`:
+`lua.h`, `lauxlib.h` and `lualib.h` of Tarantool declare no `extern "C"`,
+so a C++ source that includes them declares the Lua API by C++ names, and
+the module does not load: `undefined symbol:
+_Z15luaL_checkstackP9lua_StateiPKc`. `module.h` declares its own functions
+`extern "C"`. The entry point of a module of C++ is `extern "C"` too.
+
+`lua-c` checks the module once it is linked: the build fails when the
+module exports no `luaopen_<name>`, the function `require('<name>')`
+calls - `<name>` is `<namespace>.<module>`, or `<module>` with
+`namespace = ""`, its dots made `_` and the part up to its first `-`
+dropped, as Lua does: `require('my-app.fast')` calls `luaopen_app_fast` -
+and when the module needs functions of the Lua API by their C++ names. Each
+slice of a universal Mach-O file is checked. A module of `c`, whose
+functions Tarantool calls by the names of `box.schema.func`, is not.
+
+```text
+⨯ building component "hashkit": .../hashkit/_build/rock/default/lib/hashkit/fnv.so: the module needs functions of the Lua API by their C++ names: _Z17luaL_checkintegerP9lua_Statei, _Z15lua_pushintegerP9lua_Statel: lua.h, lauxlib.h and lualib.h of Tarantool declare no extern "C", so a C++ source includes them through <lua.hpp>, which does, or within extern "C" { }
+⨯ building component "hashkit": .../hashkit/_build/rock/default/lib/hashkit/fnv.so: the module exports no luaopen_hashkit_fnv, the function require("hashkit.fnv") calls: define int luaopen_hashkit_fnv(lua_State *L), extern "C" in C++, or set module to the name the module is for
+```
+
+A build compiles only what changed since the last one. An object is
+compiled again when its command line, the compiler - its program, the size
+and the time of change of that file, what `-dumpmachine` and `--version`
+print - an environment variable the compiler reads (`CPATH`,
+`SOURCE_DATE_EPOCH`, `SDKROOT`, `MACOSX_DEPLOYMENT_TARGET` and the like,
+`C_INCLUDE_PATH` of a C or assembler source, `CPLUS_INCLUDE_PATH` of a C++
+one; not `TMPDIR`), its source, or a
+file its last compile read changed: each header `-MD` listed, those of
+Tarantool and of the system included. The module is linked again when an
+object, the link command, the compiler that links, `LIBRARY_PATH` or a
+file of `libraries` in `library_dirs` changed, or when the module is gone.
+A file a flag alone names, a version script of `ldflags` say, and a
+library found elsewhere are not followed: `tt package build --rebuild`
+builds everything again, as does a change of the build block. The objects
+and what the build records of them stay in
+`_build/component/<component>/obj/`.
+
+Each build writes `_build/component/<component>/compile_commands.json`
+too, the compilation database of the sources of the component, a command
+for each, for clangd and other tools that read one. clangd looks for it
+in the directories above a source and in their `build/` only, so it is
+named in a `.clangd` file of the project, for each component of C:
+
+```yaml
+If:
+  PathMatch: memcached/.*
+CompileFlags:
+  CompilationDatabase: _build/component/memcached
+```
+
+`CompilationDatabase` is the directory of the file, relative to the
+directory of `.clangd`. For a project of one such component, a link in the
+root of the project does as well, which clangd finds above every source:
+`ln -s _build/component/memcached/compile_commands.json .`, with
+`/compile_commands.json` in `.gitignore`.
 
 `cmake` builds the CMake project of `cwd`, where its `CMakeLists.txt` is,
 out of the source, in `TT_BUILD_DIR`:
@@ -580,13 +697,15 @@ needs.
   `libm.so.6`, `libdl.so.2`, `libpthread.so.0`, `librt.so.1`, the loader,
   `ld-linux-*` or, of musl, `ld-musl-*` and `libc.musl-*`, and
   `libgcc_s.so.1`, the GCC runtime every build of Tarantool needs; on macOS
-  `/usr/lib/libSystem.B.dylib`, and every slice of a universal file. Its
-  native files are those the build writes into `TT_OUTPUT_DIR` and those of
-  the component the layout takes. The backend is asked for nothing: a
-  library a module needs, such as `libsasl2.so.2`, is linked in statically,
-  from its `.a`, or loaded at run time with `dlopen`. A C++ module links
-  `libstdc++` in with `-static-libstdc++`; on macOS it needs `libc++`,
-  which is not one of them. A module that needs a newer glibc than the
+  `/usr/lib/libSystem.B.dylib` and `/usr/lib/libc++.1.dylib`, the C++
+  library of the system, which Tarantool needs too, and every slice of a
+  universal file. Its native files are those the build writes into
+  `TT_OUTPUT_DIR` and those of the component the layout takes. The backend
+  is asked for nothing but by `c` and `lua-c`, which link `libstdc++` into
+  a module of C++ on Linux: a library a module needs, such as
+  `libsasl2.so.2`, is linked in statically, from its `.a`, or loaded at run
+  time with `dlopen`, and a C++ module of another backend links `libstdc++`
+  in with `-static-libstdc++`. A module that needs a newer glibc than the
   Tarantool it is built for builds with a warning: it does not load where
   that Tarantool runs on an older glibc.
 

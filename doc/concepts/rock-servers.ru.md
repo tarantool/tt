@@ -196,9 +196,11 @@ was reported to need its git source (see the v3 features notes). -->
 Команда `tt rocks` запускает сам LuaRocks для действий, у которых нет
 аналогов в `tt package`. Если заданы `TT_REGISTRIES` или манифест, она
 обращается к их серверам вместо собственных серверов по умолчанию.
-Rock-модуль с частью на C собирается с заголовками того Tarantool, под
-которым он запускается: из каталога `.tarantool/include/tarantool` проекта, из
-`TT_CLI_TARANTOOL_PREFIX` или из префикса установки этого Tarantool.
+Rock с частью на C собирается с заголовками того Tarantool, под которым он
+запускается: из каталога `.tarantool/include/tarantool` проекта, из
+`TT_CLI_TARANTOOL_PREFIX` либо из первых найденных рядом с его исполняемым
+файлом, а затем под префиксом установки, с которым он был собран (см.
+[Заголовки для rock'ов с частью на C](../how-to/binaries.md#headers-for-rocks-with-a-c-part)).
 
 LuaRocks читает только манифесты, а не [rock-индекс](#a-rock-index).
 Сервер, который публикует только индекс, исключается из этих серверов и из
