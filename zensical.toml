@@ -1,0 +1,171 @@
+# The documentation of tt, published as a preview at
+# https://tarantool.github.io/tt/. The pages are drafts for the technical
+# writers: plain Markdown with few extensions, so that they can move to
+# another toolchain. Built with Zensical: mage docs:build, preview with
+# mage docs:serve.
+#
+# The pages of reference/commands/ are generated from the help of tt
+# (mage docs:reference) and are not in git. A command added to tt needs its
+# page added to the nav below: the build fails on a page the nav omits.
+#
+# Zensical reads [project]. The Russian site is built from it too, with the
+# changes of zensical.ru.toml, by ci/doc_site.py, which mage docs:build runs.
+
+[project]
+site_name = "Tarantool CLI"
+site_description = "tt, the command-line utility for Tarantool applications"
+site_url = "https://tarantool.github.io/tt/"
+repo_url = "https://github.com/tarantool/tt"
+repo_name = "tarantool/tt"
+edit_uri = "edit/v3/doc/"
+dev_addr = "127.0.0.1:8000"
+
+docs_dir = "doc"
+# The translations, page.ru.md, make the Russian site.
+exclude_docs = """
+overrides/
+examples.md
+requirements.txt
+*.ru.md
+"""
+# Written for the translators: the site holds it out of every nav, so it
+# is built for those who read the sources, not offered to readers.
+not_in_nav = """
+/translations/
+"""
+
+nav = [
+  { "Home" = "index.md" },
+  { "What's new in tt 3" = "whats-new.md" },
+  { "Get started" = [
+    "get-started/install.md",
+    "get-started/first-cluster.md",
+    "get-started/first-package.md",
+  ] },
+  { "Write your application" = [
+    "write-your-app/http-api-in-wasm.md",
+  ] },
+  { "Concepts" = [
+    "concepts/projects-and-scopes.md",
+    "concepts/packages.md",
+    "concepts/instances.md",
+    "concepts/rock-servers.md",
+    "concepts/distributions.md",
+  ] },
+  { "How-to" = [
+    "how-to/binaries.md",
+    "how-to/user-scope.md",
+    "how-to/systemd.md",
+    "how-to/script-instances.md",
+    "how-to/external-processes.md",
+    "how-to/sign-packages.md",
+    "how-to/external-modules.md",
+    "how-to/rocks.md",
+    "how-to/rust-modules.md",
+    "how-to/write-a-module.md",
+    "how-to/build-distribution.md",
+    "how-to/wasm-components.md",
+    "how-to/emmylua.md",
+    { "Migrate from tt 2.x" = "migration_from_older_versions.md" },
+  ] },
+  { "Reference" = [
+    { "Commands" = [
+      "reference/commands/index.md",
+      { "tt aeon" = "reference/commands/aeon.md" },
+      { "tt backup" = "reference/commands/backup.md" },
+      { "tt binary" = "reference/commands/binary.md" },
+      { "tt cluster" = "reference/commands/cluster.md" },
+      { "tt completion" = "reference/commands/completion.md" },
+      { "tt connect" = "reference/commands/connect.md" },
+      { "tt coredump" = "reference/commands/coredump.md" },
+      { "tt create" = "reference/commands/create.md" },
+      { "tt daemon" = "reference/commands/daemon.md" },
+      { "tt data" = "reference/commands/data.md" },
+      { "tt emmylua" = "reference/commands/emmylua.md" },
+      { "tt instance" = "reference/commands/instance.md" },
+      { "tt modules" = "reference/commands/modules.md" },
+      { "tt new" = "reference/commands/new.md" },
+      { "tt package" = "reference/commands/package.md" },
+      { "tt registry" = "reference/commands/registry.md" },
+      { "tt replicaset" = "reference/commands/replicaset.md" },
+      { "tt restore" = "reference/commands/restore.md" },
+      { "tt rocks" = "reference/commands/rocks.md" },
+      { "tt run" = "reference/commands/run.md" },
+      { "tt service" = "reference/commands/service.md" },
+      { "tt tcm" = "reference/commands/tcm.md" },
+      { "tt test" = "reference/commands/test.md" },
+      { "tt version" = "reference/commands/version.md" },
+      { "tt wasm" = "reference/commands/wasm.md" },
+      { "Exit codes" = "reference/commands/errors.md" },
+    ] },
+    "reference/app-manifest.md",
+    "reference/tt-manifest.md",
+    "reference/instances-yaml.md",
+    "reference/templates.md",
+    "reference/environment.md",
+    "reference/layout.md",
+  ] },
+  { "Project" = [
+    "known_issues.md",
+    "contributing.md",
+  ] },
+]
+
+[project.validation]
+invalid_links = true
+invalid_link_anchors = true
+
+[project.theme]
+# The look of Material for MkDocs, which built the site before.
+variant = "classic"
+language = "en"
+custom_dir = "doc/overrides"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.sections",
+  "search.highlight",
+  "toc.follow",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "material/brightness-auto"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to system preference"
+
+[project.extra]
+generator = false
+# The language switcher: doc/overrides/partials/alternate.html links each
+# page to the same page of the other site.
+alternate = [
+  { name = "English", link = "/tt/", lang = "en" },
+  { name = "Русский", link = "/tt/ru/", lang = "ru" },
+]
+
+[project.markdown_extensions]
+attr_list = {}
+tables = {}
+# GitHub's anchors, so that a link works both on GitHub and on the site.
+toc.permalink = true
+toc.slugify = { object = "pymdownx.slugs.slugify", kwds = { case = "lower" } }
+pymdownx.highlight = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]

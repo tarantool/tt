@@ -89,7 +89,7 @@ section, and bold on every other phrase.
 
 ```console
 mage docs:stale                 # translations behind their English pages
-mage docs:build                 # mkdocs build --strict
+mage docs:build                 # both sites, failing on a broken link
 pre-commit run markdownlint -a  # line length, list and heading style
 ```
 
