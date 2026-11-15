@@ -68,7 +68,7 @@ func TestBackends(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		"module", "sources", "include_dirs", "libraries", "library_dirs", "rpath", "pkg_config",
-		"link", "defines", "cflags", "cxxflags", "ldflags", "platforms",
+		"link", "bundle", "defines", "cflags", "cxxflags", "ldflags", "platforms",
 	}, fields)
 }
 
@@ -104,6 +104,7 @@ func TestConfig(t *testing.T) {
 		Rpath:       []string{"$ORIGIN"},
 		PkgConfig:   nil,
 		Link:        nil,
+		Bundle:      nil,
 		Defines:     []string{"NDEBUG"},
 		Cflags:      []string{"-Wall"},
 		Cxxflags:    []string{"-std=c++17"},
@@ -258,6 +259,61 @@ func TestValidateErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBundleErrors checks the bundle of a block: a library of lua-c named
+// once each, and none of c, whose module Tarantool loads from a copy in a
+// temporary directory.
+func TestBundleErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		bundle []any
+		field  string
+		msg    string
+	}{
+		{[]any{"foo", ""}, "bundle", "must not contain an empty entry"},
+		{[]any{"vendor/libfoo.so"}, "bundle[0]", `"vendor/libfoo.so" is not the name of a ` +
+			"library, as libraries has it: foo for libfoo.so"},
+		{[]any{"foo", "foo"}, "bundle[1]", `"foo" is listed twice`},
+	} {
+		_, err := buildtest.Validate(LuaC(), component(),
+			block(module(map[string]any{"bundle": test.bundle}), nil))
+
+		var fieldErr *build.FieldError
+
+		require.ErrorAs(t, err, &fieldErr, test.bundle)
+		assert.Equal(t, test.field, fieldErr.Field, test.bundle)
+		assert.Equal(t, test.msg, fieldErr.Msg, test.bundle)
+	}
+
+	_, err := buildtest.Validate(C(), component(),
+		block(module(map[string]any{"bundle": []any{"foo"}}), nil))
+
+	var fieldErr *build.FieldError
+
+	require.ErrorAs(t, err, &fieldErr)
+	assert.Equal(t, "bundle", fieldErr.Field)
+	assert.Equal(t, `does nothing on backend "c": Tarantool copies a module of `+
+		"box.schema.func into a temporary directory and loads it from there, where the "+
+		"libraries beside the module are not; link them statically, or build a module of "+
+		"lua-c", fieldErr.Msg)
+
+	_, err = buildtest.Validate(LuaC(), component(),
+		block(module(map[string]any{"bundle": []any{"foo"}}), nil))
+	require.NoError(t, err)
+}
+
+// TestDarwinBundleCommands pins the commands that make the copy of a dylib
+// bundle copies the one the module loads: its install name @rpath/<name>,
+// and an ad hoc signature again. Not run on darwin here.
+func TestDarwinBundleCommands(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, [][]string{
+		{"install_name_tool", "-id", "@rpath/libfoo.1.dylib", "/stage/lib/app/libfoo.1.dylib"},
+		{"codesign", "--force", "--sign", "-", "/stage/lib/app/libfoo.1.dylib"},
+	}, darwinBundleCommands("/stage/lib/app/libfoo.1.dylib", "libfoo.1.dylib"))
 }
 
 // TestWants checks that neither backend builds a component that wants

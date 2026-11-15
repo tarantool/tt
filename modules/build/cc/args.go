@@ -309,7 +309,7 @@ func linkArgs(config Config, tools toolchain, env envFlags, libs libraryArgs, go
 	args = append(args, objects...)
 	args = append(args, libs.args...)
 
-	for _, entry := range concat(config.Rpath, overlay.Rpath) {
+	for _, entry := range slices.Concat(config.Rpath, overlay.Rpath, libs.rpath) {
 		args = append(args, rpathFlag(entry, tools.origin))
 	}
 

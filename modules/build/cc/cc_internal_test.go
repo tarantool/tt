@@ -280,7 +280,7 @@ func noLibs() libraryArgs {
 // libsOf are the libraries of the link of config for goos in /src, pkg
 // those pkg-config gave, of a build without static = true.
 func libsOf(config Config, goos string, pkg pkgFlags) libraryArgs {
-	return planLibraries(config, goos, "/src", pkg, noLinked(), false,
+	return planLibraries(config, goos, "/src", pkg, noLinked(), nil, false,
 		func([]string, string) string {
 			panic("a build without static = true looks for no static library")
 		})
@@ -310,7 +310,7 @@ func TestPlanLibraries(t *testing.T) {
 
 	pkg := pkgFlags{cflags: nil, libs: []string{"-L/usr/ssl/lib", "-lssl", "-pthread", "-lz"}}
 
-	libs := planLibraries(config, "linux", "/src", pkg, noLinked(), false, nil)
+	libs := planLibraries(config, "linux", "/src", pkg, noLinked(), nil, false, nil)
 	assert.Equal(t, []string{
 		"-Lvendor/lib", "-L/opt/lib",
 		"-lfoo", "vendor/libbar.a", "libbaz.a", "../shared/libqux.so", "-l:libquux.a", "-lm",
@@ -335,7 +335,7 @@ func TestPlanLibraries(t *testing.T) {
 		return ""
 	}
 
-	libs = planLibraries(config, "linux", "/src", pkg, noLinked(), true, find)
+	libs = planLibraries(config, "linux", "/src", pkg, noLinked(), nil, true, find)
 
 	assert.Equal(t, []string{"foo", "System", "ssl", "z"}, asked, "libc, libm and libgcc_s "+
 		"are linked as they are, libSystem only on darwin")
@@ -352,7 +352,7 @@ func TestPlanLibraries(t *testing.T) {
 
 	asked = nil
 
-	planLibraries(config, "darwin", "/src", pkg, noLinked(), true, find)
+	planLibraries(config, "darwin", "/src", pkg, noLinked(), nil, true, find)
 	assert.Equal(t, []string{"foo", "ssl", "z"}, asked)
 }
 
@@ -380,7 +380,7 @@ func TestPlanLibrariesOfLink(t *testing.T) {
 	}
 	pkg := pkgFlags{cflags: nil, libs: []string{"-lssl"}}
 
-	libs := planLibraries(config, "linux", "/src", pkg, linked, false, nil)
+	libs := planLibraries(config, "linux", "/src", pkg, linked, nil, false, nil)
 	assert.Equal(t, []string{
 		"-L/opt/lib", "-L/state/link/default/foo", "-L/state/link/default/bar",
 		"-lbar", "-lm", "-lfoo", "-lfoo-extra", "-lssl",
@@ -398,13 +398,88 @@ func TestPlanLibrariesOfLink(t *testing.T) {
 		return "/state/link/default/" + name + "/lib" + name + ".a"
 	}
 
-	libs = planLibraries(config, "linux", "/src", pkg, linked, true, find)
+	libs = planLibraries(config, "linux", "/src", pkg, linked, nil, true, find)
 	assert.Equal(t, []string{
 		"-L/opt/lib", "-L/state/link/default/foo", "-L/state/link/default/bar",
 		"/state/link/default/bar/libbar.a", "-lm", "/state/link/default/foo/libfoo.a",
 		"-lfoo-extra", "/state/link/default/ssl/libssl.a",
 	}, libs.args)
 	assert.Equal(t, []string{"-I/state/link/default/foo/include"}, linked.includeFlags())
+}
+
+// TestPlanLibrariesOfBundle pins the link of a build that bundles a library:
+// the library stays -l<name> on Linux, static = true or not, and is the copy
+// beside the module on darwin; its file is of the key; and the module gets
+// an rpath of its directory, unless rpath has one.
+func TestPlanLibrariesOfBundle(t *testing.T) {
+	t.Parallel()
+
+	config := moduleConfig("a.c")
+
+	config.Libraries = []string{"foo", "bar"}
+
+	bundled := bundledLibraries{{
+		field: "bundle[0]", name: "foo", source: "/opt/lib/libfoo.so.1.2", copyName: "libfoo.so.1",
+		copy: "/stage/lib/libfoo.so.1", linkArg: "",
+	}}
+	find := func(_ []string, name string) string { return "/opt/lib/lib" + name + ".a" }
+
+	libs := planLibraries(config, "linux", "/src", noPkgFlags(), noLinked(), bundled, true, find)
+	assert.Equal(t, []string{"-lfoo", "/opt/lib/libbar.a"}, libs.args)
+	assert.Equal(t, []string{originToken}, libs.rpath)
+	assert.Contains(t, libs.files, "/opt/lib/libfoo.so.1.2")
+
+	args := linkArgs(config, linuxToolchain(), noEnvFlags(), libs, "linux", true, false,
+		[]string{"/w/a.o"}, "/out/m.so")
+	assert.Equal(t, "-Wl,-rpath,$ORIGIN", args[len(args)-1])
+
+	darwinBundled := slices.Clone(bundled)
+
+	darwinBundled[0].linkArg = "/stage/lib/libfoo.1.dylib"
+
+	libs = planLibraries(config, "darwin", "/src", noPkgFlags(), noLinked(), darwinBundled,
+		false, nil)
+	assert.Equal(t, []string{"/stage/lib/libfoo.1.dylib", "-lbar"}, libs.args)
+
+	args = linkArgs(config, darwinToolchain(), noEnvFlags(), libs, "darwin", false, false,
+		[]string{"/w/a.o"}, "/out/m.dylib")
+	assert.Equal(t, "-Wl,-rpath,@loader_path", args[len(args)-1])
+
+	for _, rpath := range []string{"$ORIGIN", "${ORIGIN}", "$ORIGIN/"} {
+		config.Rpath = []string{rpath}
+
+		libs = planLibraries(config, "linux", "/src", noPkgFlags(), noLinked(), bundled, false,
+			nil)
+		assert.Empty(t, libs.rpath, rpath)
+	}
+
+	config.Rpath = []string{"$ORIGIN/lib"}
+
+	libs = planLibraries(config, "linux", "/src", noPkgFlags(), noLinked(), bundled, false, nil)
+	assert.Equal(t, []string{originToken}, libs.rpath)
+}
+
+// TestLinkedNames pins the libraries a build may bundle: the names of
+// libraries, those of its shared library files, with the files, those of
+// link and the -l of pkg-config; not a static library file.
+func TestLinkedNames(t *testing.T) {
+	t.Parallel()
+
+	config := moduleConfig("a.c")
+
+	config.Libraries = []string{"foo", "vendor/libbar.so.2", "/opt/libbaz.1.dylib",
+		"vendor/libqux.a", "./libquux.so"}
+	config.Platforms = map[string]Overlay{"linux": {Libraries: []string{"rt"}}}
+
+	linked := noLinked()
+
+	linked.names = []string{"link"}
+
+	assert.Equal(t, map[string]string{
+		"foo": "", "bar": "/src/vendor/libbar.so.2", "baz": "/opt/libbaz.1.dylib",
+		"quux": "/src/libquux.so", "rt": "", "link": "", "ssl": "",
+	}, linkedNames(config, "linux", "/src",
+		pkgFlags{cflags: nil, libs: []string{"-L/x", "-lssl", "-pthread"}}, linked))
 }
 
 // TestIsLibraryFile pins which entries of libraries are files.
@@ -507,8 +582,8 @@ func sampleConfig() Config {
 func moduleConfig(sources ...string) Config {
 	return Config{
 		Module: "m", Sources: sources, IncludeDirs: nil, Libraries: nil, LibraryDirs: nil,
-		Rpath: nil, PkgConfig: nil, Link: nil, Defines: nil, Cflags: nil, Cxxflags: nil,
-		Ldflags: nil, Platforms: nil,
+		Rpath: nil, PkgConfig: nil, Link: nil, Bundle: nil, Defines: nil, Cflags: nil,
+		Cxxflags: nil, Ldflags: nil, Platforms: nil,
 	}
 }
 

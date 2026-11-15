@@ -44,6 +44,10 @@ type Program struct {
 	// Needed lists the shared libraries the program asks the loader for
 	// (DT_NEEDED of an ELF program, the dylibs of a Mach-O one).
 	Needed []string
+	// RunPath lists the directories the loader looks for them in, as the
+	// file has them: DT_RUNPATH, then DT_RPATH, of an ELF file, each split
+	// on ":", and LC_RPATH of every slice of a Mach-O one.
+	RunPath []string
 	// Glibc is the newest version of the GNU C library an ELF file needs
 	// symbols of, 2.34 for GLIBC_2.34, as its version needs list them; empty
 	// when it needs none or has no table of them (see glibcVersion).
@@ -167,7 +171,7 @@ func inspectELF(src io.ReaderAt, prog *Program) error {
 	var flags1 uint64
 
 	if dynamic != nil {
-		prog.Needed, flags1, err = readDynamic(src, file, dynamic)
+		prog.Needed, prog.RunPath, flags1, err = readDynamic(src, file, dynamic)
 		if err != nil {
 			return err
 		}
@@ -207,25 +211,32 @@ type dynEntry struct {
 }
 
 // readDynamic reads the dynamic segment of an ELF file: the names of the
-// libraries it needs and its DT_FLAGS_1.
-func readDynamic(src io.ReaderAt, file *elf.File, dynamic *elf.Prog) ([]string, uint64, error) {
+// libraries it needs, the directories of its DT_RUNPATH and DT_RPATH, and
+// its DT_FLAGS_1.
+func readDynamic(src io.ReaderAt, file *elf.File, dynamic *elf.Prog) (
+	[]string, []string, uint64, error,
+) {
 	data, err := io.ReadAll(dynamic.Open())
 	if err != nil {
-		return nil, 0, fmt.Errorf("reading the dynamic segment: %w", err)
+		return nil, nil, 0, fmt.Errorf("reading the dynamic segment: %w", err)
 	}
 
 	entries := dynEntries(data, file.Class, file.ByteOrder)
 
 	var (
-		names  []uint64
-		strtab uint64
-		flags1 uint64
+		names, runpaths, rpaths []uint64
+		strtab                  uint64
+		flags1                  uint64
 	)
 
 	for _, entry := range entries {
 		switch entry.tag {
 		case uint64(elf.DT_NEEDED):
 			names = append(names, entry.val)
+		case uint64(elf.DT_RUNPATH):
+			runpaths = append(runpaths, entry.val)
+		case uint64(elf.DT_RPATH):
+			rpaths = append(rpaths, entry.val)
 		case uint64(elf.DT_STRTAB):
 			strtab = entry.val
 		case uint64(elf.DT_FLAGS_1):
@@ -239,7 +250,16 @@ func readDynamic(src io.ReaderAt, file *elf.File, dynamic *elf.Prog) ([]string, 
 		needed = append(needed, libraryName(src, file, strtab, name))
 	}
 
-	return needed, flags1, nil
+	var runPath []string
+
+	for _, value := range slices.Concat(runpaths, rpaths) {
+		text, ok := dynString(src, file, strtab, value)
+		if ok {
+			runPath = append(runPath, strings.Split(text, ":")...)
+		}
+	}
+
+	return needed, runPath, flags1, nil
 }
 
 // dynEntries decodes the entries of a dynamic segment up to DT_NULL.
@@ -285,28 +305,33 @@ func dynEntries(data []byte, class elf.Class, order binary.ByteOrder) []dynEntry
 // still a library the program needs, so it is reported by its offset rather
 // than dropped.
 func libraryName(src io.ReaderAt, file *elf.File, strtab, name uint64) string {
-	unnamed := fmt.Sprintf("a library at offset %d of the string table", name)
+	text, ok := dynString(src, file, strtab, name)
+	if !ok {
+		return fmt.Sprintf("a library at offset %d of the string table", name)
+	}
 
+	return text
+}
+
+// dynString reads the string at offset value of the string table at the
+// address strtab, found through the loadable segments as the loader finds
+// it, and reports whether it could.
+func dynString(src io.ReaderAt, file *elf.File, strtab, value uint64) (string, bool) {
 	for _, segment := range file.Progs {
 		if segment.Type != elf.PT_LOAD ||
 			strtab < segment.Vaddr || strtab >= segment.Vaddr+segment.Filesz {
 			continue
 		}
 
-		off := segment.Off + (strtab - segment.Vaddr) + name
+		off := segment.Off + (strtab - segment.Vaddr) + value
 		if off > math.MaxInt64 {
-			return unnamed
+			return "", false
 		}
 
-		text, ok := readCString(src, int64(off))
-		if ok {
-			return text
-		}
-
-		return unnamed
+		return readCString(src, int64(off))
 	}
 
-	return unnamed
+	return "", false
 }
 
 // readCString reads the NUL-terminated string at off.
@@ -355,6 +380,7 @@ func inspectMachO(src io.ReaderAt, prog *Program) error {
 			}
 
 			prog.Needed = append(prog.Needed, needed...)
+			prog.RunPath = append(prog.RunPath, machoRpaths(arch.File)...)
 		}
 
 		slices.Sort(prog.Needed)
@@ -377,6 +403,20 @@ func inspectMachO(src io.ReaderAt, prog *Program) error {
 
 	prog.Executable = thin.Type == macho.TypeExec
 	prog.Needed, _ = thin.ImportedLibraries()
+	prog.RunPath = machoRpaths(thin)
 
 	return nil
+}
+
+// machoRpaths are the directories of the LC_RPATH load commands of file.
+func machoRpaths(file *macho.File) []string {
+	var rpaths []string
+
+	for _, load := range file.Loads {
+		if rpath, ok := load.(*macho.Rpath); ok {
+			rpaths = append(rpaths, rpath.Path)
+		}
+	}
+
+	return rpaths
 }

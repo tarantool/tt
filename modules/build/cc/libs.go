@@ -60,9 +60,46 @@ type libraryArgs struct {
 	// pkg-config gave, each -l<name> in its place as well.
 	args []string
 	// files are the files of the libraries of the link key (linkKey): each
-	// of the files of libraries, the static libraries the args take, and
-	// what each of libraries may be in library_dirs (libraryFiles).
+	// of the files of libraries, the static libraries the args take, the
+	// shared libraries bundle copies, and what each of libraries may be in
+	// library_dirs (libraryFiles).
 	files []string
+	// rpath are the entries of rpath the link has besides those of the
+	// block: $ORIGIN, for a module that bundles libraries and whose rpath
+	// has none.
+	rpath []string
+}
+
+// searchDirs are the directories the libraries of the link of the build of
+// config for goos in cwd are looked for in, absolute: library_dirs, then
+// those of the components of link (linked), then the -L of pkg-config
+// (pkg).
+func searchDirs(config Config, goos, cwd string, pkg pkgFlags, linked linkedLibraries) []string {
+	overlay := config.Platforms[goos]
+	libraryDirs := concat(config.LibraryDirs, overlay.LibraryDirs)
+	dirs := make([]string, 0, len(libraryDirs)+len(linked.dirs))
+
+	for _, dir := range libraryDirs {
+		dirs = append(dirs, inDir(cwd, dir))
+	}
+
+	dirs = append(dirs, linked.dirs...)
+
+	for _, word := range pkg.libs {
+		if dir, ok := strings.CutPrefix(word, "-L"); ok && dir != "" {
+			dirs = append(dirs, inDir(cwd, dir))
+		}
+	}
+
+	return dirs
+}
+
+// hasOrigin reports whether entries, of rpath, have the directory of the
+// module itself.
+func hasOrigin(entries []string) bool {
+	return slices.ContainsFunc(entries, func(entry string) bool {
+		return slices.Contains(originTokens, strings.TrimSuffix(entry, "/"))
+	})
 }
 
 // planLibraries returns the libraries of the link of the build of config
@@ -77,35 +114,44 @@ type libraryArgs struct {
 // libraries, which go to the link as they are, after the objects in their
 // place among the -l. The libraries of link come after those of libraries
 // - but those libraries names, which keep their place - and before those of
-// pkg-config.
+// pkg-config. A library of bundle is linked as it is, shared, static or not,
+// or by its copy on darwin (bundledLibrary.linkArg), and the module gets an
+// rpath of its directory, $ORIGIN, unless rpath has one.
 func planLibraries(config Config, goos, cwd string, pkg pkgFlags, linked linkedLibraries,
-	static bool, find staticFind,
+	bundled bundledLibraries, static bool, find staticFind,
 ) libraryArgs {
 	overlay := config.Platforms[goos]
-	libraryDirs := concat(config.LibraryDirs, overlay.LibraryDirs)
 	libs := libraryArgs{
-		args: nil, files: concat(libraryFiles(config, goos, cwd), linked.files),
+		args: nil, files: concat(libraryFiles(config, goos, cwd), linked.files), rpath: nil,
 	}
 
-	dirs := make([]string, 0, len(libraryDirs)+len(linked.dirs))
-
-	for _, dir := range libraryDirs {
+	for _, dir := range concat(config.LibraryDirs, overlay.LibraryDirs) {
 		libs.args = append(libs.args, "-L"+dir)
-		dirs = append(dirs, inDir(cwd, dir))
 	}
 
 	for _, dir := range linked.dirs {
 		libs.args = append(libs.args, "-L"+dir)
-		dirs = append(dirs, dir)
 	}
 
-	for _, word := range pkg.libs {
-		if dir, ok := strings.CutPrefix(word, "-L"); ok && dir != "" {
-			dirs = append(dirs, inDir(cwd, dir))
-		}
+	dirs := searchDirs(config, goos, cwd, pkg, linked)
+
+	if len(bundled) > 0 && !hasOrigin(concat(config.Rpath, overlay.Rpath)) {
+		libs.rpath = []string{originToken}
+	}
+
+	for _, library := range bundled {
+		libs.files = append(libs.files, library.source)
 	}
 
 	resolve := func(name string) string {
+		if library, ok := bundled.lookup(name); ok {
+			if library.linkArg != "" {
+				return library.linkArg
+			}
+
+			return "-l" + name
+		}
+
 		if !static || exemptFromStatic(name, goos) || strings.HasPrefix(name, ":") {
 			return "-l" + name
 		}
