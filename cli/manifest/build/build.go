@@ -421,7 +421,7 @@ func runBuild(
 	proj := packageProject(opts.ProjectDir, man, productName)
 	stage := packageStage(opts.ProjectDir, productName)
 
-	err = newBuilder(opts, proj, adapter, stage, version.Version{}).preflight(components)
+	err = newBuilder(opts, proj, adapter, stage, version.Version{}).preflight(ctx, components)
 	if err != nil {
 		return nil, err
 	}
@@ -569,7 +569,7 @@ func buildComponents(
 		allLaidOut = append(allLaidOut, laidOut[name]...)
 	}
 
-	checkWarnings, err := checkFiles(opts.backends().FileChecks(),
+	checkWarnings, err := checkFiles(ctx, opts.backends().FileChecks(),
 		checkedFiles(proj, stage, components, laidOut, results))
 	if err != nil {
 		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)

@@ -204,9 +204,17 @@ type Build interface {
 // built: a tool in PATH, a target the platform has. The core asks every
 // component it is about to build before it builds the first one, and
 // before the version of the package is known: the directories of the
-// Context may not exist yet, and TT_VERSION is empty.
+// Context may not exist yet, and TT_VERSION is empty. ctx is that of the
+// build: a command Preflight runs is made with it ([Context.Command]), so
+// that it stops when the build is cancelled.
+//
+// The core finds a Preflighter by a type assertion; a method Preflight of
+// another signature is refused ([Backend.ValidateBuild]) rather than never
+// called. A backend may assert it at compile time as well:
+//
+//	var _ build.Preflighter = myBuild{}
 type Preflighter interface {
-	Preflight(c *Context) error
+	Preflight(ctx context.Context, c *Context) error
 }
 
 // Producer is a Build that says what its block asks it to make: the types
@@ -231,8 +239,10 @@ type ProgramNamer interface {
 // build reads more than the build block and the files of the component: a
 // version of a tool, a file outside the component. The core adds what
 // Inputs returns to the inputs it compares with those of the last build.
+// ctx is that of the build, for the commands Inputs runs, such as
+// zig version.
 type InputHasher interface {
-	Inputs(c *Context) ([]string, error)
+	Inputs(ctx context.Context, c *Context) ([]string, error)
 }
 
 // FileCheck checks the files of a package whose names end with Suffix,
@@ -247,8 +257,10 @@ type FileCheck struct {
 	// Check checks the file at path, an absolute path in the stage of the
 	// package. A warning is shown and the build goes on; an error fails the
 	// build, with exit code 1, and the warnings of the other files are not
-	// shown. Both are shown as they are, so they name the file.
-	Check func(path string) (warning string, err error)
+	// shown. Both are shown as they are, so they name the file. ctx is that
+	// of the build: a check that runs a tool runs it with ctx, so that it
+	// stops when the build is cancelled.
+	Check func(ctx context.Context, path string) (warning string, err error)
 }
 
 // SupportedOS lists the operating systems tt builds for, as GOOS names

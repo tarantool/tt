@@ -98,6 +98,41 @@ func TestCheckBuild(t *testing.T) {
 	assert.Equal(t, manifest.BuildCheck{Known: true, Unknown: nil}, check)
 }
 
+// oldBuild is a build whose Preflight is that of an older SDK, without a
+// context.
+type oldBuild struct {
+	zigBuild
+}
+
+func (oldBuild) Preflight(*build.Context) error { return nil }
+
+// TestCheckBuildOfAnOldPreflight checks that a build whose Preflight the
+// core would never call, of an older SDK, fails the check of the block and
+// the build of it, rather than build with no preflight.
+func TestCheckBuildOfAnOldPreflight(t *testing.T) {
+	t.Parallel()
+
+	registry := buildregtest.Registry()
+	old := zig()
+
+	old.New = func(any, build.Component, build.Common) (build.Build, error) {
+		return oldBuild{}, nil
+	}
+
+	require.NoError(t, registry.Add("zig", []build.Backend{old}, nil))
+
+	_, err := registry.CheckBuild("components.a.build", moduleTarget(),
+		manifest.Build{Backend: "zig"})
+	require.EqualError(t, err, `components.a.build: invalid build backend "zig": Preflight `+
+		`of its build buildreg_test.oldBuild is func(*build.Context) error, not `+
+		`func(context.Context, *build.Context) error of build.Preflighter: the core would `+
+		`never call it`)
+
+	_, _, err = registry.Build("components.a.build", moduleTarget(),
+		manifest.Build{Backend: "zig"})
+	require.ErrorContains(t, err, "the core would never call it")
+}
+
 // namedBuild is a build that names its programs.
 type namedBuild struct {
 	zigBuild

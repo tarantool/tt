@@ -135,8 +135,14 @@ type templateBuild struct {
 	config Config
 }
 
+// The core finds these interfaces of a build by type assertions.
+var (
+	_ build.Preflighter = templateBuild{}
+	_ build.InputHasher = templateBuild{}
+)
+
 // Preflight checks that envsubst is in the PATH of the build.
-func (b templateBuild) Preflight(c *build.Context) error {
+func (b templateBuild) Preflight(_ context.Context, c *build.Context) error {
 	_, err := c.LookPath(tool)
 	if err != nil {
 		return fmt.Errorf("%w: the %s backend runs %s, which is not in PATH",
@@ -149,8 +155,8 @@ func (b templateBuild) Preflight(c *build.Context) error {
 // Inputs are what an incremental build reads besides the build block and
 // the files of the component: the version of envsubst, and the template,
 // which is outside the component when cwd is.
-func (b templateBuild) Inputs(c *build.Context) ([]string, error) {
-	version, err := c.Output(c.Command(context.Background(), tool, "--version"))
+func (b templateBuild) Inputs(ctx context.Context, c *build.Context) ([]string, error) {
+	version, err := c.Output(c.Command(ctx, tool, "--version"))
 	if err != nil {
 		return nil, err
 	}
@@ -410,13 +416,25 @@ anything is built.
 ## More of the build
 
 A build may implement more interfaces. The core asks for each with a type
-assertion.
+assertion, so a method of another signature would never be called: the
+core refuses a build whose `Preflight`, `Produces`, `Programs` or `Inputs`
+is not the method of the interface, or is a method of a pointer while
+`New` returns a value, when it checks the manifest, with exit code 1:
+
+```text
+⨯ invalid manifest: components.config.build: invalid build backend "template": Preflight of its build template.templateBuild is func(*build.Context) error, not func(context.Context, *build.Context) error of build.Preflighter: the core would never call it
+```
+
+`buildtest.Validate` refuses it too. The `var _ build.Preflighter =
+templateBuild{}` lines of the example make the compiler say so first.
 
 A `build.Preflighter` checks what the build needs before any component is
 built, so that a missing tool fails the build at once, not after the first
-long compile. `Preflight(c)` runs before the version of the package is
+long compile. `Preflight(ctx, c)` runs before the version of the package is
 known: the directories of the Context may not exist yet, and `TT_VERSION`
-is empty. Wrap `build.ErrNoTool` for a tool that is not in `PATH`, so that
+is empty. `ctx` is that of the build: make the commands `Preflight` runs
+with it, so that they stop when the build is cancelled. Wrap
+`build.ErrNoTool` for a tool that is not in `PATH`, so that
 a missing tool is told from a failed build. A failed `Preflight` fails the
 build with exit code 2:
 
@@ -446,7 +464,7 @@ when what that build left is still there. The inputs are the build block and
 the files of the component, without those its `.gitignore` files ignore.
 The hash of the last build is in `_build/cache/<component>.json`.
 
-A build that reads more is a `build.InputHasher`. `Inputs(c)` returns
+A build that reads more is a `build.InputHasher`. `Inputs(ctx, c)` returns
 strings the core adds to the inputs. `template` returns the version of
 `envsubst` and the hash of the template, which is outside the component when
 `cwd` is; `zig` returns its version and the hashes of `build.zig` and
@@ -492,6 +510,7 @@ broken. `module.go` holds the constructor of the module and a check of the
 package template
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -511,7 +530,7 @@ func New(sdk.Services) sdk.Module {
 
 // checkJSON checks a .json file of a package, whatever made it: an empty
 // one is a warning, one that is not JSON fails the build.
-func checkJSON(path string) (string, error) {
+func checkJSON(_ context.Context, path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -528,8 +547,9 @@ func checkJSON(path string) (string, error) {
 }
 ```
 
-`Check` gets the absolute path of the file in the stage of the package. A
-warning is shown and the build goes on. An error fails the build with exit
+`Check` gets the context of the build, for a tool it runs, and the absolute
+path of the file in the stage of the package. A warning is shown and the
+build goes on. An error fails the build with exit
 code 1, and the warnings of the other files are not shown. Both are shown as
 they are, so they name the file:
 
@@ -623,11 +643,11 @@ func TestCheckJSON(t *testing.T) {
 	require.NoError(t, os.WriteFile(good, []byte(`{"port": 3301}`), 0o600))
 	require.NoError(t, os.WriteFile(bad, []byte(`{"port": }`), 0o600))
 
-	warning, err := checks[0].Check(good)
+	warning, err := checks[0].Check(t.Context(), good)
 	require.NoError(t, err)
 	assert.Empty(t, warning)
 
-	_, err = checks[0].Check(bad)
+	_, err = checks[0].Check(t.Context(), bad)
 	require.EqualError(t, err, bad+" is not valid JSON")
 }
 ```
@@ -785,8 +805,9 @@ Here the module `bad` provides a backend named `make`. It comes before
 
 In a manifest, with exit code 1, before anything is built: a field of
 another backend, a field no backend has, a value of a wrong type, an error
-of `New`, `output` or `incremental` of a backend that does not allow them,
-an `output` entry or a `Producer` type the backend does not produce, and a
+of `New`, a build of an optional method the core would never call,
+`output` or `incremental` of a backend that does not allow them, an
+`output` entry or a `Producer` type the backend does not produce, and a
 hook that names a backend without `Hook`. During the build, with exit code
 2: a failed `Preflight` or `Run`, a program that is not a program of the
 target, and a module or a program that is not static under

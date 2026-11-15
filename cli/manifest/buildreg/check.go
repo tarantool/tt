@@ -23,7 +23,8 @@ var ErrNoBackend = errors.New("no module of this tt provides backend")
 //     backend (build.Backend.Decode): a value of a wrong type fails it;
 //  3. the fields the configuration has no place for and no other backend
 //     has are the unknown ones, which Validate reports;
-//  4. the backend checks the block (build.Backend.New);
+//  4. the backend checks the block (build.Backend.New), and the build it
+//     returns is checked (build.Backend.ValidateBuild);
 //  5. a field of another backend is refused, by key, then output and
 //     incremental, for a backend that has no such field;
 //  6. what the block asks for is what the backend makes
@@ -68,6 +69,10 @@ func (r *Registry) CheckBuild(
 	}
 
 	bld, err := found.backend.New(cfg, component(target), common(block, target))
+	if err == nil {
+		err = found.backend.ValidateBuild(bld)
+	}
+
 	if err != nil {
 		return check, validationError(field, err)
 	}
@@ -107,6 +112,10 @@ func (r *Registry) Build(
 	}
 
 	bld, err := found.backend.New(cfg, component(target), common(block, target))
+	if err == nil {
+		err = found.backend.ValidateBuild(bld)
+	}
+
 	if err != nil {
 		return build.Backend{}, nil, validationError(field, err)
 	}

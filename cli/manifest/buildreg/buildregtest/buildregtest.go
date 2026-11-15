@@ -268,13 +268,13 @@ type exeBuild struct {
 func (b exeBuild) Programs() ([]string, bool) { return []string{b.name}, true }
 
 // Preflight finds the tool of the block.
-func (b exeBuild) Preflight(c *build.Context) error {
+func (b exeBuild) Preflight(_ context.Context, c *build.Context) error {
 	return needTool(c, ExeName, b.tool)
 }
 
 // Run makes the program, a copy of a program of the host.
-func (b exeBuild) Run(_ context.Context, c *build.Context) error {
-	err := b.Preflight(c)
+func (b exeBuild) Run(ctx context.Context, c *build.Context) error {
+	err := b.Preflight(ctx, c)
 	if err == nil {
 		err = copyHostProgram(filepath.Join(c.Dirs.Programs, b.name))
 	}
@@ -335,7 +335,7 @@ type libBuild struct {
 }
 
 // Preflight checks that the Tarantool of the build has headers.
-func (b libBuild) Preflight(c *build.Context) error {
+func (b libBuild) Preflight(_ context.Context, c *build.Context) error {
 	if c.Tarantool.IncludeDir == "" {
 		return ErrNoHeaders
 	}
@@ -344,8 +344,8 @@ func (b libBuild) Preflight(c *build.Context) error {
 }
 
 // Run makes the module, a copy of a program of the host.
-func (b libBuild) Run(_ context.Context, c *build.Context) error {
-	err := b.Preflight(c)
+func (b libBuild) Run(ctx context.Context, c *build.Context) error {
+	err := b.Preflight(ctx, c)
 	if err == nil {
 		err = copyHostProgram(filepath.Join(c.Dirs.Output, b.module+".so"))
 	}

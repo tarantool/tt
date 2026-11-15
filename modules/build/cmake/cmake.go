@@ -192,7 +192,7 @@ func (b cmakeBuild) Programs() ([]string, bool) {
 }
 
 // Preflight checks that cmake is in the PATH of the build.
-func (b cmakeBuild) Preflight(c *build.Context) error {
+func (b cmakeBuild) Preflight(_ context.Context, c *build.Context) error {
 	_, err := c.LookPath(cmakeTool)
 	if err != nil {
 		return fmt.Errorf("%w: the %s backend runs %q, which is not in PATH",
@@ -208,7 +208,7 @@ func (b cmakeBuild) Preflight(c *build.Context) error {
 // [--target <target>...], and copies the files of output into the output
 // directory (see copyOutputs).
 func (b cmakeBuild) Run(ctx context.Context, c *build.Context) error {
-	err := b.Preflight(c)
+	err := b.Preflight(ctx, c)
 	if err != nil {
 		return err
 	}

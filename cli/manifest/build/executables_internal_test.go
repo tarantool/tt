@@ -348,7 +348,7 @@ tool = '` + tool + `'
 		builder := newBuilder(Options{ProjectDir: dir, Backends: buildregtest.Registry()}, proj,
 			adapter, packageStage(dir, "default"), version.Version{})
 
-		require.ErrorIs(t, builder.preflight(components), sdkbuild.ErrNoTool)
+		require.ErrorIs(t, builder.preflight(t.Context(), components), sdkbuild.ErrNoTool)
 
 		bin := ProjectBinDir(dir)
 		for _, tool := range []string{"fake-go", "fake-cmake"} {
@@ -356,7 +356,7 @@ tool = '` + tool + `'
 			require.NoError(t, os.Chmod(filepath.Join(bin, tool), 0o755))
 		}
 
-		require.NoError(t, builder.preflight(components))
+		require.NoError(t, builder.preflight(t.Context(), components))
 	}
 }
 

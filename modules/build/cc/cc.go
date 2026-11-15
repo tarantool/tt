@@ -206,7 +206,7 @@ type ccBuild struct {
 // Preflight checks that the build has the headers of a Tarantool to compile
 // against: a tt with no Tarantool builds what needs none, and the build
 // would otherwise fail only once its turn came, saying nothing of why.
-func (b ccBuild) Preflight(c *build.Context) error {
+func (b ccBuild) Preflight(_ context.Context, c *build.Context) error {
 	if c.Toolchain.IncludeDir == "" {
 		return fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
 	}
@@ -219,7 +219,7 @@ func (b ccBuild) Preflight(c *build.Context) error {
 // (build.Target.ModuleExt). A dotted module is a file a.b.so, not a
 // directory a.
 func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
-	err := b.Preflight(c)
+	err := b.Preflight(ctx, c)
 	if err != nil {
 		return err
 	}

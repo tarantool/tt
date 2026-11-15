@@ -24,7 +24,9 @@ type touchBuild struct {
 	file string
 }
 
-func (b touchBuild) Preflight(c *build.Context) error {
+var _ build.Preflighter = touchBuild{}
+
+func (b touchBuild) Preflight(_ context.Context, c *build.Context) error {
 	_, err := c.LookPath("sh")
 
 	return err

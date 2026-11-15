@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 
@@ -72,7 +73,8 @@ func testModuleConstructor(sdk.Services) sdk.Module {
 		Commands: []sdk.Mount{{Path: "", Cmd: &cobra.Command{Use: "demo"}}},
 		Backends: []sdkbuild.Backend{testBackend("demo")},
 		FileChecks: []sdkbuild.FileCheck{{
-			Suffix: ".demo", Check: func(string) (string, error) { return "", nil },
+			Suffix: ".demo",
+			Check:  func(context.Context, string) (string, error) { return "", nil },
 		}},
 	}
 }

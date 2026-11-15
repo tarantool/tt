@@ -24,7 +24,11 @@
 // fails the build before the first long compile; a [Producer], which says
 // what types of results its block asks for; a [ProgramNamer], which names
 // the programs it makes; an [InputHasher], which adds to what an incremental
-// build is skipped by.
+// build is skipped by. Those that may run a command - Preflight, Inputs, and
+// the Check of a [FileCheck] - are given the context of the build. The core
+// finds these interfaces by type assertion, and refuses a Build with a
+// method of one of their names but not of its signature, which it would
+// never call ([Backend.ValidateBuild]).
 //
 // What a build makes is typed ([Result]) by the directory it goes to: a
 // module into [Dirs.Output], data into [Dirs.Share], a program into

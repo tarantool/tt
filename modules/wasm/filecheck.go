@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -35,8 +36,9 @@ var (
 // component makes: a file that is no WebAssembly binary, an output a build
 // mistook for one, fails the build. A core module is laid out with a
 // warning: tarantool-wasm loads components only, but another loader may well
-// want a module.
-func checkWasmFile(path string) (string, error) {
+// want a module. It reads the preamble of the file only, so it does not
+// look at ctx.
+func checkWasmFile(_ context.Context, path string) (string, error) {
 	header, err := readWasmHeader(path)
 	if err != nil {
 		return "", err

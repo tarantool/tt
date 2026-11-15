@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"strings"
 
 	sdkbuild "github.com/tarantool/tt/sdk/build"
@@ -49,7 +50,9 @@ func checkedFiles(
 // checks the programs a component makes: an error fails the build, and the
 // warnings are returned to be shown once all the files passed. What a check
 // says is shown as it is, so it names the file itself.
-func checkFiles(checks []sdkbuild.FileCheck, files []string) ([]string, error) {
+func checkFiles(ctx context.Context, checks []sdkbuild.FileCheck, files []string) (
+	[]string, error,
+) {
 	var warnings []string
 
 	for _, file := range files {
@@ -58,7 +61,7 @@ func checkFiles(checks []sdkbuild.FileCheck, files []string) ([]string, error) {
 				continue
 			}
 
-			warning, err := check.Check(file)
+			warning, err := check.Check(ctx, file)
 			if err != nil {
 				return nil, err
 			}

@@ -256,7 +256,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   supported: no module of this tt provides a backend that runs hooks`.
   A module may provide checks of the files of a package by their suffix as
   well, which every build runs on the files the components lay out and the
-  data files their builds make, whatever backend made them.
+  data files their builds make, whatever backend made them. The preflight,
+  the inputs of an incremental build and a file check are given the context
+  of the build, and a build whose method of one of them has another
+  signature, which tt would never call, fails the check of the manifest.
 - The SDK gives a module the project it works on as tt package works on it,
   where only the core could: `Project().Root()`, the project the directory
   of the command is in, as the project commands of tt find it;

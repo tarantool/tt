@@ -228,7 +228,7 @@ func (b builder) warn(warning string) {
 // A tool is looked for where the build looks for it: in the PATH of the
 // component's [build].env, after .tarantool/bin of the project being built -
 // the package, or a path dependency in its own directory.
-func (b builder) preflight(components []string) error {
+func (b builder) preflight(ctx context.Context, components []string) error {
 	for _, name := range components {
 		if b.proj.man.Components[name].Build == nil {
 			continue
@@ -244,7 +244,7 @@ func (b builder) preflight(components []string) error {
 			continue
 		}
 
-		err = preflighter.Preflight(run.context)
+		err = preflighter.Preflight(ctx, run.context)
 		if err != nil {
 			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 		}
@@ -337,7 +337,7 @@ func (b builder) runComponent(
 			err     error
 		)
 
-		state, skipped, err = b.skipUnchanged(run)
+		state, skipped, err = b.skipUnchanged(ctx, run)
 		if err != nil {
 			return madeFiles{}, err
 		}
@@ -523,12 +523,14 @@ func outputPaths(outputs []sdkbuild.OutputFile) []string {
 // output, share and programs directories. The files output lists are copied
 // into their directories before the last are looked for, as the build itself
 // copies them (sdkbuild.OutputCwd): the tree may have been cleared since.
-func (b builder) skipUnchanged(run componentRun) (incrementalState, bool, error) {
+func (b builder) skipUnchanged(ctx context.Context, run componentRun) (
+	incrementalState, bool, error,
+) {
 	var state incrementalState
 
 	dirs := run.context.Dirs
 
-	inputs, err := b.inputs(run)
+	inputs, err := b.inputs(ctx, run)
 	if err != nil {
 		return state, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name,
 			err)
@@ -572,13 +574,13 @@ func (b builder) skipUnchanged(run componentRun) (incrementalState, bool, error)
 
 // inputs hashes the inputs of the build of run (componentInputs), those its
 // build names besides (sdkbuild.InputHasher) included.
-func (b builder) inputs(run componentRun) (string, error) {
+func (b builder) inputs(ctx context.Context, run componentRun) (string, error) {
 	var extra []string
 
 	if hasher, ok := run.build.(sdkbuild.InputHasher); ok {
 		var err error
 
-		extra, err = hasher.Inputs(run.context)
+		extra, err = hasher.Inputs(ctx, run.context)
 		if err != nil {
 			return "", fmt.Errorf("the inputs of the build: %w", err)
 		}

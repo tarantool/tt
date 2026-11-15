@@ -21,7 +21,7 @@ import (
 // nowhere.
 type zigBuild struct{}
 
-func (zigBuild) Preflight(c *sdkbuild.Context) error {
+func (zigBuild) Preflight(_ context.Context, c *sdkbuild.Context) error {
 	_, err := c.LookPath("no-such-zig-of-tt")
 	if err != nil {
 		return fmt.Errorf("%w: no-such-zig-of-tt", sdkbuild.ErrNoTool)
