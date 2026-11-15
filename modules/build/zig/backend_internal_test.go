@@ -46,7 +46,7 @@ func block(rest map[string]any, static bool) buildtest.Block {
 	return buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: nil, Static: static},
 		Incremental: false,
-		Rest:        rest,
+		Fields:      rest,
 	}
 }
 
@@ -296,7 +296,7 @@ func TestBackend(t *testing.T) {
 	_, err = buildtest.Validate(backend, component(), buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: nil, Static: false},
 		Incremental: true,
-		Rest:        map[string]any{"module": "hello"},
+		Fields:      map[string]any{"module": "hello"},
 	})
 	require.NoError(t, err)
 }

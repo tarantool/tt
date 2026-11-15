@@ -48,7 +48,7 @@ func typedBlock(output []build.OutputFile, rest map[string]any) buildtest.Block 
 	return buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: output, Static: false},
 		Incremental: false,
-		Rest:        rest,
+		Fields:      rest,
 	}
 }
 
@@ -183,7 +183,7 @@ func TestValidateErrors(t *testing.T) {
 		{"incremental", buildtest.Block{
 			Common:      build.Common{Cwd: "", Env: nil, Output: modules(output...), Static: false},
 			Incremental: true,
-			Rest:        nil,
+			Fields:      nil,
 		}, "incremental", `is not a field of backend "cmake"`},
 	}
 

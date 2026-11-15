@@ -346,7 +346,7 @@ func answerBuild(t *testing.T, output string, targets ...any) build.Build {
 	}, buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: modules(output), Static: false},
 		Incremental: false,
-		Rest:        rest,
+		Fields:      rest,
 	})
 	require.NoError(t, err)
 

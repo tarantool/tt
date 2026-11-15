@@ -27,7 +27,7 @@ func block(rest map[string]any, env map[string]string) buildtest.Block {
 	return buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: env, Output: nil, Static: false},
 		Incremental: false,
-		Rest:        rest,
+		Fields:      rest,
 	}
 }
 

@@ -41,8 +41,8 @@ type Block struct {
 	Common build.Common
 	// Incremental is incremental = true.
 	Incremental bool
-	// Rest are the fields of the backend.
-	Rest map[string]any
+	// Fields are the fields of the backend, as sdk.ManifestBuild has them.
+	Fields map[string]any
 }
 
 // Validate checks block, the build block of component, for backend as the
@@ -123,7 +123,7 @@ func validate(backend build.Backend, component build.Component, block Block) (bu
 		return nil, err
 	}
 
-	cfg, unknown, err := backend.Decode(block.Rest)
+	cfg, unknown, err := backend.Decode(block.Fields)
 	if err != nil {
 		return nil, err
 	}
