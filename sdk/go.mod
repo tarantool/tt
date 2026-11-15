@@ -9,7 +9,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7
 	github.com/tarantool/go-prompt v1.0.1
-	github.com/tarantool/tt/sdk/build v0.0.0
+	github.com/tarantool/tt/sdk/build v0.0.0-0
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
 	golang.org/x/term v0.46.0
 	gopkg.in/yaml.v2 v2.4.0

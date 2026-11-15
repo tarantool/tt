@@ -33,19 +33,19 @@ require (
 	github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094
 	github.com/tarantool/go-tarantool/v3 v3.0.2
 	github.com/tarantool/go-xlog v0.2.0
-	github.com/tarantool/tt/modules/aeon v0.0.0
-	github.com/tarantool/tt/modules/build v0.0.0
-	github.com/tarantool/tt/modules/emmylua v0.0.0
-	github.com/tarantool/tt/modules/wasm v0.0.0
-	github.com/tarantool/tt/sdk v0.0.0
-	github.com/tarantool/tt/sdk/backup v0.0.0
-	github.com/tarantool/tt/sdk/build v0.0.0
-	github.com/tarantool/tt/sdk/cluster v0.0.0
+	github.com/tarantool/tt/modules/aeon v0.0.0-0
+	github.com/tarantool/tt/modules/build v0.0.0-0
+	github.com/tarantool/tt/modules/emmylua v0.0.0-0
+	github.com/tarantool/tt/modules/wasm v0.0.0-0
+	github.com/tarantool/tt/sdk v0.0.0-0
+	github.com/tarantool/tt/sdk/backup v0.0.0-0
+	github.com/tarantool/tt/sdk/build v0.0.0-0
+	github.com/tarantool/tt/sdk/cluster v0.0.0-0
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
-	github.com/tarantool/tt/sdk/dial v0.0.0-00010101000000-000000000000
-	github.com/tarantool/tt/sdk/fetch v0.0.0
-	github.com/tarantool/tt/sdk/integrity v0.0.0
-	github.com/tarantool/tt/sdk/tuple v0.0.0
+	github.com/tarantool/tt/sdk/dial v0.0.0-0
+	github.com/tarantool/tt/sdk/fetch v0.0.0-0
+	github.com/tarantool/tt/sdk/integrity v0.0.0-0
+	github.com/tarantool/tt/sdk/tuple v0.0.0-0
 	github.com/ulikunitz/xz v0.5.17
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.2

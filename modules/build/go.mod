@@ -4,8 +4,8 @@ go 1.27.0
 
 require (
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/tt/sdk v0.0.0
-	github.com/tarantool/tt/sdk/build v0.0.0
+	github.com/tarantool/tt/sdk v0.0.0-0
+	github.com/tarantool/tt/sdk/build v0.0.0-0
 )
 
 require (
