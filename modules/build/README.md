@@ -19,7 +19,11 @@ and its tests run it through `sdk/build/buildtest`.
 
 - `build.go` - the constructor, and the order tt lists the backends in.
 - `basic` - make and shell.
-- `cc` - c and lua-c: one compiler call per module.
+- `cc` - c and lua-c: one compiler call per module, with the toolchain it
+  derives from the Context as go-luarocks does for a builtin rock: `CC` of
+  tt's environment, the link flags of the target, the headers under the
+  prefix of the Tarantool of the build. The contract has no toolchain of
+  C: it is this backend's.
 - `cargo` - Rust crates: a module, a program or both.
 - `cmake` - CMake projects, built out of the source.
 - `gobuild` - Go programs.

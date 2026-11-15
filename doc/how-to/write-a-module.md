@@ -752,7 +752,10 @@ project.
   `tt package remove` does, and `Install` fills `.rocks/` from the lock, as
   `tt package fetch` does. They and `Resolve` take the rock servers a
   `--registry` of the command would give: a module declares the flag
-  itself.
+  itself, with the help `tt package` gives it, `sdk.RegistryFlagUsage`.
+  The change lists the rocks whose locked version moved; a
+  `sdk.DependencyMove` prints as `tt package` reports one, `name 1.0.0-1`,
+  `name 1.0.0-1 -> 1.1.0-1` or `name 1.0.0-1 -> (dropped)`.
 - `Build` builds the package, or the components `Components` names, with
   the code of `tt package build`: `Build(ctx, sdk.BuildOptions{Components:
   []string{"calc"}})` is `tt package build calc`, its hooks, lock, layout
@@ -773,8 +776,10 @@ project.
   cleaned. `DryRun` removes nothing. `tt wasm clean NAME` removes the files
   the module recorded and then cleans the core's state of the component
   with it, under one `Lock`.
-- `StateDir` is the `.tarantool` of the project, where `tt binary` installs
-  into the project scope, and whose `bin/` is first in the `PATH` of a build.
+- `ScopeDir` is the `.tarantool` of the project, the project scope
+  `tt binary` installs into, whose `bin/` is first in the `PATH` of a
+  build (`build.Dirs.Tools`). It is not where a build keeps its state,
+  `_build/` (`build.Dirs.State`).
   `PrepareEnvironment` writes `.env/activate.sh` and `deactivate.sh` when
   they are missing, as the first `tt binary install` into the project does,
   for a module that installs a tool there.
@@ -966,7 +971,10 @@ not found), `WithAnswers` the answers of `Confirm`, `WithNoPrompt` makes
 the error, stdout, stderr and the log records; `ExitCode` is the code the
 SDK gives the error, without the network and permission rules of the core.
 The printers of sdktest encode `json` but not `yaml`, which the core
-encodes. A mount the core would refuse fails the test.
+encodes. A mount the core would refuse fails the test. For a module of an
+`sdk.ModuleConstructor`, `sdktest.RunModule` and `services.RunModule` run
+the commands of the `sdk.Module` it returns, and fail the test as well on a
+backend or a file check the core would refuse when tt starts.
 
 ```console
 $ go mod tidy

@@ -24,7 +24,7 @@ their directories through `replace`.
   (`Project.AddDependency`), or, when the manifest declares it already
   (`Project.Manifest`), keeps the declaration and resolves the lock against
   it (`Project.Resolve`), printing how the lock moved; it installs tarawasm
-  into `.tarantool` (`Project.StateDir`) and the toolchains of the
+  into `.tarantool`, the project scope (`Project.ScopeDir`), and the toolchains of the
   languages, restores the SDK of each component and writes
   `.env/activate.sh` (`Project.PrepareEnvironment`). `new` has tarawasm
   create a component and declares it (`Project.AddComponent`), built by

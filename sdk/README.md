@@ -54,10 +54,15 @@ Each directory is a separate Go module:
   through it, `tt wasm` and `tt emmylua` their release assets.
 - `build` is the contract of a build backend, with the standard library
   only: a `Backend` - its name, the types of what its builds make
-  (`Produces`: modules, data files, programs), the configuration its fields of a build block decode into and the `New` that
-  checks them and returns the `Build`, and whether lifecycle hooks may name
+  (`Produces`: modules, data files, programs - a closed set, the places of
+  a rock, which a backend picks from and does not add to), the
+  configuration its fields of a build block decode into and the `New` that
+  checks them and returns the `Build` (`Typed` makes it of a function of
+  the configuration's own type), and whether lifecycle hooks may name
   it - the `Context` a build or a hook runs in, with the directories, the
-  target and the commands of the build, and a `FileCheck` of the files of
+  target, the Tarantool it is built for and the commands of the build, and
+  no fact of one language or of the deprecated `kind`, which the core keeps
+  to itself, telling a backend what a component `Wants`, and a `FileCheck` of the files of
   a package by their suffix - those the components lay out and the data
   files their builds make, whatever backend made them; a warning of it is
   shown and an error fails the build. The build backends of tt are written
@@ -122,7 +127,9 @@ core uses, and the core never requires older ones.
   the `build.Context` a build of a component runs in, and its build, with
   nothing built; `Install`, which fills `.rocks/` from the lock as `tt
   package fetch` does; those that resolve take the rock servers
-  `--registry` would give; `StateDir`, its `.tarantool`; and
+  `--registry` would give, whose help is `RegistryFlagUsage`, and report
+  the moves of the lock, each a `DependencyMove` that prints as tt package
+  prints one; `ScopeDir`, its `.tarantool`, the project scope; and
   `PrepareEnvironment`, which writes
   `.env/activate.sh` and `deactivate.sh` as the first `tt binary install`
   into the project does), `Rocks` (`Index` makes a directory a rock server:
@@ -268,7 +275,9 @@ core uses, and the core never requires older ones.
   `Stdout`, `Stderr` and `Records` return what the
   module wrote and logged. `Run` hangs a constructor's mounts on a root,
   creating the groups on their paths, starts the services and executes a
-  command line. `Exit` ends the command, not the test binary: `Run` reports
+  command line; `RunModule` does so for a `ModuleConstructor`, and fails
+  the test on a backend or a file check of its `Module` the core would
+  refuse. `Exit` ends the command, not the test binary: `Run` reports
   it with `Result.Exited` and the error given. Its printers encode the human
   format and JSON; YAML is the core's. Its root does not traverse the groups,
   as the root of tt does: a non-persistent flag of a group, which tt parses
