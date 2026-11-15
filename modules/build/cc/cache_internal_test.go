@@ -160,6 +160,19 @@ func TestEnvOf(t *testing.T) {
 	assert.Equal(t, []string{"CPATH=/b", "SDKROOT="}, envOf(environ, compilerEnv))
 	assert.Equal(t, []string{"CPATH=/b", "SDKROOT=", "LIBRARY_PATH=/l"}, envOf(environ, linkEnv))
 	assert.Empty(t, envOf([]string{"PATH=/bin", "TMPDIR=/tmp"}, linkEnv))
+
+	// The include paths of one language are of its objects alone, those of
+	// Objective-C of none.
+	paths := []string{"C_INCLUDE_PATH=/c", "CPLUS_INCLUDE_PATH=/cxx", "OBJC_INCLUDE_PATH=/m",
+		"OBJCPLUS_INCLUDE_PATH=/mm", "CPATH=/all"}
+
+	assert.Equal(t, []string{"CPATH=/all", "C_INCLUDE_PATH=/c"},
+		envOf(paths, languageEnv(langC)))
+	assert.Equal(t, []string{"CPATH=/all", "C_INCLUDE_PATH=/c"},
+		envOf(paths, languageEnv(langAsmCpp)))
+	assert.Equal(t, []string{"CPATH=/all", "CPLUS_INCLUDE_PATH=/cxx"},
+		envOf(paths, languageEnv(langCXX)))
+	assert.Equal(t, []string{"CPATH=/all"}, envOf(paths, linkEnv))
 }
 
 // TestLinkKey checks that the key of the link changes with its command line,
@@ -427,12 +440,26 @@ func TestCache(t *testing.T) {
 	harness.Context.Fresh = false
 	harness.Context.Env["CPLUS_INCLUDE_PATH"] = "/opt/include"
 
-	// The variables are of the key of every object, whichever language
-	// reads one.
+	// The object compiled again is the one it was: the module is not
+	// linked again.
 	sources, linked = rebuild(t, harness, bld)
-	assert.Equal(t, []string{"a.c", "b.c", "sub/c.cpp"}, sources,
-		"an environment variable the compilers read")
-	assert.True(t, linked)
+	assert.Equal(t, []string{"sub/c.cpp"}, sources, "the include path of C++")
+	assert.False(t, linked)
+
+	harness.Context.Env["C_INCLUDE_PATH"] = "/opt/include"
+
+	sources, _ = rebuild(t, harness, bld)
+	assert.Equal(t, []string{"a.c", "b.c"}, sources, "the include path of C")
+
+	harness.Context.Env["CPATH"] = "/opt/include"
+
+	sources, _ = rebuild(t, harness, bld)
+	assert.Equal(t, []string{"a.c", "b.c", "sub/c.cpp"}, sources, "the include path of both")
+
+	harness.Context.Env["OBJC_INCLUDE_PATH"] = "/opt/include"
+
+	sources, _ = rebuild(t, harness, bld)
+	assert.Empty(t, sources, "the include path of Objective-C")
 
 	harness.Context.Env["TMPDIR"] = harness.Context.Dirs.Work
 

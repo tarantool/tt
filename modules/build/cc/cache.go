@@ -38,21 +38,35 @@ import (
 const cacheSchema = "tt-cc-1"
 
 // compilerEnv are the variables of the environment of a compile the compilers
-// read themselves, and so are of the key of an object: those cc-rs lists for
-// gcc, clang, zig cc and the tools of Xcode (rerun-if-env-changed), with
-// the two gcc writes a list of dependencies by, and the deployment target of
-// iOS. TMPDIR is left out, as cc-rs leaves it out: it says where the
-// temporary files of a compile go, not what the object is; LIBRARY_PATH is
-// of the link alone (linkEnv), and PATH is not either: the compiler is known
-// by its path and its version (compilerIdentity).
+// read themselves whatever the language, and so are of the key of every
+// object: those cc-rs lists for gcc, clang, zig cc and the tools of Xcode
+// (rerun-if-env-changed), with the two gcc writes a list of dependencies
+// by, and the deployment target of iOS. The directories of headers of one
+// language are of the objects of that language alone (languageEnv); those
+// of Objective-C, OBJC_INCLUDE_PATH and OBJCPLUS_INCLUDE_PATH, of none, as
+// tt compiles no Objective-C. TMPDIR is left out, as cc-rs leaves it out:
+// it says where the temporary files of a compile go, not what the object
+// is; LIBRARY_PATH is of the link alone (linkEnv), and PATH is not either:
+// the compiler is known by its path and its version (compilerIdentity).
 var compilerEnv = []string{
-	"CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "OBJC_INCLUDE_PATH",
-	"OBJCPLUS_INCLUDE_PATH", "COMPILER_PATH", "SOURCE_DATE_EPOCH", "GCC_EXEC_PREFIX",
+	"CPATH", "COMPILER_PATH", "SOURCE_DATE_EPOCH", "GCC_EXEC_PREFIX",
 	"DEPENDENCIES_OUTPUT", "SUNPRO_DEPENDENCIES",
 	"CCC_OVERRIDE_OPTIONS", "CLANG_NO_DEFAULT_CONFIG",
 	"ZIG_LIB_DIR", "ZIG_LIBC",
 	"DEVELOPER_DIR", "TOOLCHAINS", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET",
 	"IPHONEOS_DEPLOYMENT_TARGET", "RC_DEBUG_OPTIONS", "RC_DEBUG_PREFIX_MAP",
+}
+
+// languageEnv returns the variables of the environment a compile of lang
+// reads: compilerEnv and the directories of headers of the language,
+// C_INCLUDE_PATH of C and of assembler, which gcc preprocesses as C, and
+// CPLUS_INCLUDE_PATH of C++.
+func languageEnv(lang language) []string {
+	if lang == langCXX {
+		return concat(compilerEnv, []string{"CPLUS_INCLUDE_PATH"})
+	}
+
+	return concat(compilerEnv, []string{"C_INCLUDE_PATH"})
 }
 
 // linkEnv are the variables of the environment of the link the compiler
@@ -106,7 +120,7 @@ func (k keyHasher) sum() string {
 
 // objectKey is the key of the object of step compiled in cwd for target,
 // with the compiler whose identity is identity in an environment of which
-// env are the variables the compiler reads (compilerEnv): what but the
+// env are the variables the compiler reads (languageEnv): what but the
 // files it reads makes the object. The command line is that of the compile
 // but its paths of the depfile and of the object, which name where it
 // writes, not what (compileStep.args).
@@ -362,7 +376,7 @@ func compilerIdentity(ctx context.Context, c *build.Context, words []string) str
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 
-		logger(c).DebugContext(ctx, "running "+commandLine(cmd.Args), "dir", cmd.Dir)
+		logger(c).DebugContext(ctx, "probing the compiler", "command", commandLine(cmd.Args))
 
 		err := cmd.Run()
 		if err != nil {

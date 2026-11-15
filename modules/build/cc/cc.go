@@ -362,7 +362,7 @@ func newRunner(ctx context.Context, c *build.Context, built plan) runner {
 func (r runner) compile(ctx context.Context, step compileStep) error {
 	c := r.c
 	key := objectKey(step, c.Dirs.Cwd, c.Target, r.identities[commandLine(step.compiler)],
-		envOf(r.environ, compilerEnv))
+		envOf(r.environ, languageEnv(step.lang)))
 
 	if upToDate(step, key, r.hashes) {
 		logger(c).DebugContext(ctx, step.source+" is up to date: "+step.object)
