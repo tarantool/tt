@@ -381,12 +381,14 @@ var (
 func TestLinkArgsLinuxPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(), linux.OS, false,
+	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(), linux.OS, true, false,
 		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.so")
 
 	want := []string{
 		// per-OS shared-link flag.
 		"-shared",
+		// the calls of the module to its own functions bound to them.
+		"-Wl,-Bsymbolic-functions",
 		// ldflags: base then linux overlay, before the objects.
 		"-Wl,--as-needed", "-Wl,-z,defs",
 		// output.
@@ -405,7 +407,7 @@ func TestLinkArgsLinuxPlacement(t *testing.T) {
 func TestLinkArgsDarwinPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(), darwin.OS, false,
+	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(), darwin.OS, false, false,
 		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
 
 	want := []string{
@@ -428,7 +430,7 @@ func TestLinkArgsDarwinPlacement(t *testing.T) {
 func TestLinkArgsUserFlagsComeLast(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), linux.OS, false,
+	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), linux.OS, true, false,
 		[]string{"/w/a.o"}, "/out/mymod.so")
 
 	assert.Equal(t, "-Wl,-z,now", args[len(args)-1])
@@ -448,12 +450,13 @@ func TestLinkArgsStaticLibstdcxx(t *testing.T) {
 	objects := []string{"/w/a.o"}
 
 	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), linux.OS, true,
-		objects, "/out/m.so")
+		true, objects, "/out/m.so")
 	assert.Equal(t, []string{
-		"-shared", "-static-libstdc++", "-Wl,--exclude-libs,ALL", "-o", "/out/m.so", "/w/a.o",
+		"-shared", "-Wl,-Bsymbolic-functions", "-static-libstdc++", "-Wl,--exclude-libs,ALL",
+		"-o", "/out/m.so", "/w/a.o",
 	}, static)
 	assert.NotContains(t, linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(),
-		linux.OS, false, objects, "/out/m.so"), "-static-libstdc++")
+		linux.OS, true, false, objects, "/out/m.so"), "-static-libstdc++")
 
 	gxx := []string{"c++"}
 
@@ -475,6 +478,19 @@ func TestLinkArgsStaticLibstdcxx(t *testing.T) {
 		assert.False(t, linksLibstdcxx(other.target, other.static, other.cxx, other.linker),
 			other)
 	}
+}
+
+// TestBindsLocally pins that a module of Linux is linked with
+// -Bsymbolic-functions by any compiler but zig, which refuses it, and a
+// module of macOS is not.
+func TestBindsLocally(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, bindsLocally(linux, []string{"cc"}))
+	assert.True(t, bindsLocally(linux, []string{"ccache", "clang++"}))
+	assert.False(t, bindsLocally(linux, []string{"zig", "cc"}))
+	assert.False(t, bindsLocally(linux, []string{"ccache", "zig", "c++"}))
+	assert.False(t, bindsLocally(darwin, []string{"cc"}))
 }
 
 // TestIsZig pins how zig cc and zig c++ are told from the words of the
@@ -565,15 +581,16 @@ func TestPlanOf(t *testing.T) {
 		objects = append(objects, step.object)
 	}
 
-	// zig c++ links its libc++ in itself, and refuses --exclude-libs.
+	// zig c++ links its libc++ in itself, and refuses --exclude-libs and
+	// -Bsymbolic-functions.
 	assert.Equal(t, concat([]string{"zig", "c++", "-shared", "-o", "/lib/m.so"}, objects),
 		built.link)
 
 	gcc := linuxToolchain()
 	gxx := planOf(config, gcc, noEnvFlags(), context(true))
 
-	assert.Equal(t, concat([]string{"c++", "-shared", "-static-libstdc++",
-		"-Wl,--exclude-libs,ALL", "-o", "/lib/m.so"}, objects), gxx.link)
+	assert.Equal(t, concat([]string{"c++", "-shared", "-Wl,-Bsymbolic-functions",
+		"-static-libstdc++", "-Wl,--exclude-libs,ALL", "-o", "/lib/m.so"}, objects), gxx.link)
 
 	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), context(true))
 	assert.False(t, withoutCXX.cxx)

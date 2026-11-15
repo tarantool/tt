@@ -219,6 +219,26 @@ func isZig(words []string) bool {
 	return false
 }
 
+// symbolicFunctions is the flag that binds the calls of a module of Linux
+// to the functions it defines to those, at its link: without it the loader
+// resolves a call to a function of a default visibility by the order of
+// the process, the executable first, and a module defining a function of
+// the name of one Tarantool exports - Tarantool Enterprise 3.7 exports 1373,
+// curl_easy_init and 80 more of curl among them - gets that of Tarantool
+// called even from within itself. Variables are left as they are, as the
+// packages of Ubuntu are linked with it by default.
+const symbolicFunctions = "-Wl,-Bsymbolic-functions"
+
+// bindsLocally reports whether the link of a module for target by the
+// compiler of the words linker binds the calls of the module to its own
+// functions (symbolicFunctions): on Linux, but by zig cc and zig c++, whose
+// lld refuses -Bsymbolic-functions as an unsupported linker argument. ld.bfd,
+// gold, lld and mold of a gcc or a clang take it. A two-level namespace
+// of macOS binds a call of a bundle to a function it defines already.
+func bindsLocally(target build.Target, linker []string) bool {
+	return target.OS == "linux" && !isZig(linker)
+}
+
 // zigCompilers are the commands of zig that are compilers of C and C++.
 var zigCompilers = []string{"cc", cxxName}
 
@@ -229,7 +249,8 @@ const cxxName = "c++"
 // linkArgs builds the argv of the link of objects into out, without the
 // words of the compiler that links:
 //
-//	<LIBFLAG...> [-static-libstdc++ -Wl,--exclude-libs,ALL] <ldflags...> \
+//	<LIBFLAG...> [-Wl,-Bsymbolic-functions] \
+//	    [-static-libstdc++ -Wl,--exclude-libs,ALL] <ldflags...> \
 //	    -o <out> <objects...> \
 //	    {-L<libdir> [-Wl,-rpath,<libdir> with an rpath]}... -l<lib...> <$LDFLAGS...>
 //
@@ -239,21 +260,26 @@ const cxxName = "c++"
 // environment ends the line, as go-luarocks has it. The rest mirrors the
 // builtin build of go-luarocks. The flags of the compilers are not given:
 // a flag both need, -pthread or -fsanitize=address, is in cflags or cxxflags
-// and in ldflags. The static C++ library (staticLibstdcxx) is linked when
-// staticCXX is set (linksLibstdcxx).
+// and in ldflags. The calls of the module to its own functions are bound to
+// them when symbolic is set (bindsLocally), and the static C++ library
+// (staticLibstdcxx) is linked when staticCXX is set (linksLibstdcxx).
 //
 // ldflags, library dirs and libraries come from config, each merged
 // (append-only) with its overlay of platforms for goos; library order is
 // preserved because link order matters. Each -L is immediately followed by
 // its -Wl,-rpath, entry when the toolchain has rpaths.
-func linkArgs(config Config, tools toolchain, env envFlags, goos string, staticCXX bool,
-	objects []string, out string,
+func linkArgs(config Config, tools toolchain, env envFlags, goos string,
+	symbolic, staticCXX bool, objects []string, out string,
 ) []string {
 	overlay := config.Platforms[goos]
 
 	args := make([]string, 0, initialArgsCap+len(objects))
 
 	args = append(args, tools.libFlag...)
+
+	if symbolic {
+		args = append(args, symbolicFunctions)
+	}
 
 	if staticCXX {
 		args = append(args, staticLibstdcxx...)
@@ -387,7 +413,7 @@ func planOf(config Config, tools toolchain, env envFlags, c *build.Context) plan
 	}
 
 	built.link = concat(built.linker,
-		linkArgs(config, tools, env, c.Target.OS,
+		linkArgs(config, tools, env, c.Target.OS, bindsLocally(c.Target, built.linker),
 			linksLibstdcxx(c.Target, c.Static, built.cxx, built.linker), paths, built.out))
 
 	return built

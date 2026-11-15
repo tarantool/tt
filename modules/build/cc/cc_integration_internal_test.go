@@ -146,6 +146,56 @@ func TestCcShowsTheWarnings(t *testing.T) {
 	assert.Equal(t, []string{warnings[0], warnings[0]}, harness.Warnings())
 }
 
+// symbolicHostC is a program that exports shadowed(), as Tarantool exports
+// its functions, loads the module of its argument and prints what the
+// call_shadowed() of the module returns.
+const symbolicHostC = `#include <dlfcn.h>
+#include <stdio.h>
+int shadowed(void) { return 1; }
+int main(int argc, char **argv) {
+	void *module = dlopen(argv[1], RTLD_NOW);
+	if (module == NULL) { fprintf(stderr, "%s\n", dlerror()); return 1; }
+	int (*call)(void) = (int (*)(void))dlsym(module, "call_shadowed");
+	printf("%d\n", call());
+	return 0;
+}
+`
+
+// TestCcBindsTheCallsOfTheModuleToItself proves that a module of Linux
+// calls its own function of a name the executable exports as well, as a
+// module defining curl_easy_init does in Tarantool Enterprise, which
+// exports the functions of curl.
+func TestCcBindsTheCallsOfTheModuleToItself(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skip("-Bsymbolic-functions is of the link of Linux")
+	}
+
+	includeDir, _ := requireHostHeaders(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"shadow.c": "int shadowed(void) { return 2; }\n" +
+			"int call_shadowed(void) { return shadowed(); }\n",
+		"host.c": symbolicHostC,
+	})
+
+	hostBuild(t, harness, C(), map[string]any{"module": "shadow", "sources": []any{"shadow.c"}},
+		"shadow")
+
+	cwd := harness.Context.Dirs.Cwd
+	host := filepath.Join(cwd, "host")
+
+	printed, err := exec.CommandContext(t.Context(), "cc", "-rdynamic", "-o", host,
+		filepath.Join(cwd, "host.c"), "-ldl").CombinedOutput()
+	require.NoError(t, err, string(printed))
+
+	printed, err = exec.CommandContext(t.Context(), host,
+		filepath.Join(harness.Context.Dirs.Modules, "shadow.so")).CombinedOutput()
+	require.NoError(t, err, string(printed))
+	assert.Equal(t, "2", strings.TrimSpace(string(printed)), "the module calls its own")
+}
+
 // TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
 // against the real Tarantool C module API: the source includes <module.h> and
 // exports a luaopen_ entry point, so it compiles only when the include
