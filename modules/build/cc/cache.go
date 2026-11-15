@@ -34,8 +34,9 @@ import (
 // removed.
 
 // cacheSchema is the version of the keys and the records: another one makes
-// every key another, so a tt whose cache differs rebuilds everything.
-const cacheSchema = "tt-cc-1"
+// every key another, so a tt whose cache differs rebuilds everything: 2
+// keeps the output of the compiler in the record of an object.
+const cacheSchema = "tt-cc-2"
 
 // compilerEnv are the variables of the environment of a compile the compilers
 // read themselves whatever the language, and so are of the key of every
@@ -152,6 +153,11 @@ type objectRecord struct {
 	// depfile listed them, by absolute path, with the hashes of their
 	// content.
 	Inputs []input `json:"inputs"`
+	// Output is what the compiler printed, its warnings: shown again when
+	// the object is taken from the cache, as cargo shows the warnings of a
+	// crate it does not compile again, so that a warning does not vanish
+	// with the second build.
+	Output string `json:"output,omitempty"`
 }
 
 // input is a file a compile or a link read, and the hash of its content.
@@ -229,28 +235,32 @@ func hashFile(path string) (string, error) {
 
 // upToDate reports whether the record of the object of step, if it has one,
 // has the key key, the object it records is there, and each of the files of
-// the record still has its hash. Any file that cannot be read, a record
-// gone or broken included, makes the object stale: the cache never fails a
-// build, it compiles.
-func upToDate(step compileStep, key string, hashes *fileHashes) bool {
+// the record still has its hash, and returns the record when it does. Any
+// file that cannot be read, a record gone or broken included, makes the
+// object stale: the cache never fails a build, it compiles.
+func upToDate(step compileStep, key string, hashes *fileHashes) (*objectRecord, bool) {
 	data, err := os.ReadFile(step.recordPath())
 	if err != nil {
-		return false
+		return nil, false
 	}
 
 	var record objectRecord
 
 	err = json.Unmarshal(data, &record)
 	if err != nil || record.Key != key || len(record.Inputs) == 0 {
-		return false
+		return nil, false
 	}
 
 	object, err := hashFile(step.object)
 	if err != nil || object != record.Object {
-		return false
+		return nil, false
 	}
 
-	return inputsUnchanged(record.Inputs, hashes)
+	if !inputsUnchanged(record.Inputs, hashes) {
+		return nil, false
+	}
+
+	return &record, true
 }
 
 // inputsUnchanged reports whether each of inputs still has its hash.
@@ -268,10 +278,11 @@ func inputsUnchanged(inputs []input, hashes *fileHashes) bool {
 // recordObject writes the record of the object of step, just compiled in
 // cwd with the key key: the files of its depfile - the source alone for
 // assembler as it is, which the preprocessor does not read - with their
-// hashes, and the hash of the object. It returns an error when the depfile
-// is not there or not one, and the object is then compiled again next time:
-// without the list of the headers it read, nothing would tell it stale.
-func recordObject(step compileStep, cwd, key string, hashes *fileHashes) error {
+// hashes, the hash of the object, and printed, what the compiler printed.
+// It returns an error when the depfile is not there or not one, and the
+// object is then compiled again next time: without the list of the headers
+// it read, nothing would tell it stale.
+func recordObject(step compileStep, cwd, key, printed string, hashes *fileHashes) error {
 	var files []string
 
 	if step.lang == langAsm {
@@ -292,7 +303,9 @@ func recordObject(step compileStep, cwd, key string, hashes *fileHashes) error {
 		}
 	}
 
-	record := objectRecord{Key: key, Object: "", Inputs: make([]input, 0, len(files))}
+	record := objectRecord{
+		Key: key, Object: "", Inputs: make([]input, 0, len(files)), Output: printed,
+	}
 
 	for _, file := range files {
 		if !filepath.IsAbs(file) {

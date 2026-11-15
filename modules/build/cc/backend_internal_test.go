@@ -291,7 +291,8 @@ func TestMissingHeaders(t *testing.T) {
 // $TT_BUILD_DIR/calls - its name and its arguments - writes the file of its
 // -o, a copy of the source of its -c and its arguments, and writes the file
 // of its -MF as a list of the source and of what the file <source>.deps
-// lists, the headers it would have read.
+// lists, the headers it would have read. It prints the file <source>.warn,
+// its warnings, to stderr.
 const fakeCC = `#!/bin/sh
 args="$*"
 # One write a run: the compiles run at once.
@@ -314,6 +315,7 @@ if [ -n "$dep" ]; then
 		printf '\n'
 	} > "$dep"
 fi
+if [ -n "$src" ] && [ -f "$src.warn" ]; then cat "$src.warn" >&2; fi
 `
 
 // fakeHarness is a harness of backend that knows the Tarantool of the

@@ -123,6 +123,29 @@ func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
 	hostBuild(t, hostHarness(t, includeDir, sources), C(), rest, "warn")
 }
 
+// TestCcShowsTheWarnings proves with a real compiler that its warnings are
+// shown, and shown again by a build that takes the object from the cache.
+func TestCcShowsTheWarnings(t *testing.T) {
+	t.Parallel()
+
+	includeDir, _ := requireHostHeaders(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"warn.c": "int warn(void) { int unused; return 0; }\n",
+	})
+	rest := map[string]any{"module": "warn", "sources": []any{"warn.c"}, "cflags": []any{"-Wall"}}
+
+	hostBuild(t, harness, C(), rest, "warn")
+
+	warnings := harness.Warnings()
+	require.Len(t, warnings, 1)
+	assert.True(t, strings.HasPrefix(warnings[0], "compiling warn.c:\n"), warnings[0])
+	assert.Contains(t, warnings[0], "unused")
+
+	hostBuild(t, harness, C(), rest, "warn")
+	assert.Equal(t, []string{warnings[0], warnings[0]}, harness.Warnings())
+}
+
 // TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
 // against the real Tarantool C module API: the source includes <module.h> and
 // exports a luaopen_ entry point, so it compiles only when the include
