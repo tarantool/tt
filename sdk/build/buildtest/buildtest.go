@@ -164,11 +164,9 @@ const Version = "0.0.0-dev.0"
 // The variables of the environment of a build the Context of a harness
 // keeps in step with its facts.
 const (
-	versionKey      = "TT_VERSION"
-	prefixKey       = "TT_TARANTOOL_PREFIX"
-	includeDirKey   = "TT_TARANTOOL_INCLUDE_DIR"
-	headersSubdir   = "include"
-	tarantoolSubdir = "tarantool"
+	versionKey    = "TT_VERSION"
+	prefixKey     = "TT_TARANTOOL_PREFIX"
+	includeDirKey = "TT_TARANTOOL_INCLUDE_DIR"
 )
 
 // errNoHook reports a harness of hooks of a backend that runs none.
@@ -198,8 +196,8 @@ type Harness struct {
 // name when Path is empty), its .tarantool/bin and .rocks; <tmp>/work,
 // <tmp>/output, <tmp>/share, <tmp>/bin and <tmp>/state are the other
 // directories of the build. All of them but the tree exist. The target is
-// the machine the test runs on, the toolchain is cc of CC with the flags of
-// the target, and no Tarantool is known ([Harness.SetTarantool] tells one).
+// the machine the test runs on, and no Tarantool is known
+// ([Harness.SetTarantool] tells one).
 // The Env has the TT_* variables the core sets for the build of a
 // component: TT_OUTPUT_DIR, TT_PROJECT_ROOT, TT_PACKAGE, TT_COMPONENT_NAME,
 // TT_VERSION ([Version]), TT_PLATFORM_OS, TT_PLATFORM_ARCH and
@@ -253,7 +251,6 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 		Target:    target,
 		Dirs:      dirs,
 		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
-		Toolchain: toolchain(target),
 		Env: map[string]string{
 			"TT_OUTPUT_DIR":     dirs.Output,
 			"TT_PROJECT_ROOT":   dirs.Project,
@@ -325,7 +322,6 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 		Target:    target,
 		Dirs:      dirs,
 		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
-		Toolchain: toolchain(target),
 		Env: map[string]string{
 			"TT_PROJECT_ROOT":  dirs.Project,
 			"TT_PACKAGE":       "demo",
@@ -362,38 +358,13 @@ func newHarness(backend build.Backend, facts build.Context) *Harness {
 	return harness
 }
 
-// toolchain is how tt compiles a C module for target.
-func toolchain(target build.Target) build.Toolchain {
-	compiler := os.Getenv("CC")
-	if compiler == "" {
-		compiler = "cc"
-	}
-
-	libFlag := []string{"-shared"}
-	if target.OS == "darwin" {
-		libFlag = []string{"-bundle", "-undefined", "dynamic_lookup"}
-	}
-
-	return build.Toolchain{
-		CC: compiler, LibFlag: libFlag, Rpath: target.OS != "darwin", IncludeDir: "",
-	}
-}
-
 // SetTarantool tells the build the Tarantool it is built against, as the
-// core tells it: the Tarantool of the Context, the headers of the C
-// toolchain under its prefix ([build.Toolchain.IncludeDir]), and
-// TT_TARANTOOL_PREFIX and TT_TARANTOOL_INCLUDE_DIR of the Env, each set
-// only when tarantool has it.
+// core tells it: the Tarantool of the Context, and TT_TARANTOOL_PREFIX and
+// TT_TARANTOOL_INCLUDE_DIR of the Env, each set only when tarantool has it.
 func (h *Harness) SetTarantool(tarantool build.Tarantool) {
 	facts := h.Context
 
 	facts.Tarantool = tarantool
-	facts.Toolchain.IncludeDir = ""
-
-	if tarantool.Prefix != "" {
-		facts.Toolchain.IncludeDir = filepath.Join(tarantool.Prefix, headersSubdir,
-			tarantoolSubdir)
-	}
 
 	for key, value := range map[string]string{
 		prefixKey: tarantool.Prefix, includeDirKey: tarantool.IncludeDir,

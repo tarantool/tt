@@ -15,7 +15,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
-	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
@@ -35,18 +34,14 @@ type builder struct {
 	target sdkbuild.Target
 	// tarantool is the Tarantool the build is for.
 	tarantool sdkbuild.Tarantool
-	// toolchain is how tt compiles a C module.
-	toolchain sdkbuild.Toolchain
 	// version is TT_VERSION, empty before the version is derived: when the
 	// builds are only preflighted.
 	version string
 }
 
-// newBuilder returns the builder of the builds of proj into stage, the
-// toolchain that of adapter, at the version ver.
-func newBuilder(
-	opts Options, proj project, adapter *rocks.Adapter, stage string, ver version.Version,
-) builder {
+// newBuilder returns the builder of the builds of proj into stage, at the
+// version ver.
+func newBuilder(opts Options, proj project, stage string, ver version.Version) builder {
 	host := native.Host()
 	prefix, includeDir := tarantoolDirs(opts.Tarantool)
 
@@ -58,8 +53,7 @@ func newBuilder(
 		tarantool: sdkbuild.Tarantool{
 			Prefix: prefix, IncludeDir: includeDir, Version: opts.Tarantool.Version,
 		},
-		toolchain: toolchain(adapter.Flags()),
-		version:   ver.SemVer,
+		version: ver.SemVer,
 	}
 }
 
@@ -137,7 +131,6 @@ func (b builder) component(name string) (componentRun, error) {
 		Target:    b.target,
 		Dirs:      dirs,
 		Tarantool: b.tarantool,
-		Toolchain: b.toolchain,
 		Env:       env.variables(),
 		Fresh:     b.opts.Rebuild,
 		Locked:    b.opts.Locked,
@@ -192,7 +185,6 @@ func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Conte
 		Target:    b.target,
 		Dirs:      dirs,
 		Tarantool: b.tarantool,
-		Toolchain: b.toolchain,
 		Env:       env.variables(),
 		Fresh:     b.opts.Rebuild,
 		Locked:    b.opts.Locked,

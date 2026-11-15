@@ -491,7 +491,7 @@ func runBuild(
 	//nolint:contextcheck // The hash of a path dependency asks git, which takes no context.
 	proj.pinned = freshPins(opts.ProjectDir, man, productName)
 
-	err = newBuilder(opts, proj, adapter, stage, version.Version{}).preflight(ctx, components)
+	err = newBuilder(opts, proj, stage, version.Version{}).preflight(ctx, components)
 	if err != nil {
 		return nil, err
 	}
@@ -506,7 +506,7 @@ func runBuild(
 
 	ver.Flavor = man.Platform.Tarantool.EffectiveFlavor()
 
-	preErr := newBuilder(opts, proj, adapter, stage, ver).runHook(ctx, hookPreBuild)
+	preErr := newBuilder(opts, proj, stage, ver).runHook(ctx, hookPreBuild)
 	if preErr != nil {
 		return nil, sdk.Errorf(sdk.ExitSystem, "pre_build hook: %w", preErr)
 	}
@@ -535,7 +535,7 @@ func runBuild(
 
 	proj.pinned = pinnedClosure(prod.Dependencies, lock.DevDependencies)
 
-	built, err := buildComponents(ctx, opts, proj, adapter, stage, components, ver)
+	built, err := buildComponents(ctx, opts, proj, stage, components, ver)
 	if err != nil {
 		return nil, err
 	}
@@ -545,7 +545,7 @@ func runBuild(
 		return nil, err
 	}
 
-	postErr := newBuilder(opts, proj, adapter, stage, ver).runHook(ctx, hookPostBuild)
+	postErr := newBuilder(opts, proj, stage, ver).runHook(ctx, hookPostBuild)
 	if postErr != nil {
 		return nil, sdk.Errorf(sdk.ExitSystem, "post_build hook: %w", postErr)
 	}
@@ -615,15 +615,15 @@ func (proj project) versionLuaNamespace() string {
 // returns what the components built (componentBuilds), from the record
 // runBackends returns.
 func buildComponents(
-	ctx context.Context, opts Options, proj project, adapter *rocks.Adapter,
-	stage string, components []string, ver version.Version,
+	ctx context.Context, opts Options, proj project, stage string, components []string,
+	ver version.Version,
 ) (componentBuilds, error) {
 	last, settle, err := openStage(opts, proj, stage, components)
 	if err != nil {
 		return componentBuilds{}, err
 	}
 
-	runs, err := newBuilder(opts, proj, adapter, stage, ver).runBackends(ctx, components, last)
+	runs, err := newBuilder(opts, proj, stage, ver).runBackends(ctx, components, last)
 	if err != nil {
 		return componentBuilds{}, err
 	}

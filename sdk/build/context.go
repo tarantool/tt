@@ -86,31 +86,19 @@ func (d Dirs) Of(result Result) string {
 	}
 }
 
-// Tarantool is the Tarantool a component is built against.
+// Tarantool is the Tarantool a component is built against. How a native
+// module is compiled and linked against it - the compiler, its flags - is
+// the backend's: the Context says which Tarantool, not how to build for it.
 type Tarantool struct {
-	// Prefix is its install prefix; empty when tt does not know it.
+	// Prefix is its install prefix, TT_TARANTOOL_PREFIX; empty when tt does
+	// not know it.
 	Prefix string
 	// IncludeDir is the directory of its C headers, module.h and lua.h, as
-	// #include <module.h> finds them; empty when module.h is not there.
+	// #include <module.h> finds them, TT_TARANTOOL_INCLUDE_DIR: include/tarantool
+	// under Prefix, and empty when module.h is not there.
 	IncludeDir string
 	// Version is its version; empty when tt does not know it.
 	Version string
-}
-
-// Toolchain is how tt compiles a C module, for a backend that compiles one
-// as tt does.
-type Toolchain struct {
-	// CC is the C compiler: CC of the environment, cc by default.
-	CC string
-	// LibFlag are the flags that link a module Tarantool loads: -shared,
-	// or -bundle -undefined dynamic_lookup on darwin.
-	LibFlag []string
-	// Rpath reports whether each -L<dir> is followed by -Wl,-rpath,<dir>.
-	Rpath bool
-	// IncludeDir is the directory of the headers of Tarantool under its
-	// prefix, as the compiler is given it whether or not module.h is there;
-	// empty when tt knows no prefix.
-	IncludeDir string
 }
 
 // Host runs the commands of a build for a [Context]. Only the core and
@@ -145,8 +133,6 @@ type Context struct {
 	Dirs Dirs
 	// Tarantool is the Tarantool it is built against.
 	Tarantool Tarantool
-	// Toolchain is how tt compiles a C module.
-	Toolchain Toolchain
 	// Env are the variables of the build: those of its block, and the TT_*
 	// ones tt sets for every build, which win.
 	Env map[string]string

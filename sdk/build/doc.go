@@ -17,8 +17,8 @@
 //
 // When the build runs, the core gives the Build a [Context]: the component,
 // the [Target] it is built for, the [Dirs] it reads and writes, the
-// [Tarantool] it is built against, the [Toolchain] of C, and the commands it
-// runs ([Context.Command], [Context.Run], [Context.Output]), with the
+// [Tarantool] it is built against, and the commands it runs
+// ([Context.Command], [Context.Run], [Context.Output]), with the
 // environment tt builds every component in. A Build may be a [Preflighter],
 // which the core asks before any component is built, so that a missing tool
 // fails the build before the first long compile; a [Producer], which says
