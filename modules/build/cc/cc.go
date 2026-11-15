@@ -450,14 +450,16 @@ func (r runner) link(ctx context.Context, libraries []string) error {
 		return err
 	}
 
-	// The record comes after the check: a module that fails it is linked,
-	// and checked, again by the next build.
+	// The record comes after the checks: a module that fails them is
+	// linked, and checked, again by the next build.
 	if r.required != "" {
 		err = r.checkLuaModule(ctx)
 		if err != nil {
 			return err
 		}
 	}
+
+	r.checkClashes()
 
 	return recordLink(work, out, key)
 }
