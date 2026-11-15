@@ -1,9 +1,13 @@
 package cc
 
 import (
+	"encoding/json"
+	"errors"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -63,7 +67,7 @@ func TestBackends(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		"module", "sources", "include_dirs", "libraries", "library_dirs", "defines", "cflags",
-		"ldflags", "platforms",
+		"cxxflags", "ldflags", "platforms",
 	}, fields)
 }
 
@@ -72,32 +76,37 @@ func TestConfig(t *testing.T) {
 
 	cfg, unknown, err := LuaC().Decode(map[string]any{
 		"module":       "fast",
-		"sources":      []any{"a.c", "b.c"},
+		"sources":      []any{"a.c", "b.cpp"},
 		"include_dirs": []any{"include"},
 		"libraries":    []any{"m"},
 		"library_dirs": []any{"/opt/lib"},
 		"defines":      []any{"NDEBUG"},
 		"cflags":       []any{"-Wall"},
+		"cxxflags":     []any{"-std=c++17"},
 		"ldflags":      []any{"-Wl,--as-needed"},
 		"platforms": map[string]any{
-			"linux": map[string]any{"libraries": []any{"rt"}, "cflags": []any{"-pthread"}},
+			"linux": map[string]any{
+				"libraries": []any{"rt"}, "cflags": []any{"-pthread"},
+				"cxxflags": []any{"-pthread"},
+			},
 		},
 	})
 	require.NoError(t, err)
 	assert.Empty(t, unknown)
 	assert.Equal(t, &Config{
 		Module:      "fast",
-		Sources:     []string{"a.c", "b.c"},
+		Sources:     []string{"a.c", "b.cpp"},
 		IncludeDirs: []string{"include"},
 		Libraries:   []string{"m"},
 		LibraryDirs: []string{"/opt/lib"},
 		Defines:     []string{"NDEBUG"},
 		Cflags:      []string{"-Wall"},
+		Cxxflags:    []string{"-std=c++17"},
 		Ldflags:     []string{"-Wl,--as-needed"},
 		Platforms: map[string]Overlay{
 			"linux": {
 				IncludeDirs: nil, Libraries: []string{"rt"}, LibraryDirs: nil, Defines: nil,
-				Cflags: []string{"-pthread"}, Ldflags: nil,
+				Cflags: []string{"-pthread"}, Cxxflags: []string{"-pthread"}, Ldflags: nil,
 			},
 		},
 	}, cfg)
@@ -130,10 +139,34 @@ func TestValidateErrors(t *testing.T) {
 		{"CFLAGS in env", module(nil), map[string]string{"CFLAGS": "-O0"},
 			"env.CFLAGS", `does nothing on backend "%s": put the flags of the compiler into ` +
 				"cflags; CFLAGS of the environment tt runs in comes after them"},
+		{"CXX in env", module(nil), map[string]string{"CXX": "clang++"},
+			"env.CXX", `does nothing on backend "%s": the C++ compiler is CXX of the ` +
+				"environment tt runs in, c++ by default"},
+		{"CXXFLAGS in env", module(nil), map[string]string{"CXXFLAGS": "-O0"},
+			"env.CXXFLAGS", `does nothing on backend "%s": put the flags of the C++ compiler ` +
+				"into cxxflags; CXXFLAGS of the environment tt runs in comes after them"},
 		{"CPPFLAGS in env", module(nil), map[string]string{"CPPFLAGS": "-DX"},
 			"env.CPPFLAGS", `does nothing on backend "%s": put the macros into defines, the ` +
 				"directories of headers into include_dirs and other flags of the preprocessor " +
-				"into cflags"},
+				"into cflags and cxxflags"},
+		{"a source of no language", map[string]any{
+			"module": "m", "sources": []any{"m.c", "m.h"},
+		}, nil, "sources[1]", `"m.h" is not a source tt compiles: want a name ending in ` +
+			".c, .cc, .cpp, .cxx, .c++, .S or .s; a prebuilt library goes into libraries " +
+			"and library_dirs"},
+		{"an archive in sources", map[string]any{
+			"module": "m", "sources": []any{"vendor/libz.a"},
+		}, nil, "sources[0]", `"vendor/libz.a" is not a source tt compiles: want a name ` +
+			"ending in .c, .cc, .cpp, .cxx, .c++, .S or .s; a prebuilt library goes into " +
+			"libraries and library_dirs"},
+		{"a source listed twice", map[string]any{
+			"module": "m", "sources": []any{"a.c", "b.cc", "./a.c"},
+		}, nil, "sources[2]", `"./a.c" is sources[0] again`},
+		{"an empty cxxflag", module(map[string]any{"cxxflags": []any{""}}), nil,
+			"cxxflags", "must not contain an empty entry"},
+		{"an empty cxxflag of a platform", module(map[string]any{
+			"platforms": map[string]any{"linux": map[string]any{"cxxflags": []any{""}}},
+		}), nil, "platforms.linux.cxxflags", "must not contain an empty entry"},
 		{"LDFLAGS in env", module(nil), map[string]string{"LDFLAGS": "-s"},
 			"env.LDFLAGS", `does nothing on backend "%s": put the flags of the link into ` +
 				"ldflags; LDFLAGS of the environment tt runs in comes after them"},
@@ -244,23 +277,77 @@ func TestMissingHeaders(t *testing.T) {
 	require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
 }
 
-// fakeCC is a compiler that records its arguments one a line and creates
-// the file of its -o.
+// fakeCC is a compiler that records each run as a line of
+// $TT_BUILD_DIR/calls - its name and its arguments - creates the file of its
+// -o, and writes the file of its -MF as a list of the source of its -c.
 const fakeCC = `#!/bin/sh
-printf '%s\n' "$@" > "$TT_BUILD_DIR/args"
+args="$*"
+# One write a run: the compiles run at once.
+printf '%s\n' "${0##*/} $args" >> "$TT_BUILD_DIR/calls"
 while [ $# -gt 0 ]; do
-	if [ "$1" = -o ]; then : > "$2"; fi
+	case "$1" in
+	-o) : > "$2"; shift ;;
+	-MF) dep=$2; shift ;;
+	-c) src=$2; shift ;;
+	esac
 	shift
 done
+if [ -n "$dep" ]; then printf 'x.o: %s\n' "$src" > "$dep"; fi
 `
 
-// TestRun checks that a build runs the compiler of the toolchain in the
-// working directory, with the module of the extension of the target in the
-// output directory: .so, or .dylib on darwin, a dotted module a flat file.
+// fakeHarness is a harness of backend that knows the Tarantool of the
+// prefix /tt, with fakeCC installed as fakecc and fakec++ in the bin
+// directory of its project, and the build of the block rest of backend in
+// it, which reads environ as the environment tt runs in.
+func fakeHarness(t *testing.T, backend build.Backend, rest map[string]any,
+	environ map[string]string,
+) (*buildtest.Harness, ccBuild) {
+	t.Helper()
+
+	validated, err := buildtest.Validate(backend, component(), block(rest, nil))
+	require.NoError(t, err)
+
+	bld, ok := validated.(ccBuild)
+	require.True(t, ok)
+
+	bld.lookupEnv = func(key string) (string, bool) {
+		value, set := environ[key]
+
+		return value, set
+	}
+
+	harness := buildtest.New(t, backend, component())
+
+	for _, name := range []string{"fakecc", "fakec++"} {
+		require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Tools, name),
+			[]byte(fakeCC), 0o700))
+	}
+
+	harness.SetTarantool(build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""})
+
+	return harness, bld
+}
+
+// calls are the runs of the fake compilers of harness so far, one a line.
+func calls(t *testing.T, harness *buildtest.Harness) []string {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(harness.Context.Dirs.Work, "calls"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	require.NoError(t, err)
+
+	return strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+}
+
+// TestRun checks that a build compiles each source with the compiler of the
+// toolchain in the working directory into its object of the work directory,
+// and links the module of the extension of the target in the output
+// directory: .so, or .dylib on darwin, a dotted module a flat file.
 func TestRun(t *testing.T) {
-	t.Setenv("CC", "fakecc")
-	t.Setenv("CFLAGS", "")
-	t.Setenv("LDFLAGS", "")
+	t.Parallel()
 
 	link := map[string][]string{
 		"linux":  {"-shared"},
@@ -268,17 +355,10 @@ func TestRun(t *testing.T) {
 	}
 
 	for _, goos := range []string{"linux", "darwin"} {
-		bld, err := buildtest.Validate(LuaC(), component(),
-			block(map[string]any{"module": "a.b", "sources": []any{"a.c"}}, nil))
-		require.NoError(t, err)
-
-		harness := buildtest.New(t, LuaC(), component())
+		harness, bld := fakeHarness(t, LuaC(),
+			map[string]any{"module": "a.b", "sources": []any{"a.c"}},
+			map[string]string{"CC": "fakecc --wrapped", "CFLAGS": "", "LDFLAGS": ""})
 		facts := harness.Context
-
-		require.NoError(t, os.WriteFile(filepath.Join(facts.Dirs.Tools, "fakecc"), []byte(fakeCC),
-			0o700))
-
-		harness.SetTarantool(build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""})
 
 		facts.Target.OS = goos
 
@@ -287,11 +367,128 @@ func TestRun(t *testing.T) {
 		out := filepath.Join(facts.Dirs.Modules, "a.b"+facts.Target.ModuleExt())
 		assert.FileExists(t, out)
 
-		args, err := os.ReadFile(filepath.Join(facts.Dirs.Work, "args"))
-		require.NoError(t, err)
+		object := filepath.Join(facts.Dirs.Work, "obj", objectName("a.c"))
+		assert.FileExists(t, object)
+		assert.NoFileExists(t, object+".tmp")
 
-		want := append([]string{"-fPIC", "-I/tt/include/tarantool"}, link[goos]...)
-
-		assert.Equal(t, strings.Join(append(want, "-o", out, "a.c"), "\n")+"\n", string(args))
+		assert.Equal(t, []string{
+			"fakecc --wrapped -fPIC -I/tt/include/tarantool -MD -MF " + object + ".d -MQ " +
+				object + " -c a.c -o " + object + ".tmp",
+			"fakecc --wrapped " + strings.Join(link[goos], " ") + " -o " + out + " " + object,
+		}, calls(t, harness), goos)
 	}
+}
+
+// TestRunMixed checks that a build of C and C++ compiles each source with
+// the compiler and the flags of its language and links with the C++
+// compiler, the static C++ library on Linux with static = true.
+func TestRunMixed(t *testing.T) {
+	t.Parallel()
+
+	harness, bld := fakeHarness(t, C(), map[string]any{
+		"module": "m", "sources": []any{"a.c", "sub/b.cpp"},
+		"cflags": []any{"-std=c11"}, "cxxflags": []any{"-std=c++17"},
+	}, map[string]string{"CC": "fakecc", "CXX": "fakec++", "CXXFLAGS": "-g"})
+	facts := harness.Context
+
+	facts.Target.OS = "linux"
+	facts.Static = true
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	objA := filepath.Join(facts.Dirs.Work, "obj", objectName("a.c"))
+	objB := filepath.Join(facts.Dirs.Work, "obj", objectName("sub/b.cpp"))
+	out := filepath.Join(facts.Dirs.Modules, "m.so")
+
+	ran := calls(t, harness)
+	require.Len(t, ran, 3)
+
+	// The compiles run at once, in any order.
+	slices.Sort(ran[:2])
+	assert.Equal(t, []string{
+		"fakec++ -fPIC -std=c++17 -g -I/tt/include/tarantool -MD -MF " + objB + ".d -MQ " +
+			objB + " -c sub/b.cpp -o " + objB + ".tmp",
+		"fakecc -O2 -fPIC -std=c11 -I/tt/include/tarantool -MD -MF " + objA + ".d -MQ " +
+			objA + " -c a.c -o " + objA + ".tmp",
+		"fakec++ -shared -static-libstdc++ -Wl,--exclude-libs,ALL -o " + out + " " + objA +
+			" " + objB,
+	}, ran)
+
+	data, err := os.ReadFile(filepath.Join(facts.Dirs.Work, "compile_commands.json"))
+	require.NoError(t, err)
+
+	var commands []compileCommand
+
+	require.NoError(t, json.Unmarshal(data, &commands))
+	require.Len(t, commands, 2)
+	assert.Equal(t, compileCommand{
+		Directory: facts.Dirs.Cwd,
+		Arguments: []string{"fakecc", "-O2", "-fPIC", "-std=c11", "-I/tt/include/tarantool",
+			"-MD", "-MF", objA + ".d", "-MQ", objA, "-c", "a.c", "-o", objA},
+		File:   "a.c",
+		Output: objA,
+	}, commands[0])
+	assert.Equal(t, "sub/b.cpp", commands[1].File)
+	assert.Equal(t, "fakec++", commands[1].Arguments[0])
+}
+
+// TestRunDropsStaleObjects checks that a build removes the objects of the
+// sources it no longer lists, and what a stopped compile left.
+func TestRunDropsStaleObjects(t *testing.T) {
+	t.Parallel()
+
+	harness, bld := fakeHarness(t, C(), map[string]any{"module": "m", "sources": []any{"a.c"}},
+		map[string]string{"CC": "fakecc"})
+	objects := filepath.Join(harness.Context.Dirs.Work, "obj")
+
+	require.NoError(t, os.MkdirAll(objects, 0o700))
+
+	for _, name := range []string{"gone.c.12345678.o", "gone.c.12345678.o.d",
+		objectName("a.c") + ".tmp"} {
+		require.NoError(t, os.WriteFile(filepath.Join(objects, name), nil, 0o600))
+	}
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	entries, err := os.ReadDir(objects)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	assert.ElementsMatch(t, []string{objectName("a.c"), objectName("a.c") + ".d"}, names)
+}
+
+// failingCC is a compiler that fails with a message of the source of its -c.
+const failingCC = `#!/bin/sh
+while [ $# -gt 0 ]; do
+	if [ "$1" = -c ]; then echo "$2: error: broken" >&2; exit 1; fi
+	shift
+done
+`
+
+// TestRunFailedCompile checks that a failed compile fails the build with
+// what the compiler printed, the command and the source in its error, and
+// leaves no object and no module.
+func TestRunFailedCompile(t *testing.T) {
+	t.Parallel()
+
+	harness, bld := fakeHarness(t, C(), map[string]any{"module": "m", "sources": []any{"a.c"}},
+		map[string]string{"CC": "failingcc"})
+
+	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Tools, "failingcc"),
+		[]byte(failingCC), 0o700))
+
+	err := harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "compiling a.c: exit status 1")
+	assert.Contains(t, err.Error(), "failingcc -O2 -fPIC")
+	assert.Contains(t, err.Error(), "a.c: error: broken")
+
+	object := filepath.Join(harness.Context.Dirs.Work, "obj", objectName("a.c"))
+	assert.NoFileExists(t, object)
+	assert.NoFileExists(t, object+".tmp")
+	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Modules, "m.so"))
 }

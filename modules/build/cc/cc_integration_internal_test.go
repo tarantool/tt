@@ -3,9 +3,11 @@
 package cc
 
 import (
+	"debug/elf"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -16,25 +18,47 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
+// flatComponent is the component of the host tests: of no namespace, so
+// that the module of the output directory is required by its name, as the
+// tests load it.
+func flatComponent() build.Component {
+	comp := component()
+
+	comp.Namespace = ""
+
+	return comp
+}
+
 // hostHarness is a harness of a module component built against the host's
 // Tarantool, whose headers are includeDir, <prefix>/include/tarantool, with
-// the sources of sources in its working directory. It is a harness of c,
-// whose builds are those of lua-c, both making modules.
+// the sources of sources in its working directory, which may be in
+// directories of it. It is a harness of c, whose builds are those of lua-c,
+// both making modules.
 func hostHarness(t *testing.T, includeDir string, sources map[string]string) *buildtest.Harness {
 	t.Helper()
 
-	harness := buildtest.New(t, C(), component())
+	harness := buildtest.New(t, C(), flatComponent())
 
 	harness.SetTarantool(build.Tarantool{
 		Prefix: filepath.Dir(filepath.Dir(includeDir)), IncludeDir: includeDir, Version: "",
 	})
 
 	for name, body := range sources {
-		require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, name),
-			[]byte(body), 0o600))
+		writeSource(t, harness, name, body)
 	}
 
 	return harness
+}
+
+// writeSource writes body into the file name of the working directory of
+// harness.
+func writeSource(t *testing.T, harness *buildtest.Harness, name, body string) {
+	t.Helper()
+
+	path := filepath.Join(harness.Context.Dirs.Cwd, name)
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 }
 
 // hostBuild runs the build of the block rest of backend in harness and
@@ -45,7 +69,7 @@ func hostBuild(
 ) {
 	t.Helper()
 
-	bld, err := buildtest.Validate(backend, component(), block(rest, nil))
+	bld, err := buildtest.Validate(backend, flatComponent(), block(rest, nil))
 	require.NoError(t, err)
 
 	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
@@ -95,7 +119,7 @@ func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
 		"module": "warn", "sources": []any{"warn.c"}, "cflags": []any{"-Wall", "-Werror"},
 	}
 
-	bld, err := buildtest.Validate(C(), component(), block(rest, nil))
+	bld, err := buildtest.Validate(C(), flatComponent(), block(rest, nil))
 	require.NoError(t, err)
 
 	t.Setenv("CFLAGS", "")
@@ -167,5 +191,127 @@ func TestLuaCModuleLoadsInTarantool(t *testing.T) {
 			harness.Context.Dirs.Modules).CombinedOutput()
 		require.NoError(t, err, string(printed))
 		assert.Equal(t, "42", strings.TrimSpace(string(printed)), "static = %t", static)
+	}
+}
+
+// requireCXX skips the calling test when the C++ compiler the build takes,
+// $CXX or c++, is not in PATH.
+func requireCXX(t *testing.T) {
+	t.Helper()
+
+	name := os.Getenv("CXX")
+	if name == "" {
+		name = "c++"
+	}
+
+	_, err := exec.LookPath(name)
+	if err != nil {
+		t.Skipf("C++ compiler %q not found in PATH: %v", name, err)
+	}
+}
+
+// mixedSources are the sources of a lua-c module of C and C++: the entry
+// point in C, a function of C++ that uses std::vector and catches the
+// exception it throws, and one of the Lua API in C++, through lua.hpp.
+var mixedSources = map[string]string{
+	"mixed.c": `#include <lua.h>
+#include <lauxlib.h>
+
+int vec_sum(int n);
+int twice(lua_State *L);
+
+static int l_sum(lua_State *L) {
+	lua_pushinteger(L, vec_sum(luaL_checkint(L, 1)));
+	return 1;
+}
+
+int luaopen_mixed(lua_State *L) {
+	lua_newtable(L);
+	lua_pushcfunction(L, l_sum);
+	lua_setfield(L, -2, "sum");
+	lua_pushcfunction(L, twice);
+	lua_setfield(L, -2, "twice");
+	return 1;
+}
+`,
+	"cpp/vec.cpp": `#include <stdexcept>
+#include <vector>
+
+extern "C" int vec_sum(int n) {
+	std::vector<int> v;
+	for (int i = 1; i <= n; i++)
+		v.push_back(i);
+	try {
+		if (n < 0)
+			throw std::invalid_argument("negative");
+		(void)v.at(n);
+	} catch (const std::out_of_range &) {
+		int sum = 0;
+		for (int x : v)
+			sum += x;
+		return sum;
+	} catch (const std::exception &) {
+		return -1;
+	}
+	return 0;
+}
+`,
+	"cpp/twice.cc": `#include <lua.hpp>
+
+extern "C" int twice(lua_State *L) {
+	lua_pushinteger(L, 2 * luaL_checkinteger(L, 1));
+	return 1;
+}
+`,
+	"check.lua": "package.cpath = arg[1] .. '/?.so;' .. arg[1] .. '/?.dylib;' .. package.cpath\n" +
+		"local mixed = require('mixed')\n" +
+		"print(mixed.sum(10), mixed.sum(-1), mixed.twice(21))\nos.exit(0)\n",
+}
+
+// mixedBlock is the build block of the module of mixedSources.
+func mixedBlock() map[string]any {
+	return map[string]any{
+		"module":   "mixed",
+		"sources":  []any{"mixed.c", "cpp/vec.cpp", "cpp/twice.cc"},
+		"cflags":   []any{"-std=gnu99", "-Wall", "-Werror"},
+		"cxxflags": []any{"-std=c++17", "-Wall", "-Werror"},
+	}
+}
+
+// TestLuaCMixedModuleLoadsInTarantool builds a lua-c module of C and C++,
+// static and not, and loads it in the host's Tarantool: the C++ code runs,
+// its exceptions caught inside it. The static one needs no libstdc++ of
+// the system on Linux.
+func TestLuaCMixedModuleLoadsInTarantool(t *testing.T) {
+	t.Parallel()
+
+	includeDir, tarantool := requireHostHeaders(t)
+	requireCXX(t)
+
+	for _, static := range []bool{false, true} {
+		harness := hostHarness(t, includeDir, mixedSources)
+
+		harness.Context.Static = static
+
+		hostBuild(t, harness, LuaC(), mixedBlock(), "mixed")
+
+		printed, err := exec.CommandContext(t.Context(), tarantool,
+			filepath.Join(harness.Context.Dirs.Cwd, "check.lua"),
+			harness.Context.Dirs.Modules).CombinedOutput()
+		require.NoError(t, err, string(printed))
+		assert.Equal(t, "55\t-1\t42", strings.TrimSpace(string(printed)), "static = %t", static)
+
+		if static && runtime.GOOS == "linux" {
+			module, err := elf.Open(filepath.Join(harness.Context.Dirs.Modules, "mixed.so"))
+			require.NoError(t, err)
+
+			needed, err := module.ImportedLibraries()
+			require.NoError(t, module.Close())
+			require.NoError(t, err)
+
+			for _, library := range needed {
+				assert.NotContains(t, library, "libstdc++", "static = true")
+			}
+		}
 	}
 }
