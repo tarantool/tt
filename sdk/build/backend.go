@@ -9,11 +9,24 @@ import (
 // Result is a type of what a build makes. Each type has a directory of the
 // build ([Dirs.Of]), which the rock of the package installs to its place in
 // the rocks tree. One build may make results of every type.
+//
+// The set of types is closed, and it is the core's: a type is a place in
+// the layout of a rock - lib, share, bin - and of the rocks tree it is
+// installed into, which the core lays out, records and cleans, and which
+// the output field of a build block names (to = "lib", "share", "bin"). A
+// backend says which of the types it makes ([Backend.Produces]) and does
+// not add one: a backend with a type of its own is refused
+// ([Backend.Validate]). What a backend makes that is none of them, a .wasm
+// say, is a file of one of them, [Data]. A type a later SDK adds is a
+// constant of a value of its own, a directory of [Dirs] and an entry of
+// [Results]; the values of a type never change, so a Result may be stored
+// and compared as the string it is. A backend handles only the types it
+// produces, and so is not broken by a new one.
 type Result string
 
 const (
 	// Module is a file Tarantool loads as a module, a compiled one mostly:
-	// it goes to [Dirs.Output], lib/<namespace> of the rock.
+	// it goes to [Dirs.Modules], lib/<namespace> of the rock.
 	Module Result = "module"
 	// Data is a file Tarantool reads rather than loads, such as .wasm: it
 	// goes to [Dirs.Share], share/<namespace> of the rock, beside the Lua
@@ -138,7 +151,8 @@ type Component struct {
 	// and of no other. Nil when the manifest asks for none, as a manifest
 	// is to: the build makes what its block asks for. The core checks the
 	// backend, and what its build says it makes ([Producer]), against them
-	// before anything is built. A backend that picks what to build when its
+	// before anything is built, and what the build made after it ran. A
+	// backend that picks what to build when its
 	// block names nothing follows them: cargo and zig build the program
 	// named after the component when Wants is [Program] alone. The one form
 	// of a manifest that asks so far is deprecated, so a backend may leave
@@ -208,7 +222,7 @@ func FieldErrorf(field, format string, a ...any) error {
 // Build is a checked build block, ready to run.
 type Build interface {
 	// Run builds the component of c: in [Dirs.Cwd], each file it makes into
-	// the directory of its type - [Dirs.Output] for a module, [Dirs.Share]
+	// the directory of its type - [Dirs.Modules] for a module, [Dirs.Share]
 	// for data, [Dirs.Programs] for a program - keeping what it may reuse
 	// next time in [Dirs.Work]. The core takes as made what Run left in
 	// these directories, by their types, and what output lists

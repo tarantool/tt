@@ -74,7 +74,7 @@ type madeFiles struct {
 
 // paths are the files of made, absolute in dirs.
 func (made madeFiles) paths(dirs sdkbuild.Dirs) []string {
-	return slices.Concat(joinDir(dirs.Output, made.Modules), joinDir(dirs.Share, made.Data),
+	return slices.Concat(joinDir(dirs.Modules, made.Modules), joinDir(dirs.Share, made.Data),
 		joinDir(dirs.Programs, made.Programs))
 }
 
@@ -119,11 +119,11 @@ func (made madeFiles) only(results []sdkbuild.Result) madeFiles {
 	}
 }
 
-// madeIn is what of paths, absolute files of the stage, is in the output,
+// madeIn is what of paths, absolute files of the stage, is in the modules,
 // the share and the programs directories of dirs.
 func madeIn(dirs sdkbuild.Dirs, paths []string) madeFiles {
 	return madeFiles{
-		Modules: inDir(dirs.Output, paths), Data: inDir(dirs.Share, paths),
+		Modules: inDir(dirs.Modules, paths), Data: inDir(dirs.Share, paths),
 		Programs: inDir(dirs.Programs, paths),
 	}
 }
@@ -337,7 +337,7 @@ func checkMade(run componentRun, stage string, made madeFiles) error {
 
 	switch run.component.Kind {
 	case manifest.KindExecutable:
-		other := slices.Concat(joinDir(dirs.Output, made.Modules), joinDir(dirs.Share, made.Data))
+		other := slices.Concat(joinDir(dirs.Modules, made.Modules), joinDir(dirs.Share, made.Data))
 		if len(other) > 0 {
 			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w: %s", run.name,
 				errNotOnlyPrograms, strings.Join(inDir(stage, other), ", "))

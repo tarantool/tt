@@ -323,7 +323,7 @@ func (b cargoBuild) runModule(ctx context.Context, c *build.Context) error {
 		module = name
 	}
 
-	err = build.CopyFile(filepath.Join(c.Dirs.Output, module+c.Target.ModuleExt()), library)
+	err = build.CopyFile(filepath.Join(c.Dirs.Modules, module+c.Target.ModuleExt()), library)
 	if err != nil {
 		return fmt.Errorf("copy the library %q: %w", library, err)
 	}

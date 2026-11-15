@@ -246,7 +246,7 @@ func TestNewHook(t *testing.T) {
 
 	assert.True(t, facts.Hook)
 	assert.Empty(t, facts.Component.Name)
-	assert.Empty(t, facts.Dirs.Output)
+	assert.Empty(t, facts.Dirs.Modules)
 	assert.Empty(t, facts.Dirs.Work)
 	assert.Empty(t, facts.Dirs.Component)
 	assert.Equal(t, facts.Dirs.Project, facts.Dirs.Cwd)
@@ -279,7 +279,7 @@ func TestHarness(t *testing.T) {
 
 	require.NoError(t, harness.Run(t.Context(), touchBuild{file: "made.txt"}))
 
-	data, err := os.ReadFile(filepath.Join(harness.Context.Dirs.Output, "made.txt"))
+	data, err := os.ReadFile(filepath.Join(harness.Context.Dirs.Modules, "made.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "native\n", string(data))
 
@@ -365,12 +365,12 @@ func TestHarnessChecksWhatTheBuildMade(t *testing.T) {
 	require.ErrorIs(t, err, build.ErrNotProduced)
 	require.EqualError(t, err, `buildtest: the build made what its backend does not produce: `+
 		`backend "touch" makes no module: `+
-		filepath.Join(harness.Context.Dirs.Output, "made.so"))
+		filepath.Join(harness.Context.Dirs.Modules, "made.so"))
 
 	// A file that was there and that the build left alone is not one it made.
 	harness = buildtest.New(t, data, component())
 
-	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Output, "old.so"), nil,
+	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Modules, "old.so"), nil,
 		0o600))
 	require.NoError(t, harness.Run(t.Context(), dataBuild{}))
 }

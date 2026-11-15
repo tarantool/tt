@@ -335,7 +335,7 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	prefix := filepath.Join(c.Dirs.Work, prefixDir)
 
 	if b.module != "" {
-		err = copyModule(prefix, b.module, c.Dirs.Output, c.Target.ModuleExt())
+		err = copyModule(prefix, b.module, c.Dirs.Modules, c.Target.ModuleExt())
 		if err != nil {
 			return err
 		}

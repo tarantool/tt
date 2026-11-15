@@ -69,7 +69,7 @@ func (b genBuild) Run(_ context.Context, facts *sdkbuild.Context) error {
 	}
 
 	if err == nil {
-		err = os.WriteFile(filepath.Join(facts.Dirs.Output, b.config.Module), []byte("so"),
+		err = os.WriteFile(filepath.Join(facts.Dirs.Modules, b.config.Module), []byte("so"),
 			0o600)
 	}
 

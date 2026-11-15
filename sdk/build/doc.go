@@ -31,9 +31,11 @@
 // never call ([Backend.ValidateBuild]).
 //
 // What a build makes is typed ([Result]) by the directory it goes to: a
-// module into [Dirs.Output], data into [Dirs.Share], a program into
+// module into [Dirs.Modules], data into [Dirs.Share], a program into
 // [Dirs.Programs]. One build may make all three, and a backend says which
-// types its builds make ([Backend.Produces]). A backend copies what its
+// types its builds make ([Backend.Produces]). The three are the places of a
+// rock, and the set is the core's: a backend makes some of them and adds
+// none. A backend copies what its
 // tool built into these directories with [CopyFile]. The files of the
 // component - its Lua sources, by default - are laid out by the core, which
 // a backend whose sources are no files of the package switches off

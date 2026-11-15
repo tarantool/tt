@@ -269,7 +269,7 @@ func TestMakeRunsTargetIntoOutputDir(t *testing.T) {
 		0o600))
 
 	require.NoError(t, harness.Run(t.Context(), bld))
-	assert.FileExists(t, filepath.Join(facts.Dirs.Output, "mod.so"))
+	assert.FileExists(t, filepath.Join(facts.Dirs.Modules, "mod.so"))
 }
 
 func TestMakeCustomEntrypointAndFlags(t *testing.T) {
@@ -290,7 +290,7 @@ func TestMakeCustomEntrypointAndFlags(t *testing.T) {
 		0o600))
 
 	require.NoError(t, harness.Run(t.Context(), bld))
-	assert.FileExists(t, filepath.Join(facts.Dirs.Output, "custom.so"))
+	assert.FileExists(t, filepath.Join(facts.Dirs.Modules, "custom.so"))
 }
 
 func TestShellWritesToOutputDir(t *testing.T) {
@@ -307,7 +307,7 @@ func TestShellWritesToOutputDir(t *testing.T) {
 
 	require.NoError(t, harness.Run(t.Context(), bld))
 
-	got, err := os.ReadFile(filepath.Join(harness.Context.Dirs.Output, "artifact.txt"))
+	got, err := os.ReadFile(filepath.Join(harness.Context.Dirs.Modules, "artifact.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "native", string(got))
 }
@@ -327,7 +327,7 @@ func TestShellRunsInCwd(t *testing.T) {
 	require.NoError(t, harness.Run(t.Context(), bld))
 	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Cwd, "artifact.so"))
 	// The core copies what output lists, not the backend.
-	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Output, "artifact.so"))
+	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Modules, "artifact.so"))
 }
 
 func TestShellNonZeroExitIsError(t *testing.T) {

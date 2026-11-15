@@ -49,7 +49,7 @@ func hostBuild(
 	require.NoError(t, err)
 
 	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
-	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Output,
+	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Modules,
 		module+harness.Context.Target.ModuleExt()))
 }
 
@@ -167,7 +167,7 @@ func TestLuaCModuleLoadsInTarantool(t *testing.T) {
 
 		printed, err := exec.CommandContext(t.Context(), tarantool,
 			filepath.Join(harness.Context.Dirs.Cwd, "check.lua"),
-			harness.Context.Dirs.Output).CombinedOutput()
+			harness.Context.Dirs.Modules).CombinedOutput()
 		require.NoError(t, err, string(printed))
 		assert.Equal(t, "42", strings.TrimSpace(string(printed)), "static = %t", static)
 	}

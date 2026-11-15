@@ -220,7 +220,7 @@ func TestCopyOutputs(t *testing.T) {
 		require.ErrorIs(t, err, errMissingOutput)
 		assert.Contains(t, err.Error(), `output "m2.so", "dir": not in the cmake build tree `+
 			tree)
-		assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Output, "m.so"))
+		assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Modules, "m.so"))
 	})
 
 	tests := []struct {
@@ -361,7 +361,7 @@ func TestBuildsAModule(t *testing.T) {
 	harness := answerHarness(t)
 	bld := answerBuild(t, "lib/answer.so", "answer")
 	dirs := harness.Context.Dirs
-	built := filepath.Join(dirs.Output, "answer"+harness.Context.Target.ModuleExt())
+	built := filepath.Join(dirs.Modules, "answer"+harness.Context.Target.ModuleExt())
 
 	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
 

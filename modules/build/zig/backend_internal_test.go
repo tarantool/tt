@@ -389,7 +389,7 @@ func TestRunCopiesTheModuleAndTheProgram(t *testing.T) {
 		"-Dapi=3", "-Dverify-cabi=true",
 	}, readLines(t, log+".args"))
 
-	data, err := os.ReadFile(filepath.Join(facts.Dirs.Output, "hello"+facts.Target.ModuleExt()))
+	data, err := os.ReadFile(filepath.Join(facts.Dirs.Modules, "hello"+facts.Target.ModuleExt()))
 	require.NoError(t, err)
 	assert.Equal(t, "hello\n", string(data))
 
@@ -397,7 +397,7 @@ func TestRunCopiesTheModuleAndTheProgram(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "client\n", string(data))
 
-	assert.NoFileExists(t, filepath.Join(facts.Dirs.Output, "hello-client"))
+	assert.NoFileExists(t, filepath.Join(facts.Dirs.Modules, "hello-client"))
 	assert.NoDirExists(t, filepath.Join(facts.Dirs.Component, "zig-out"))
 	assert.Equal(t, "installing\n", harness.Printed())
 }
@@ -529,7 +529,7 @@ func TestRunFindsTheModule(t *testing.T) {
 			require.NoError(t, harness.Run(t.Context(), validate(t, component(),
 				map[string]any{"module": module}, false)))
 
-			path := filepath.Join(append([]string{facts.Dirs.Output},
+			path := filepath.Join(append([]string{facts.Dirs.Modules},
 				strings.Split(module, ".")...)...) + facts.Target.ModuleExt()
 
 			data, err := os.ReadFile(path)
@@ -581,7 +581,7 @@ func TestRunOfAFailedBuild(t *testing.T) {
 		false))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "running zig build")
-	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Output,
+	assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Modules,
 		"hello"+harness.Context.Target.ModuleExt()))
 }
 

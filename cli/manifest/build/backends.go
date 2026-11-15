@@ -92,7 +92,7 @@ func (b builder) component(name string) (componentRun, error) {
 		Component: resolveDir(b.proj.dir, component.Path),
 		Cwd:       backendCwd(b.proj.dir, component),
 		Work:      componentBuildDir(b.proj.stateDir, name),
-		Output:    componentOutputDir(b.stage, target.Namespace),
+		Modules:   componentOutputDir(b.stage, target.Namespace),
 		Share:     componentShareDir(b.stage, target.Namespace),
 		Programs:  filepath.Join(b.stage, rocktree.StageBin),
 		State:     b.proj.stateDir,
@@ -100,7 +100,7 @@ func (b builder) component(name string) (componentRun, error) {
 		Tree:      filepath.Join(b.opts.ProjectDir, rocksDirName),
 	}
 
-	outputDir := dirs.Output
+	outputDir := dirs.Modules
 	if component.ProgramsOnly() {
 		outputDir = dirs.Programs
 	}
@@ -156,7 +156,7 @@ func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Conte
 		Component: "",
 		Cwd:       resolveDir(b.proj.dir, hook.Cwd),
 		Work:      "",
-		Output:    "",
+		Modules:   "",
 		Share:     "",
 		Programs:  "",
 		State:     b.proj.stateDir,
@@ -425,7 +425,7 @@ func (b builder) runComponent(
 	}
 
 	if static {
-		err = checkStaticModule(b.opts, run.name, moduleFiles(run.context.Dirs.Output,
+		err = checkStaticModule(b.opts, run.name, moduleFiles(run.context.Dirs.Modules,
 			made.Modules, compAbsPath, laidOut))
 		if err != nil {
 			return madeFiles{}, false, err
@@ -450,7 +450,7 @@ func (b builder) runComponent(
 }
 
 // runWritingBackend runs the backend of a component and returns what it
-// made, by type: what it wrote into its output and share directories,
+// made, by type: what it wrote into its modules and share directories,
 // relative to each (writtenFiles) - the files it created or changed, and
 // those of recorded, which an earlier build wrote, that are still there, as
 // a make target that is up to date writes nothing - and the programs it put
@@ -461,7 +461,7 @@ func runWritingBackend(ctx context.Context, run componentRun, recorded madeFiles
 	dirs := run.context.Dirs
 
 	stamp := func() (map[string]fileStamp, map[string]fileStamp, error) {
-		output, err := stampTree(dirs.Output)
+		modules, err := stampTree(dirs.Modules)
 		if err != nil {
 			return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
 		}
@@ -471,10 +471,10 @@ func runWritingBackend(ctx context.Context, run componentRun, recorded madeFiles
 			return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
 		}
 
-		return output, share, nil
+		return modules, share, nil
 	}
 
-	outputBefore, shareBefore, err := stamp()
+	modulesBefore, shareBefore, err := stamp()
 	if err != nil {
 		return madeFiles{}, err
 	}
@@ -489,7 +489,7 @@ func runWritingBackend(ctx context.Context, run componentRun, recorded madeFiles
 		return madeFiles{}, err
 	}
 
-	outputAfter, shareAfter, err := stamp()
+	modulesAfter, shareAfter, err := stamp()
 	if err != nil {
 		return madeFiles{}, err
 	}
@@ -500,20 +500,20 @@ func runWritingBackend(ctx context.Context, run componentRun, recorded madeFiles
 	}
 
 	return madeFiles{
-		Modules:  writtenFiles(outputBefore, outputAfter, recorded.Modules),
+		Modules:  writtenFiles(modulesBefore, modulesAfter, recorded.Modules),
 		Data:     writtenFiles(shareBefore, shareAfter, recorded.Data),
 		Programs: programs,
 	}, nil
 }
 
-// runComponentBackend runs the build of a component: it creates the output,
-// share and programs directories, runs the build and, for a backend whose
-// output the core copies (sdkbuild.OutputCwd), copies the files output lists
-// from the working directory into the directories of their types.
+// runComponentBackend runs the build of a component: it creates the
+// modules, share and programs directories, runs the build and, for a backend
+// whose output the core copies (sdkbuild.OutputCwd), copies the files output
+// lists from the working directory into the directories of their types.
 func runComponentBackend(ctx context.Context, run componentRun) error {
 	dirs := run.context.Dirs
 
-	err := makeDirs(dirs.Output, dirs.Share, dirs.Programs)
+	err := makeDirs(dirs.Modules, dirs.Share, dirs.Programs)
 	if err == nil {
 		err = run.build.Run(ctx, run.context)
 	}
@@ -576,7 +576,7 @@ func outputPaths(outputs []sdkbuild.OutputFile) []string {
 // whether its build can be skipped: they are those of its last build, and
 // what that build left is still there - the files its output lists, the
 // files of the component the layout took and the files it made into its
-// output, share and programs directories. The files output lists are copied
+// modules, share and programs directories. The files output lists are copied
 // into their directories before the last are looked for, as the build itself
 // copies them (sdkbuild.OutputCwd): the tree may have been cleared since.
 func (b builder) skipUnchanged(ctx context.Context, run componentRun) (
@@ -616,7 +616,7 @@ func (b builder) skipUnchanged(ctx context.Context, run componentRun) (
 			err)
 	}
 
-	if !allPresent(dirs.Output, last.Written) || !allPresent(dirs.Share, last.Shared) ||
+	if !allPresent(dirs.Modules, last.Written) || !allPresent(dirs.Share, last.Shared) ||
 		!allPresent(dirs.Programs, last.Programs) {
 		return state, false, nil
 	}

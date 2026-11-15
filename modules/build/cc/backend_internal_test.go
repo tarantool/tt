@@ -283,7 +283,7 @@ func TestRun(t *testing.T) {
 
 		require.NoError(t, harness.Run(t.Context(), bld))
 
-		out := filepath.Join(facts.Dirs.Output, "a.b"+facts.Target.ModuleExt())
+		out := filepath.Join(facts.Dirs.Modules, "a.b"+facts.Target.ModuleExt())
 		assert.FileExists(t, out)
 
 		args, err := os.ReadFile(filepath.Join(facts.Dirs.Work, "args"))
