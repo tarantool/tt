@@ -270,7 +270,7 @@ The backends above are those of `build`, a standard module of tt
 (`modules/build` of its repository): the core has none of its own, and the
 official tt, and every distribution that takes the standard modules, has
 them. A module tt is built with may provide more (see
-[Provide a build backend](../how-to/write-a-module.md#provide-a-build-backend)),
+[Write a build backend](../how-to/write-a-build-backend.md)),
 with fields of their own, which are checked as those of `build` are, and
 builds that run through the same steps: before anything is built, in the
 environment below, and laid out, recorded and skipped by `incremental` as
