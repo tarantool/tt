@@ -1,5 +1,18 @@
 package sdk
 
+import (
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+
+	"github.com/tarantool/tt/sdk/build"
+)
+
+// errOtherBackend reports a build block ManifestBuild.Decode is given the
+// backend of another block.
+var errOtherBackend = errors.New("the block is of another backend")
+
 // Dependency is a rock to declare in the manifest of a project
 // ([Project.AddDependency]).
 type Dependency struct {
@@ -27,14 +40,18 @@ type Dependency struct {
 	Registries []string
 }
 
-// DependencyChange is what [Project.AddDependency] did.
+// DependencyChange is what [Project.AddDependency] and
+// [Project.RemoveDependency] did.
 type DependencyChange struct {
 	// Existed reports that the table the dependency went to declared the
-	// name already.
+	// name already; for a removal, that it was declared, which it is to be.
 	Existed bool
 	// Previous is the version constraint the declaration carried before,
 	// when Existed.
 	Previous string
+	// PreviousRegistry is the registry the declaration named before, when
+	// Existed: "" for one that named none.
+	PreviousRegistry string
 	// Moves are the rocks whose locked version changed, across the closures
 	// of every product and the development closure, in name order. They
 	// are versions, not constraints: a declaration the lock satisfied
@@ -53,10 +70,27 @@ type DependencyMove struct {
 	To string
 }
 
+// ResolveOptions are how [Project.Resolve] and [Project.RemoveDependency]
+// resolve the lock of a project.
+type ResolveOptions struct {
+	// Registries are the rock servers to resolve with, as
+	// [Dependency.Registries] are.
+	Registries []string
+}
+
+// ResolveChange is what [Project.Resolve] did.
+type ResolveChange struct {
+	// Moves are the rocks whose locked version changed, as
+	// [DependencyChange.Moves] are.
+	Moves []DependencyMove
+}
+
 // Manifest is what the app.manifest.toml of a project declares, as it
 // declares it ([Project.Manifest]): the paths are as they are written,
 // relative to the project. It is a copy: changing it changes nothing.
 type Manifest struct {
+	// Package is the name of the package, [package].name.
+	Package string
 	// Dependencies are the rocks of [dependencies], by name.
 	Dependencies map[string]ManifestDependency
 	// DevDependencies are the rocks of [dev_dependencies], by name.
@@ -83,6 +117,16 @@ type ManifestDependency struct {
 type ManifestComponent struct {
 	// Path is the directory of the component, relative to the project.
 	Path string
+	// Include and Exclude are the patterns of what of the directory the
+	// component lays out into the package, as they are written; none for
+	// the default.
+	Include []string
+	Exclude []string
+	// Namespace is where the files and the modules of the component go in
+	// the package, under .rocks/share/tarantool/ and .rocks/lib/tarantool/:
+	// the package name, unless the manifest names another, and "" for the
+	// top level.
+	Namespace string
 	// Build is its build block; nil for a component that builds nothing.
 	Build *ManifestBuild
 }
@@ -94,6 +138,122 @@ type ManifestBuild struct {
 	// Cwd is the working directory of the build, relative to the project;
 	// "" for the directory of the component.
 	Cwd string
+	// Env are the variables the block adds to the environment of the build.
+	Env map[string]string
+	// Output are the files of output, in their order: one written alone,
+	// output = "dist/calc.wasm", is the one entry.
+	Output []ManifestOutput
+	// Incremental and Static are the incremental and static of the block,
+	// false when it says nothing.
+	Incremental bool
+	Static      bool
+	// Fields are the other fields of the block, those of its backend, by
+	// key, as the TOML decoder reads them: a table is a map[string]any, an
+	// array a []any, an integer an int64 and a float a float64. Nil when
+	// there are none. [ManifestBuild.Decode] decodes them as the core does.
+	Fields map[string]any
+}
+
+// ManifestOutput is an entry of the output of a build block.
+type ManifestOutput struct {
+	// Path is the file, relative to where the backend takes it from: the
+	// working directory of the build for a backend whose output the core
+	// copies ([build.OutputCwd]).
+	Path string
+	// To is where the entry says the file goes: "lib", "share" or "bin",
+	// and "" for an entry that says nothing, whose place is that of the one
+	// type of a backend that produces one, and lib otherwise
+	// ([build.OutputFile.To]).
+	To string
+}
+
+// Decode decodes the fields of the block, [ManifestBuild.Fields], into a
+// fresh configuration of backend with the decoder of the core
+// ([build.Backend.Decode]): what the core gives backend.New when it builds
+// the component, for a command of the module of backend that reads the
+// block it builds, such as tt wasm status. It is strict: a field the
+// configuration has no place for is an error, a [*build.FieldError] naming
+// it, where the core warns of one that a newer manifest format may have. A
+// block of another backend is an error too.
+func (b ManifestBuild) Decode(backend build.Backend) (any, error) {
+	if b.Backend != backend.Name {
+		return nil, fmt.Errorf("%w: %q, not %q", errOtherBackend, b.Backend, backend.Name)
+	}
+
+	cfg, unknown, err := backend.Decode(b.Fields)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(unknown) > 0 {
+		return nil, build.FieldErrorf(unknown[0], "unknown field of backend %q", backend.Name)
+	}
+
+	return cfg, nil
+}
+
+// clone returns a copy of b that shares no map or slice with it, the values
+// of Fields included.
+func (b ManifestBuild) clone() ManifestBuild {
+	b.Env = maps.Clone(b.Env)
+	b.Output = slices.Clone(b.Output)
+
+	if b.Fields != nil {
+		fields, _ := cloneValue(b.Fields).(map[string]any)
+
+		b.Fields = fields
+	}
+
+	return b
+}
+
+// Clone returns a copy of m that shares no map or slice with it: a module
+// may change it as it likes.
+func (m Manifest) Clone() Manifest {
+	clone := Manifest{
+		Package:         m.Package,
+		Dependencies:    maps.Clone(m.Dependencies),
+		DevDependencies: maps.Clone(m.DevDependencies),
+		Components:      make(map[string]ManifestComponent, len(m.Components)),
+	}
+
+	for name, component := range m.Components {
+		component.Include = slices.Clone(component.Include)
+		component.Exclude = slices.Clone(component.Exclude)
+
+		if component.Build != nil {
+			build := component.Build.clone()
+
+			component.Build = &build
+		}
+
+		clone.Components[name] = component
+	}
+
+	return clone
+}
+
+// cloneValue returns a deep copy of a value of a TOML tree: maps and slices
+// are copied, other values are returned as they are.
+func cloneValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(value))
+		for key, item := range value {
+			out[key] = cloneValue(item)
+		}
+
+		return out
+	case []any:
+		out := make([]any, 0, len(value))
+		for _, item := range value {
+			out = append(out, cloneValue(item))
+		}
+
+		return out
+	default:
+		return value
+	}
 }
 
 // Component is a component to declare in the manifest of a project
@@ -112,15 +272,6 @@ type Component struct {
 	Include []string
 	// Build is the build block of the component; nil declares none.
 	Build *ComponentBuild
-	// Registries are the rock servers the lock is resolved with afterwards,
-	// as [Dependency.Registries] are.
-	Registries []string
-	// OnDeclared, when set, is called once the manifest is written with the
-	// component and before the lock is resolved again: a command that tells
-	// the user of each of its steps says there that the component is
-	// declared, ahead of what the resolution logs. It is not called when
-	// nothing is written.
-	OnDeclared func()
 }
 
 // ComponentBuild is the build block of a [Component].
@@ -128,27 +279,150 @@ type ComponentBuild struct {
 	// Backend is the backend that builds the component. Required.
 	Backend string
 	// Fields are the other fields of the block, in the order they are
-	// written after backend: the fields every block has, such as cwd and
-	// incremental, and those of the backend.
+	// written after backend: the fields every block has, such as cwd,
+	// output and incremental, and those of the backend.
 	Fields []BuildField
 }
 
-// BuildField is a field of a build block: its key and its value, a string,
-// a bool, an int or a []string.
+// BuildField is a field of a table of a manifest a project writes: its key
+// and its value, a string, a bool, an integer, a slice of them or a map
+// with string keys of them, written on one line - a map as an inline table
+// in the order of its keys. output = "dist/calc.wasm" is
+// {Key: "output", Value: "dist/calc.wasm"}, and
+// {Key: "output", Value: []map[string]string{{"path": "build/tool", "to": "bin"}}}
+// writes output = [{ path = "build/tool", to = "bin" }].
 type BuildField struct {
 	Key   string
 	Value any
 }
 
-// ComponentChange is what [Project.AddComponent] did.
-type ComponentChange struct {
-	// Declared reports that the manifest was written with the component. It
-	// is set with the error of a resolution of the lock that failed too: the
-	// component stays declared.
-	Declared bool
-	// Moves are the rocks whose locked version changed, as
-	// [DependencyChange.Moves] are.
-	Moves []DependencyMove
+// ComponentUpdate is a change of a component the manifest of a project
+// declares ([Project.UpdateComponent]).
+type ComponentUpdate struct {
+	// Name is the name of the component. Required.
+	Name string
+	// Fields are fields of [components.<Name>] to write, such as path,
+	// include and namespace: a field there has its value replaced where it
+	// is written, another is added after the last field of the table.
+	Fields []BuildField
+	// Build are fields of its build block to write, as Fields are; a
+	// component without a build block gets one, which is then to name its
+	// backend.
+	Build []BuildField
+	// Remove are the keys to remove first: a field of the component
+	// ("include"), a field of its build block ("build.cwd"), or the build
+	// block with its tables ("build"). A key the component does not have
+	// is no error.
+	Remove []string
+}
+
+// LockFile is what the app.manifest.lock of a project pins
+// ([Project.ReadLock]).
+type LockFile struct {
+	// Fresh reports that the lock is that of the manifest as it is: a
+	// build of the project resolves nothing, and tt package build --locked
+	// takes it.
+	Fresh bool
+	// Reason says why the lock is not fresh, "" when it is.
+	Reason string
+	// DefaultProduct is the product a build builds when it is not named
+	// one.
+	DefaultProduct string
+	// Products are the closures of the products, by product, each the
+	// rocks it pins by name.
+	Products map[string]map[string]LockedRock
+	// DevDependencies is the closure of [dev_dependencies], by name.
+	DevDependencies map[string]LockedRock
+}
+
+// LockedRock is a rock a lock pins.
+type LockedRock struct {
+	// Version is the exact version, such as "0.1.0-1".
+	Version string
+	// Path is the directory of a path dependency, as the lock has it; ""
+	// for a rock of a rock server.
+	Path string
+}
+
+// Locked returns the rock named name as the closure of the default product
+// pins it, or the development closure when that one does not, and whether
+// either does: what [build.Context.LockedVersion] answers in a build of the
+// default product.
+func (l LockFile) Locked(name string) (LockedRock, bool) {
+	if rock, ok := l.Products[l.DefaultProduct][name]; ok {
+		return rock, true
+	}
+
+	rock, ok := l.DevDependencies[name]
+
+	return rock, ok
+}
+
+// BuildOptions are what [Project.Build] builds, as the flags of
+// tt package build choose it.
+type BuildOptions struct {
+	// Product is the product to build; "" for the default one.
+	Product string
+	// Components narrow the build to these components of the product,
+	// built in its order; none builds every component of the product. tt
+	// package build NAME is Components: []string{"NAME"}.
+	Components []string
+	// Locked fails the build on a lock that is stale, instead of resolving
+	// it again, as --locked does.
+	Locked bool
+	// Rebuild builds the incremental components whatever they recorded,
+	// each from an empty TT_BUILD_DIR, as --rebuild does.
+	Rebuild bool
+	// Registries are the rock servers to resolve and install with, as
+	// [Dependency.Registries] are.
+	Registries []string
+	// ShowOutput shows what the tools of the builds print as they run, as
+	// tt -V does, which shows it anyway; without it what a tool printed is
+	// shown when it fails.
+	ShowOutput bool
+	// Args are passed through to the build of the one component
+	// Components names, as [build.Context.Args], for its tool: what follows
+	// -- of tt wasm build calc -- -opt=2. With any, Components is to name
+	// exactly one component.
+	Args []string
+}
+
+// BuildResult is what [Project.Build] built.
+type BuildResult struct {
+	// Product is the product built, the default one selected.
+	Product string
+	// Version is the version of the package, as TT_VERSION gives it.
+	Version string
+	// Components are the components with a build block the build built or
+	// found up to date, by name.
+	Components map[string]BuiltComponent
+}
+
+// BuiltComponent is what the build of a component made, by type, as
+// absolute paths in .rocks of the project, where the build installed it:
+// the modules in lib/tarantool/<namespace>/, the data files in
+// share/tarantool/<namespace>/, the programs in bin/.
+type BuiltComponent struct {
+	Modules  []string
+	Data     []string
+	Programs []string
+	// UpToDate reports an incremental build that was skipped: its inputs
+	// were those of its last build, and what that made was there.
+	UpToDate bool
+}
+
+// BuildContextOptions are the build whose Context [Project.BuildContext]
+// returns.
+type BuildContextOptions struct {
+	// Product is the product the component is built for; "" for the
+	// default one.
+	Product string
+	// Component is the component. Required: it is to have a build block.
+	Component string
+	// Locked is [build.Context.Locked].
+	Locked bool
+	// Args are [build.Context.Args].
+	Args []string
 }
 
 // IndexOptions are how [Rocks.Index] indexes a rock server.

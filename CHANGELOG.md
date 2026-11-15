@@ -266,10 +266,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The SDK gives a module the project it works on as tt package works on it,
   where only the core could: `Project().Root()`, the project the directory
   of the command is in, as the project commands of tt find it;
-  `Project().Manifest()`, what its manifest declares, the dependencies and
-  the components; `Project().AddComponent()`, which appends a component to
-  the manifest, every other line kept, checks it with the backends of the
-  tt and resolves the lock again; `Project().StateDir()`, its
+  `Project().Manifest()`, what its manifest declares, the package, the
+  dependencies and the components with their build blocks whole - the
+  common fields and those of the backend, which `ManifestBuild.Decode`
+  decodes into the configuration of the backend as the core does;
+  `Project().AddComponent()`, which appends a component to the manifest,
+  every other line kept, and checks it with the backends of the tt,
+  `UpdateComponent()`, which changes its fields where they are written, and
+  `RemoveComponent()`, none of which resolves the lock or needs a Tarantool;
+  `Project().Resolve()`, which resolves the lock as `tt package resolve`
+  does, without a Tarantool as a build does when there is none;
+  `Project().ReadLock()`, what the lock pins and whether it is fresh;
+  `Project().RemoveDependency()`, as `tt package remove`;
+  `Project().Build()`, which builds the package or the components it names
+  with the code of `tt package build`, arguments passed through to the
+  build of one component (`Context.Args`), and says what each made and
+  whether it was up to date; and `Project().BuildContext()`, the Context a
+  build of a component runs in, with nothing built, for a command that runs
+  the tools of its backend; `Project().StateDir()`, its
   `.tarantool`; `Project().PrepareEnvironment()`, which writes
   `.env/activate.sh` as the first `tt binary install` into the project
   does; and `Rocks().Index()`, which makes a directory a rock server with
@@ -279,10 +293,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   core writes its programs through it. `Project().AddDependency()` and
   `Install()` work on `Root()`, where they worked on the directory of the
   command and failed below the root of a project; `tt emmylua prepare`,
-  which runs in the root, is as it was. `sdk/sdktest` fakes all of it.
-  `OnDeclared` of the component `AddComponent` declares is called once the
-  manifest is written and before the lock is resolved again, for a command
-  that reports its steps.
+  which runs in the root, is as it was. `AddDependency()` of a dependency
+  with a registry over a declaration there sets its version and its
+  registry, where it left the declaration as it was, and reports the
+  registry it had; `tt wasm prepare` and `tt emmylua prepare` keep a
+  declaration there as before, reading the manifest first. `tt wasm new`
+  needs no Tarantool any more. `sdk/sdktest` fakes all of it.
 - A component makes what its build makes, any of a module, a data file and
   a program at once, where a component was of one kind: one `cargo`
   component of a package with a library and a binary builds both,

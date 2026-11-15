@@ -146,18 +146,18 @@ func TestComponentOf(t *testing.T) {
 			{Key: "args", Value: []string{"all"}},
 			{Key: "incremental", Value: true},
 		}},
-		Registries: nil,
-		OnDeclared: nil,
 	}, component)
 
-	change, err := services.Project().AddComponent(t.Context(), component)
-	require.NoError(t, err)
-	assert.True(t, change.Declared)
+	require.NoError(t, services.Project().AddComponent(t.Context(), component))
 
 	man, err := services.Project().Manifest()
 	require.NoError(t, err)
 	assert.Equal(t, sdk.ManifestComponent{
-		Path: "wasm/api", Build: &sdk.ManifestBuild{Backend: "shell", Cwd: ""},
+		Path: "wasm/api", Include: []string{"dist/api.wasm"}, Exclude: nil, Namespace: "",
+		Build: &sdk.ManifestBuild{
+			Backend: "shell", Cwd: "", Env: nil, Output: nil, Incremental: true, Static: false,
+			Fields: map[string]any{"command": "tarawasm", "args": []any{"all"}},
+		},
 	}, man.Components["api"])
 }
 
@@ -176,10 +176,15 @@ func TestNewComponentChecksTheProject(t *testing.T) {
 			Template: "", Fetcher: Fetcher{CacheDir: "", Client: nil},
 			Tarawasm: Tarawasm{Python: "", Source: "", Reinstall: false, Output: nil, binDir: ""},
 			Manifest: func() (sdk.Manifest, error) { return man, nil },
-			AddComponent: func(_ context.Context, _ sdk.Component) (sdk.ComponentChange, error) {
+			AddComponent: func(_ context.Context, _ sdk.Component) error {
 				t.Fatal("nothing is declared")
 
-				return sdk.ComponentChange{Declared: false, Moves: nil}, nil
+				return nil
+			},
+			Resolve: func(context.Context) error {
+				t.Fatal("nothing is resolved")
+
+				return nil
 			},
 			Progress: nil,
 		}

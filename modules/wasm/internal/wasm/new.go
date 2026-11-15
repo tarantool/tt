@@ -47,9 +47,12 @@ type NewOptions struct {
 	Tarawasm Tarawasm
 	// Manifest reads the manifest of the project.
 	Manifest ReadManifest
-	// AddComponent declares the component in the manifest and re-resolves
-	// the lock, as the project of the SDK does ([sdk.Project.AddComponent]).
-	AddComponent func(ctx context.Context, component sdk.Component) (sdk.ComponentChange, error)
+	// AddComponent declares the component in the manifest, as the project
+	// of the SDK does ([sdk.Project.AddComponent]).
+	AddComponent func(ctx context.Context, component sdk.Component) error
+	// Resolve resolves the lock again, which the declaration made stale
+	// ([sdk.Project.Resolve]).
+	Resolve func(ctx context.Context) error
 	// Progress receives one line per step.
 	Progress io.Writer
 }
@@ -75,8 +78,8 @@ type NewReport struct {
 //  2. has tarawasm create the project of the component, on the SDK of the
 //     wasm release the package declares, leaving the module to the rock;
 //  3. writes its .gitignore, of what tarawasm generates;
-//  4. declares it in the manifest, built by tarawasm all, and re-resolves the
-//     lock (opts.AddComponent).
+//  4. declares it in the manifest, built by tarawasm all (opts.AddComponent),
+//     and re-resolves the lock (opts.Resolve).
 //
 // The project has to have been prepared: tarawasm comes from tt wasm prepare.
 func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
@@ -161,18 +164,19 @@ func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
 		}
 	}
 
-	// The line on the declaration goes between the write and the
-	// resolution, ahead of what the resolution warns of; an error of the
-	// resolution says itself that the lock was not resolved again.
-	declared := componentOf(opts.Name, dir, report.Output)
-
-	declared.OnDeclared = func() {
-		progressf(prepare, "declared component %s in %s", opts.Name, manifestFileName)
-	}
-
-	_, err = opts.AddComponent(ctx, declared)
+	err = opts.AddComponent(ctx, componentOf(opts.Name, dir, report.Output))
 	if err != nil {
 		return nil, err
+	}
+
+	// The line on the declaration goes between the write and the
+	// resolution, ahead of what the resolution warns of.
+	progressf(prepare, "declared component %s in %s", opts.Name, manifestFileName)
+
+	err = opts.Resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("component %s is declared, but the lock was not resolved "+
+			"again: %w", opts.Name, err)
 	}
 
 	return report, nil
@@ -192,8 +196,6 @@ func componentOf(name, dir, output string) sdk.Component {
 			{Key: "args", Value: []string{"all"}},
 			{Key: "incremental", Value: true},
 		}},
-		Registries: nil,
-		OnDeclared: nil,
 	}
 }
 

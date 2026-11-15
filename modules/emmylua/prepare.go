@@ -137,6 +137,19 @@ func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 		From:       c.from,
 		RockServer: c.rockServer,
 		Declare: func(ctx context.Context, name, constraint, registry string) (bool, error) {
+			// A declaration there is someone's choice of the version and the
+			// server, and is kept: the lock is resolved against it.
+			if declaredForDevelopment(project, name) {
+				change, err := project.Resolve(ctx, sdk.ResolveOptions{Registries: c.registries})
+				if err != nil {
+					return true, err
+				}
+
+				moves = change.Moves
+
+				return true, nil
+			}
+
 			change, err := project.AddDependency(ctx, sdk.Dependency{
 				Name:       name,
 				Constraint: constraint,
@@ -174,6 +187,19 @@ func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 	_, _ = fmt.Fprintln(streams.Out, "next: tt emmylua check")
 
 	return nil
+}
+
+// declaredForDevelopment reports whether the manifest of project declares
+// the rock name in [dev_dependencies].
+func declaredForDevelopment(project sdk.Project, name string) bool {
+	man, err := project.Manifest()
+	if err != nil {
+		return false
+	}
+
+	_, ok := man.DevDependencies[name]
+
+	return ok
 }
 
 // printMoves reports the changes of the lock to out one per line, as

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk"
+	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 )
@@ -105,11 +106,17 @@ path = '.'
 
 [components.router]
 path = 'router'
+include = ['dist/router.wasm']
+namespace = 'wasm'
 
 [components.router.build]
 backend = 'shell'
 command = 'tarawasm'
+args = ['all']
 cwd = 'router/src'
+env = { PROFILE = 'release' }
+output = 'dist/router.wasm'
+incremental = true
 `
 
 // TestProjectManifest checks what a module reads of the manifest, and the
@@ -122,6 +129,7 @@ func TestProjectManifest(t *testing.T) {
 	manifest, err := project.Manifest()
 	require.NoError(t, err)
 	assert.Equal(t, sdk.Manifest{
+		Package: "app",
 		Dependencies: map[string]sdk.ManifestDependency{
 			"checks": {Version: ">=3.0.0", Registry: "", Path: ""},
 			"wasm":   {Version: "0.1.0", Registry: ".tarantool/registry", Path: ""},
@@ -131,12 +139,55 @@ func TestProjectManifest(t *testing.T) {
 			"luatest": {Version: "1.0.1", Registry: "", Path: ""},
 		},
 		Components: map[string]sdk.ManifestComponent{
-			"lua": {Path: ".", Build: nil},
+			"lua": {Path: ".", Include: nil, Exclude: nil, Namespace: "app", Build: nil},
 			"router": {
-				Path: "router", Build: &sdk.ManifestBuild{Backend: "shell", Cwd: "router/src"},
+				Path: "router", Include: []string{"dist/router.wasm"}, Exclude: nil,
+				Namespace: "wasm",
+				Build: &sdk.ManifestBuild{
+					Backend: "shell", Cwd: "router/src",
+					Env:         map[string]string{"PROFILE": "release"},
+					Output:      []sdk.ManifestOutput{{Path: "dist/router.wasm", To: ""}},
+					Incremental: true, Static: false,
+					Fields: map[string]any{"command": "tarawasm", "args": []any{"all"}},
+				},
 			},
 		},
 	}, manifest)
+
+	// A copy: what a module changes in it is not the next one.
+	manifest.Components["router"].Build.Fields["command"] = "changed"
+	manifest.Components["router"].Build.Env["PROFILE"] = "changed"
+
+	again, err := project.Manifest()
+	require.NoError(t, err)
+	assert.Equal(t, "tarawasm", again.Components["router"].Build.Fields["command"])
+	assert.Equal(t, "release", again.Components["router"].Build.Env["PROFILE"])
+
+	// The module decodes the fields of its backend as the core does.
+	type shellConfig struct {
+		Command string   `toml:"command"`
+		Args    []string `toml:"args"`
+	}
+
+	shell := sdkbuild.Backend{
+		Name: "shell", Produces: sdkbuild.Results(),
+		Config: func() any { return new(shellConfig) },
+	}
+
+	cfg, err := again.Components["router"].Build.Decode(shell)
+	require.NoError(t, err)
+	assert.Equal(t, &shellConfig{Command: "tarawasm", Args: []string{"all"}}, cfg)
+
+	narrow := shell
+
+	narrow.Config = func() any { return new(struct{}) }
+
+	_, err = again.Components["router"].Build.Decode(narrow)
+	require.EqualError(t, err, `args: unknown field of backend "shell"`)
+
+	narrow.Name = "make"
+	_, err = again.Components["router"].Build.Decode(narrow)
+	require.EqualError(t, err, `the block is of another backend: "shell", not "make"`)
 
 	path := filepath.Join(dir, "app.manifest.toml")
 	require.NoError(t, os.WriteFile(path, []byte("[package\n"), 0o644))
@@ -166,8 +217,6 @@ func routerOfServices() sdk.Component {
 			{Key: "args", Value: []string{"all"}},
 			{Key: "incremental", Value: true},
 		}},
-		Registries: nil,
-		OnDeclared: nil,
 	}
 }
 
@@ -186,41 +235,49 @@ incremental = true
 `
 
 // TestProjectAddComponent checks that a module declares a component as tt
-// wasm new does: appended to the manifest, every line of it kept, and the
-// lock resolved again against it, OnDeclared called in between; and what it
-// refuses, writing nothing and calling nothing.
+// wasm new does: appended to the manifest, every line of it kept, with no
+// lock resolved and no Tarantool needed, until Resolve resolves it; and what
+// it refuses, writing nothing.
 //
 //nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
 func TestProjectAddComponent(t *testing.T) {
 	dir, project := packageProject(t, projectManifest)
 
-	declared := 0
+	// No Tarantool is needed to declare a component.
+	tarantool := cmd.GetCmdCtxPtr().Cli.TarantoolCli
+
+	cmd.GetCmdCtxPtr().Cli.TarantoolCli = cmdcontext.TarantoolCli{Executable: ""}
+
 	router := routerOfServices()
 
-	router.OnDeclared = func() {
-		declared++
+	require.NoError(t, project.AddComponent(t.Context(), router))
 
-		written, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
-		require.NoError(t, err)
-		assert.Equal(t, projectManifest+routerBlock, string(written), "the manifest is written")
-		assert.NoFileExists(t, filepath.Join(dir, "app.manifest.lock"),
-			"the lock is not resolved yet")
-	}
-
-	change, err := project.AddComponent(t.Context(), router)
+	source, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
 	require.NoError(t, err)
-	assert.Equal(t, sdk.ComponentChange{Declared: true, Moves: []sdk.DependencyMove{}}, change)
-	assert.Equal(t, 1, declared)
-
-	source, man, lock := readProject(t, dir)
 	assert.Equal(t, projectManifest+routerBlock, string(source))
+	assert.NoFileExists(t, filepath.Join(dir, "app.manifest.lock"), "the lock is not resolved")
+
+	// Resolve brings the lock in step.
+	cmd.GetCmdCtxPtr().Cli.TarantoolCli = tarantool
+
+	change, err := project.Resolve(t.Context(), sdk.ResolveOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ResolveChange{Moves: []sdk.DependencyMove{}}, change)
+
+	_, man, lock := readProject(t, dir)
 	assert.Equal(t, []string{"dist/router.wasm"}, man.Components["router"].Include)
 	assert.Equal(t, man.Hash(), lock.ManifestHash, "the lock is of the manifest with it")
 
+	read, err := project.ReadLock()
+	require.NoError(t, err)
+	assert.Equal(t, sdk.LockFile{
+		Fresh: true, Reason: "", DefaultProduct: "default",
+		Products:        map[string]map[string]sdk.LockedRock{"default": {}},
+		DevDependencies: map[string]sdk.LockedRock{},
+	}, read)
+
 	// A name declared already.
-	change, err = project.AddComponent(t.Context(), router)
-	require.ErrorIs(t, err, cmd.ErrComponentDeclared)
-	assert.False(t, change.Declared)
+	require.ErrorIs(t, project.AddComponent(t.Context(), router), cmd.ErrComponentDeclared)
 
 	// A component the manifest cannot carry.
 	broken := router
@@ -232,61 +289,87 @@ func TestProjectAddComponent(t *testing.T) {
 			sdk.BuildField{Key: "static", Value: "yes"}),
 	}
 
-	change, err = project.AddComponent(t.Context(), broken)
+	err = project.AddComponent(t.Context(), broken)
 	require.ErrorContains(t, err, "the manifest with component broken")
-	assert.False(t, change.Declared)
-	assert.Equal(t, 1, declared, "OnDeclared is not called when nothing is written")
 
 	unchanged, _, _ := readProject(t, dir)
 	assert.Equal(t, string(source), string(unchanged), "nothing is written")
-}
-
-// TestProjectAddComponentErrors checks a resolution that fails, which
-// leaves the component declared, and a tt with no Tarantool and a project
-// with no manifest, which declare nothing.
-//
-//nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
-func TestProjectAddComponentErrors(t *testing.T) {
-	// No server TT_REGISTRIES names has missing.
-	content := projectManifest + "\n[dependencies]\nmissing = '>=1.0.0'\n"
-	dir, project := packageProject(t, content)
-
-	declared := 0
-	router := routerOfServices()
-
-	router.OnDeclared = func() { declared++ }
-
-	change, err := project.AddComponent(t.Context(), router)
-	require.ErrorContains(t, err, "re-resolving the lock")
-	require.ErrorContains(t, err, "rock not found on any server")
-	assert.True(t, change.Declared)
-	assert.Equal(t, 1, declared, "the component is declared before the resolution fails")
-
-	source, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
-	require.NoError(t, err)
-	assert.Equal(t, content+routerBlock, string(source), "the component stays declared")
-
-	// A tt with no Tarantool, whose rockspecs cannot be evaluated.
-	cmd.GetCmdCtxPtr().Cli.TarantoolCli = cmdcontext.TarantoolCli{Executable: ""}
-
-	other := router
-
-	other.Name = "other"
-
-	change, err = project.AddComponent(t.Context(), other)
-	require.ErrorIs(t, err, sdk.ErrNotFound)
-	assert.False(t, change.Declared)
-	assert.Equal(t, 1, declared)
-
-	unchanged, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
-	require.NoError(t, err)
-	assert.Equal(t, string(source), string(unchanged))
 
 	_, empty := packageProject(t, "")
 
-	change, err = empty.AddComponent(t.Context(), routerOfServices())
+	err = empty.AddComponent(t.Context(), routerOfServices())
 	require.ErrorIs(t, err, os.ErrNotExist)
-	assert.False(t, change.Declared)
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+}
+
+// TestProjectUpdateComponent checks that a module changes and removes a
+// component in place, every other line kept, the lock left stale, and what
+// it refuses.
+//
+//nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
+func TestProjectUpdateComponent(t *testing.T) {
+	dir, project := packageProject(t, projectManifest+routerBlock)
+
+	_, err := project.Resolve(t.Context(), sdk.ResolveOptions{})
+	require.NoError(t, err)
+
+	require.NoError(t, project.UpdateComponent(t.Context(), sdk.ComponentUpdate{
+		Name:   "router",
+		Fields: nil,
+		Build: []sdk.BuildField{
+			{Key: "args", Value: []string{"build"}},
+			{Key: "output", Value: []map[string]string{
+				{"path": "dist/router.wasm", "to": "share"},
+			}},
+		},
+		Remove: []string{"include", "build.incremental"},
+	}))
+
+	source, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
+	require.NoError(t, err)
+	assert.Equal(t, projectManifest+`
+# A WebAssembly component, made by tt wasm new and built by tarawasm.
+[components.router]
+path = "router"
+
+[components.router.build]
+backend = "shell"
+command = "tarawasm"
+args = ["build"]
+output = [{ path = "dist/router.wasm", to = "share" }]
+`, string(source))
+
+	read, err := project.ReadLock()
+	require.NoError(t, err)
+	assert.False(t, read.Fresh, "the lock is not resolved")
+	assert.NotEmpty(t, read.Reason)
+
+	// Refused: a component of no such name, a manifest that does not check.
+	err = project.UpdateComponent(t.Context(), sdk.ComponentUpdate{Name: "nope"})
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+
+	err = project.UpdateComponent(t.Context(), sdk.ComponentUpdate{
+		Name: "router", Build: []sdk.BuildField{{Key: "output", Value: []map[string]string{
+			{"path": "a", "to": "etc"},
+		}}},
+	})
+	require.ErrorContains(t, err, "the manifest with component router changed is invalid: "+
+		`components.router.build.output[0].to: "etc" is not lib, share or bin`)
+
+	unchanged, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
+	require.NoError(t, err)
+	assert.Equal(t, string(source), string(unchanged), "nothing is written")
+
+	require.NoError(t, project.RemoveComponent(t.Context(), "router"))
+
+	source, err = os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
+	require.NoError(t, err)
+	assert.Equal(t, projectManifest+
+		"\n# A WebAssembly component, made by tt wasm new and built by tarawasm.\n",
+		string(source))
+
+	err = project.RemoveComponent(t.Context(), "router")
+	require.ErrorIs(t, err, sdk.ErrNotFound)
 }
 
 // TestProjectPrepareEnvironment checks that the scripts of the environment
