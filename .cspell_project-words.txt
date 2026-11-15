@@ -13,6 +13,7 @@ anykey
 autoexpel
 AUUID
 bootstrapper
+Bsymbolic
 callrw
 ccluster
 cconfig
@@ -25,6 +26,7 @@ connpool
 containsf
 CPLUS
 debugf
+dlerror
 demoter
 desynchronize
 disbalance
@@ -48,6 +50,7 @@ goconst
 golangci
 heywoodlh
 iconfig
+Ifunc
 incdir
 infof
 inprogress
@@ -55,6 +58,7 @@ iproto
 ispytest
 itest
 lauxlib
+loadlib
 LDLIBS
 leaderuuid
 linecomment
@@ -94,6 +98,7 @@ outputformat
 packignore
 payloadsize
 pflag
+objcopy
 PITR
 pkgs
 postinst
@@ -108,6 +113,7 @@ regexputil
 replicaid
 replicaset*
 rescan
+RTLD
 rmdirs
 rockspec*
 rpmdeb

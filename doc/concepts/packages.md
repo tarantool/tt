@@ -393,6 +393,31 @@ fetches by the lock; `.rocks/` holds the rock of the package only, a
 component of `namespace = ""` included. Such an archive is named `...-any.tt` when it holds no
 native file.
 
+### Debug information
+
+The `c` and `lua-c` builds compile with `-g`, and a `cmake` build is
+`RelWithDebInfo`, so the modules and the programs of a package carry their
+debug information: a module that crashes Tarantool has a backtrace with its
+lines. `--debuginfo` chooses what the pack does with it: `keep`, the
+default, packs the files as the builds made them, and `strip` packs them
+without it, the symbols kept, so a backtrace still names the functions:
+
+```console
+$ tt package pack --debuginfo strip
+```
+
+What is stripped is what the builds of the components of the package
+made, its modules and programs in `.rocks/` of the archive, and every
+native file of the rock, which holds the package alone. The bundled
+runtime, the rocks of the dependencies and the files of
+`[package].include` are packed as they are, and the files of the project,
+its `.rocks/` and `_build/`, are not touched: the copies being packed are.
+The tool is `strip --strip-debug` on Linux, `objcopy --strip-debug` when
+there is no `strip`, and `strip -S` of Xcode on macOS, found in `PATH`; a
+pack that strips with none fails before it builds:
+`--debuginfo strip needs strip --strip-debug of binutils, or objcopy, in
+PATH`.
+
 ### Packing a rock
 
 A package other projects depend on, a Tarantool module say, is packed as a
