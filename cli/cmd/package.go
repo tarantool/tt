@@ -97,7 +97,7 @@ const packageAddMaxArgs = 2
 const manifestFileName = "app.manifest.toml"
 
 // NewPackageCmd creates the `tt package` command group: the manifest build
-// pipeline (build, fetch and pack), the dependency-changing commands (add,
+// pipeline (build, fetch, pack and clean), the dependency-changing commands (add,
 // remove and update), installation, and the inventory over what is installed
 // (list and uninstall).
 func NewPackageCmd() *cobra.Command {
@@ -116,6 +116,7 @@ func NewPackageCmd() *cobra.Command {
 		newPackageBuildCmd(),
 		newPackageFetchCmd(),
 		newPackagePackCmd(),
+		newPackageCleanCmd(),
 		newPackageAddCmd(),
 		newPackageRemoveCmd(),
 		newPackageUpdateCmd(),

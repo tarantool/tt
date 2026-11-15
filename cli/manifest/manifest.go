@@ -36,7 +36,7 @@ type Manifest struct {
 	DevDependencies map[string]Dependency `toml:"dev_dependencies,omitempty"`
 	Components      map[string]Component  `toml:"components,omitempty"`
 	Products        map[string]Product    `toml:"products,omitempty"`
-	Hooks           map[string]Hook       `toml:"hooks,omitempty"` // Keys: pre_build, post_build.
+	Hooks           map[string]Hook       `toml:"hooks,omitempty"` // pre_build, post_build, clean.
 
 	raw  []byte // Raw file bytes.
 	hash string // manifest_hash of raw, see HashTOML.

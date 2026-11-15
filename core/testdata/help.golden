@@ -3801,6 +3801,7 @@ USAGE
 COMMANDS
   add         Declare a dependency and re-resolve the lock
   build       Build a manifest package into .rocks/
+  clean       Remove what the builds of the package made
   deps        Show the dependencies the manifest declares, at their locked
               versions
   download    Download rock files into a directory and index it as a server
@@ -3882,6 +3883,39 @@ FLAGS
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
+
+GLOBAL FLAGS
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
+
+=== tt package clean --help
+Remove what tt package build made, and nothing else, so that the next build
+builds everything again: _build/ - the build trees of the components
+(TT_BUILD_DIR), the records of the incremental builds, the stages, the builds of
+path dependencies and what tt package pack wrote into _build/pack/ - and the
+rock of the package in .rocks/, by the files its rock manifest lists. The rocks
+of the dependencies, the guest packages, the manifest, the lock and the sources
+stay; so does _build/tt.lock, the lock of the project.
+
+A build backend may clean what its tool leaves beside the sources, which tt does
+not remove itself: it runs first, for every component of such a backend. A clean
+of the whole project then runs the clean hook, [hooks.clean] of the manifest,
+when it declares one.
+
+A component name narrows the clean to the component: its build tree, its records
+and its files in the stages go, and the rock of the package leaves .rocks/,
+which the next build installs again with every component; the clean hook does
+not run.
+
+--dry-run removes nothing and runs nothing, and prints what a clean would remove
+and run; -V lists the files of the rock as well.
+
+USAGE
+  tt package clean [COMPONENT] [flags]
+
+FLAGS
+      --dry-run   print what a clean would remove and run, and do nothing
+  -h, --help      help for clean
 
 GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the

@@ -23,12 +23,19 @@ var (
 	_ build.Producer     = fullBuild{}
 	_ build.ProgramNamer = fullBuild{}
 	_ build.InputHasher  = fullBuild{}
+	_ build.Cleaner      = fullBuild{}
 )
 
 func (fullBuild) Preflight(context.Context, *build.Context) error          { return nil }
 func (fullBuild) Produces() []build.Result                                 { return nil }
 func (fullBuild) Programs() ([]string, bool)                               { return nil, false }
 func (fullBuild) Inputs(context.Context, *build.Context) ([]string, error) { return nil, nil }
+func (fullBuild) Clean(context.Context, *build.Context) error              { return nil }
+
+// cleanWithoutContext is a Build whose Clean takes no context.
+type cleanWithoutContext struct{ plainBuild }
+
+func (cleanWithoutContext) Clean(*build.Context) error { return nil }
 
 // oldPreflight is a Build whose Preflight is that of an older SDK.
 type oldPreflight struct{ plainBuild }
@@ -81,6 +88,9 @@ func TestValidateBuild(t *testing.T) {
 		{"a Programs of another signature", wrongPrograms{}, `Programs of its build ` +
 			`build_test.wrongPrograms is func() []string, not func() ([]string, bool) of ` +
 			`build.ProgramNamer`},
+		{"a Clean without a context", cleanWithoutContext{}, `Clean of its build ` +
+			`build_test.cleanWithoutContext is func(*build.Context) error, not ` +
+			`func(context.Context, *build.Context) error of build.Cleaner`},
 		{"no build", nil, `invalid build backend "demo": New returned a nil Build`},
 	} {
 		t.Run(test.name, func(t *testing.T) {

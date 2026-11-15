@@ -814,12 +814,15 @@ func TestHookBackendDefaultsToShell(t *testing.T) {
 	t.Parallel()
 
 	mfst := parseBody(t, "[hooks.pre_build]\ncommand = \"./gen.sh\"\n"+
-		"[hooks.post_build]\nbackend = \"make\"\nmake_target = \"post\"\n")
+		"[hooks.post_build]\nbackend = \"make\"\nmake_target = \"post\"\n"+
+		"[hooks.clean]\ncommand = \"rm\"\nargs = [\"-f\", \"gen.lua\"]\n")
 
-	_, err := mfst.Validate(backends())
+	warnings, err := mfst.Validate(backends())
 	require.NoError(t, err)
+	assert.Empty(t, warnings, "clean is a hook, of tt package clean")
 	assert.Equal(t, "shell", mfst.Hooks["pre_build"].Backend)
 	assert.Equal(t, "make", mfst.Hooks["post_build"].Backend)
+	assert.Equal(t, "shell", mfst.Hooks["clean"].Backend)
 
 	// A tt with no backend that runs hooks, as a distribution without the
 	// module of the standard backends, says so of a hook that names none.
