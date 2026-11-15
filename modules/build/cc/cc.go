@@ -15,7 +15,7 @@
 // are the toolchain of the build, which the driver derives from the
 // Context, as go-luarocks derives that of a builtin rock (toolchainOf): CC
 // and CXX of the environment tt runs in, the flags of the target, the
-// headers under the prefix of the Tarantool of the build. The flags of the
+// headers of the Tarantool of the build (Tarantool.IncludeDir). The flags of the
 // component come from its block, and CFLAGS, CXXFLAGS and LDFLAGS from the
 // environment tt runs in, last.
 //
@@ -45,11 +45,10 @@ const (
 	LuaCName = "lua-c"
 )
 
-// ErrMissingHeaders reports that the build knows no headers of Tarantool,
-// as it knows no prefix of it (build.Tarantool.Prefix), so a c or lua-c
-// component cannot be compiled.
-var ErrMissingHeaders = errors.New(
-	"tarantool development headers not found: cannot compile c/lua-c component")
+// ErrMissingHeaders reports that the build knows no headers of Tarantool
+// (build.Tarantool.IncludeDir), so a c or lua-c component cannot be
+// compiled. It wraps build.ErrNoHeaders.
+var ErrMissingHeaders = fmt.Errorf("%w: cannot compile c/lua-c component", build.ErrNoHeaders)
 
 // noTarantoolHint says why a build has no headers of Tarantool, and how to
 // give it some.
@@ -270,6 +269,12 @@ func (b ccBuild) Preflight(_ context.Context, c *build.Context) error {
 	}
 
 	if tools.includeDir == "" {
+		if c.Tarantool.Prefix != "" {
+			// A Tarantool without headers: the core adds where it looked
+			// for them and how to point tt at them.
+			return ErrMissingHeaders
+		}
+
 		return fmt.Errorf("%w: %s", ErrMissingHeaders, noTarantoolHint)
 	}
 
@@ -490,9 +495,9 @@ type toolchain struct {
 	// rpath reports whether each -L<dir> is followed by -Wl,-rpath,<dir>:
 	// not on darwin.
 	rpath bool
-	// includeDir is the directory of the headers of Tarantool under its
-	// prefix, include/tarantool, as the compiler is given it whether or not
-	// module.h is there; empty when the build knows no prefix.
+	// includeDir is the directory of the headers of Tarantool,
+	// build.Tarantool.IncludeDir: include/tarantool under its prefix, empty
+	// when module.h is not there.
 	includeDir string
 }
 
@@ -524,9 +529,7 @@ func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchai
 		tools.rpath = false
 	}
 
-	if c.Tarantool.Prefix != "" {
-		tools.includeDir = filepath.Join(c.Tarantool.Prefix, "include", "tarantool")
-	}
+	tools.includeDir = c.Tarantool.IncludeDir
 
 	return tools, nil
 }

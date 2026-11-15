@@ -620,7 +620,10 @@ afterwards; with `--locked` such a lock fails the build, so the answer is
 exact there. `ctx` is that of the build: make the commands `Preflight` runs
 with it, so that they stop when the build is cancelled. Wrap
 `build.ErrNoTool` for a tool that is not in `PATH`, so that
-a missing tool is told from a failed build. A failed `Preflight` fails the
+a missing tool is told from a failed build, and `build.ErrNoHeaders` for a
+build that compiles against the headers of Tarantool when
+`Tarantool.IncludeDir` is empty: tt then adds the directories it looked
+into for them, and how to point it at some. A failed `Preflight` fails the
 build with exit code 2:
 
 ```text

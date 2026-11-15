@@ -159,6 +159,11 @@ func Typed[C any](
 // failed.
 var ErrNoTool = errors.New("build tool not found")
 
+// ErrNoHeaders reports a build that compiles against the headers of
+// Tarantool, and has none: [Tarantool.IncludeDir] of its Context is empty. A
+// [Preflighter] wraps it, so that the core adds where it looked for them.
+var ErrNoHeaders = errors.New("tarantool development headers not found")
+
 // ErrNotProduced reports a build that made a file of a type its backend does
 // not produce ([Backend.Produces]): one it left in the directory of that type
 // ([Dirs.Of]), or a program it named ([ProgramNamer]). The core fails the
