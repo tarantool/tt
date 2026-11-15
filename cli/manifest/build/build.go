@@ -672,7 +672,8 @@ func buildComponents(
 	}
 
 	err = settleStage(stage, proj, last, stageBuild{
-		components: components, written: written, laidOut: laidOut, generated: generated,
+		components: components, written: written, laidOut: laidOut, blocks: runs.blocks,
+		generated: generated,
 	})
 	if err != nil {
 		return componentBuilds{}, err

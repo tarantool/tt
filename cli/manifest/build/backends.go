@@ -263,13 +263,23 @@ func (b builder) preflight(ctx context.Context, components []string) error {
 // for each component it built or skipped, the absolute paths of the files of
 // the stage the backend left there (runComponent). What an earlier build of
 // a component made and is still there counts as made: what the record says,
-// and what last, the record of the stage, says it wrote there.
+// and what last, the record of the stage, says it wrote there. A make
+// target that is up to date writes nothing, and what it wrote before is
+// still its own.
+//
+// A component is built afresh, as --rebuild builds it, when its build block
+// is not the one of the build last recorded in the stage: what that build
+// made is removed from the stage and is not taken as made, its work
+// directory is emptied and the build is told Fresh. Otherwise a module the
+// block no longer names, after module = "hello" became module = "greet",
+// stayed in the stage, the rock and .rocks/ as made by the component.
 func (b builder) runBackends(
 	ctx context.Context, components []string, last stageRecord,
 ) (backendRuns, error) {
 	runs := backendRuns{
 		results:  readResults(b.proj.stateDir, b.opts.Warn),
 		written:  map[string][]string{},
+		blocks:   map[string]string{},
 		built:    nil,
 		upToDate: map[string]bool{},
 	}
@@ -286,14 +296,33 @@ func (b builder) runBackends(
 
 		dirs := run.context.Dirs
 
-		err = prepareBuildDir(dirs.Work, b.opts.Rebuild)
+		block, err := blockDigest(*run.component.Build)
 		if err != nil {
 			return backendRuns{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
 				name, err)
 		}
 
-		recorded := runs.results[name].join(madeIn(dirs, joinDir(b.stage,
-			last.Components[name].Written)))
+		lastBuild := last.Components[name]
+		fresh := b.opts.Rebuild || lastBuild.Block != "" && lastBuild.Block != block
+
+		err = prepareBuildDir(dirs.Work, fresh)
+		if err != nil {
+			return backendRuns{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
+				name, err)
+		}
+
+		recorded := runs.results[name].join(madeIn(dirs, joinDir(b.stage, lastBuild.Written)))
+
+		if fresh {
+			err = removeFiles(recorded.paths(dirs))
+			if err != nil {
+				return backendRuns{}, sdk.Errorf(sdk.ExitSystem, "building component %q: %w",
+					name, err)
+			}
+
+			recorded = madeFiles{Modules: nil, Data: nil, Programs: nil}
+			run.context.Fresh = true
+		}
 
 		made, skipped, err := b.runComponent(ctx, run, recorded)
 		if err != nil {
@@ -302,6 +331,7 @@ func (b builder) runBackends(
 
 		runs.results[name] = made
 		runs.written[name] = made.paths(dirs)
+		runs.blocks[name] = block
 		runs.built = append(runs.built, name)
 		runs.upToDate[name] = skipped
 	}
@@ -331,6 +361,9 @@ type backendRuns struct {
 	// written are the absolute paths of the files of the stage the build of
 	// each component built or skipped left there.
 	written map[string][]string
+	// blocks are the digests of the build blocks of the components built
+	// or skipped (blockDigest).
+	blocks map[string]string
 	// built are the components built or skipped, in the order they were.
 	built []string
 	// upToDate are those of built that were skipped as up to date.
@@ -373,8 +406,12 @@ func (b builder) runComponent(
 
 	// What an earlier build made of a type the backend makes none of - one
 	// of another backend, say - is not taken as made: the stage drops it.
-	made, err := runWritingBackend(ctx, run,
-		recorded.join(state.last.made()).only(run.backend.Produces))
+	// A fresh build takes nothing an earlier one made (runBackends).
+	if !run.context.Fresh {
+		recorded = recorded.join(state.last.made())
+	}
+
+	made, err := runWritingBackend(ctx, run, recorded.only(run.backend.Produces))
 	if err == nil {
 		err = checkMade(run, b.stage, made)
 	}

@@ -151,7 +151,8 @@ type Context struct {
 	// ones tt sets for every build, which win.
 	Env map[string]string
 	// Fresh asks the build to drop what it kept in Work and to build from
-	// scratch, as tt package build --rebuild does.
+	// scratch, as tt package build --rebuild does, and as tt does for a
+	// component whose build block changed since its last build.
 	Fresh bool
 	// Locked is set when the lock of the project is not to be resolved
 	// again (--locked): a tool of the build must not move a version either.

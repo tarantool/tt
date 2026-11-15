@@ -293,7 +293,7 @@ component and build.
 | `Tarantool` | the Tarantool the component is built against: `Prefix`, `IncludeDir`, `Version`, each empty when tt does not know it |
 | `Toolchain` | how tt compiles a C module: `CC`, `LibFlag`, `Rpath`, `IncludeDir` |
 | `Env` | the `env` of the block and the `TT_*` variables of the build |
-| `Fresh` | set by `tt package build --rebuild`: drop what `Work` keeps and build from scratch |
+| `Fresh` | set by `tt package build --rebuild`, and for a component whose block changed since its last build: drop what `Work` keeps and build from scratch |
 | `Locked` | set by `--locked`: a tool of the build must not move a version either; `LockedVersion` returns the version the lock pins a rock at |
 | `Static` | `static` of the block |
 | `Args` | the arguments a command of the module passed through to this build, for its tool (`sdk.BuildOptions.Args`: `tt wasm build calc -- -opt=2`); none in a build of `tt package build`. They are an input of an incremental build |
@@ -307,7 +307,7 @@ The directories, all absolute, for a component of the package:
 | `Project` | the root of the project: the package, or a path dependency or a source rock being built |
 | `Component` | the directory of the component |
 | `Cwd` | where the build runs: `cwd` of the block, relative to the project, or `Component` |
-| `Work` | `_build/component/<name>/`, `TT_BUILD_DIR`: intermediate files, kept between builds, emptied by `--rebuild` |
+| `Work` | `_build/component/<name>/`, `TT_BUILD_DIR`: intermediate files, kept between builds, emptied by `--rebuild` and when the block changed |
 | `Output` | where modules go: `_build/rock/<product>/lib/<namespace>/`, `TT_OUTPUT_DIR` |
 | `Share` | where data files go: `_build/rock/<product>/lua/<namespace>/` |
 | `Programs` | where programs go: `_build/rock/<product>/bin/`, shared by the components |
