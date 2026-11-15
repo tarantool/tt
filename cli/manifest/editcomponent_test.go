@@ -114,3 +114,221 @@ func TestAppendComponentRefuses(t *testing.T) {
 		assert.Contains(t, err.Error(), "cannot declare the component", name)
 	}
 }
+
+// TestAppendComponentTables checks that a field of a table, an array of
+// tables and an integer of another type are written inline, the keys of a
+// table in their order, and read back as the decoder reads them.
+func TestAppendComponentTables(t *testing.T) {
+	t.Parallel()
+
+	out, err := manifest.AppendComponent([]byte(editHeader), manifest.ComponentBlock{
+		Name: "calc", Path: "calc",
+		Build: []manifest.BlockField{
+			{Key: "backend", Value: "shell"}, {Key: "command", Value: "./build.sh"},
+			{Key: "env", Value: map[string]string{"PROFILE": "release", "CC": "zig cc"}},
+			{Key: "output", Value: []map[string]string{
+				{"path": "dist/calc.wasm", "to": "share"}, {"path": "dist/calc"},
+			}},
+			{Key: "args", Value: []any{"-j", "4"}},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, editHeader+`
+[components.calc]
+path = "calc"
+
+[components.calc.build]
+backend = "shell"
+command = "./build.sh"
+env = { CC = "zig cc", PROFILE = "release" }
+output = [{ path = "dist/calc.wasm", to = "share" }, { path = "dist/calc" }]
+args = ["-j", "4"]
+`, string(out))
+
+	mfst := reparse(t, out)
+	assert.Equal(t, map[string]string{"CC": "zig cc", "PROFILE": "release"},
+		mfst.Components["calc"].Build.Env)
+	assert.Equal(t, manifest.OutputList{
+		{Path: "dist/calc.wasm", To: manifest.OutputToShare}, {Path: "dist/calc"},
+	}, mfst.Components["calc"].Build.Output)
+}
+
+// editedSource is a manifest with two components the tests of EditComponent
+// and RemoveComponent change, in the forms a user writes them.
+const editedSource = editHeader + `
+# The router, by tarawasm.
+[components.router]
+path = "router" # its directory
+include = ["dist/router.wasm"]
+
+[components.router.build]
+backend = "shell"
+command = "tarawasm"
+args = [
+  "all", # every step
+  "--release",
+]
+incremental = true
+
+[components.router.build.env]
+PROFILE = "release"
+
+[components.app]
+path = "app"
+`
+
+// TestEditComponent checks that a field there has its value replaced where
+// it is written, a multi-line array included, a new one goes after the last
+// field of its table, a removed one takes its lines, and every other byte
+// stays.
+func TestEditComponent(t *testing.T) {
+	t.Parallel()
+
+	out, err := manifest.EditComponent([]byte(editedSource), manifest.ComponentEdit{
+		Name:   "router",
+		Fields: []manifest.BlockField{{Key: "path", Value: "wasm/router"}},
+		Build: []manifest.BlockField{
+			{Key: "args", Value: []string{"build"}},
+			{Key: "output", Value: "dist/router.wasm"},
+		},
+		Remove: []string{"include", "build.incremental", "build.cwd"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, editHeader+`
+# The router, by tarawasm.
+[components.router]
+path = "wasm/router" # its directory
+
+[components.router.build]
+backend = "shell"
+command = "tarawasm"
+args = ["build"]
+output = "dist/router.wasm"
+
+[components.router.build.env]
+PROFILE = "release"
+
+[components.app]
+path = "app"
+`, string(out))
+
+	mfst := reparse(t, out)
+	assert.Equal(t, "wasm/router", mfst.Components["router"].Path)
+	assert.Empty(t, mfst.Components["router"].Include)
+	assert.Equal(t, manifest.OutputList{{Path: "dist/router.wasm"}},
+		mfst.Components["router"].Build.Output)
+	assert.False(t, mfst.Components["router"].Build.IncrementalValue())
+
+	// A component with no build block gets one, after its table; the build
+	// block goes with its tables.
+	out, err = manifest.EditComponent(out, manifest.ComponentEdit{
+		Name:   "app",
+		Fields: []manifest.BlockField{{Key: "include", Value: []string{"*.lua"}}},
+		Build:  []manifest.BlockField{{Key: "backend", Value: "make"}},
+	})
+	require.NoError(t, err)
+	assert.Contains(t, string(out), `
+[components.app]
+path = "app"
+include = ["*.lua"]
+
+[components.app.build]
+backend = "make"
+`)
+
+	out, err = manifest.EditComponent(out, manifest.ComponentEdit{
+		Name: "router", Remove: []string{"build"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, editHeader+`
+# The router, by tarawasm.
+[components.router]
+path = "wasm/router" # its directory
+
+[components.app]
+path = "app"
+include = ["*.lua"]
+
+[components.app.build]
+backend = "make"
+`, string(out))
+}
+
+// TestEditComponentForms checks the forms of a component EditComponent
+// follows - dotted keys, a component under [components] - and those it
+// refuses: a field in an inline table, a table where a value goes, a
+// component the manifest does not declare, a key of no field.
+func TestEditComponentForms(t *testing.T) {
+	t.Parallel()
+
+	dotted := editHeader + "\n[components.a]\npath = \"a\"\nbuild.backend = \"shell\"\n" +
+		"\n[products.p]\ncomponents = [\"a\"]\ndefault = true\n"
+
+	out, err := manifest.EditComponent([]byte(dotted), manifest.ComponentEdit{
+		Name: "a", Build: []manifest.BlockField{{Key: "command", Value: "./b.sh"}},
+	})
+	require.NoError(t, err)
+	assert.Contains(t, string(out),
+		"build.backend = \"shell\"\nbuild.command = \"./b.sh\"\n\n[products.p]")
+	reparse(t, out)
+
+	inline := editHeader + "\n[components.a]\npath = \"a\"\n" +
+		"build = { backend = \"shell\", command = \"./b.sh\" }\n"
+
+	for _, edit := range []manifest.ComponentEdit{
+		{Name: "a", Build: []manifest.BlockField{{Key: "cwd", Value: "x"}}},
+		{Name: "a", Remove: []string{"build.command"}},
+	} {
+		_, err = manifest.EditComponent([]byte(inline), edit)
+		require.ErrorIs(t, err, manifest.ErrUnsupportedForm)
+		assert.Contains(t, err.Error(), "components.a.build")
+	}
+
+	_, err = manifest.EditComponent([]byte(editedSource), manifest.ComponentEdit{
+		Name: "router", Build: []manifest.BlockField{{Key: "env", Value: "x"}},
+	})
+	require.ErrorIs(t, err, manifest.ErrUnsupportedForm)
+
+	_, err = manifest.EditComponent([]byte(editedSource), manifest.ComponentEdit{Name: "nope"})
+	require.ErrorIs(t, err, manifest.ErrNoComponent)
+
+	for _, edit := range []manifest.ComponentEdit{
+		{Name: "app", Fields: []manifest.BlockField{{Key: "build", Value: "x"}}},
+		{Name: "app", Remove: []string{"build.env.A"}},
+		{Name: "app", Remove: []string{"."}},
+		{Name: "app", Fields: []manifest.BlockField{{Key: "include", Value: 0.5}}},
+	} {
+		_, err = manifest.EditComponent([]byte(editedSource), edit)
+		require.Error(t, err, edit)
+	}
+}
+
+// TestRemoveComponent checks that a component goes with its tables and the
+// blank lines above them, in either form, every other line kept.
+func TestRemoveComponent(t *testing.T) {
+	t.Parallel()
+
+	out, err := manifest.RemoveComponent([]byte(editedSource), "router")
+	require.NoError(t, err)
+	assert.Equal(t, editHeader+`
+# The router, by tarawasm.
+
+[components.app]
+path = "app"
+`, string(out))
+	reparse(t, out)
+
+	out, err = manifest.RemoveComponent([]byte(editedSource), "app")
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimSuffix(editedSource, "\n[components.app]\npath = \"app\"\n"),
+		string(out))
+
+	inline := editHeader + "\n[components]\na = { path = \"a\" }\nb = { path = \"b\" }\n"
+
+	out, err = manifest.RemoveComponent([]byte(inline), "a")
+	require.NoError(t, err)
+	assert.Equal(t, editHeader+"\n[components]\nb = { path = \"b\" }\n", string(out))
+
+	_, err = manifest.RemoveComponent([]byte(inline), "c")
+	require.ErrorIs(t, err, manifest.ErrNoComponent)
+}

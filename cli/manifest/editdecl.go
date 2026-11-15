@@ -25,6 +25,16 @@ type declaration struct {
 	hasVersion  bool
 	version     span
 	versionData string
+	// hasRegistry, registry and registryData are the same of its registry.
+	hasRegistry  bool
+	registry     span
+	registryData string
+	// short reports a declaration of the short form, name = "<constraint>",
+	// whose version is its whole value.
+	short bool
+	// versionField indexes the expression of the version key of a
+	// declaration of a table, -1 for another declaration.
+	versionField int
 }
 
 // find locates name in table, classifying the declaration form.
@@ -150,11 +160,16 @@ func (d *document) describeEntry(
 	item := &d.exprs[entry]
 
 	decl := &declaration{
-		matches:     matches,
-		header:      -1,
-		hasVersion:  false,
-		version:     span{start: 0, end: 0},
-		versionData: "",
+		matches:      matches,
+		header:       -1,
+		hasVersion:   false,
+		version:      span{start: 0, end: 0},
+		versionData:  "",
+		hasRegistry:  false,
+		registry:     span{start: 0, end: 0},
+		registryData: "",
+		short:        false,
+		versionField: -1,
 	}
 
 	switch item.valueKind {
@@ -162,10 +177,14 @@ func (d *document) describeEntry(
 		decl.hasVersion = true
 		decl.version = item.value
 		decl.versionData = item.valueData
+		decl.short = true
 	case unstable.InlineTable:
 		decl.hasVersion = item.hasVersion
 		decl.version = item.version
 		decl.versionData = item.versionData
+		decl.hasRegistry = item.hasRegistry
+		decl.registry = item.registry
+		decl.registryData = item.registryData
 	default:
 		return nil, refuse(table, name, "its value is a %s, not a constraint or a table",
 			item.valueKind)
@@ -180,11 +199,16 @@ func (d *document) describeTable(
 	table DepTable, name string, matches []int, header int, fields []int,
 ) (*declaration, error) {
 	decl := &declaration{
-		matches:     matches,
-		header:      header,
-		hasVersion:  false,
-		version:     span{start: 0, end: 0},
-		versionData: "",
+		matches:      matches,
+		header:       header,
+		hasVersion:   false,
+		version:      span{start: 0, end: 0},
+		versionData:  "",
+		hasRegistry:  false,
+		registry:     span{start: 0, end: 0},
+		registryData: "",
+		short:        false,
+		versionField: -1,
 	}
 
 	for _, idx := range fields {
@@ -193,13 +217,21 @@ func (d *document) describeTable(
 			return nil, refuse(table, name, "it has a nested key %s", joinKeys(item.path))
 		}
 
-		if item.path[depthField-1] != versionKey || item.valueKind != unstable.String {
+		if item.valueKind != unstable.String {
 			continue
 		}
 
-		decl.hasVersion = true
-		decl.version = item.value
-		decl.versionData = item.valueData
+		switch item.path[depthField-1] {
+		case versionKey:
+			decl.hasVersion = true
+			decl.version = item.value
+			decl.versionData = item.valueData
+			decl.versionField = idx
+		case registryKey:
+			decl.hasRegistry = true
+			decl.registry = item.value
+			decl.registryData = item.valueData
+		}
 	}
 
 	return decl, nil

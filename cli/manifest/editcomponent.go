@@ -3,6 +3,8 @@ package manifest
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -33,8 +35,10 @@ type ComponentBlock struct {
 	Build []BlockField
 }
 
-// BlockField is a field of a table AppendComponent writes: a key and a
-// value of a string, a bool, an int or a []string.
+// BlockField is a field of a table AppendComponent and EditComponent write:
+// a key and a value of a string, a bool, an integer, a slice of them or a
+// map with string keys of them, a table, such as
+// []map[string]string{{"path": "dist/calc.wasm", "to": "share"}}.
 type BlockField struct {
 	Key   string
 	Value any
@@ -121,34 +125,89 @@ func AppendComponent(src []byte, block ComponentBlock) ([]byte, error) {
 	return out, nil
 }
 
-// blockValue renders value as a TOML value.
+// blockValue renders value as a TOML value, on one line: a string, a bool
+// and an integer as themselves, a slice as an array of its elements and a
+// map with string keys as an inline table of its entries, in the order of
+// their keys, whatever their types are named (a []string, a
+// map[string]string, a []map[string]any).
 func blockValue(value any) (string, error) {
-	switch value := value.(type) {
-	case string:
-		if !utf8.ValidString(value) {
-			return "", fmt.Errorf("%w: %q is not UTF-8", errBlockValue, value)
+	return renderValue(reflect.ValueOf(value))
+}
+
+// renderValue renders value as blockValue does.
+func renderValue(value reflect.Value) (string, error) {
+	if value.Kind() == reflect.Interface && !value.IsNil() {
+		value = value.Elem()
+	}
+
+	switch value.Kind() {
+	case reflect.String:
+		str := value.String()
+		if !utf8.ValidString(str) {
+			return "", fmt.Errorf("%w: %q is not UTF-8", errBlockValue, str)
 		}
 
-		return quoteTOMLString(value), nil
-	case bool:
-		return strconv.FormatBool(value), nil
-	case int:
-		return strconv.Itoa(value), nil
-	case []string:
-		items := make([]string, 0, len(value))
+		return quoteTOMLString(str), nil
+	case reflect.Bool:
+		return strconv.FormatBool(value.Bool()), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(value.Int(), 10), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return strconv.FormatUint(value.Uint(), 10), nil
+	case reflect.Slice, reflect.Array:
+		items := make([]string, 0, value.Len())
 
-		for _, item := range value {
-			rendered, err := blockValue(item)
+		for i := range value.Len() {
+			item, err := renderValue(value.Index(i))
 			if err != nil {
 				return "", err
 			}
 
-			items = append(items, rendered)
+			items = append(items, item)
 		}
 
 		return "[" + strings.Join(items, ", ") + "]", nil
+	case reflect.Map:
+		if value.Type().Key().Kind() != reflect.String {
+			break
+		}
+
+		keys := make([]string, 0, value.Len())
+		for _, key := range value.MapKeys() {
+			keys = append(keys, key.String())
+		}
+
+		slices.Sort(keys)
+
+		entries := make([]string, 0, len(keys))
+
+		for _, key := range keys {
+			item, err := renderValue(value.MapIndex(reflect.ValueOf(key).Convert(
+				value.Type().Key())))
+			if err != nil {
+				return "", err
+			}
+
+			entries = append(entries, quoteTOMLKey(key)+" = "+item)
+		}
+
+		if len(entries) == 0 {
+			return "{}", nil
+		}
+
+		return "{ " + strings.Join(entries, ", ") + " }", nil
 	default:
-		return "", fmt.Errorf("%w: %T; a string, a bool, an int or a []string is", errBlockValue,
-			value)
 	}
+
+	return "", fmt.Errorf("%w: %s; a string, a bool, an integer, a slice or a map with "+
+		"string keys of them is", errBlockValue, describeKind(value))
+}
+
+// describeKind names the Go type of value for an error of blockValue.
+func describeKind(value reflect.Value) string {
+	if !value.IsValid() {
+		return "nil"
+	}
+
+	return value.Type().String()
 }

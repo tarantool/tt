@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // This file is the writing half of the manifest data layer: it edits the
@@ -61,6 +62,9 @@ var ErrUnsupportedForm = errors.New("dependency declaration cannot be edited aut
 type Change struct {
 	Existed  bool   // A declaration was already there.
 	Previous string // Its previous version constraint, when Existed.
+	// PreviousRegistry is the registry the declaration named, when Existed:
+	// "" for one that named none.
+	PreviousRegistry string
 }
 
 // Editor rewrites the dependency tables of a manifest's TOML source in place,
@@ -170,6 +174,7 @@ func (e *Editor) SetDependency(table DepTable, name, constraint string) (Change,
 
 	change.Existed = true
 	change.Previous = decl.versionData
+	change.PreviousRegistry = decl.registryData
 	e.src = doc.replace(decl.version, quoteTOMLString(constraint))
 
 	return change, nil
@@ -181,9 +186,14 @@ func (e *Editor) SetDependency(table DepTable, name, constraint string) (Change,
 //	name = { version = "<constraint>", registry = "<registry>" }
 //
 // placed where SetDependency would place a new short-form entry. A name the
-// table already declares is left exactly as it is, and the Change reports it:
-// whether to repoint a declaration someone wrote at another server is theirs
-// to decide, not this editor's.
+// table already declares has its version and its registry set to those
+// given, and the Change reports what they were: the value of each is
+// replaced where it is written, a registry the declaration has none of is
+// written after its version, and a declaration of the short form becomes
+// the inline table above; every other field and comment stays. A
+// declaration that says both already is left byte for byte. One with no
+// version key, a path dependency say, is refused with ErrUnsupportedForm,
+// as SetDependency refuses it.
 func (e *Editor) AddRegistryDependency(
 	table DepTable, name, constraint, registry string,
 ) (Change, error) {
@@ -221,10 +231,65 @@ func (e *Editor) AddRegistryDependency(
 		return change, err
 	}
 
+	if !decl.hasVersion {
+		return change, fmt.Errorf("%s.%s: %w: the declaration carries no version key,"+
+			" edit it by hand", table, name, ErrUnsupportedForm)
+	}
+
 	change.Existed = true
 	change.Previous = decl.versionData
+	change.PreviousRegistry = decl.registryData
+
+	if decl.versionData == constraint && decl.registryData == registry {
+		return change, nil
+	}
+
+	e.src = doc.setRegistry(decl, constraint, registry)
 
 	return change, nil
+}
+
+// setRegistry returns the source of d with the version and the registry of
+// the declaration decl set to constraint and registry
+// (Editor.AddRegistryDependency).
+func (d *document) setRegistry(decl *declaration, constraint, registry string) []byte {
+	version, server := quoteTOMLString(constraint), quoteTOMLString(registry)
+
+	if decl.short {
+		return d.replace(decl.version, "{ version = "+version+", registry = "+server+" }")
+	}
+
+	if decl.hasRegistry {
+		// The later span first, so that the offsets of the other hold.
+		first, second := decl.version, decl.registry
+		firstText, secondText := version, server
+
+		if second.start < first.start {
+			first, second = second, first
+			firstText, secondText = secondText, firstText
+		}
+
+		out := d.replace(second, secondText)
+
+		return (&document{src: out}).replace(first, firstText)
+	}
+
+	if decl.versionField < 0 {
+		// An inline table: the registry goes right after the version.
+		at := span{start: decl.version.end, end: decl.version.end}
+		out := d.replace(at, ", "+registryKey+" = "+server)
+
+		return (&document{src: out}).replace(decl.version, version)
+	}
+
+	// A table: the registry goes on a line of its own after the version,
+	// under the keys the version is written under.
+	field := &d.exprs[decl.versionField]
+	key := joinKeys(append(slices.Clone(field.path[len(field.table):len(field.path)-1]),
+		registryKey))
+	out := d.spliceLine(d.lineEnd(field.end), d.indentOf(decl.versionField)+key+" = "+server)
+
+	return (&document{src: out}).replace(decl.version, version)
 }
 
 // RemoveDependency drops name's declaration from table.
@@ -261,6 +326,7 @@ func (e *Editor) RemoveDependency(table DepTable, name string) (Change, error) {
 
 	change.Existed = true
 	change.Previous = decl.versionData
+	change.PreviousRegistry = decl.registryData
 	e.src = doc.cut(doc.removalSpans(decl))
 
 	return change, nil

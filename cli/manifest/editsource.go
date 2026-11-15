@@ -21,9 +21,13 @@ const (
 	depthField = 3
 )
 
-// versionKey is the long-form field a version constraint lives in, and the
-// only field this editor ever rewrites.
-const versionKey = "version"
+// versionKey is the long-form field a version constraint lives in, and
+// registryKey the one of the server of a rock: the only fields this editor
+// rewrites in a dependency.
+const (
+	versionKey  = "version"
+	registryKey = "registry"
+)
 
 // span is a half-open byte range [start, end) of a document's source.
 type span struct {
@@ -55,6 +59,10 @@ type tomlExpr struct {
 	valueKind unstable.Kind // Kind of a key/value's value node.
 	value     span          // Raw token range of that value; quotes included.
 	valueData string        // Its decoded text, for a scalar.
+	// keyEnd is the offset just past the last key token of a key/value,
+	// where the search for the extent of a value of any kind starts
+	// (valueSpan).
+	keyEnd int
 
 	// hasVersion and the two fields after it describe the version key of an
 	// inline-table value. Only a string-valued version counts: rewriting
@@ -62,6 +70,11 @@ type tomlExpr struct {
 	hasVersion  bool
 	version     span
 	versionData string
+	// hasRegistry and the two fields after it describe the registry key of
+	// an inline-table value, as the three above describe its version key.
+	hasRegistry  bool
+	registry     span
+	registryData string
 }
 
 // document is an indexed snapshot of one TOML source: its expressions in
@@ -157,6 +170,7 @@ func describeExpr(node *unstable.Node, src []byte, table []string) (tomlExpr, er
 		item.start = first
 		item.table = table
 		item.path = append(append([]string(nil), table...), path...)
+		item.keyEnd = keyEnd(node)
 
 		describeValue(&item, node.Value())
 	default:
@@ -188,6 +202,20 @@ func keyPath(node *unstable.Node) ([]string, int) {
 	return path, first
 }
 
+// keyEnd returns the offset just past the last key token of a key/value.
+func keyEnd(node *unstable.Node) int {
+	end := 0
+	iter := node.Key()
+
+	for iter.Next() {
+		raw := iter.Node().Raw
+
+		end = max(end, int(raw.Offset+raw.Length))
+	}
+
+	return end
+}
+
 // describeValue records a key/value's value token and, for an inline table,
 // the token of its version field.
 func describeValue(item *tomlExpr, value *unstable.Node) {
@@ -206,12 +234,20 @@ func describeValue(item *tomlExpr, value *unstable.Node) {
 		entry := iter.Node()
 
 		path, _ := keyPath(entry)
-		if len(path) != 1 || path[0] != versionKey {
+		if len(path) != 1 || path[0] != versionKey && path[0] != registryKey {
 			continue
 		}
 
 		field := entry.Value()
 		if field.Kind != unstable.String {
+			continue
+		}
+
+		if path[0] == registryKey {
+			item.hasRegistry = true
+			item.registry = spanOf(field)
+			item.registryData = string(field.Data)
+
 			continue
 		}
 
