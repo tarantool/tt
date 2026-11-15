@@ -42,8 +42,11 @@ commit of the core the module is built on. Require every SDK module at the
 same commit, and `sdk/connect` even when the module does not import it:
 the `go.mod` of `sdk` requires it at `v0.0.0-0`, a placeholder that only the
 `replace` directives of tt's own repository resolve, and `go get` of `sdk`
-alone fails with `unknown revision sdk/connect/v0.0.0-0`. `sdk/cluster` has
-two such placeholders, for `sdk/connect` and `sdk/dial`.
+alone fails with `unknown revision sdk/connect/v0.0.0-0`. A placeholder
+sorts below every pseudo-version, so the commit given to `go get` takes its
+place. `sdk/cluster` has two such placeholders, for `sdk/connect` and
+`sdk/dial`. After `v3.0.0-alpha.2`, `sdk` requires `sdk/build` at a
+placeholder too: give `github.com/tarantool/tt/sdk/build@<commit>` as well.
 
 The distribution build does not use these versions: it builds every module
 on the SDK at the commit of its core, whatever the module's `go.mod`

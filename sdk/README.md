@@ -274,15 +274,18 @@ example `sdk/connect/v0.1.0`; the contract module's tags are `sdk/v0.x.y`.
 No such tags exist yet: inside this repository the modules resolve through
 `replace` directives in the `go.mod` files that use them, and their own
 `go.mod` files require each other at placeholder versions (`v0.0.0-0`) that
-exist nowhere else.
+exist nowhere else. A placeholder sorts below every pseudo-version, so that
+a version a module outside the repository asks for wins over it.
 
 A module outside this repository therefore requires the SDK modules at a
-commit of tt, every one it uses at the same commit, and `sdk/connect`
-whenever it uses `sdk` (`sdk/connect` and `sdk/dial` for `sdk/cluster`), so
-that the pseudo-version takes the place of the placeholder:
+commit of tt, every one it uses at the same commit, and `sdk/build` and
+`sdk/connect` whenever it uses `sdk` (`sdk/connect` and `sdk/dial` for
+`sdk/cluster`), so that the pseudo-version takes the place of the
+placeholder:
 
 ```sh
-go get github.com/tarantool/tt/sdk@<commit> github.com/tarantool/tt/sdk/connect@<commit>
+go get github.com/tarantool/tt/sdk@<commit> github.com/tarantool/tt/sdk/build@<commit> \
+    github.com/tarantool/tt/sdk/connect@<commit>
 ```
 
 The distribution build builds every module on the SDK at the commit of its

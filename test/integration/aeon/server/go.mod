@@ -3,7 +3,7 @@ module mock/server/aeon
 go 1.27.4
 
 require (
-	github.com/tarantool/tt/modules/aeon v0.0.0
+	github.com/tarantool/tt/modules/aeon v0.0.0-0
 	google.golang.org/grpc v1.83.2
 )
 
