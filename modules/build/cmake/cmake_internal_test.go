@@ -197,9 +197,9 @@ func TestStaleTree(t *testing.T) {
 	})
 }
 
-// component is the component m, of no kind.
+// component is the component m, which wants nothing.
 func component() build.Component {
-	return build.Component{Name: "m", Path: "m", Namespace: "", Package: "", Expects: nil}
+	return build.Component{Name: "m", Path: "m", Namespace: "", Package: "", Wants: nil}
 }
 
 func TestCopyOutputs(t *testing.T) {
@@ -314,7 +314,7 @@ func answerHarness(t *testing.T) *buildtest.Harness {
 	t.Helper()
 
 	harness := buildtest.New(t, Backend(), build.Component{
-		Name: "answer", Path: "answer", Namespace: "demo", Package: "", Expects: nil,
+		Name: "answer", Path: "answer", Namespace: "demo", Package: "", Wants: nil,
 	})
 
 	prefix := t.TempDir()
@@ -342,7 +342,7 @@ func answerBuild(t *testing.T, output string, targets ...any) build.Build {
 	}
 
 	bld, err := buildtest.Validate(Backend(), build.Component{
-		Name: "answer", Path: "answer", Namespace: "demo", Package: "", Expects: nil,
+		Name: "answer", Path: "answer", Namespace: "demo", Package: "", Wants: nil,
 	}, buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: modules(output), Static: false},
 		Incremental: false,

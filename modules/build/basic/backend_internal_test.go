@@ -13,11 +13,11 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// component is the component the tests build, which expects what its build
-// makes to be of the types expects (build.Component.Expects).
-func component(expects ...build.Result) build.Component {
+// component is the component the tests build, which wants results of the
+// types wants (build.Component.Wants).
+func component(wants ...build.Result) build.Component {
 	return build.Component{
-		Name: "native", Path: "native", Namespace: "demo", Package: "demo", Expects: expects,
+		Name: "native", Path: "native", Namespace: "demo", Package: "demo", Wants: wants,
 	}
 }
 
@@ -231,11 +231,11 @@ func TestValidate(t *testing.T) {
 		_, err := buildtest.Validate(backend, component(), with)
 		require.NoError(t, err, backend.Name)
 
-		for _, expects := range [][]build.Result{
+		for _, wants := range [][]build.Result{
 			{build.Module, build.Data}, {build.Program},
 		} {
-			_, err = buildtest.Validate(backend, component(expects...), block(rest))
-			require.NoError(t, err, backend.Name, expects)
+			_, err = buildtest.Validate(backend, component(wants...), block(rest))
+			require.NoError(t, err, backend.Name, wants)
 		}
 
 		_, err = buildtest.ValidateHook(backend, with)

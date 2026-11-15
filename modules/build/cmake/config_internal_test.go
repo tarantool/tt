@@ -12,19 +12,18 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// module is a component of the cmake backend, of no kind.
+// module is a component of the cmake backend that wants nothing.
 func module() build.Component {
 	return build.Component{
-		Name: "answer", Path: "answer", Namespace: "demo", Package: "demo", Expects: nil,
+		Name: "answer", Path: "answer", Namespace: "demo", Package: "demo", Wants: nil,
 	}
 }
 
-// program is a component of the cmake backend of the deprecated
-// kind = "executable".
+// program is a component of the cmake backend that wants programs alone.
 func program() build.Component {
 	return build.Component{
 		Name: "tool", Path: "tool", Namespace: "demo", Package: "demo",
-		Expects: []build.Result{build.Program},
+		Wants: []build.Result{build.Program},
 	}
 }
 

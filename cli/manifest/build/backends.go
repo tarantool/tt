@@ -132,7 +132,7 @@ func (b builder) component(name string) (componentRun, error) {
 	facts := sdkbuild.Context{
 		Component: sdkbuild.Component{
 			Name: name, Path: target.Path, Namespace: target.Namespace,
-			Package: target.Package, Expects: buildreg.Expects(target.Kind),
+			Package: target.Package, Wants: buildreg.Wants(target.Kind),
 		},
 		Target:    b.target,
 		Dirs:      dirs,
@@ -188,7 +188,7 @@ func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Conte
 	}
 
 	facts := sdkbuild.Context{
-		Component: sdkbuild.Component{Name: "", Path: "", Namespace: "", Package: "", Expects: nil},
+		Component: sdkbuild.Component{Name: "", Path: "", Namespace: "", Package: "", Wants: nil},
 		Target:    b.target,
 		Dirs:      dirs,
 		Tarantool: b.tarantool,

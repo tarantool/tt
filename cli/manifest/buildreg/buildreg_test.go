@@ -130,7 +130,7 @@ func TestAddRefused(t *testing.T) {
 			// buildtest refuses what the registry refuses, with the same
 			// error: a backend whose tests pass is one tt takes.
 			_, testErr := buildtest.Validate(refused, build.Component{
-				Name: "a", Path: "a", Namespace: "demo", Package: "demo", Expects: nil,
+				Name: "a", Path: "a", Namespace: "demo", Package: "demo", Wants: nil,
 			}, buildtest.Block{Common: build.Common{}, Incremental: false, Rest: nil})
 			require.ErrorIs(t, testErr, buildreg.ErrBackend)
 			assert.Equal(t, `module "zig": `+testErr.Error(), err.Error())
@@ -148,7 +148,7 @@ func TestBuildtestTakesWhatTheRegistryTakes(t *testing.T) {
 	require.NoError(t, buildreg.New().Add("zig", []build.Backend{taken}, nil))
 
 	_, err := buildtest.Validate(taken, build.Component{
-		Name: "a", Path: "a", Namespace: "demo", Package: "demo", Expects: nil,
+		Name: "a", Path: "a", Namespace: "demo", Package: "demo", Wants: nil,
 	}, buildtest.Block{Common: build.Common{}, Incremental: false, Rest: nil})
 	require.NoError(t, err)
 

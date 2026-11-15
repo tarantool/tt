@@ -155,8 +155,8 @@ type Config struct {
 // newBuild checks a zig build block of the component, the shapes of its
 // fields, and picks what it builds: the module when the block names it, the
 // program when it names it. One that names neither builds, for a component
-// that expects programs only (the kind = "executable" of manifest_version
-// 0.1), the program named after the component, and is refused otherwise:
+// that wants programs alone (build.Component.Wants), the program named after
+// the component, and is refused otherwise:
 // zig build installs files of no name tt could tell.
 func newBuild(cfg any, component build.Component, common build.Common) (build.Build, error) {
 	config, ok := cfg.(*Config)
@@ -172,7 +172,7 @@ func newBuild(cfg any, component build.Component, common build.Common) (build.Bu
 	bin := config.Bin
 
 	if config.Module == "" && bin == "" {
-		if !slices.Equal(component.Expects, []build.Result{build.Program}) {
+		if !slices.Equal(component.Wants, []build.Result{build.Program}) {
 			return nil, build.FieldErrorf("", "names neither module nor bin: "+
 				"the build is to name what it makes, the module, the program or both")
 		}

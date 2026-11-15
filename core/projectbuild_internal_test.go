@@ -223,7 +223,7 @@ func TestProjectBuildContext(t *testing.T) {
 	require.NoError(t, err)
 	assert.IsType(t, wasmBuild{}, bld)
 	assert.Equal(t, sdkbuild.Component{
-		Name: "calc", Path: "components/calc", Namespace: "app", Package: "app", Expects: nil,
+		Name: "calc", Path: "components/calc", Namespace: "app", Package: "app", Wants: nil,
 	}, facts.Component)
 	assert.Equal(t, []string{"--help"}, facts.Args)
 	assert.True(t, facts.Locked)

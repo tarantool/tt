@@ -299,7 +299,7 @@ func TestRun_moduleBackend(t *testing.T) {
 	fast, ok := recorder.ran("fast")
 	require.True(t, ok)
 	assert.Equal(t, sdkbuild.Component{
-		Name: "fast", Path: "fast", Namespace: "my-app", Package: "my-app", Expects: nil,
+		Name: "fast", Path: "fast", Namespace: "my-app", Package: "my-app", Wants: nil,
 	}, fast.Component)
 	assert.Equal(t, sdkbuild.Dirs{
 		Project:   dir,
@@ -323,7 +323,7 @@ func TestRun_moduleBackend(t *testing.T) {
 	// and is told to put its programs into TT_OUTPUT_DIR.
 	tool, ok := recorder.ran("tool")
 	require.True(t, ok)
-	assert.Equal(t, []sdkbuild.Result{sdkbuild.Program}, tool.Component.Expects)
+	assert.Equal(t, []sdkbuild.Result{sdkbuild.Program}, tool.Component.Wants)
 	assert.Equal(t, filepath.Join(stage, "bin"), tool.Dirs.Programs)
 	assert.Equal(t, filepath.Join(stage, "lib", "my-app"), tool.Dirs.Output)
 	assert.Equal(t, tool.Dirs.Programs, tool.Env["TT_OUTPUT_DIR"])
