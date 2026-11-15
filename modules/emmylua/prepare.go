@@ -14,11 +14,6 @@ import (
 	"github.com/tarantool/tt/sdk/fetch"
 )
 
-// registryFlagUsage is the help of --registry, as tt package gives it.
-const registryFlagUsage = "rock server to use instead of the configured ones: " +
-	"an http(s) URL or a local directory; repeat to give an ordered list " +
-	"(overrides TT_REGISTRIES and [platform].registries)"
-
 // prepareCmd is tt emmylua prepare: the values of its flags.
 type prepareCmd struct {
 	services sdk.Services
@@ -100,7 +95,7 @@ func newPrepareCmd(services sdk.Services) *cobra.Command {
 			"to the project (default the rock index of tarantool-contrib/rocks-repo)")
 	flags.BoolVar(&prepare.noInstall, "no-install", false,
 		"do not install the rocks: leave that to tt package build")
-	flags.StringArrayVar(&prepare.registries, "registry", nil, registryFlagUsage)
+	flags.StringArrayVar(&prepare.registries, "registry", nil, sdk.RegistryFlagUsage)
 
 	cmd.MarkFlagsMutuallyExclusive("from", "rock-server")
 
@@ -203,18 +198,10 @@ func declaredForDevelopment(project sdk.Project, name string) bool {
 }
 
 // printMoves reports the changes of the lock to out one per line, as
-// tt package does: a rock that arrived shows only its new version, one that
-// dropped out is marked as such, and one that moved shows both ends.
+// tt package does (sdk.DependencyMove.String).
 func printMoves(out io.Writer, moves []sdk.DependencyMove) {
 	for _, move := range moves {
-		switch {
-		case move.From == "":
-			_, _ = fmt.Fprintf(out, "  %s %s\n", move.Name, move.To)
-		case move.To == "":
-			_, _ = fmt.Fprintf(out, "  %s %s -> (dropped)\n", move.Name, move.From)
-		default:
-			_, _ = fmt.Fprintf(out, "  %s %s -> %s\n", move.Name, move.From, move.To)
-		}
+		_, _ = fmt.Fprintf(out, "  %s\n", move)
 	}
 }
 

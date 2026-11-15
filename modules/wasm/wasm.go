@@ -25,11 +25,6 @@ import (
 	"github.com/tarantool/tt/sdk/build"
 )
 
-// registryFlagUsage is the help of --registry, as tt package gives it.
-const registryFlagUsage = "rock server to use instead of the configured ones: " +
-	"an http(s) URL or a local directory; repeat to give an ordered list " +
-	"(overrides TT_REGISTRIES and [platform].registries)"
-
 // defaultPython is the interpreter tarawasm is installed with unless
 // --python names another.
 const defaultPython = "python3"
@@ -174,7 +169,7 @@ func newPrepareCmd(services sdk.Services) *cobra.Command {
 	flags.StringVar(&prepare.rockServer, "rock-server", "",
 		"the rock server to declare the rock from: a URL or a directory relative "+
 			"to the project (default the rock index of tarantool-contrib/rocks-repo)")
-	flags.StringArrayVar(&prepare.registries, "registry", nil, registryFlagUsage)
+	flags.StringArrayVar(&prepare.registries, "registry", nil, sdk.RegistryFlagUsage)
 
 	prepareCmd.MarkFlagsMutuallyExclusive("from", "rock-server")
 
@@ -308,7 +303,7 @@ func newNewCmd(services sdk.Services) *cobra.Command {
 	flags.StringVar(&add.template, "template", "",
 		"start from a template: http (an HTTP API over a space) or call (an exported "+
 			"function); Python only")
-	flags.StringArrayVar(&add.registries, "registry", nil, registryFlagUsage)
+	flags.StringArrayVar(&add.registries, "registry", nil, sdk.RegistryFlagUsage)
 
 	_ = cmd.MarkFlagRequired("lang")
 
@@ -580,18 +575,10 @@ func manifestOf(services sdk.Services, projectDir string) wasm.ReadManifest {
 }
 
 // printMoves reports the changes of the lock to out one per line, as
-// tt package does: a rock that arrived shows only its new version, one that
-// dropped out is marked as such, and one that moved shows both ends.
+// tt package does (sdk.DependencyMove.String).
 func printMoves(out io.Writer, moves []sdk.DependencyMove) {
 	for _, move := range moves {
-		switch {
-		case move.From == "":
-			_, _ = fmt.Fprintf(out, "  %s %s\n", move.Name, move.To)
-		case move.To == "":
-			_, _ = fmt.Fprintf(out, "  %s %s -> (dropped)\n", move.Name, move.From)
-		default:
-			_, _ = fmt.Fprintf(out, "  %s %s -> %s\n", move.Name, move.From, move.To)
-		}
+		_, _ = fmt.Fprintf(out, "  %s\n", move)
 	}
 }
 
