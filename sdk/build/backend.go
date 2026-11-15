@@ -96,7 +96,10 @@ type Backend struct {
 	// the build block decoded into it, for the component c, whose block has
 	// the common fields common, and returns the build. An error of a field
 	// is a [FieldError], naming the field as the block does
-	// ([FieldErrorf]); any other error is reported for the block.
+	// ([FieldErrorf]); any other error is reported for the block. [Typed]
+	// makes New of a function that takes the configuration as its own
+	// type. What a later SDK tells New goes into Component and Common, so
+	// that its signature stays.
 	New func(cfg any, c Component, common Common) (Build, error)
 	// Incremental allows incremental = true: the core then skips the build
 	// of a component whose inputs - the build block and the files of the
@@ -122,6 +125,30 @@ type Backend struct {
 	// hook too, given the zero Component, and the build runs in a Context
 	// whose Hook is set ([Context.Hook]).
 	Hook bool
+}
+
+// Typed returns the New of a backend whose Config returns a *C, a fresh
+// new(C): it hands newBuild the configuration as the *C it is, so that the
+// backend asserts no type of its own.
+//
+//	Config: func() any { return new(Config) },
+//	New:    build.Typed(newBuild), // func newBuild(cfg *Config, ...)
+//
+// A configuration of another type - of a Config that returns no *C - is an
+// error wrapping [ErrConfig], as the core reports a backend it cannot
+// configure.
+func Typed[C any](
+	newBuild func(cfg *C, c Component, common Common) (Build, error),
+) func(cfg any, c Component, common Common) (Build, error) {
+	return func(cfg any, c Component, common Common) (Build, error) {
+		config, ok := cfg.(*C)
+		if !ok {
+			return nil, fmt.Errorf("%w: New takes a %T, Config returned a %T", ErrConfig,
+				config, cfg)
+		}
+
+		return newBuild(config, c, common)
+	}
 }
 
 // ErrNoTool reports a program a build runs that is not in its PATH. A

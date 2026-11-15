@@ -69,9 +69,11 @@ func backend(name string) build.Backend {
 		Name:     name,
 		Produces: []build.Result{build.Module},
 		Config:   func() any { return new(Config) },
-		New: func(cfg any, _ build.Component, common build.Common) (build.Build, error) {
+		New: build.Typed(func(cfg *Config, _ build.Component, common build.Common) (
+			build.Build, error,
+		) {
 			return newBuild(name, cfg, common)
-		},
+		}),
 		Incremental:    false,
 		OutputFrom:     build.OutputNone,
 		Exclude:        nil,
@@ -125,12 +127,7 @@ type Overlay struct {
 // there (envVars), each overlay of platforms is for an OS tt builds for, and
 // no flag of the compiler or of the linker, of the build or of an overlay,
 // is empty, which cc would take for the name of a file.
-func newBuild(name string, cfg any, common build.Common) (build.Build, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+func newBuild(name string, config *Config, common build.Common) (build.Build, error) {
 	if config.Module == "" {
 		return nil, build.FieldErrorf("", "module is required for backend %q", name)
 	}

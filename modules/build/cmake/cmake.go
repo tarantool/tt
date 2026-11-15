@@ -84,7 +84,7 @@ func Backend() build.Backend {
 		Name:           Name,
 		Produces:       build.Results(),
 		Config:         func() any { return new(Config) },
-		New:            newBuild,
+		New:            build.Typed(newBuild),
 		Incremental:    false,
 		OutputFrom:     build.OutputBackend,
 		Exclude:        nil,
@@ -110,12 +110,7 @@ type Config struct {
 // cmake holds the objects, the caches and the generated files of the build
 // as well, so the build takes from it the files output names and nothing
 // else.
-func newBuild(cfg any, _ build.Component, common build.Common) (build.Build, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+func newBuild(config *Config, _ build.Component, common build.Common) (build.Build, error) {
 	if len(common.Output) == 0 {
 		return nil, build.FieldErrorf("", "output is required for backend %q: the files of its "+
 			"build tree the build takes", Name)

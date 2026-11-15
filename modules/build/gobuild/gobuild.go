@@ -67,7 +67,7 @@ func Backend() build.Backend {
 		Name:           Name,
 		Produces:       []build.Result{build.Program},
 		Config:         func() any { return new(Config) },
-		New:            newBuild,
+		New:            build.Typed(newBuild),
 		Incremental:    false,
 		OutputFrom:     build.OutputNone,
 		Exclude:        nil,
@@ -92,12 +92,9 @@ type Config struct {
 }
 
 // newBuild checks a go build block of the component.
-func newBuild(cfg any, component build.Component, common build.Common) (build.Build, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+func newBuild(config *Config, component build.Component, common build.Common) (
+	build.Build, error,
+) {
 	if config.Name != "" && !programNameRe.MatchString(config.Name) {
 		return nil, build.FieldErrorf("name", "%q is not a file name", config.Name)
 	}

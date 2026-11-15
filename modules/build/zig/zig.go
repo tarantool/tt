@@ -116,7 +116,7 @@ func Backend() build.Backend {
 		Name:     Name,
 		Produces: []build.Result{build.Module, build.Program},
 		Config:   func() any { return new(Config) },
-		New:      newBuild,
+		New:      build.Typed(newBuild),
 		// zig build keeps its own cache in the work directory of the build
 		// and rebuilds what changed anyway; incremental skips running it.
 		Incremental: true,
@@ -156,14 +156,11 @@ type Config struct {
 // fields, and picks what it builds: the module when the block names it, the
 // program when it names it. One that names neither builds, for a component
 // that wants programs alone (build.Component.Wants), the program named after
-// the component, and is refused otherwise:
-// zig build installs files of no name tt could tell.
-func newBuild(cfg any, component build.Component, common build.Common) (build.Build, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
-	}
-
+// the component, and is refused otherwise: zig build installs files of no
+// name tt could tell.
+func newBuild(config *Config, component build.Component, common build.Common) (
+	build.Build, error,
+) {
 	err := checkConfig(*config)
 	if err != nil {
 		return nil, err
