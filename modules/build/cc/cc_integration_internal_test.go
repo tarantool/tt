@@ -307,6 +307,74 @@ func TestLuaCMixedModuleLoadsInTarantool(t *testing.T) {
 	}
 }
 
+// TestLuaCMixedModuleOfZig builds the module of mixedSources with zig cc and
+// zig c++ for the host, static = true on Linux, and loads it in the host's
+// Tarantool: zig c++ links its own libc++ in, so the link gets neither
+// -static-libstdc++ nor -Wl,--exclude-libs, which zig refuses, and the module
+// needs no C++ library. zig writes the depfile of each compile, so a build
+// with nothing changed compiles nothing.
+func TestLuaCMixedModuleOfZig(t *testing.T) {
+	t.Parallel()
+
+	includeDir, tarantool := requireHostHeaders(t)
+
+	zig, err := exec.LookPath("zig")
+	if err != nil {
+		t.Skipf("zig not found in PATH: %v", err)
+	}
+
+	harness := hostHarness(t, includeDir, mixedSources)
+
+	harness.Context.Static = runtime.GOOS == "linux"
+
+	log := &wrapLog{path: filepath.Join(t.TempDir(), "wrap.log"), read: 0}
+	compilers := map[string]string{"CC": zig + " cc", "CXX": zig + " c++"}
+	run := func() {
+		t.Helper()
+
+		bld := wrappedBuildOf(t, harness, LuaC(), mixedBlock(), log, compilers)
+
+		require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+	}
+
+	run()
+
+	sources, linked := log.next(t)
+	assert.Equal(t, []string{"cpp/twice.cc", "cpp/vec.cpp", "mixed.c"}, sources)
+	assert.True(t, linked)
+
+	for _, object := range []string{"mixed.c", "cpp/vec.cpp", "cpp/twice.cc"} {
+		assert.FileExists(t, filepath.Join(harness.Context.Dirs.Work, "obj",
+			objectName(object)+".json"), "zig wrote the depfile of %s", object)
+	}
+
+	printed, err := exec.CommandContext(t.Context(), tarantool,
+		filepath.Join(harness.Context.Dirs.Cwd, "check.lua"),
+		harness.Context.Dirs.Modules).CombinedOutput()
+	require.NoError(t, err, string(printed))
+	assert.Equal(t, "55\t-1\t42", strings.TrimSpace(string(printed)))
+
+	if runtime.GOOS == "linux" {
+		module, err := elf.Open(filepath.Join(harness.Context.Dirs.Modules, "mixed.so"))
+		require.NoError(t, err)
+
+		needed, err := module.ImportedLibraries()
+		require.NoError(t, module.Close())
+		require.NoError(t, err)
+
+		for _, library := range needed {
+			assert.NotContains(t, library, "libstdc++")
+			assert.NotContains(t, library, "libc++")
+		}
+	}
+
+	run()
+
+	sources, linked = log.next(t)
+	assert.Empty(t, sources, "nothing changed")
+	assert.False(t, linked, "nothing changed")
+}
+
 // wrapper is a compiler wrapper that logs each run, its arguments, to
 // $WRAP_LOG and runs them: CC="wrap cc" counts the runs of cc.
 const wrapper = `#!/bin/sh
@@ -328,7 +396,26 @@ func wrappedBuild(t *testing.T, harness *buildtest.Harness, rest map[string]any,
 ) ccBuild {
 	t.Helper()
 
-	validated, err := buildtest.Validate(C(), flatComponent(), block(rest, nil))
+	compilers := map[string]string{"CC": "cc", "CXX": "c++"}
+
+	for _, variable := range []string{"CC", "CXX"} {
+		if value := os.Getenv(variable); value != "" {
+			compilers[variable] = value
+		}
+	}
+
+	return wrappedBuildOf(t, harness, C(), rest, log, compilers)
+}
+
+// wrappedBuildOf is the build of rest of backend in harness with each
+// compiler of compilers, CC and CXX, behind wrapper, which logs into
+// log.path.
+func wrappedBuildOf(t *testing.T, harness *buildtest.Harness, backend build.Backend,
+	rest map[string]any, log *wrapLog, compilers map[string]string,
+) ccBuild {
+	t.Helper()
+
+	validated, err := buildtest.Validate(backend, flatComponent(), block(rest, nil))
 	require.NoError(t, err)
 
 	bld, ok := validated.(ccBuild)
@@ -342,12 +429,10 @@ func wrappedBuild(t *testing.T, harness *buildtest.Harness, rest map[string]any,
 
 	harness.Context.Env["WRAP_LOG"] = log.path
 
-	environ := map[string]string{"CC": "wrap cc", "CXX": "wrap c++"}
+	environ := map[string]string{}
 
-	for _, variable := range []string{"CC", "CXX"} {
-		if value := os.Getenv(variable); value != "" {
-			environ[variable] = "wrap " + value
-		}
+	for variable, value := range compilers {
+		environ[variable] = "wrap " + value
 	}
 
 	bld.lookupEnv = func(key string) (string, bool) {

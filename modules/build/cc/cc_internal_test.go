@@ -379,7 +379,7 @@ var (
 func TestLinkArgsLinuxPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(), linux, false, true,
+	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(), linux.OS, false,
 		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.so")
 
 	want := []string{
@@ -403,7 +403,7 @@ func TestLinkArgsLinuxPlacement(t *testing.T) {
 func TestLinkArgsDarwinPlacement(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(), darwin, false, false,
+	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(), darwin.OS, false,
 		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
 
 	want := []string{
@@ -426,7 +426,7 @@ func TestLinkArgsDarwinPlacement(t *testing.T) {
 func TestLinkArgsUserFlagsComeLast(t *testing.T) {
 	t.Parallel()
 
-	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), linux, false, true,
+	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(), linux.OS, false,
 		[]string{"/w/a.o"}, "/out/mymod.so")
 
 	assert.Equal(t, "-Wl,-z,now", args[len(args)-1])
@@ -438,32 +438,60 @@ func TestLinkArgsUserFlagsComeLast(t *testing.T) {
 }
 
 // TestLinkArgsStaticLibstdcxx pins that the C++ library is linked statically,
-// its symbols hidden, into a module of C++ of Linux with static = true, and
-// into no other.
+// its symbols hidden, into a module of C++ of Linux with static = true by
+// any compiler but zig, and into no other.
 func TestLinkArgsStaticLibstdcxx(t *testing.T) {
 	t.Parallel()
 
 	objects := []string{"/w/a.o"}
 
-	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), linux, true, true,
+	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), linux.OS, true,
 		objects, "/out/m.so")
 	assert.Equal(t, []string{
 		"-shared", "-static-libstdc++", "-Wl,--exclude-libs,ALL", "-o", "/out/m.so", "/w/a.o",
 	}, static)
+	assert.NotContains(t, linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(),
+		linux.OS, false, objects, "/out/m.so"), "-static-libstdc++")
+
+	gxx := []string{"c++"}
+
+	assert.True(t, linksLibstdcxx(linux, true, true, gxx))
+	assert.True(t, linksLibstdcxx(linux, true, true, []string{"ccache", "g++"}))
 
 	for _, other := range []struct {
 		target      build.Target
-		tools       toolchain
 		static, cxx bool
+		linker      []string
 	}{
-		{linux, linuxToolchain(), false, true},
-		{linux, linuxToolchain(), true, false},
-		{darwin, darwinToolchain(), true, true},
+		{linux, false, true, gxx},
+		{linux, true, false, gxx},
+		{darwin, true, true, gxx},
+		{linux, true, true, []string{"zig", "c++"}},
+		{linux, true, true, []string{"/opt/zig-0.17.1/zig", "c++", "-target", "x86_64-linux"}},
+		{linux, true, true, []string{"ccache", "zig", "c++"}},
 	} {
-		args := linkArgs(moduleConfig("a.cpp"), other.tools, noEnvFlags(), other.target,
-			other.static, other.cxx, objects, "/out/m.so")
-		assert.NotContains(t, args, "-static-libstdc++", other)
-		assert.NotContains(t, args, "-Wl,--exclude-libs,ALL", other)
+		assert.False(t, linksLibstdcxx(other.target, other.static, other.cxx, other.linker),
+			other)
+	}
+}
+
+// TestIsZig pins how zig cc and zig c++ are told from the words of the
+// compiler.
+func TestIsZig(t *testing.T) {
+	t.Parallel()
+
+	for _, words := range [][]string{
+		{"zig", "cc"}, {"zig", "c++"}, {"/home/me/.local/zig/0.17.1/zig", "c++"},
+		{"ccache", "zig", "cc"}, {"zig.exe", "cc"}, {"zig", "cc", "-target", "aarch64-linux"},
+	} {
+		assert.True(t, isZig(words), words)
+	}
+
+	for _, words := range [][]string{
+		nil, {"zig"}, {"cc"}, {"clang++"}, {"zig", "build"}, {"zigcc"}, {"zig-cc", "cc"},
+		{"cc", "zig"}, {"/usr/bin/zig/cc"},
+	} {
+		assert.False(t, isZig(words), words)
 	}
 }
 
@@ -535,8 +563,15 @@ func TestPlanOf(t *testing.T) {
 		objects = append(objects, step.object)
 	}
 
-	assert.Equal(t, concat([]string{"zig", "c++", "-shared", "-static-libstdc++",
-		"-Wl,--exclude-libs,ALL", "-o", "/lib/m.so"}, objects), built.link)
+	// zig c++ links its libc++ in itself, and refuses --exclude-libs.
+	assert.Equal(t, concat([]string{"zig", "c++", "-shared", "-o", "/lib/m.so"}, objects),
+		built.link)
+
+	gcc := linuxToolchain()
+	gxx := planOf(config, gcc, noEnvFlags(), context(true))
+
+	assert.Equal(t, concat([]string{"c++", "-shared", "-static-libstdc++",
+		"-Wl,--exclude-libs,ALL", "-o", "/lib/m.so"}, objects), gxx.link)
 
 	withoutCXX := planOf(moduleConfig("a.c", "b.s"), tools, noEnvFlags(), context(true))
 	assert.False(t, withoutCXX.cxx)

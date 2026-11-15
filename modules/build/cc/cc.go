@@ -501,7 +501,7 @@ type toolchain struct {
 // is unset.
 func toolchainOf(c *build.Context, lookup func(string) (string, bool)) (toolchain, error) {
 	tools := toolchain{
-		cc: []string{"cc"}, cxx: []string{"c++"}, libFlag: []string{"-shared"}, rpath: true,
+		cc: []string{"cc"}, cxx: []string{cxxName}, libFlag: []string{"-shared"}, rpath: true,
 		includeDir: "",
 	}
 

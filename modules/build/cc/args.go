@@ -35,7 +35,7 @@ func (l language) String() string {
 	case langC:
 		return "c"
 	case langCXX:
-		return "c++"
+		return cxxName
 	case langAsmCpp:
 		return "assembler-with-cpp"
 	case langAsm:
@@ -192,6 +192,40 @@ func compileFlags(config Config, tools toolchain, env envFlags, goos string,
 // the system, and clang ignores -static-libstdc++.
 var staticLibstdcxx = []string{"-static-libstdc++", "-Wl,--exclude-libs,ALL"}
 
+// linksLibstdcxx reports whether the link of a build for target, with
+// static = true when static is set, of C++ when cxx is, by the compiler of
+// the words linker links the static C++ library (staticLibstdcxx): on Linux,
+// static and C++, unless linker is zig, whose zig c++ links its own libc++
+// into every module, statically and its symbols hidden, ignores
+// -static-libstdc++ and refuses -Wl,--exclude-libs.
+func linksLibstdcxx(target build.Target, static, cxx bool, linker []string) bool {
+	return static && cxx && target.OS == "linux" && !isZig(linker)
+}
+
+// isZig reports whether the compiler of words is zig cc or zig c++: one of
+// its words is a program named zig, the next one cc or c++. The words tell
+// it, not what the compiler prints: zig c++ --version says "clang version
+// 22.1.8", which a clang says too, and zig is a program run with cc or
+// c++, so its name is there whatever runs it first, ccache zig cc say. A
+// script of another name that runs zig is not told.
+func isZig(words []string) bool {
+	for index, word := range words[:max(len(words)-1, 0)] {
+		name := strings.TrimSuffix(filepath.Base(word), ".exe")
+		if name == "zig" && slices.Contains(zigCompilers, words[index+1]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// zigCompilers are the commands of zig that are compilers of C and C++.
+var zigCompilers = []string{"cc", cxxName}
+
+// cxxName is what the tools name C++: the language of -x c++, the C++
+// compiler of a system, c++, and that of zig, zig c++.
+const cxxName = "c++"
+
 // linkArgs builds the argv of the link of objects into out, without the
 // words of the compiler that links:
 //
@@ -205,23 +239,23 @@ var staticLibstdcxx = []string{"-static-libstdc++", "-Wl,--exclude-libs,ALL"}
 // environment ends the line, as go-luarocks has it. The rest mirrors the
 // builtin build of go-luarocks. The flags of the compilers are not given:
 // a flag both need, -pthread or -fsanitize=address, is in cflags or cxxflags
-// and in ldflags. The static C++ library (staticLibstdcxx) is linked for a
-// module of C++ of Linux with static = true.
+// and in ldflags. The static C++ library (staticLibstdcxx) is linked when
+// staticCXX is set (linksLibstdcxx).
 //
 // ldflags, library dirs and libraries come from config, each merged
 // (append-only) with its overlay of platforms for goos; library order is
 // preserved because link order matters. Each -L is immediately followed by
 // its -Wl,-rpath, entry when the toolchain has rpaths.
-func linkArgs(config Config, tools toolchain, env envFlags, target build.Target,
-	static, cxx bool, objects []string, out string,
+func linkArgs(config Config, tools toolchain, env envFlags, goos string, staticCXX bool,
+	objects []string, out string,
 ) []string {
-	overlay := config.Platforms[target.OS]
+	overlay := config.Platforms[goos]
 
 	args := make([]string, 0, initialArgsCap+len(objects))
 
 	args = append(args, tools.libFlag...)
 
-	if static && cxx && target.OS == "linux" {
+	if staticCXX {
 		args = append(args, staticLibstdcxx...)
 	}
 
@@ -353,7 +387,8 @@ func planOf(config Config, tools toolchain, env envFlags, c *build.Context) plan
 	}
 
 	built.link = concat(built.linker,
-		linkArgs(config, tools, env, c.Target, c.Static, built.cxx, paths, built.out))
+		linkArgs(config, tools, env, c.Target.OS,
+			linksLibstdcxx(c.Target, c.Static, built.cxx, built.linker), paths, built.out))
 
 	return built
 }
