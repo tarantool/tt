@@ -328,7 +328,7 @@ func writeBlock(page *strings.Builder, lang string, lines []string) {
 	page.WriteString("```\n\n")
 }
 
-// anchor returns the anchor of the heading text, as MkDocs makes it: lower
+// anchor returns the anchor of the heading text, as the site makes it: lower
 // case, spaces turned into dashes, other punctuation dropped.
 func anchor(text string) string {
 	var out strings.Builder

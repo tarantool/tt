@@ -775,20 +775,21 @@ func (Docs) Reference() error {
 		"-count=1", "-args", "-clidoc", dir)
 }
 
-// Build builds the documentation site into site/, failing on a broken link
-// or a page the nav omits. MkDocs comes from doc/requirements.txt.
+// Build builds the documentation site into site/, the translations into
+// site/<locale>/, failing on a broken link or a page the nav omits. Zensical
+// comes from doc/requirements.txt.
 func (Docs) Build() error {
 	mg.Deps(Docs.Reference)
 
-	return sh.RunV(pythonExecutableName, "-m", "mkdocs", "build", "--strict")
+	return sh.RunV(pythonExecutableName, "ci/doc_site.py", "build")
 }
 
-// Serve serves the documentation site with live reload on
-// http://127.0.0.1:8000/tt/.
+// Serve serves the documentation site on http://127.0.0.1:8000/tt/,
+// rebuilding it on a change, with live reload of the English pages.
 func (Docs) Serve() error {
 	mg.Deps(Docs.Reference)
 
-	return sh.RunV(pythonExecutableName, "-m", "mkdocs", "serve")
+	return sh.RunV(pythonExecutableName, "ci/doc_site.py", "serve")
 }
 
 // Stale lists the translated pages of the documentation whose English page

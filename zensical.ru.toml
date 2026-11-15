@@ -1,0 +1,24 @@
+# The Russian site, under /ru/: what it changes in the [project] of
+# zensical.toml. ci/doc_site.py builds a site for each zensical.<locale>.toml;
+# Zensical reads zensical.toml only.
+#
+# page.ru.md translates page.md, and a page with no translation is the
+# English one, as the generated command reference always is. Translations
+# that lag behind their English pages: mage docs:stale.
+
+site_description = "tt, утилита командной строки для приложений Tarantool"
+
+# The titles the nav sets explicitly; the others come from the first
+# heading of a page.
+[nav]
+"Home" = "Главная"
+"What's new in tt 3" = "Что нового в tt 3"
+"Get started" = "Начало работы"
+"Concepts" = "Концепции"
+"Write your application" = "Пишем приложение"
+"How-to" = "Руководства"
+"Migrate from tt 2.x" = "Переход с tt 2.x"
+"Reference" = "Справочник"
+"Commands" = "Команды"
+"Exit codes" = "Коды завершения"
+"Project" = "О проекте"
