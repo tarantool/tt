@@ -75,6 +75,28 @@ func TestWorkPath(t *testing.T) {
 	}
 }
 
+// TestWorkPathUnderALink: a go.work in a directory under a symbolic link, as
+// the temporary directories of macOS are under /var, a link to
+// /private/var, names a directory out of the link by its absolute path. A
+// relative one would lead elsewhere from the directory with the link
+// resolved, which the go command may start from.
+func TestWorkPathUnderALink(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	private := filepath.Join(root, "private", "var")
+	core := filepath.Join(root, "core", "sdk")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(private, "dist", "plugins"), 0o755))
+	require.NoError(t, os.MkdirAll(core, 0o755))
+	require.NoError(t, os.Symlink(private, filepath.Join(root, "var")))
+
+	dist := filepath.Join(root, "var", "dist")
+
+	assert.Equal(t, core, workPath(dist, core))
+	assert.Equal(t, "./plugins", workPath(dist, filepath.Join(dist, "plugins")))
+}
+
 // TestNewerGo checks that the go directive is the newest of the go.mod
 // files, an empty or invalid one older than any.
 func TestNewerGo(t *testing.T) {

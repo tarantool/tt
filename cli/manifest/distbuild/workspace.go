@@ -438,11 +438,16 @@ func renderWorkspace(spec workSpec) []byte {
 // workPath returns path as a go.work in dir names it: relative to dir, with
 // ./ or ../ in front, when it can be, absolute otherwise, and quoted when
 // the go command would not read it bare.
+//
+// The go command joins a relative path to the directory of the go.work as
+// it finds it, which may be with the symbolic links of its parents resolved
+// or not: on macOS the temporary directories are under /var, a link to
+// /private/var. A path is relative only when it is the same both ways.
 func workPath(dir, path string) string {
 	name := path
 
 	rel, err := filepath.Rel(dir, path)
-	if err == nil {
+	if err == nil && rel == physicalRel(dir, path) {
 		name = filepath.ToSlash(rel)
 		if name != "." && name != ".." && !strings.HasPrefix(name, "../") {
 			name = "./" + name
@@ -454,6 +459,28 @@ func workPath(dir, path string) string {
 	}
 
 	return name
+}
+
+// physicalRel returns path relative to dir, both with their symbolic links
+// resolved, each as it is when it is not there to resolve; "" when path is
+// not relative to dir.
+func physicalRel(dir, path string) string {
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		realDir = dir
+	}
+
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		realPath = path
+	}
+
+	rel, err := filepath.Rel(realDir, realPath)
+	if err != nil {
+		return ""
+	}
+
+	return rel
 }
 
 // mustQuote reports whether the go command reads s in a go.work only
