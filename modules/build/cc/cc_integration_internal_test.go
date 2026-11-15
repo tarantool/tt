@@ -197,6 +197,48 @@ func TestCcBindsTheCallsOfTheModuleToItself(t *testing.T) {
 	assert.Equal(t, "2", strings.TrimSpace(string(printed)), "the module calls its own")
 }
 
+// TestCcWarnsOfTheSymbolsOfTarantool proves that a module exporting a
+// function of the name of one the tarantool of the build exports is warned
+// of, and one that makes it static is not. The tarantool is a program that
+// exports shadowed(), as Tarantool exports its functions.
+func TestCcWarnsOfTheSymbolsOfTarantool(t *testing.T) {
+	t.Parallel()
+
+	includeDir, _ := requireHostHeaders(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"shadow.c": "int shadowed(void) { return 2; }\nint mine(void) { return shadowed(); }\n",
+		"host.c":   symbolicHostC,
+	})
+
+	cwd := harness.Context.Dirs.Cwd
+	host := filepath.Join(cwd, "host")
+
+	printed, err := exec.CommandContext(t.Context(), "cc", "-rdynamic", "-o", host,
+		filepath.Join(cwd, "host.c"), "-ldl").CombinedOutput()
+	require.NoError(t, err, string(printed))
+
+	harness.Context.Tarantool.Executable = host
+
+	rest := map[string]any{"module": "shadow", "sources": []any{"shadow.c"}}
+
+	hostBuild(t, harness, C(), rest, "shadow")
+
+	warnings := harness.Warnings()
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "exports 1 symbols that the tarantool "+host+
+		" exports too: shadowed;")
+
+	// No warning of a module up to date, which is not linked again.
+	hostBuild(t, harness, C(), rest, "shadow")
+	assert.Len(t, harness.Warnings(), 1)
+
+	writeFile(t, harness, "shadow.c",
+		"static int shadowed(void) { return 2; }\nint mine(void) { return shadowed(); }\n")
+	hostBuild(t, harness, C(), rest, "shadow")
+	assert.Len(t, harness.Warnings(), 1, "a static function is no clash")
+}
+
 // TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
 // against the real Tarantool C module API: the source includes <module.h> and
 // exports a luaopen_ entry point, so it compiles only when the include
