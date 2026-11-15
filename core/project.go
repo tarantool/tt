@@ -262,14 +262,14 @@ func (project) Lock(ctx context.Context) (context.Context, func(), error) {
 	return cmd.LockProject(ctx)
 }
 
-// StateDir returns .tarantool of Root.
-func (p project) StateDir() (string, error) {
+// ScopeDir returns .tarantool of Root.
+func (p project) ScopeDir() (string, error) {
 	root, err := p.Root()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(root, scope.ProjectDirName), nil
+	return scope.ProjectRoot(root), nil
 }
 
 // PrepareEnvironment writes .env/activate.sh and deactivate.sh of Root when
