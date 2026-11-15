@@ -391,7 +391,7 @@ func TestRun(t *testing.T) {
 	t.Parallel()
 
 	link := map[string][]string{
-		"linux":  {"-shared"},
+		"linux":  {"-shared", "-Wl,-Bsymbolic-functions"},
 		"darwin": {"-bundle", "-undefined", "dynamic_lookup", "-all_load"},
 	}
 
@@ -451,8 +451,8 @@ func TestRunMixed(t *testing.T) {
 			objB + " -c sub/b.cpp -o " + objB + ".tmp",
 		"fakecc -O2 -fPIC -std=c11 -I/tt/include/tarantool -MD -MF " + objA + ".d -MQ " +
 			objA + " -c a.c -o " + objA + ".tmp",
-		"fakec++ -shared -static-libstdc++ -Wl,--exclude-libs,ALL -o " + out + " " + objA +
-			" " + objB,
+		"fakec++ -shared -Wl,-Bsymbolic-functions -static-libstdc++ -Wl,--exclude-libs,ALL " +
+			"-o " + out + " " + objA + " " + objB,
 	}, ran)
 
 	data, err := os.ReadFile(filepath.Join(facts.Dirs.Work, "compile_commands.json"))
