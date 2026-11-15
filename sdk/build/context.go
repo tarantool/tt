@@ -164,7 +164,8 @@ type Context struct {
 	// and Programs, and Env has no TT_OUTPUT_DIR, TT_COMPONENT_NAME and
 	// TT_BUILD_DIR. The files output lists are not copied for a hook.
 	Hook bool
-	// Log is the logger of the build.
+	// Log is the logger of the build: tt's, as the logger of a module is,
+	// with a backend=<name> attribute; tt -V shows its debug records.
 	Log *slog.Logger
 	// Warn shows a warning to the user.
 	Warn func(string)

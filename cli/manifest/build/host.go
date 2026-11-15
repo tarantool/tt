@@ -362,11 +362,14 @@ func pinnedVersions(closure manifest.LockProduct) map[string]string {
 	return pinned
 }
 
-// discardLogger is the logger of a build whose options give none.
-func discardLogger(logger *slog.Logger) *slog.Logger {
-	if logger == nil {
-		return slog.New(slog.DiscardHandler)
-	}
+// backendKey is the attribute that names the backend a record of a build
+// comes from.
+const backendKey = "backend"
 
-	return logger
+// buildLogger is the logger of a build of the backend named backend
+// (sdkbuild.Context.Log): the process logger, as the logger of a module is,
+// with a backend=<name> attribute. It is not the logger of the options,
+// which is that of go-luarocks and says library=go-luarocks.
+func buildLogger(backend string) *slog.Logger {
+	return log.Logger().With(backendKey, backend)
 }

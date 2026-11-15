@@ -9,6 +9,7 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
@@ -145,7 +146,7 @@ func (b builder) component(name string) (componentRun, error) {
 		Locked:    b.opts.Locked,
 		Static:    component.Build.StaticValue(),
 		Hook:      false,
-		Log:       discardLogger(b.opts.Logger),
+		Log:       buildLogger(backend.Name),
 		Warn:      b.warn,
 	}
 
@@ -155,10 +156,10 @@ func (b builder) component(name string) (componentRun, error) {
 	}, nil
 }
 
-// hookContext returns the Context of the given hook of the package: the
-// reduced contract of a hook, with no component, no work and output
-// directories and none of their variables.
-func (b builder) hookContext(hook manifest.Hook) *sdkbuild.Context {
+// hookContext returns the Context of the given hook of the package, run by
+// the backend named backend: the reduced contract of a hook, with no
+// component, no work and output directories and none of their variables.
+func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Context {
 	dirs := sdkbuild.Dirs{
 		Project:   b.proj.dir,
 		Component: "",
@@ -199,7 +200,7 @@ func (b builder) hookContext(hook manifest.Hook) *sdkbuild.Context {
 		Locked:    b.opts.Locked,
 		Static:    false,
 		Hook:      true,
-		Log:       discardLogger(b.opts.Logger),
+		Log:       buildLogger(backend),
 		Warn:      b.warn,
 	}
 
@@ -569,9 +570,9 @@ func (b builder) skipUnchanged(ctx context.Context, run componentRun) (
 		return state, false, nil
 	}
 
-	if b.opts.Logger != nil {
-		b.opts.Logger.Info("component is up to date", "component", run.name)
-	}
+	// The core's own record, which tt -V shows; Options.Logger is that of
+	// go-luarocks, whose records say so.
+	log.Debug("component is up to date", "component", run.name)
 
 	return state, true, nil
 }
@@ -622,7 +623,7 @@ func (b builder) runHook(ctx context.Context, name string) error {
 	}
 
 	if err == nil {
-		err = bld.Run(ctx, b.hookContext(hook))
+		err = bld.Run(ctx, b.hookContext(hook, backend.Name))
 	}
 
 	if err != nil {

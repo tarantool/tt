@@ -617,6 +617,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt -V package build` no longer says `library=go-luarocks` of what tt
+  itself logs: `component is up to date component=<name>` of an incremental
+  build skipped, and `removed <rock> <version>, which the lock does not pin`.
+  The logger of a build backend is tt's too, with `backend=<name>`.
 - `tt binary install tarantool` builds a Tarantool commit of 2024 or older
   from source with CMake 4, and `tt rocks`, `tt package` and `tt test` build
   the rocks that ask for an old CMake, `crud` and `stat` say: CMake 4 refused

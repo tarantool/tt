@@ -405,7 +405,7 @@ func materializeLock(
 		return err
 	}
 
-	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil, logInfo(opts.Logger))
+	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil, logPruned)
 }
 
 // runBuild runs the full build cycle.

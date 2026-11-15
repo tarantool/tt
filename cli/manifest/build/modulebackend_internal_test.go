@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
@@ -471,6 +474,62 @@ func TestRun_kindChecksTheBuild(t *testing.T) {
 	require.ErrorContains(t, err,
 		`components.gw.kind: is "executable", but the build makes modules`)
 	assert.Equal(t, 0, runs(t, dir, "gw"))
+}
+
+// TestRun_logsAsTt checks that the records of the core of a build - an
+// incremental build skipped, in -V - and the logger of a build are tt's,
+// not those of the logger of go-luarocks the options give, which say
+// library=go-luarocks. The test swaps the process logger, so it does not
+// run in parallel.
+//
+//nolint:paralleltest // The logger of the process is the process's.
+func TestRun_logsAsTt(t *testing.T) {
+	logger, records := logtest.New(t)
+	previous := slog.Default()
+
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	slog.SetDefault(logger)
+
+	dir := setupProject(t, touchManifest, map[string]string{
+		"fast/init.lua": "return {}\n",
+		"tool/main.txt": "the sources of the tool\n",
+	})
+
+	recorder := &touchRecorder{mu: sync.Mutex{}, contexts: map[string]sdkbuild.Context{}}
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("touch", []sdkbuild.Backend{touchBackend(recorder)}, nil))
+
+	opts := dryOptions(dir)
+
+	opts.Backends = backends
+	opts.Logger = log.LibraryOf(logger, "go-luarocks")
+
+	require.NoError(t, Run(context.Background(), opts))
+	require.NoError(t, Run(context.Background(), opts))
+	assert.Equal(t, 1, runs(t, dir, "fast"))
+
+	var upToDate []logtest.Record
+
+	for _, record := range records.Records() {
+		if record.Message == "component is up to date" {
+			upToDate = append(upToDate, record)
+		}
+	}
+
+	require.Len(t, upToDate, 1)
+	assert.Equal(t, slog.LevelDebug, upToDate[0].Level)
+	assert.Equal(t, "fast", upToDate[0].Map()["component"])
+	assert.NotContains(t, upToDate[0].Map(), log.LibraryKey)
+
+	fast, ok := recorder.ran("fast")
+	require.True(t, ok)
+	fast.Log.Info("built")
+
+	built := records.Records()[len(records.Records())-1]
+	assert.Equal(t, "built", built.Message)
+	assert.Equal(t, "touch", built.Map()["backend"])
+	assert.NotContains(t, built.Map(), log.LibraryKey)
 }
 
 // TestRun_producesChecksTheBuild checks what a build made against what its
