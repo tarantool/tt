@@ -118,22 +118,22 @@ func dependenciesOf(deps map[string]manifest.Dependency) map[string]sdk.Manifest
 
 // AddComponent declares component in the manifest of Root:
 // cmd.AddComponent. A missing manifest is sdk.ErrNotFound as well.
-func (project) AddComponent(_ context.Context, component sdk.Component) error {
-	return manifestError(cmd.AddComponent(component))
+func (project) AddComponent(ctx context.Context, component sdk.Component) error {
+	return manifestError(cmd.AddComponent(ctx, component))
 }
 
 // UpdateComponent changes a component of the manifest of Root:
 // cmd.UpdateComponent. A missing manifest and a component it does not
 // declare are sdk.ErrNotFound as well.
-func (project) UpdateComponent(_ context.Context, update sdk.ComponentUpdate) error {
-	return manifestError(cmd.UpdateComponent(update))
+func (project) UpdateComponent(ctx context.Context, update sdk.ComponentUpdate) error {
+	return manifestError(cmd.UpdateComponent(ctx, update))
 }
 
 // RemoveComponent removes a component from the manifest of Root:
 // cmd.RemoveComponent. A missing manifest and a component it does not
 // declare are sdk.ErrNotFound as well.
-func (project) RemoveComponent(_ context.Context, name string) error {
-	return manifestError(cmd.RemoveComponent(name))
+func (project) RemoveComponent(ctx context.Context, name string) error {
+	return manifestError(cmd.RemoveComponent(ctx, name))
 }
 
 // manifestError is err, of an edit of the manifest of Root, as the SDK has

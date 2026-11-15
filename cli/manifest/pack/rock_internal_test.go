@@ -25,6 +25,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
+	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
@@ -652,7 +653,13 @@ env = { MARKER = '%s' }
 	assert.FileExists(t, filepath.Join(src, lockFileName), "the lock is resolved")
 	assert.NoFileExists(t, marker, "no hook ran")
 	assert.NoDirExists(t, filepath.Join(src, ".rocks"))
-	assert.NoDirExists(t, filepath.Join(src, buildDirName))
+
+	// The build directory holds the lock of the project alone, which the
+	// pack held to resolve the lock: no state of a build.
+	entries, err := os.ReadDir(filepath.Join(src, buildDirName))
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, projectlock.FileName, entries[0].Name())
 
 	opts.Locked = true
 

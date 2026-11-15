@@ -48,6 +48,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -210,7 +211,18 @@ func Run(ctx context.Context, opts Options) error {
 // RunResult is Run, additionally reporting the manifest, lock, version and tree
 // the build worked with. A fetch run reports the manifest, lock and tree; it
 // derives no version and runs no backends.
+//
+// The run holds the lock of the project (projectlock) from its start to its
+// end, waiting for it while another tt holds it, unless ctx carries it
+// already; the hooks and the backends run under it.
 func RunResult(ctx context.Context, opts Options) (*Result, error) {
+	ctx, release, err := lockProject(ctx, opts.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
+
 	man, err := readManifest(opts.ProjectDir, opts)
 	if err != nil {
 		return nil, err
@@ -260,8 +272,15 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 // hook and no backend, so it needs no compiler and no headers of Tarantool:
 // tt package pack --format rock-src, whose source rock holds the files of the
 // project and no build output, packs from it. The result has no Tree, Stage
-// or Programs.
+// or Programs. It holds the lock of the project as RunResult does.
 func Prepare(ctx context.Context, opts Options) (*Result, error) {
+	ctx, release, err := lockProject(ctx, opts.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
+
 	man, err := readManifest(opts.ProjectDir, opts)
 	if err != nil {
 		return nil, err
@@ -311,6 +330,17 @@ func Prepare(ctx context.Context, opts Options) (*Result, error) {
 		Manifest: man, Lock: lock, Version: ver, Product: productName,
 		Tree: "", Stage: "", Programs: nil,
 	}, nil
+}
+
+// lockProject takes the lock of the project in projectDir for a run
+// (projectlock.Acquire): the context that carries it, and its release.
+func lockProject(ctx context.Context, projectDir string) (context.Context, func(), error) {
+	locked, release, err := projectlock.Acquire(ctx, projectDir)
+	if err != nil {
+		return ctx, release, sdk.Errorf(sdk.ExitFailure, "%w", err)
+	}
+
+	return locked, release, nil
 }
 
 // effectiveRegistries settles the rock-server list for this run: the caller's

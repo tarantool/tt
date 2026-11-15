@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/deps"
+	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
 	binaryinstall "github.com/tarantool/tt/v3/internal/binary/install"
@@ -94,8 +95,8 @@ func AddDependency(ctx context.Context, dep sdk.Dependency) (*deps.Result, error
 // manifest declares already is ErrComponentDeclared, and nothing is
 // written. The lock is not resolved, so no Tarantool is needed: the caller
 // resolves it (ResolveProject) when it is to be fresh.
-func AddComponent(component sdk.Component) error {
-	return editManifest("with component "+component.Name,
+func AddComponent(ctx context.Context, component sdk.Component) error {
+	return editManifest(ctx, "with component "+component.Name,
 		func(data []byte, current *manifest.Manifest) ([]byte, error) {
 			if _, ok := current.Components[component.Name]; ok {
 				return nil, fmt.Errorf("%w: %s", ErrComponentDeclared, component.Name)
@@ -124,8 +125,8 @@ func AddComponent(component sdk.Component) error {
 // comment kept, and writes the manifest as AddComponent does, resolving no
 // lock. It is sdk.Project.UpdateComponent of the core. A component the
 // manifest does not declare is manifest.ErrNoComponent.
-func UpdateComponent(update sdk.ComponentUpdate) error {
-	return editManifest("with component "+update.Name+" changed",
+func UpdateComponent(ctx context.Context, update sdk.ComponentUpdate) error {
+	return editManifest(ctx, "with component "+update.Name+" changed",
 		func(data []byte, _ *manifest.Manifest) ([]byte, error) {
 			return manifest.EditComponent(data, manifest.ComponentEdit{
 				Name:   update.Name,
@@ -141,8 +142,8 @@ func UpdateComponent(update sdk.ComponentUpdate) error {
 // AddComponent does, resolving no lock. It is sdk.Project.RemoveComponent
 // of the core. A component the manifest does not declare is
 // manifest.ErrNoComponent.
-func RemoveComponent(name string) error {
-	return editManifest("without component "+name,
+func RemoveComponent(ctx context.Context, name string) error {
+	return editManifest(ctx, "without component "+name,
 		func(data []byte, _ *manifest.Manifest) ([]byte, error) {
 			return manifest.RemoveComponent(data, name)
 		})
@@ -164,12 +165,22 @@ func blockFields(fields []sdk.BuildField) []manifest.BlockField {
 // included, before it writes it in its place, atomically, with the mode of
 // the one it replaces. what says what the manifest is with the edit, for
 // the error of a check. A project without a manifest is an error wrapping
-// fs.ErrNotExist.
-func editManifest(what string, edit func([]byte, *manifest.Manifest) ([]byte, error)) error {
+// fs.ErrNotExist. The edit is made under the lock of the project
+// (projectlock), unless ctx carries it.
+func editManifest(
+	ctx context.Context, what string, edit func([]byte, *manifest.Manifest) ([]byte, error),
+) error {
 	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
+
+	_, release, err := projectlock.Acquire(ctx, projectDir)
+	if err != nil {
+		return err
+	}
+
+	defer release()
 
 	path := filepath.Join(projectDir, manifestFileName)
 
