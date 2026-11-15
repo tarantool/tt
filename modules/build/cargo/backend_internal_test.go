@@ -399,6 +399,12 @@ func TestRunCopiesTheLibraryAndTheBinary(t *testing.T) {
 	t.Parallel()
 
 	for _, static := range []bool{false, true} {
+		// A static program is built for linux alone: macOS has no static
+		// libSystem to link it against.
+		if static && runtime.GOOS == darwinOS {
+			continue
+		}
+
 		harness := buildtest.New(t, Backend(), both())
 		facts := harness.Context
 		log := fakeCargo(t, harness)
