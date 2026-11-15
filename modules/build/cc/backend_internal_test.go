@@ -273,7 +273,17 @@ func TestMissingHeaders(t *testing.T) {
 	require.ErrorIs(t, err, ErrMissingHeaders)
 	assert.Empty(t, harness.Printed())
 
+	// A Tarantool without headers: the core says where it looked for them.
 	harness.SetTarantool(build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""})
+
+	err = preflighter.Preflight(t.Context(), harness.Context)
+	require.ErrorIs(t, err, ErrMissingHeaders)
+	require.ErrorIs(t, err, build.ErrNoHeaders)
+	assert.NotContains(t, err.Error(), "tt binary install tarantool installs one")
+
+	harness.SetTarantool(build.Tarantool{
+		Prefix: "/tt", IncludeDir: "/tt/include/tarantool", Version: "",
+	})
 	require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
 }
 
@@ -334,7 +344,9 @@ func fakeHarness(t *testing.T, backend build.Backend, rest map[string]any,
 			[]byte(fakeCC), 0o700))
 	}
 
-	harness.SetTarantool(build.Tarantool{Prefix: "/tt", IncludeDir: "", Version: ""})
+	harness.SetTarantool(build.Tarantool{
+		Prefix: "/tt", IncludeDir: "/tt/include/tarantool", Version: "",
+	})
 
 	return harness, bld
 }
