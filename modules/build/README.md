@@ -28,7 +28,7 @@ and its tests run it through `sdk/build/buildtest`.
 The fields of each backend are described in
 [the reference of the application manifest](../../doc/reference/app-manifest.md);
 how to write a backend of your own, in
-[Write a module](../../doc/how-to/write-a-module.md).
+[Write a build backend](../../doc/how-to/write-a-build-backend.md).
 
 The tests that compile against Tarantool are behind the `integration` build
 tag. They need a `tarantool` in `PATH` with its headers under its prefix,

@@ -53,6 +53,7 @@ nav:
       - how-to/rust-modules.md
       - how-to/zig-modules.md
       - how-to/write-a-module.md
+      - how-to/write-a-build-backend.md
       - how-to/build-distribution.md
       - how-to/wasm-components.md
       - how-to/emmylua.md
