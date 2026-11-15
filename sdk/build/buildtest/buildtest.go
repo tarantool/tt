@@ -250,7 +250,7 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 		Component: component,
 		Target:    target,
 		Dirs:      dirs,
-		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
+		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: "", Executable: ""},
 		Env: map[string]string{
 			"TT_OUTPUT_DIR":     dirs.Modules,
 			"TT_PROJECT_ROOT":   dirs.Project,
@@ -321,7 +321,7 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 		Component: build.Component{Name: "", Path: "", Namespace: "", Package: "", Wants: nil},
 		Target:    target,
 		Dirs:      dirs,
-		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
+		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: "", Executable: ""},
 		Env: map[string]string{
 			"TT_PROJECT_ROOT":  dirs.Project,
 			"TT_PACKAGE":       "demo",

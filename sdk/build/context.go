@@ -98,6 +98,11 @@ type Tarantool struct {
 	IncludeDir string
 	// Version is its version; empty when tt does not know it.
 	Version string
+	// Executable is its tarantool, the program tt found, for a build that
+	// runs it to check what it made - that a module loads, say; empty when
+	// tt found none. A build must not need it: tt builds without a
+	// Tarantool what needs none.
+	Executable string
 }
 
 // Host runs the commands of a build for a [Context]. Only the core and

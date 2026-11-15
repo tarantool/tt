@@ -43,6 +43,7 @@ func hostHarness(t *testing.T, includeDir string, sources map[string]string) *bu
 
 	harness.SetTarantool(build.Tarantool{
 		Prefix: filepath.Dir(filepath.Dir(includeDir)), IncludeDir: includeDir, Version: "",
+		Executable: "",
 	})
 
 	for name, body := range sources {
@@ -659,6 +660,7 @@ func TestLuaCChecksTheModule(t *testing.T) {
 
 	namespaced.SetTarantool(build.Tarantool{
 		Prefix: filepath.Dir(filepath.Dir(includeDir)), IncludeDir: includeDir, Version: "",
+		Executable: "",
 	})
 	writeFile(t, namespaced, "hash.c", strings.ReplaceAll(fastHashC, "luaopen_fast_hash",
 		"luaopen_demo_hash"))

@@ -57,7 +57,7 @@ func TestToolchainOf(t *testing.T) {
 	linux := build.NewContext(build.Context{
 		Target: build.Target{OS: "linux", Arch: "amd64"},
 		Tarantool: build.Tarantool{
-			Prefix: "/tt", IncludeDir: "/tt/include/tarantool", Version: "",
+			Prefix: "/tt", IncludeDir: "/tt/include/tarantool", Version: "", Executable: "",
 		},
 	}, nil)
 
@@ -110,7 +110,7 @@ func TestToolchainOf(t *testing.T) {
 
 	darwin := build.NewContext(build.Context{
 		Target:    build.Target{OS: "darwin", Arch: "arm64"},
-		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
+		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: "", Executable: ""},
 	}, nil)
 
 	want = darwinToolchain()
