@@ -256,12 +256,87 @@ The hash does not cover everything a build depends on:
 
 After a change of these, `tt package build --rebuild`, and
 `tt package pack --rebuild`, build every incremental component and record
-it; removing `_build/cache/` does the same.
+it; removing `_build/cache/` does the same, and `tt package clean` too, for
+the components it cleans.
 
 A component whose build writes files no `.gitignore` ignores gets another
 hash at every build, and is built every time, as if it were not
 incremental. `tt wasm new` writes the `.gitignore` of a WebAssembly
 component, and declares it incremental.
+
+### Cleaning
+
+`tt package clean` removes what the builds made, and nothing else:
+
+- `_build/`, but `_build/tt.lock`: the build trees of the components
+  (`TT_BUILD_DIR`), the records of the incremental builds and of what each
+  component made, the stages, the builds of the path dependencies and the
+  archives `tt package pack` wrote into `_build/pack/`;
+- the rock of the package in `.rocks/`, by the files its rock manifest
+  lists: those the build installed.
+
+The rocks of the dependencies stay, and so do the packages
+`tt package install` put into `.rocks/`, the manifest, the lock and the
+files of the sources. A file the build made beside the sources stays too,
+the files `output` lists among them: tt cannot tell it from a file the
+project keeps. What a tool leaves there, the backend of the component
+removes, if it knows how, before tt removes anything; what the project
+generates itself, the command of `[hooks.clean]` in the manifest removes
+(see [the reference](../reference/app-manifest.md#hookspre_build-hookspost_build-and-hooksclean)).
+The next build builds every component again. Of a package of Lua whose
+`pre_build` hook generates `src/gen/year.lua`, and whose clean hook removes
+`src/gen/`, as in the example of the reference:
+
+```console
+$ tt package clean --dry-run
+would run the clean hook
+would remove _build/rock
+would remove myapp 1.0.0-1 from .rocks (4 files)
+  .rocks/share/tarantool/rocks/myapp/1.0.0-1/myapp-1.0.0-1.rockspec
+  .rocks/share/tarantool/myapp/init.lua
+  .rocks/share/tarantool/myapp/src/gen/year.lua
+  .rocks/share/tarantool/myapp/version.lua
+$ tt package clean
+ran the clean hook
+removed _build/rock
+removed myapp 1.0.0-1 from .rocks (4 files)
+$ ls -A _build
+tt.lock
+```
+
+A component that builds adds its build tree and records:
+`_build/component`, `_build/cache`, `_build/results.json`.
+
+`--dry-run` removes and runs nothing; `-V` lists the files of the rock as
+the dry run does. `tt package clean <component>` cleans one component: its
+build tree, its records and its files in `_build/rock/`, after what its
+backend cleans. The rock of the package leaves `.rocks/` then too, since it
+is installed whole, and the next build installs it again, the component
+built even when it is incremental and nothing changed. The clean hook runs
+on a clean of the whole package only.
+
+### One command at a time
+
+The commands that change a project hold its lock, `_build/tt.lock`:
+`tt package build`, `fetch`, `pack`, `clean`, `add`, `remove`, `update` and
+`resolve`, `tt package install` and `uninstall` in the project scope,
+`tt test` while it builds, and the commands of modules that change the
+project, such as those of `tt wasm`. Another command that would change the
+project meanwhile waits for it, and says so:
+
+```console
+$ tt package build
+   • waiting for another tt working on the project /home/me/myapp (pid 48213)
+```
+
+Ctrl-C stops the wait. The commands that only read a project, such as
+`tt package deps` and `list`, take no lock and wait for nothing. A tt that
+a hook or a build runs on the same project, `tt package fetch` in a
+`post_build` hook say, works under the lock of the tt that runs it rather
+than wait for it: tt names its lock in `TT_PROJECT_LOCK`, which the
+commands it runs inherit. The lock is released when tt exits, however it
+exits, so a tt that was killed leaves no lock behind; `_build/tt.lock` stays
+for the next command. A directory without `app.manifest.toml` gets no lock.
 
 ## Packing
 

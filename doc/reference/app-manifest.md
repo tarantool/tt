@@ -587,8 +587,11 @@ the component but the hidden ones, `_build/`, `_runtime/` and what the
 `.gitignore` files of the project and of the component ignore: what a build
 generates and git does not keep is not one. The hash of the inputs of its
 last build is in `_build/cache/<component>.json`, and `--rebuild` of
-`tt package build` and `tt package pack` builds anyway; see
-[Incremental builds](../concepts/packages.md#incremental-builds).
+`tt package build` and `tt package pack` builds anyway; so does the next
+build after `tt package clean <component>`, which removes the hash and what
+the build made. See
+[Incremental builds](../concepts/packages.md#incremental-builds) and
+[Cleaning](../concepts/packages.md#cleaning).
 
 `.tarantool/bin` of the project, where `tt binary` and `tt wasm prepare`
 put the programs of the project, comes first on the `PATH` of a build and of
@@ -622,7 +625,7 @@ rock --product NAME` packs a product as its rock; a product with no rock
 cannot be. A path dependency is a product of the package in its directory:
 the default one by the package name, another by its rock.
 
-## `[hooks.pre_build]` and `[hooks.post_build]`
+## `[hooks.pre_build]`, `[hooks.post_build]` and `[hooks.clean]`
 
 A command run before or after the components are built, with the `shell`
 backend, the default, or `make` and the fields of a build. A hook gets the
@@ -635,6 +638,27 @@ tt without a backend that runs hooks, such as a distribution that excludes
 `build`, refuses every hook, the one that names no backend too:
 `hooks.pre_build: backend "shell" is not supported: no module of this tt
 provides a backend that runs hooks`.
+
+`[hooks.clean]` is run by `tt package clean` of the whole package, with no
+component named, after the backends of the components cleaned what their
+tools left and before tt removes `_build/`. It is for what the project
+generates beside its sources itself, which tt does not remove: what a
+`pre_build` hook writes, say.
+
+```toml
+[hooks.pre_build]
+command = "sh"
+args = ["-c", "mkdir -p src/gen && date +'return %Y' > src/gen/year.lua"]
+
+[hooks.clean]
+command = "rm"
+args = ["-rf", "src/gen"]
+```
+
+A hook that fails fails the command with exit code 2: a build before
+anything is built for `pre_build`, and a clean before anything is removed
+for `clean`. A tt older than the hook skips `[hooks.clean]` with a warning,
+`unknown hook "clean" skipped`.
 
 <!-- TODO(writers): app.manifest.lock - what it records, such as
 bundled_tarantool_version - is not described yet. -->
