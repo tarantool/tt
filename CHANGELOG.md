@@ -386,6 +386,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   than wait for it. `Project().Lock()` takes it for an operation of a
   module of several steps; the methods of `Project()` given the context it
   returns work under it.
+- `tt binary workspace` writes the Go workspace for developing the local tt
+  modules of a distribution together with a checkout of the core, the one
+  of `[core].path` or `--core`: a `go.work` that uses every
+  `[dependencies]` module given by a path and replaces the core, every
+  module of its repository and every `go.mod` under its `sdk/` - and the
+  directories of `[replace]` - with their directories, with no version, so
+  `go test` and gopls build the modules on the SDK of the checkout even
+  while their `go.mod` requires a commit that is not pushed. The
+  `go work init . ../tt/sdk ...` the docs gave fails then with `unknown
+  revision`. The file goes beside the manifest for the modules in its
+  directory and into the directory of every other module; tt rewrites a
+  `go.work` it wrote, overwrites another only with `--force`, and
+  `--remove` deletes only its own, with `go.work.sum`; `--dry-run` prints
+  what it would write. The content hash of a local module, and its copy in
+  a bundle, leave `go.work` and `go.work.sum` out: the build does not read
+  them.
 
 ### Changed
 
