@@ -797,18 +797,83 @@ func TestAddRegistryDependency_newSection(t *testing.T) {
 	assert.Equal(t, ".tarantool/registry", mfst.Dependencies["wasm"].Registry)
 }
 
-func TestAddRegistryDependency_keepsExistingDeclaration(t *testing.T) {
+// TestAddRegistryDependency_setsExistingDeclaration checks that a
+// declaration there has its version and registry set in each form, every
+// other byte kept, and reports what they were; one that says both already
+// is left as it is, and one of no version is refused.
+func TestAddRegistryDependency_setsExistingDeclaration(t *testing.T) {
 	t.Parallel()
 
-	src := editHeader + `
-[dependencies]
-wasm = ">=0.1.0"
-`
-	editor := edit(t, src)
+	for _, tt := range []struct {
+		name, declared, want string
+		change               manifest.Change
+	}{
+		{
+			"the short form",
+			"wasm = \">=0.1.0\" # the runtime\n",
+			"wasm = { version = \"0.2.0\", registry = \"https://rocks.example/\" } # the runtime\n",
+			manifest.Change{Existed: true, Previous: ">=0.1.0", PreviousRegistry: ""},
+		},
+		{
+			"an inline table with a registry",
+			"wasm = { registry = \".tarantool/registry\", version = \"0.1.0\" }\n",
+			"wasm = { registry = \"https://rocks.example/\", version = \"0.2.0\" }\n",
+			manifest.Change{
+				Existed: true, Previous: "0.1.0", PreviousRegistry: ".tarantool/registry",
+			},
+		},
+		{
+			"an inline table without one",
+			"wasm = { version = \"0.1.0\", source = \"registry\" }\n",
+			"wasm = { version = \"0.2.0\", registry = \"https://rocks.example/\", " +
+				"source = \"registry\" }\n",
+			manifest.Change{Existed: true, Previous: "0.1.0", PreviousRegistry: ""},
+		},
+		{
+			"a table with a registry",
+			"\n[dependencies.wasm]\n# from the mirror\nregistry = \"m\"\nversion = \"0.1.0\"\n",
+			"\n[dependencies.wasm]\n# from the mirror\nregistry = \"https://rocks.example/\"\n" +
+				"version = \"0.2.0\"\n",
+			manifest.Change{Existed: true, Previous: "0.1.0", PreviousRegistry: "m"},
+		},
+		{
+			"a table without one",
+			"\n[dependencies.wasm]\n  version = \"0.1.0\"\n",
+			"\n[dependencies.wasm]\n  version = \"0.2.0\"\n" +
+				"  registry = \"https://rocks.example/\"\n",
+			manifest.Change{Existed: true, Previous: "0.1.0", PreviousRegistry: ""},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	change, err := editor.AddRegistryDependency(manifest.TableDependencies, "wasm", "0.1.0",
-		".tarantool/registry")
-	require.NoError(t, err)
-	assert.Equal(t, manifest.Change{Existed: true, Previous: ">=0.1.0"}, change)
-	assert.Equal(t, src, string(editor.Bytes()))
+			src := editHeader + "\n[dependencies]\n" + tt.declared
+			editor := edit(t, src)
+
+			change, err := editor.AddRegistryDependency(manifest.TableDependencies, "wasm",
+				"0.2.0", "https://rocks.example/")
+			require.NoError(t, err)
+			assert.Equal(t, tt.change, change)
+			assert.Equal(t, editHeader+"\n[dependencies]\n"+tt.want, string(editor.Bytes()))
+
+			mfst := reparse(t, editor.Bytes())
+			assert.Equal(t, "0.2.0", mfst.Dependencies["wasm"].Version)
+			assert.Equal(t, "https://rocks.example/", mfst.Dependencies["wasm"].Registry)
+
+			// Once more: it says both already.
+			change, err = editor.AddRegistryDependency(manifest.TableDependencies, "wasm",
+				"0.2.0", "https://rocks.example/")
+			require.NoError(t, err)
+			assert.Equal(t, manifest.Change{
+				Existed: true, Previous: "0.2.0", PreviousRegistry: "https://rocks.example/",
+			}, change)
+			assert.Equal(t, editHeader+"\n[dependencies]\n"+tt.want, string(editor.Bytes()))
+		})
+	}
+
+	editor := edit(t, editHeader+
+		"\n[dependencies]\nwasm = { source = \"path\", path = \"../w\" }\n")
+
+	_, err := editor.AddRegistryDependency(manifest.TableDependencies, "wasm", "0.2.0", "r")
+	require.ErrorIs(t, err, manifest.ErrUnsupportedForm)
 }

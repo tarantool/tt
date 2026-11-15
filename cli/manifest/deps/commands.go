@@ -1,6 +1,7 @@
 package deps
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -75,9 +76,10 @@ func addWith(
 // AddFromRegistry declares name in [dependencies] - or, with dev, in
 // [dev_dependencies] - in the long form, at the constraint and with the
 // registry the rock is to come from, then re-resolves the lock as Add does. A
-// declaration already there is left as it is - its constraint and registry
-// are someone's choice - and the lock is resolved against it; Result.Change
-// reports that it existed.
+// declaration already there has its version and registry set to those given,
+// the rest of it kept (manifest.Editor.AddRegistryDependency), and
+// Result.Change reports what they were; one that says both already is not
+// rewritten, and the lock is resolved against it.
 func AddFromRegistry(
 	ctx context.Context, opts Options, name, constraint, registry string, dev bool,
 ) (*Result, error) {
@@ -110,7 +112,7 @@ func AddFromRegistry(
 
 	var edited []byte
 
-	if !change.Existed {
+	if !bytes.Equal(editor.Bytes(), proj.source) {
 		edited = editor.Bytes()
 	}
 
