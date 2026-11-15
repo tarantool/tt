@@ -3,6 +3,7 @@ package native
 import (
 	"debug/elf"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -67,6 +68,60 @@ func (p Program) ModuleExtras() []string {
 	}
 
 	return extras
+}
+
+// The tokens of the directory of the file itself in the paths of its loader:
+// $ORIGIN and ${ORIGIN} of the loader of Linux in an rpath, @loader_path
+// of dyld in an install name and in an rpath, and @rpath of dyld in an
+// install name, each of the rpaths of the file in its place.
+const (
+	originToken      = "$ORIGIN"
+	originBraced     = "${ORIGIN}"
+	loaderPathToken  = "@loader_path"
+	rpathInstallName = "@rpath/"
+)
+
+// OriginPaths returns the files library, a library of Needed of the file p
+// is of, in the directory dir, is found at by an rpath or an install name
+// relative to that directory: of ELF, library, a name with no "/", in each
+// directory of RunPath under $ORIGIN; of Mach-O, @loader_path/<file>, and
+// @rpath/<file> in each directory of RunPath under @loader_path. A library
+// found otherwise - in a directory of the system, by an absolute rpath -
+// has none: the static check takes such a library for one of the machine
+// a module is installed on, and allows it only as one of the C library.
+func (p Program) OriginPaths(library, dir string) []string {
+	if rest, ok := strings.CutPrefix(library, loaderPathToken+"/"); ok {
+		return []string{filepath.Join(dir, rest)}
+	}
+
+	name, viaRpath := strings.CutPrefix(library, rpathInstallName)
+	if !viaRpath && strings.Contains(library, "/") {
+		// An absolute install name, or a path: of the machine.
+		return nil
+	}
+
+	// A name of ELF is looked for in the directories of RunPath, those under
+	// $ORIGIN of the directory of the file; @rpath/<name> of Mach-O in those
+	// under @loader_path.
+	tokens := []string{originBraced, originToken}
+	if viaRpath {
+		tokens = []string{loaderPathToken}
+	}
+
+	var paths []string
+
+	for _, entry := range p.RunPath {
+		for _, token := range tokens {
+			under, ok := strings.CutPrefix(entry, token)
+			if ok && (under == "" || under[0] == '/') {
+				paths = append(paths, filepath.Join(dir, under, name))
+
+				break
+			}
+		}
+	}
+
+	return paths
 }
 
 // moduleLibrary reports whether a module of every platform of p may need

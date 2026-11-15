@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -39,12 +40,17 @@ func moduleFiles(
 
 // checkStaticModule checks that every native file of files, which the build
 // of the module component name made, needs no library but those of the C
-// library and the loader (native.Program.ModuleExtras): the module of a build
-// with static = true is to load wherever Tarantool runs, from the binary rock
-// of the package as from the tree it was built in. Every file that needs more
-// is reported at once, as checkPrograms reports programs. A file that is not
-// native - Lua, text - is not looked at, and neither is a symbolic link: the
-// file it points to is one of files when the build made it.
+// library and the loader (native.Program.ModuleExtras), and those it finds
+// beside itself among files: the module of a build with static = true is to
+// load wherever Tarantool runs, from the binary rock of the package as from
+// the tree it was built in, and a library the build put beside the module -
+// one of bundle of lua-c - is installed and packed with it. Such a library
+// is one the file asks for by an rpath or an install name relative to its
+// own directory, $ORIGIN or @loader_path (native.Program.OriginPaths), and
+// is one of files, so it is checked by the same rules. Every file that needs
+// more is reported at once, as checkPrograms reports programs. A file that
+// is not native - Lua, text - is not looked at, and neither is a symbolic
+// link: the file it points to is one of files when the build made it.
 //
 // A file that needs a newer glibc than the Tarantool it is built for,
 // opts.Tarantool, passes with a warning: it loads only where Tarantool runs
@@ -59,6 +65,12 @@ func checkStaticModule(opts Options, name string, files []string) error {
 		problems []error
 		warnings []string
 	)
+
+	made := make(map[string]bool, len(files))
+
+	for _, path := range files {
+		made[filepath.Clean(path)] = true
+	}
 
 	for _, path := range files {
 		info, err := os.Lstat(path)
@@ -77,7 +89,10 @@ func checkStaticModule(opts Options, name string, files []string) error {
 			continue
 		}
 
-		extras := prog.ModuleExtras()
+		extras := slices.DeleteFunc(prog.ModuleExtras(), func(library string) bool {
+			return slices.ContainsFunc(prog.OriginPaths(library, filepath.Dir(path)),
+				func(beside string) bool { return made[beside] })
+		})
 		if len(extras) > 0 {
 			problems = append(problems,
 				fmt.Errorf("%s: %w: %s", path, errNotStaticModule, describeExtras(extras)))
@@ -111,8 +126,10 @@ func describeExtras(extras []string) string {
 	}
 
 	return fmt.Sprintf("it needs %s, which a machine Tarantool runs on may not have: "+
-		"link %s in statically, or load %s at run time with dlopen",
-		joinNames(extras), pronoun, pronoun)
+		"link %s in statically (static = true of c and lua-c takes lib<name>.a where "+
+		"it finds one), bundle %s beside the module (bundle of lua-c), or load %s at run "+
+		"time with dlopen",
+		joinNames(extras), pronoun, pronoun, pronoun)
 }
 
 // joinNames joins names for a message: "a", "a and b", "a, b and c".

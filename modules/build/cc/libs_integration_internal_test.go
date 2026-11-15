@@ -362,3 +362,124 @@ func TestStaticLibraries(t *testing.T) {
 			"built with -fPIC", "CC=%q", compiler)
 	}
 }
+
+// barC is the source of a library bar the library foo of fooOfBarC needs.
+const barC = "int bar_answer(void) { return 42; }\n"
+
+// fooOfBarC is a source of the library foo that needs the library bar.
+const fooOfBarC = "int bar_answer(void);\nint foo_answer(void) { return bar_answer(); }\n"
+
+// TestBundle builds the module of answerC against the shared library foo of
+// vendor/, of the SONAME libfoo.so.1, and bundles it: the build copies it
+// beside the module as libfoo.so.1, the module asks for it there by
+// $ORIGIN, and loads in Tarantool from another directory, with vendor/ gone
+// and no LD_LIBRARY_PATH; with static = true as well, which links the
+// shared library though the static one is there. A library the bundled one
+// needs and bundle does not list is warned of, and a library the module
+// does not link is refused.
+func TestBundle(t *testing.T) {
+	t.Parallel()
+
+	requireLinux(t)
+
+	includeDir, tarantool := requireHostHeaders(t)
+
+	rest := map[string]any{
+		"module": "answer", "sources": []any{"answer.c"}, "library_dirs": []any{"vendor"},
+		"libraries": []any{"foo"}, "bundle": []any{"foo"},
+	}
+
+	for _, static := range []bool{false, true} {
+		harness := hostHarness(t, includeDir, map[string]string{
+			"answer.c": answerC, "check.lua": answerCheck,
+		})
+		vendor := filepath.Join(harness.Context.Dirs.Cwd, "vendor")
+		library := sharedLibrary(t, vendor, "foo", "libfoo.so.1", fooC)
+
+		require.NoError(t, os.Rename(library, library+".1.0"))
+		require.NoError(t, os.Symlink("libfoo.so.1.0", library))
+		staticLibrary(t, vendor, "foo", fooC, "-fPIC")
+
+		harness.Context.Static = static
+		// The module is loaded once it is linked, and finds the copy beside
+		// it already.
+		harness.Context.Tarantool.Executable = tarantool
+
+		hostBuild(t, harness, LuaC(), rest, "answer")
+
+		modules := harness.Context.Dirs.Modules
+		module := filepath.Join(modules, "answer.so")
+		bundled := filepath.Join(modules, "libfoo.so.1")
+
+		assert.FileExists(t, bundled, "the copy is named by the SONAME")
+		assert.Contains(t, neededLibraries(t, module), "libfoo.so.1")
+		assert.Equal(t, []string{"$ORIGIN"}, runPaths(t, module))
+		assert.Empty(t, harness.Warnings())
+
+		// Installed elsewhere, with what it was built of gone.
+		installed := t.TempDir()
+
+		for _, name := range []string{"answer.so", "libfoo.so.1"} {
+			data, err := os.ReadFile(filepath.Join(modules, name))
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(installed, name), data, 0o755))
+		}
+
+		require.NoError(t, os.RemoveAll(vendor))
+
+		cmd := exec.CommandContext(t.Context(), tarantool,
+			filepath.Join(harness.Context.Dirs.Cwd, "check.lua"), installed)
+
+		cmd.Env = withoutLibraryPath(os.Environ())
+
+		printed, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(printed))
+		assert.Equal(t, "42", strings.TrimSpace(string(printed)), "static = %t", static)
+	}
+
+	// foo needs bar, which bundle does not list.
+	harness := hostHarness(t, includeDir, map[string]string{"answer.c": answerC})
+	vendor := filepath.Join(harness.Context.Dirs.Cwd, "vendor")
+
+	sharedLibrary(t, vendor, "bar", "libbar.so.1", barC)
+
+	source := filepath.Join(vendor, "foo.c")
+
+	require.NoError(t, os.WriteFile(source, []byte(fooOfBarC), 0o600))
+
+	printed, err := exec.CommandContext(t.Context(), "cc", "-shared", "-fPIC", "-o",
+		filepath.Join(vendor, "libfoo.so"), source, "-Wl,-soname,libfoo.so.1", "-L"+vendor,
+		"-lbar").CombinedOutput()
+	require.NoError(t, err, string(printed))
+
+	hostBuild(t, harness, LuaC(), rest, "answer")
+	assert.Equal(t, []string{filepath.Join(harness.Context.Dirs.Modules, "libfoo.so.1") +
+		", which bundle copies beside the module, needs libbar.so.1, which is not bundled: " +
+		"the machine the module is installed on is to have it, or bundle lists it too"},
+		harness.Warnings())
+
+	rest["bundle"] = []any{"bar"}
+
+	bld, err := buildtest.Validate(LuaC(), flatComponent(), block(rest, nil))
+	require.NoError(t, err)
+
+	err = harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `bundle[0]: "bar" is no library the module links: `+
+		"bundle names one of libraries, of link or of pkg_config")
+}
+
+// withoutLibraryPath is environ without LD_LIBRARY_PATH and
+// DYLD_LIBRARY_PATH.
+func withoutLibraryPath(environ []string) []string {
+	var kept []string
+
+	for _, entry := range environ {
+		if !strings.HasPrefix(entry, "LD_LIBRARY_PATH=") &&
+			!strings.HasPrefix(entry, "DYLD_LIBRARY_PATH=") {
+			kept = append(kept, entry)
+		}
+	}
+
+	return kept
+}

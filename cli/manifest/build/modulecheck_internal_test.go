@@ -103,8 +103,7 @@ func TestRun_staticModuleNeedsALibrary(t *testing.T) {
 		assert.Contains(t, msg, `building component "native"`)
 		assert.Contains(t, msg, filepath.Join(packageStage(dir, "default"), "lib", "my-app",
 			"linked.so")+": not a static module: it needs libextra.so.1, which a machine "+
-			"Tarantool runs on may not have: link it in statically, or load it at run time "+
-			"with dlopen")
+			"Tarantool runs on may not have: link it in statically")
 		assert.Contains(t, msg, filepath.Join(dir, "native", "insource.so")+
 			": not a static module: it needs libextra.so.1")
 		assert.NotContains(t, msg, "libextra.so:", "the library itself needs libc only")
@@ -115,6 +114,54 @@ func TestRun_staticModuleNeedsALibrary(t *testing.T) {
 
 	assert.NoFileExists(t, filepath.Join(dir, ".rocks", "lib", "tarantool", "my-app",
 		"linked.so"), "a module that fails the check is not installed")
+}
+
+// TestRun_staticModuleBundlesALibrary: a static module that needs a library
+// the build put beside it, which it finds by $ORIGIN, passes, and the
+// library is installed beside it; one that finds it otherwise fails; and
+// the library beside it is checked by the same rules, so what it needs
+// itself is reported by its name.
+func TestRun_staticModuleBundlesALibrary(t *testing.T) {
+	t.Parallel()
+
+	requireModuleCC(t)
+
+	extra := `mkdir -p "$TT_OUTPUT_DIR" && ` +
+		`cc -shared -fPIC -o "$TT_OUTPUT_DIR/libextra.so.1" -Wl,-soname,libextra.so.1 extra.c`
+	linked := ` && cc -shared -fPIC -o "$TT_OUTPUT_DIR/linked.so" linked.c ` +
+		`-L"$TT_OUTPUT_DIR" -l:libextra.so.1`
+	files := maps.Clone(staticModuleFiles)
+
+	files["native/bar.c"] = "int bar(void) { return 1; }\n"
+	files["native/extrabar.c"] = "int bar(void);\nint extra(void) { return bar(); }\n"
+
+	dir := setupProject(t, staticShellManifest(extra+linked+` -Wl,-rpath,'$ORIGIN'`), files)
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	assert.FileExists(t, filepath.Join(dir, ".rocks", "lib", "tarantool", "my-app",
+		"libextra.so.1"))
+
+	// No rpath: the loader looks for libextra.so.1 in the system.
+	dir = setupProject(t, staticShellManifest(extra+linked), files)
+
+	err := Run(context.Background(), dryOptions(dir))
+	require.ErrorIs(t, err, errNotStaticModule)
+	assert.Contains(t, err.Error(), "linked.so: not a static module: it needs libextra.so.1")
+
+	// libextra.so.1 beside the module needs libbar.so.1, which is not.
+	extraOfBar := `mkdir -p "$TT_OUTPUT_DIR" && ` +
+		`cc -shared -fPIC -o libbar.so -Wl,-soname,libbar.so.1 bar.c && ` +
+		`cc -shared -fPIC -o "$TT_OUTPUT_DIR/libextra.so.1" -Wl,-soname,libextra.so.1 ` +
+		`extrabar.c -L. -l:libbar.so`
+
+	dir = setupProject(t, staticShellManifest(extraOfBar+linked+` -Wl,-rpath,'$ORIGIN'`),
+		files)
+
+	err = Run(context.Background(), dryOptions(dir))
+	require.ErrorIs(t, err, errNotStaticModule)
+	assert.Contains(t, err.Error(), filepath.Join(packageStage(dir, "default"), "lib", "my-app",
+		"libextra.so.1")+": not a static module: it needs libbar.so.1")
+	assert.NotContains(t, err.Error(), "linked.so:", "the module finds libextra.so.1")
 }
 
 // staticTreeManifest copies two modules of one directory with a backend
@@ -309,9 +356,12 @@ func TestDescribeExtras(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "it needs libz.so.1, which a machine Tarantool runs on may not have: "+
-		"link it in statically, or load it at run time with dlopen",
-		describeExtras([]string{"libz.so.1"}))
+		"link it in statically (static = true of c and lua-c takes lib<name>.a where it "+
+		"finds one), bundle it beside the module (bundle of lua-c), or load it at run time "+
+		"with dlopen", describeExtras([]string{"libz.so.1"}))
 	assert.Equal(t, "it needs libz.so.1, libssl.so.3 and libsasl2.so.2, which a machine "+
-		"Tarantool runs on may not have: link them in statically, or load them at run time "+
-		"with dlopen", describeExtras([]string{"libz.so.1", "libssl.so.3", "libsasl2.so.2"}))
+		"Tarantool runs on may not have: link them in statically (static = true of c and "+
+		"lua-c takes lib<name>.a where it finds one), bundle them beside the module (bundle "+
+		"of lua-c), or load them at run time with dlopen",
+		describeExtras([]string{"libz.so.1", "libssl.so.3", "libsasl2.so.2"}))
 }

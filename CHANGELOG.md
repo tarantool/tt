@@ -468,6 +468,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   build backends has the result type `Link`, `Dirs.Link`, `Dirs.LinkOf`,
   `Dirs.OutputPath` and the optional interface `Linker`; `Results()` lists
   `Link` last.
+- `bundle = ["foo"]` of a `lua-c` build ships a shared library the module
+  links beside it: the build finds the library it links, `libfoo.so` (a
+  file of `libraries`, in `library_dirs`, of `link` or of `pkg_config`, or
+  where the compiler finds it), follows its links and copies it into the
+  directory of the module under its SONAME, `libfoo.so.1`, and the module
+  gets `-Wl,-rpath,$ORIGIN` unless `rpath` has it, so it loads the copy
+  wherever the package is installed: tt installs it beside the module, into
+  `.rocks/lib/tarantool/<namespace>/`, and packs it. A bundled library is
+  linked shared under `static = true` too, and `static = true` allows what
+  a module finds beside itself by `$ORIGIN` or `@loader_path`; the bundled
+  library is checked by the same rules, so a library it needs that is not
+  bundled fails the static build, naming it, and is a warning otherwise. A
+  name of `bundle` the module does not link, and a library the module does
+  not ask for in the end (linked statically, or dropped by `--as-needed`),
+  fail the build. On macOS the copy gets the install name
+  `@rpath/<name>` and an ad hoc signature before the module is linked
+  against it, with `-Wl,-rpath,@loader_path` (not tested on macOS yet).
+  `bundle` of a `c` build is refused: Tarantool loads a module of
+  `box.schema.func` from a copy in a temporary directory, where the
+  libraries beside the module are not.
 - A `lua-c` build fails when its module exports no `luaopen_<name>`, the
   function `require` calls, or needs functions of the Lua API by their C++
   names - a C++ source that includes `lua.h` rather than `lua.hpp` - which

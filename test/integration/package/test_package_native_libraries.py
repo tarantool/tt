@@ -155,6 +155,57 @@ def test_link_a_static_library_of_a_component(tt_cmd, tmp_path, static):
     assert require_answer(project) == "42"
 
 
+@pytest.mark.parametrize("static", [False, True], ids=["dynamic", "static"])
+def test_bundle_a_shared_library_of_a_component(tt_cmd, tmp_path, static):
+    """A lua-c module bundles the shared library a shell component built.
+
+    The library goes beside the module under its SONAME, into the tree, the
+    archive pack makes and the tree install unpacks it into, elsewhere, where
+    the module loads with no LD_LIBRARY_PATH and the sources of the library
+    gone. With static = true the build passes the static check: the module
+    finds the library beside itself.
+    """
+    project = make_project(
+        tmp_path / "project",
+        "cc -shared -fPIC -o libfoo.so foo.c -Wl,-soname,libfoo.so.1",
+        "[{ path = 'libfoo.so', to = 'link' }, { path = 'foo.h', to = 'link' }]",
+        static=static,
+        bundle="['foo']",
+    )
+
+    build(tt_cmd, project)
+
+    lib = project / ".rocks" / "lib" / "tarantool"
+    assert (lib / "answer.so").is_file()
+    assert (lib / "libfoo.so.1").is_file()
+    assert require_answer(project) == "42"
+
+    pack = ("package", "pack", "--without-deps", "--registry", str(ROCKS_REPO))
+    result = run(tt_cmd, project, *pack)
+    assert result.returncode == 0, result.stderr
+
+    archives = list((project / "_build" / "pack").glob("*.tt"))
+    assert len(archives) == 1, archives
+
+    archive = shutil.move(archives[0], tmp_path)
+    target = tmp_path / "target"
+    target.mkdir()
+    shutil.rmtree(project)
+
+    result = subprocess.run(
+        [str(tt_cmd), "package", "install", str(archive)],
+        cwd=target,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "TT_REGISTRIES": str(ROCKS_REPO)},
+    )
+    assert result.returncode == 0, result.stderr
+
+    installed = target / ".rocks" / "lib" / "tarantool"
+    assert (installed / "libfoo.so.1").is_file()
+    assert require_answer(target) == "42"
+
+
 def test_link_a_component_built_after(tt_cmd, tmp_path):
     """The component a lua-c module links has to be built before it."""
     project = make_project(

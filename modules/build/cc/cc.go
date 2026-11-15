@@ -119,6 +119,11 @@ type Config struct {
 	// build.Dirs.LinkOf, -L and -l of each library, -I of its include/
 	// (link.go).
 	Link []string `toml:"link"`
+	// Bundle are the libraries the module links whose shared libraries are
+	// copied beside it, each by its name as libraries has it, which the
+	// module finds there by an rpath of its directory (bundle.go). lua-c
+	// only.
+	Bundle []string `toml:"bundle"`
 	// Defines are the macros defined, -D.
 	Defines []string `toml:"defines"`
 	// Cflags are flags of the C compiler, of the C and assembler sources,
@@ -222,6 +227,10 @@ func newBuild(name string, config *Config, component build.Component, common bui
 	}
 
 	err = checkLink(config.Link, component.Name)
+	if err == nil {
+		err = checkBundle(config.Bundle, name)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -424,8 +433,15 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 	// those of pkg-config, as their libraries come.
 	pkg.cflags = concat(linked.includeFlags(), pkg.cflags)
 
-	libs := planLibraries(b.config, c.Target.OS, c.Dirs.Cwd, pkg, linked, c.Static,
-		staticFinder(ctx, c, linkerOf(b.config, tools)))
+	linker := linkerOf(b.config, tools)
+
+	bundled, err := bundledLibrariesOf(ctx, c, b.config, pkg, linked, linker)
+	if err != nil {
+		return err
+	}
+
+	libs := planLibraries(b.config, c.Target.OS, c.Dirs.Cwd, pkg, linked, bundled, c.Static,
+		staticFinder(ctx, c, linker))
 
 	env := environFlags(b.lookupEnv)
 	identities := identify(ctx, c, planOf(b.config, tools, env, pkg, libs, c).compilers())
@@ -465,7 +481,12 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	return run.link(ctx, libs.files)
+	err = run.link(ctx, libs.files)
+	if err != nil {
+		return err
+	}
+
+	return bundled.finish(c, built.out)
 }
 
 // toolchain returns the toolchain of the build in c (toolchainOf), checking

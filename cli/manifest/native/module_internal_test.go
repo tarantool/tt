@@ -250,6 +250,56 @@ double plain(double x, const char *s) {
 	assert.Equal(t, []string{"libextra.so.1"}, prog.ModuleExtras())
 }
 
+// TestOriginPaths pins where a library a file needs is found relative to
+// the directory of the file: a name of ELF in each directory of RunPath
+// under $ORIGIN, @rpath/<name> of Mach-O in each under @loader_path, and
+// @loader_path/<name> beside it; nothing for a library found otherwise.
+func TestOriginPaths(t *testing.T) {
+	t.Parallel()
+
+	elfProgram := Program{RunPath: []string{"$ORIGIN", "/opt/lib", "${ORIGIN}/../lib",
+		"$ORIGINAL", "@loader_path"}}
+
+	assert.Equal(t, []string{"/m/libfoo.so.1", "/lib/libfoo.so.1"},
+		elfProgram.OriginPaths("libfoo.so.1", "/m"))
+	assert.Empty(t, elfProgram.OriginPaths("/opt/lib/libfoo.so.1", "/m"))
+	assert.Empty(t, Program{RunPath: []string{"/opt/lib"}}.OriginPaths("libfoo.so.1", "/m"))
+
+	machoProgram := Program{RunPath: []string{"@loader_path", "@loader_path/../Frameworks",
+		"/usr/local/lib", "$ORIGIN"}}
+
+	assert.Equal(t, []string{"/m/libfoo.1.dylib", "/Frameworks/libfoo.1.dylib"},
+		machoProgram.OriginPaths("@rpath/libfoo.1.dylib", "/m"))
+	assert.Equal(t, []string{"/m/sub/libfoo.dylib"},
+		machoProgram.OriginPaths("@loader_path/sub/libfoo.dylib", "/m"))
+	assert.Empty(t, machoProgram.OriginPaths("/usr/lib/libz.1.dylib", "/m"))
+	assert.Empty(t, machoProgram.OriginPaths("@executable_path/libfoo.dylib", "/m"))
+}
+
+// TestInspectModuleRunPath reads the rpath of modules cc linked, DT_RUNPATH
+// or DT_RPATH, each entry of it.
+func TestInspectModuleRunPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	for flag, want := range map[string][]string{
+		"-Wl,--enable-new-dtags":  {"$ORIGIN", "/opt/lib"},
+		"-Wl,--disable-new-dtags": {"$ORIGIN", "/opt/lib"},
+	} {
+		module := compileModule(t, dir, "m", "int m(void) { return 1; }\n",
+			"-Wl,-rpath,$ORIGIN:/opt/lib", flag)
+
+		prog, err := InspectProgram(module)
+		require.NoError(t, err)
+		assert.Equal(t, want, prog.RunPath, flag)
+	}
+
+	prog, err := InspectProgram(compileModule(t, dir, "plain", "int p(void) { return 1; }\n"))
+	require.NoError(t, err)
+	assert.Empty(t, prog.RunPath)
+}
+
 // TestInspectModuleLinkedWithZlib is the case of a module that needs a
 // library of the system, zlib, where its development files are there.
 func TestInspectModuleLinkedWithZlib(t *testing.T) {
