@@ -14,11 +14,11 @@ import (
 	"github.com/tarantool/tt/sdk/build/buildtest"
 )
 
-// component is a component the tests build, which expects its build to make
-// results of the types expects (build.Component.Expects).
-func component(expects ...build.Result) build.Component {
+// component is a component the tests build, which wants its build to make
+// results of the types wants (build.Component.Wants).
+func component(wants ...build.Result) build.Component {
 	return build.Component{
-		Name: "native", Path: "native", Namespace: "demo", Package: "demo", Expects: expects,
+		Name: "native", Path: "native", Namespace: "demo", Package: "demo", Wants: wants,
 	}
 }
 
@@ -191,9 +191,9 @@ func TestValidateErrors(t *testing.T) {
 	}
 }
 
-// TestKind checks that neither backend builds a component that expects
+// TestWants checks that neither backend builds a component that wants
 // programs only nor runs a hook.
-func TestKind(t *testing.T) {
+func TestWants(t *testing.T) {
 	t.Parallel()
 
 	for _, backend := range Backends() {
@@ -203,7 +203,7 @@ func TestKind(t *testing.T) {
 		var fieldErr *build.FieldError
 
 		require.ErrorAs(t, err, &fieldErr)
-		assert.Equal(t, `backend "`+backend.Name+`" makes nothing the component expects`,
+		assert.Equal(t, `backend "`+backend.Name+`" makes nothing the component wants`,
 			fieldErr.Msg)
 
 		_, err = buildtest.ValidateHook(backend, block(module(nil), nil))

@@ -89,7 +89,7 @@ func touch() build.Backend {
 
 func component() build.Component {
 	return build.Component{
-		Name: "native", Path: "native", Namespace: "", Package: "", Expects: nil,
+		Name: "native", Path: "native", Namespace: "", Package: "", Wants: nil,
 	}
 }
 
@@ -109,11 +109,11 @@ func TestValidateErrors(t *testing.T) {
 
 	executable := component()
 
-	executable.Expects = []build.Result{build.Program}
+	executable.Wants = []build.Result{build.Program}
 
 	module := component()
 
-	module.Expects = []build.Result{build.Module, build.Data}
+	module.Wants = []build.Result{build.Module, build.Data}
 
 	noOutput := touch()
 
@@ -154,12 +154,12 @@ func TestValidateErrors(t *testing.T) {
 		{touch(), "what the build makes", component(), buildtest.Block{
 			Rest: map[string]any{"file": "program"},
 		}, "", `backend "touch" makes no program, but the build says it does`},
-		{touch(), "what the component expects", executable, buildtest.Block{
+		{touch(), "what the component wants", executable, buildtest.Block{
 			Rest: map[string]any{"file": "a"},
-		}, "", `backend "touch" makes nothing the component expects`},
+		}, "", `backend "touch" makes nothing the component wants`},
 		{programs, "what the build makes for the component", module, buildtest.Block{
 			Rest: map[string]any{"file": "program"},
-		}, "", `the build makes a program, which the component does not expect`},
+		}, "", `the build makes a program, which the component does not want`},
 	}
 
 	for _, test := range tests {

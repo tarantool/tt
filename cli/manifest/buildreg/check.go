@@ -131,13 +131,15 @@ func component(target manifest.BuildTarget) build.Component {
 		Path:      target.Path,
 		Namespace: target.Namespace,
 		Package:   target.Package,
-		Expects:   Expects(target.Kind),
+		Wants:     Wants(target.Kind),
 	}
 }
 
-// Expects returns the types of what a component of the deprecated kind
-// says its build makes (build.Component.Expects): nil for none.
-func Expects(kind string) []build.Result {
+// Wants returns the types of results the manifest asks a component of the
+// deprecated kind for (build.Component.Wants): nil for none. The kind of
+// manifest_version 0.1 is the one form of a manifest that asks, and stays
+// the core's: a backend is told the types alone.
+func Wants(kind string) []build.Result {
 	switch kind {
 	case manifest.KindExecutable:
 		return []build.Result{build.Program}
@@ -333,14 +335,14 @@ func checkResults(
 		}
 	}
 
-	expects := Expects(target.Kind)
-	if expects == nil {
+	wants := Wants(target.Kind)
+	if wants == nil {
 		return nil
 	}
 
 	kindField := strings.TrimSuffix(field, ".build") + ".kind"
 
-	if !slices.ContainsFunc(expects, func(result build.Result) bool {
+	if !slices.ContainsFunc(wants, func(result build.Result) bool {
 		return slices.Contains(backend.Produces, result)
 	}) {
 		what := "no " + Plural(build.Program)
@@ -355,7 +357,7 @@ func checkResults(
 	}
 
 	for _, result := range asked {
-		if !slices.Contains(expects, result) {
+		if !slices.Contains(wants, result) {
 			return &manifest.ValidationError{
 				Field: kindField,
 				Msg:   fmt.Sprintf("is %q, but the build makes %s", target.Kind, Plural(result)),

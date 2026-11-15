@@ -53,8 +53,8 @@ type Block struct {
 // checked ([build.Backend.ValidateBuild]); then output and incremental are
 // checked against what backend allows, and the types of what the block
 // asks for - the to of each file of output, those the build says it makes
-// ([build.Producer]) - and those component expects against what backend
-// produces. It returns the build, or the first error: a [*build.FieldError]
+// ([build.Producer]) - and those component wants ([build.Component.Wants])
+// against what backend produces. It returns the build, or the first error: a [*build.FieldError]
 // for a field, with its path from the block.
 func Validate(backend build.Backend, component build.Component, block Block) (build.Build, error) {
 	bld, err := validate(backend, component, block)
@@ -82,20 +82,20 @@ func Validate(backend build.Backend, component build.Component, block Block) (bu
 		}
 	}
 
-	if component.Expects == nil {
+	if component.Wants == nil {
 		return bld, nil
 	}
 
-	if !slices.ContainsFunc(component.Expects,
+	if !slices.ContainsFunc(component.Wants,
 		func(result build.Result) bool { return slices.Contains(backend.Produces, result) }) {
-		return nil, build.FieldErrorf("", "backend %q makes nothing the component expects",
+		return nil, build.FieldErrorf("", "backend %q makes nothing the component wants",
 			backend.Name)
 	}
 
 	for _, result := range asked {
-		if !slices.Contains(component.Expects, result) {
+		if !slices.Contains(component.Wants, result) {
 			return nil, build.FieldErrorf("", "the build makes a %s, which the component "+
-				"does not expect", result)
+				"does not want", result)
 		}
 	}
 
@@ -112,7 +112,7 @@ func ValidateHook(backend build.Backend, block Block) (build.Build, error) {
 	}
 
 	return validate(backend, build.Component{Name: "", Path: "", Namespace: "", Package: "",
-		Expects: nil}, block)
+		Wants: nil}, block)
 }
 
 // validate is what Validate and ValidateHook check alike: first that
@@ -321,7 +321,7 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 	target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
 
 	return newHarness(backend, build.Context{
-		Component: build.Component{Name: "", Path: "", Namespace: "", Package: "", Expects: nil},
+		Component: build.Component{Name: "", Path: "", Namespace: "", Package: "", Wants: nil},
 		Target:    target,
 		Dirs:      dirs,
 		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},

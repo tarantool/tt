@@ -395,7 +395,7 @@ func Both() build.Backend {
 			bld := bothBuild{module: config.Module, bin: config.Bin}
 
 			if bld.module == "" && bld.bin == "" {
-				if slices.Equal(component.Expects, []build.Result{build.Program}) {
+				if slices.Equal(component.Wants, []build.Result{build.Program}) {
 					bld.bin = component.Name
 				} else {
 					bld.module = component.Name

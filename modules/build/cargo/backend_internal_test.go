@@ -26,27 +26,27 @@ var (
 	_ build.Preflighter  = cargoBuild{}
 )
 
-// program is the component agent, in the directory agent, of the deprecated
-// kind = "executable": it expects programs only.
+// program is the component agent, in the directory agent, which wants
+// programs only, as kind = "executable" of manifest_version 0.1 does.
 func program() build.Component {
 	return build.Component{
 		Name: "agent", Path: "agent", Namespace: "", Package: "",
-		Expects: []build.Result{build.Program},
+		Wants: []build.Result{build.Program},
 	}
 }
 
-// module is the component lib, in the directory lib, of no kind.
+// module is the component lib, in the directory lib, which wants nothing.
 func module() build.Component {
 	return build.Component{
-		Name: "lib", Path: "lib", Namespace: "demo", Package: "", Expects: nil,
+		Name: "lib", Path: "lib", Namespace: "demo", Package: "", Wants: nil,
 	}
 }
 
-// both is the component both, in the directory both, of no kind, whose
-// crate has a library and a binary.
+// both is the component both, in the directory both, which wants nothing,
+// whose crate has a library and a binary.
 func both() build.Component {
 	return build.Component{
-		Name: "both", Path: "both", Namespace: "demo", Package: "", Expects: nil,
+		Name: "both", Path: "both", Namespace: "demo", Package: "", Wants: nil,
 	}
 }
 
@@ -149,8 +149,8 @@ func TestWhatTheBlockBuilds(t *testing.T) {
 		{"bin", module(), map[string]any{"bin": "fastctl"}, false, []string{"fastctl"}},
 		{"both", module(), map[string]any{"module": "fast", "bin": "fastctl"}, true,
 			[]string{"fastctl"}},
-		{"neither of kind = executable", program(), nil, false, []string{"agent"}},
-		{"bin of kind = executable", program(), map[string]any{"bin": "agentd"}, false,
+		{"neither for programs", program(), nil, false, []string{"agent"}},
+		{"bin for programs", program(), map[string]any{"bin": "agentd"}, false,
 			[]string{"agentd"}},
 	}
 
@@ -203,8 +203,8 @@ func TestValidateErrors(t *testing.T) {
 			"features", `"" is not a feature name`},
 		{"a profile with a space", program(), map[string]any{"profile": "my dist"},
 			"profile", `"my dist" is not a profile name`},
-		{"module of kind = executable", program(), map[string]any{"module": "a"},
-			"", "the build makes a module, which the component does not expect"},
+		{"module for programs", program(), map[string]any{"module": "a"},
+			"", "the build makes a module, which the component does not want"},
 		{"a bin of a number", program(), map[string]any{"bin": int64(1)},
 			"bin", "must be a string, not an integer"},
 		{"features of a string", program(), map[string]any{"features": "tls"},
@@ -767,7 +767,7 @@ func TestBuildsInTheTargetDir(t *testing.T) {
 		facts := harness.Context
 
 		file := filepath.Join(facts.Dirs.Programs, "agent")
-		if component.Expects == nil {
+		if component.Wants == nil {
 			file = filepath.Join(facts.Dirs.Output, "agent_lib"+facts.Target.ModuleExt())
 		}
 

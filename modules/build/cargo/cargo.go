@@ -132,9 +132,8 @@ type Config struct {
 // newBuild checks a cargo build block of the component, the shapes of its
 // fields, and picks what it builds: the module when the block names it,
 // the binary when it names it. One that names neither builds the library
-// under its own name, or, for a component that expects programs only (the
-// kind = "executable" of manifest_version 0.1), the binary named after the
-// component.
+// under its own name, or, for a component that wants programs alone
+// (build.Component.Wants), the binary named after the component.
 func newBuild(cfg any, component build.Component, common build.Common) (build.Build, error) {
 	config, ok := cfg.(*Config)
 	if !ok {
@@ -149,7 +148,7 @@ func newBuild(cfg any, component build.Component, common build.Common) (build.Bu
 	module, bin := config.Module != "", config.Bin
 
 	if !module && bin == "" {
-		if slices.Equal(component.Expects, []build.Result{build.Program}) {
+		if slices.Equal(component.Wants, []build.Result{build.Program}) {
 			bin = component.Name
 		} else {
 			module = true

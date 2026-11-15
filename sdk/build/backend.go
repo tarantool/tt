@@ -133,15 +133,17 @@ type Component struct {
 	Namespace string
 	// Package is the name of the package of the component.
 	Package string
-	// Expects are the types of what the manifest says the build makes, for
-	// a manifest that says it: kind of manifest_version 0.1, deprecated,
-	// is [Program] for kind = "executable" and [Module] and [Data] for
-	// kind = "module". Nil when the manifest says nothing, as a manifest is
-	// to: the build makes what its block asks for. The core checks the
-	// build against them; a backend that picks what to build when its block
-	// does not say follows them - cargo builds the binary named after the
-	// component then.
-	Expects []Result
+	// Wants are the types of results the manifest asks the component for,
+	// besides its build block: the build is to make results of these types
+	// and of no other. Nil when the manifest asks for none, as a manifest
+	// is to: the build makes what its block asks for. The core checks the
+	// backend, and what its build says it makes ([Producer]), against them
+	// before anything is built. A backend that picks what to build when its
+	// block names nothing follows them: cargo and zig build the program
+	// named after the component when Wants is [Program] alone. The one form
+	// of a manifest that asks so far is deprecated, so a backend may leave
+	// them to the core.
+	Wants []Result
 }
 
 // Common are the fields every build block has, whatever its backend.
@@ -169,10 +171,10 @@ type OutputFile struct {
 	// To is the type of the file, which says where it goes, by its base
 	// name: [Module] for to = "lib", [Data] for to = "share", [Program] for
 	// to = "bin". An entry that says no to - a plain string - is of the one
-	// type of a backend whose [Backend.Produces] has one: a backend of data
-	// files only lists them with output = "dist/calc.wasm". Of another
-	// backend it is a [Module], and a [Program] for a component of
-	// kind = "executable" (manifest_version 0.1, deprecated).
+	// type of [Component.Wants] when it has one, else of the one type of a
+	// backend whose [Backend.Produces] has one: a backend of data files
+	// only lists them with output = "dist/calc.wasm". Of another backend it
+	// is a [Module].
 	To Result
 }
 
@@ -239,9 +241,9 @@ type Preflighter interface {
 
 // Producer is a Build that says what its block asks it to make: the types
 // of the results it makes at least, each of them among
-// [Backend.Produces]. The core checks them against the kind of a
-// component of manifest_version 0.1 before anything is built. A Build that
-// is no Producer may make any type its backend produces.
+// [Backend.Produces]. The core checks them against [Component.Wants]
+// before anything is built. A Build that is no Producer may make any type
+// its backend produces.
 type Producer interface {
 	Produces() []Result
 }

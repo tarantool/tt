@@ -181,19 +181,19 @@ func TestCheckBuildPrograms(t *testing.T) {
 	assert.Equal(t, []string{"gw"}, check.Programs)
 }
 
-// TestCheckBuildExpects checks what a backend is told the component expects
-// of its build: nothing for a component of no kind, as a component is, and
-// what the deprecated kind says otherwise; and the types of the files of
-// output by the kind.
-func TestCheckBuildExpects(t *testing.T) {
+// TestCheckBuildWants checks what a backend is told the component wants of
+// its build: nothing for a component of no kind, as a component is, and
+// what the deprecated kind says otherwise, as types of results; and the
+// types of the files of output by the kind.
+func TestCheckBuildWants(t *testing.T) {
 	t.Parallel()
 
 	var told []build.Component
 
 	registry := buildregtest.Registry()
-	expecting := zig()
+	wanting := zig()
 
-	expecting.New = func(_ any, component build.Component, common build.Common) (
+	wanting.New = func(_ any, component build.Component, common build.Common) (
 		build.Build, error,
 	) {
 		told = append(told, component)
@@ -201,7 +201,7 @@ func TestCheckBuildExpects(t *testing.T) {
 		return zigBuild{steps: nil}, nil
 	}
 
-	require.NoError(t, registry.Add("zig", []build.Backend{expecting}, nil))
+	require.NoError(t, registry.Add("zig", []build.Backend{wanting}, nil))
 
 	for _, target := range []manifest.BuildTarget{
 		moduleTarget(), kindTarget(manifest.KindModule), kindTarget(manifest.KindExecutable),
@@ -211,9 +211,9 @@ func TestCheckBuildExpects(t *testing.T) {
 	}
 
 	require.Len(t, told, 3)
-	assert.Nil(t, told[0].Expects)
-	assert.Equal(t, []build.Result{build.Module, build.Data}, told[1].Expects)
-	assert.Equal(t, []build.Result{build.Program}, told[2].Expects)
+	assert.Nil(t, told[0].Wants)
+	assert.Equal(t, []build.Result{build.Module, build.Data}, told[1].Wants)
+	assert.Equal(t, []build.Result{build.Program}, told[2].Wants)
 
 	entries := []manifest.OutputEntry{
 		{Path: "a", To: ""}, {Path: "a", To: manifest.OutputToLib},

@@ -20,7 +20,7 @@ import (
 // component is the component gw, in the directory gw.
 func component() build.Component {
 	return build.Component{
-		Name: "gw", Path: "gw", Namespace: "", Package: "", Expects: nil,
+		Name: "gw", Path: "gw", Namespace: "", Package: "", Wants: nil,
 	}
 }
 
@@ -92,13 +92,12 @@ func TestProgramsDefaultToTheComponent(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []build.Result{build.Program}, producer.Produces())
 
-	// A component of kind = "executable" of manifest_version 0.1 builds the
-	// same program.
-	legacy := component()
+	// A component that wants programs alone builds the same program.
+	programs := component()
 
-	legacy.Expects = []build.Result{build.Program}
+	programs.Wants = []build.Result{build.Program}
 
-	_, err := buildtest.Validate(Backend(), legacy, block(nil, false))
+	_, err := buildtest.Validate(Backend(), programs, block(nil, false))
 	require.NoError(t, err)
 }
 
@@ -107,7 +106,7 @@ func TestValidateErrors(t *testing.T) {
 
 	module := component()
 
-	module.Expects = []build.Result{build.Module, build.Data}
+	module.Wants = []build.Result{build.Module, build.Data}
 
 	tests := []struct {
 		name      string
@@ -137,7 +136,7 @@ func TestValidateErrors(t *testing.T) {
 		{"an unknown field", component(), map[string]any{"make_target": "all"},
 			"make_target", "unknown field"},
 		{"a component of modules", module, nil,
-			"", `backend "go" makes nothing the component expects`},
+			"", `backend "go" makes nothing the component wants`},
 	}
 
 	for _, test := range tests {

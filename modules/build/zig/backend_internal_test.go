@@ -24,19 +24,20 @@ var (
 	_ build.InputHasher  = zigBuild{}
 )
 
-// component is the component hello, in the directory hello, of no kind.
+// component is the component hello, in the directory hello, which wants
+// nothing.
 func component() build.Component {
 	return build.Component{
-		Name: "hello", Path: "hello", Namespace: "demo", Package: "", Expects: nil,
+		Name: "hello", Path: "hello", Namespace: "demo", Package: "", Wants: nil,
 	}
 }
 
-// program is the component agent, in the directory agent, of the deprecated
-// kind = "executable": it expects programs only.
+// program is the component agent, in the directory agent, which wants
+// programs only, as kind = "executable" of manifest_version 0.1 does.
 func program() build.Component {
 	return build.Component{
 		Name: "agent", Path: "agent", Namespace: "", Package: "",
-		Expects: []build.Result{build.Program},
+		Wants: []build.Result{build.Program},
 	}
 }
 
@@ -173,8 +174,8 @@ func TestWhatTheBlockBuilds(t *testing.T) {
 			[]string{"hello-client"}},
 		{"both", component(), map[string]any{"module": "hello", "bin": "hello-client"},
 			"hello", []string{"hello-client"}},
-		{"neither of kind = executable", program(), nil, "", []string{"agent"}},
-		{"bin of kind = executable", program(), map[string]any{"bin": "agentd"}, "",
+		{"neither for programs", program(), nil, "", []string{"agent"}},
+		{"bin for programs", program(), map[string]any{"bin": "agentd"}, "",
 			[]string{"agentd"}},
 	}
 
@@ -247,8 +248,8 @@ func TestValidateErrors(t *testing.T) {
 		{"an option of optimize", component(), map[string]any{
 			"module": "hello", "options": map[string]any{"optimize": "Debug"},
 		}, "options.optimize", "is the field optimize of the block"},
-		{"module of kind = executable", program(), map[string]any{"module": "a"},
-			"", "the build makes a module, which the component does not expect"},
+		{"module for programs", program(), map[string]any{"module": "a"},
+			"", "the build makes a module, which the component does not want"},
 		{"steps of a string", component(), map[string]any{
 			"module": "hello", "steps": "install",
 		}, "steps", "must be an array, not a string"},
