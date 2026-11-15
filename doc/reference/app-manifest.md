@@ -233,29 +233,153 @@ components tarawasm builds; see
 | `steps`, `optimize`, `options` | `zig` | the steps of `zig build`, its default one by default; the mode, `Debug`, `ReleaseSafe`, `ReleaseFast` or `ReleaseSmall`, `ReleaseSafe` by default; `-D<name>=<value>` of the `build.zig` |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` of the configuration, the targets to build, all by default, and `CMAKE_BUILD_TYPE`, `RelWithDebInfo` by default; `output` is required |
 
-An entry of `output` is the path of a file, relative to `cwd` for `make`
-and `shell` and to the build tree for `cmake`: a string is a module, and a
-table says where the file goes, `to = "lib"` a module, `to = "share"` a
-data file, `to = "bin"` a program. tt copies each under its base name; a
-file the build did not make fails it. A program of `output` is a program of
-the component, which `tt instance` finds by it, and is checked as every
-program is.
+#### `output`
+
+`output` lists the files a build makes that are to go into the package. It
+is for a build whose tool writes its files where it likes - a Makefile, a
+script, a CMake project - and tt takes each file from there after the build
+and puts it into the package. An entry is a string, the path of the file,
+or a table, `{ path = "...", to = "..." }`, that says where it goes. One
+entry may be written alone:
 
 ```toml
-[components.tool.build]
-backend = "make"
-make_target = "all"
-output = [
-  "build/tool.so",
-  { path = "build/tool.wasm", to = "share" },
-  { path = "build/tool", to = "bin" },
-]
+output = "dist/calc.wasm"                       # the same as ["dist/calc.wasm"]
+output = { path = "build/tool", to = "bin" }    # the same as [{ ... }]
+output = ["build/tool.so", { path = "build/tool", to = "bin" }]
 ```
 
-Another `to` is an error, `components.tool.build.output[1].to: "etc" is
-not lib, share or bin`, and so is a table without `path`. A backend that
-makes no file of that type refuses the entry:
+`path` is relative to where the backend takes the file from:
+
+| Backend | `path` is relative to |
+| --- | --- |
+| `make`, `shell` | the working directory of the build: `cwd`, which is relative to the project, or the directory of the component when the block has no `cwd` |
+| `cmake` | the build tree, `_build/component/<component>/` of the project (`TT_BUILD_DIR`) |
+| a backend of a module | where its documentation says; a backend whose output tt copies takes it from the working directory, as `make` does |
+
+The file is taken after the build succeeds; a file the build did not make
+fails it with exit code 2:
+
+```text
+⨯ building component "rates": copy declared output "dist/rates.json": opening the source: open /home/me/shop/rates/dist/rates.json: no such file or directory
+```
+
+An incremental build that is up to date takes the file again from the same
+place, and runs the build again when it is gone from there.
+
+`to` says where the file goes. tt puts it there under its base name - the
+directories of `path` are dropped - in the package. `tt package build`
+installs the package into `.rocks/` of the project, `tt package pack` packs
+that `.rocks/` into the archive, and `tt package install` installs it with
+the same paths: into `.rocks/` of a project, or of the version of the
+application, `<root>/versions/<name>/<name>_<version>/.rocks/`, in the user
+and the system scopes:
+
+| `to` | What the file is | Where it is installed in `.rocks/` |
+| --- | --- | --- |
+| `lib` | a module, which `require` loads | `lib/tarantool/<namespace>/<file>` |
+| `share` | a data file, such as `.wasm` | `share/tarantool/<namespace>/<file>`, beside the Lua files of the package |
+| `bin` | a program, a program of the component, which `tt instance` finds by it | `bin/<file>` |
+
+`<namespace>` is the `namespace` of the component, the name of the package
+by default. An entry with no `to` is a module (`lib`), but for a backend
+that makes files of one type only, whose type it is then - a data file of a
+backend of data files - and for a component of `kind = "executable"`,
+whose files are programs. A program is checked as every program is.
+
+This differs from `include`, which lays files of the directory of the
+component out under their paths: `include = ["dist/calc.wasm"]` installs
+`share/tarantool/<namespace>/dist/calc.wasm`, and
+`output = { path = "dist/calc.wasm", to = "share" }` installs
+`share/tarantool/<namespace>/calc.wasm`. A file `output` names is not laid
+out unless `include` takes it as well.
+
+A package whose build makes a JSON file its Lua code reads:
+
+```text
+shop/
+├── app.manifest.toml
+├── app/init.lua
+└── rates/build.sh
+```
+
+`shop/app.manifest.toml`:
+
+```toml
+manifest_version = "0.1"
+
+[package]
+name = "shop"
+
+[platform]
+tarantool = ">=3.0.0"
+tt = ">=3.0.0"
+
+[components.app]
+path = "app"
+
+[components.rates]
+path = "rates"
+
+[components.rates.build]
+backend = "shell"
+command = "sh"
+args = ["build.sh"]
+output = { path = "dist/rates.json", to = "share" }
+```
+
+`shop/rates/build.sh`, run in `rates/`:
+
+```sh
+mkdir -p dist
+printf '{"usd": 90}\n' > dist/rates.json
+```
+
+`shop/app/init.lua`, the module `shop`, which finds the file beside itself:
+
+```lua
+local fio = require('fio')
+local json = require('json')
+
+local M = {}
+
+-- rates.json is a data file of the package: tt installs it into the
+-- directory of the package, next to this file.
+function M.rates()
+    local file = assert(fio.open(fio.pathjoin(debug.sourcedir(), 'rates.json')))
+    local data = file:read()
+    file:close()
+    return json.decode(data)
+end
+
+return M
+```
+
+```console
+$ cd shop
+$ tt package build
+$ find .rocks/share/tarantool/shop -type f | sort
+.rocks/share/tarantool/shop/init.lua
+.rocks/share/tarantool/shop/rates.json
+.rocks/share/tarantool/shop/version.lua
+$ tt run -e "print(require('shop').rates().usd) os.exit()"
+90
+```
+
+`rates/build.sh` and `rates/dist/` are not laid out: the default `include`
+takes `*.lua` and `*.so`. `debug.sourcedir()` is the directory of the Lua
+file that calls it, so the module finds the file wherever the package is
+installed. Code that is not in the package reads it by its path from the
+directory of the application, which is the working directory of its
+instances and of `tt run`: `.rocks/share/tarantool/shop/rates.json`.
+
+A `to` of another value is an error, `components.rates.build.output[0].to:
+"etc" is not lib, share or bin`, and so is a table without `path`; a value
+that is neither a string, a table nor an array of them is `output must be
+a file, a table { path = ..., to = ... } or an array of them, got integer`.
+A backend that makes no file of the type refuses the entry:
 `components.a.build.output[0].to: backend "wasm-tool" makes no data files`.
+`output` of a backend that has no such field, such as `c`, is refused as
+any field of another backend is, below.
 
 A field of a backend other than the one of the build is an error, since it
 would do nothing: `cflags` on a `make` build, `make_target` on a `shell`

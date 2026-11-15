@@ -296,6 +296,7 @@ component and build.
 | `Fresh` | set by `tt package build --rebuild`: drop what `Work` keeps and build from scratch |
 | `Locked` | set by `--locked`: a tool of the build must not move a version either; `LockedVersion` returns the version the lock pins a rock at |
 | `Static` | `static` of the block |
+| `Args` | the arguments a command of the module passed through to this build, for its tool (`sdk.BuildOptions.Args`: `tt wasm build calc -- -opt=2`); none in a build of `tt package build`. They are an input of an incremental build |
 | `Hook` | set for the build of a lifecycle hook |
 | `Log`, `Warn` | the logger of the build, tt's with `backend=<name>`, whose debug records `tt -V` shows, and a function that shows a warning |
 
@@ -403,11 +404,16 @@ An error of `Run` fails the build with exit code 2:
 
 ## Output: lib, share and bin
 
-`output` of a build block lists files the build makes. An entry is a path,
-which is a module, or a table with `path` and `to`: `to = "lib"` is a
-module, `to = "share"` a data file, `to = "bin"` a program. The core gives
-them to `New` in `Common.Output`, each a `build.OutputFile` with its `Path`
-and its type, `To`. `OutputFrom` says whether the backend has the field:
+`output` of a build block lists files the build makes, for a backend whose
+tool writes them where it likes rather than into the directories of the
+Context. An entry is a path, or a table with `path` and `to`: `to = "lib"`
+is a module, `to = "share"` a data file, `to = "bin"` a program. One entry
+may be written alone, `output = "dist/banner.txt"` for
+`output = ["dist/banner.txt"]`. An entry with no `to` is of the one type of
+a backend whose `Produces` has one type only - a data file of a backend of
+data files - and a module of any other backend. The core gives the entries
+to `New` in `Common.Output`, each a `build.OutputFile` with its `Path` and
+its type, `To`. `OutputFrom` says whether the backend has the field:
 
 - `build.OutputNone`: no `output`. The build puts what it makes into the
   directories of the Context itself, as `template`, `cargo` and `zig` do. A
@@ -422,6 +428,159 @@ and its type, `To`. `OutputFrom` says whether the backend has the field:
 
 The core refuses an entry whose `to` is not among `Produces`, before
 anything is built.
+
+### A backend whose output the core copies
+
+`render` is `template` for a tool that writes its file into the directory
+it runs in: the build renders the template into the file `output` names, in
+`Dirs.Cwd`, and the core copies it into the package. `render.go`:
+
+```go
+package template
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/tarantool/tt/sdk/build"
+)
+
+// RenderConfig are the fields of a render build block.
+type RenderConfig struct {
+	// Template is the template, relative to the working directory of the
+	// build. Required.
+	Template string `toml:"template"`
+}
+
+// RenderBackend returns the render backend: it renders a template with
+// envsubst into the one file output names, relative to the working
+// directory of the build, which the core copies into the package.
+func RenderBackend() build.Backend {
+	return build.Backend{
+		Name:       "render",
+		Produces:   []build.Result{build.Data},
+		Config:     func() any { return new(RenderConfig) },
+		New:        newRender,
+		OutputFrom: build.OutputCwd,
+	}
+}
+
+// newRender checks a render build block: a template, and one file of output.
+func newRender(cfg any, _ build.Component, common build.Common) (build.Build, error) {
+	config, ok := cfg.(*RenderConfig)
+	if !ok {
+		return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
+	}
+
+	switch {
+	case config.Template == "":
+		return nil, build.FieldErrorf("", "template is required for backend %q", "render")
+	case len(common.Output) != 1:
+		return nil, build.FieldErrorf("output", "names %d files; render makes one",
+			len(common.Output))
+	}
+
+	return renderBuild{template: config.Template, file: common.Output[0].Path}, nil
+}
+
+// renderBuild is a checked render build block.
+type renderBuild struct {
+	template string
+	file     string
+}
+
+// Run renders the template into the file of output, in the working
+// directory of the build.
+func (b renderBuild) Run(ctx context.Context, c *build.Context) error {
+	source, err := os.Open(filepath.Join(c.Dirs.Cwd, b.template))
+	if err != nil {
+		return err
+	}
+
+	defer source.Close()
+
+	cmd := c.Command(ctx, tool)
+
+	cmd.Stdin = source
+
+	out, err := c.Output(cmd)
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(c.Dirs.Cwd, b.file)
+
+	err = os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, out, 0o644)
+}
+```
+
+`New` of the module (`module.go`, below) provides both backends:
+`Backends: []build.Backend{Backend(), RenderBackend()}`. Once the module is
+in tt ([Build it into tt](#build-it-into-tt)), a package uses it; in
+`myapp/app.manifest.toml` of [Use it in a package](#use-it-in-a-package):
+
+```toml
+[components.banner]
+path = "banner"
+
+[components.banner.build]
+backend = "render"
+template = "banner.txt.in"
+output = "dist/banner.txt"
+```
+
+`myapp/banner/banner.txt.in`:
+
+```text
+${TT_PACKAGE} ${TT_VERSION}
+```
+
+The block says no `to`, and `render` makes data files only, so the file is
+a data file. The build runs in `banner/`, the directory of the component,
+which is the working directory of the build since the block has no `cwd`:
+it writes `banner/dist/banner.txt`, and the core copies it under its base
+name into `share/` of the namespace of the component, the package name,
+which `tt package build` installs as `.rocks/share/tarantool/myapp/`:
+
+```console
+$ ../dist/tt package build
+$ cat banner/dist/banner.txt
+myapp 0.0.0-dev.0
+$ cat .rocks/share/tarantool/myapp/banner.txt
+myapp 0.0.0-dev.0
+$ ../dist/tt run -e "local fio = require('fio') \
+    local file = fio.open('.rocks/share/tarantool/myapp/banner.txt') \
+    io.write(file:read()) os.exit()"
+myapp 0.0.0-dev.0
+```
+
+The Lua code of the package reads it beside itself, as
+`fio.pathjoin(debug.sourcedir(), 'banner.txt')` in a module of the
+namespace `myapp`; other code reads it from the directory of the
+application, the working directory of its instances, as above. Neither
+`banner.txt.in` nor `dist/` is laid out: the default `include` takes
+`*.lua` and `*.so`. The core refuses what the block asks for and `render`
+does not make before anything is built, with exit code 1, as for
+`output = { path = "dist/banner.txt", to = "lib" }`:
+
+```text
+⨯ invalid manifest: components.banner.build.output[0].to: backend "render" makes no modules
+```
+
+A build whose `Run` succeeds and leaves no file where `output` says fails
+with exit code 2, `building component "banner": copy declared output
+"dist/banner.txt": opening the source: ...: no such file or directory`. A
+path of `output` is relative to `Dirs.Cwd` for `build.OutputCwd`: a block
+with `cwd = "."` names `output = "banner/dist/banner.txt"` and a template
+relative to the project. [The `output` field](../reference/app-manifest.md#output)
+of the manifest reference has where every `to` is installed.
 
 ## More of the build
 
@@ -533,11 +692,11 @@ import (
 	"github.com/tarantool/tt/sdk/build"
 )
 
-// New is the constructor of the module: the template backend and the check
-// of the .json files of a package, and no command.
+// New is the constructor of the module: the template and render backends
+// and the check of the .json files of a package, and no command.
 func New(sdk.Services) sdk.Module {
 	return sdk.Module{
-		Backends:   []build.Backend{Backend()},
+		Backends:   []build.Backend{Backend(), RenderBackend()},
 		FileChecks: []build.FileCheck{{Suffix: ".json", Check: checkJSON}},
 	}
 }
