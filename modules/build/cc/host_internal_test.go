@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,13 +17,23 @@ import (
 // older Tarantool is skipped rather than exercised.
 const minTarantoolMajor = 3
 
+// prefixEnv names the prefix of a Tarantool, the directory with its headers
+// in include/tarantool, as tt takes it.
+const prefixEnv = "TT_CLI_TARANTOOL_PREFIX"
+
 // requireHostHeaders resolves the host build prerequisites of the c / lua-c
 // integration tests - a C compiler, a supported Tarantool binary and its C
 // module headers - and returns the directory of the headers, the include
-// directory of the toolchain of the build. When a prerequisite is missing it
-// skips the calling test with the reason, so the suite stays green on a host
-// without the native toolchain while still exercising it wherever it is.
-func requireHostHeaders(t *testing.T) string {
+// directory of the toolchain of the build, and the Tarantool. When a
+// prerequisite is missing it skips the calling test with the reason, so the
+// suite stays green on a host without the native toolchain while still
+// exercising it wherever it is.
+//
+// The headers are those of TT_CLI_TARANTOOL_PREFIX when it is set, in
+// <prefix>/include/tarantool, as tt takes them, and the Tarantool is the one
+// in PATH, else <prefix>/bin/tarantool. Without it the Tarantool is the one
+// in PATH and the headers are under its prefix.
+func requireHostHeaders(t *testing.T) (string, string) {
 	t.Helper()
 
 	// The compiler the core takes: $CC, else cc.
@@ -36,9 +47,16 @@ func requireHostHeaders(t *testing.T) string {
 		t.Skipf("C compiler %q not found in PATH: %v", ccName, err)
 	}
 
+	prefix := os.Getenv(prefixEnv)
+
 	tarantoolBin, err := exec.LookPath("tarantool")
+	if err != nil && prefix != "" {
+		tarantoolBin, err = exec.LookPath(filepath.Join(prefix, "bin", "tarantool"))
+	}
+
 	if err != nil {
-		t.Skipf("tarantool not found in PATH: %v", err)
+		t.Skipf("tarantool not found in PATH, nor in <%s>/bin (%s=%q): %v",
+			prefixEnv, prefixEnv, prefix, err)
 	}
 
 	version, major, err := tarantoolVersion(tarantoolBin)
@@ -50,21 +68,23 @@ func requireHostHeaders(t *testing.T) string {
 		t.Skipf("tarantool %s is too old: need >= %d.0", version, minTarantoolMajor)
 	}
 
-	includeDir := tarantoolIncludeDir(tarantoolBin)
+	includeDir, probed := tarantoolIncludeDir(tarantoolBin, prefix)
 	if includeDir == "" {
-		t.Skipf("tarantool C module headers (module.h) not found for %q", tarantoolBin)
+		t.Skipf("no Tarantool C module headers: no module.h in %s; set %s to a "+
+			"prefix with include/tarantool", strings.Join(probed, ", "), prefixEnv)
 	}
 
 	t.Logf("host toolchain: cc=%s tarantool=%s (%s) include=%s",
 		compiler, tarantoolBin, version, includeDir)
 
-	return includeDir
+	return includeDir, tarantoolBin
 }
 
 // tarantoolVersion runs tarantool --version and returns the version, the
 // last word of its first line, as tt reads it, and its major number.
 func tarantoolVersion(tarantoolBin string) (string, int, error) {
-	out, err := exec.Command(tarantoolBin, "--version").Output() //nolint:noctx // A test probe.
+	// A test probe of the Tarantool the developer runs the tests with.
+	out, err := exec.Command(tarantoolBin, "--version").Output() //nolint:noctx,gosec // See above.
 	if err != nil {
 		return "", 0, err
 	}
@@ -87,31 +107,40 @@ func tarantoolVersion(tarantoolBin string) (string, int, error) {
 	return version, major, nil
 }
 
-// tarantoolIncludeDir locates the directory holding Tarantool's module.h for
-// the given tarantool binary, or "" when none is found. It derives the
-// install prefix from the binary path - both as found on PATH and with
-// symlinks resolved, to cover layouts like Homebrew's bin -> Cellar - and
-// probes <prefix>/include/tarantool, as tt does.
-func tarantoolIncludeDir(tarantoolBin string) string {
-	seen := make(map[string]struct{})
+// tarantoolIncludeDir locates the directory holding Tarantool's module.h -
+// <prefix>/include/tarantool, as tt probes it - and returns it, or "", with
+// the directories it probed. The prefix is envPrefix when it is set, the
+// value of TT_CLI_TARANTOOL_PREFIX; otherwise it is derived from the path of
+// the tarantool binary - both as found on PATH and with symlinks resolved,
+// to cover layouts like Homebrew's bin -> Cellar.
+func tarantoolIncludeDir(tarantoolBin, envPrefix string) (string, []string) {
+	var prefixes []string
 
-	for _, bin := range candidateBinPaths(tarantoolBin) {
-		prefix := filepath.Dir(filepath.Dir(bin))
-		if _, dup := seen[prefix]; dup {
-			continue
-		}
-
-		seen[prefix] = struct{}{}
-
-		includeDir := filepath.Join(prefix, "include", "tarantool")
-
-		_, err := os.Stat(filepath.Join(includeDir, "module.h"))
-		if err == nil {
-			return includeDir
+	if envPrefix != "" {
+		prefixes = []string{envPrefix}
+	} else {
+		for _, bin := range candidateBinPaths(tarantoolBin) {
+			prefixes = append(prefixes, filepath.Dir(filepath.Dir(bin)))
 		}
 	}
 
-	return ""
+	var probed []string
+
+	for _, prefix := range prefixes {
+		includeDir := filepath.Join(prefix, "include", "tarantool")
+		if slices.Contains(probed, includeDir) {
+			continue
+		}
+
+		probed = append(probed, includeDir)
+
+		_, err := os.Stat(filepath.Join(includeDir, "module.h"))
+		if err == nil {
+			return includeDir, probed
+		}
+	}
+
+	return "", probed
 }
 
 // candidateBinPaths returns the binary path as given, plus its
