@@ -31,7 +31,7 @@ func block(rest map[string]any, output ...build.OutputFile) buildtest.Block {
 	return buildtest.Block{
 		Common:      build.Common{Cwd: "", Env: nil, Output: output, Static: false},
 		Incremental: false,
-		Rest:        rest,
+		Fields:      rest,
 	}
 }
 

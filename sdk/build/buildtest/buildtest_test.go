@@ -98,7 +98,7 @@ func TestValidate(t *testing.T) {
 
 	bld, err := buildtest.Validate(touch(), component(), buildtest.Block{
 		Common: build.Common{Cwd: "", Env: nil, Output: nil, Static: false}, Incremental: false,
-		Rest: map[string]any{"file": "a.txt"},
+		Fields: map[string]any{"file": "a.txt"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, touchBuild{file: "a.txt"}, bld)
@@ -131,34 +131,34 @@ func TestValidateErrors(t *testing.T) {
 		field     string
 		msg       string
 	}{
-		{touch(), "a type", component(), buildtest.Block{Rest: map[string]any{"file": int64(1)}},
+		{touch(), "a type", component(), buildtest.Block{Fields: map[string]any{"file": int64(1)}},
 			"file", "must be a string, not an integer"},
-		{touch(), "an unknown field", component(), buildtest.Block{Rest: map[string]any{
+		{touch(), "an unknown field", component(), buildtest.Block{Fields: map[string]any{
 			"file": "a", "make_target": "all",
 		}}, "make_target", "unknown field"},
 		{touch(), "New", component(), buildtest.Block{}, "",
 			`file is required for backend "touch"`},
 		{noOutput, "output", component(), buildtest.Block{
 			Common: build.Common{Output: []build.OutputFile{{Path: "a", To: build.Module}}},
-			Rest:   map[string]any{"file": "a"},
+			Fields: map[string]any{"file": "a"},
 		}, "output", `is not a field of backend "touch"`},
 		{touch(), "incremental", component(), buildtest.Block{
-			Incremental: true, Rest: map[string]any{"file": "a"},
+			Incremental: true, Fields: map[string]any{"file": "a"},
 		}, "incremental", `is not a field of backend "touch"`},
 		{touch(), "the type of an output", component(), buildtest.Block{
 			Common: build.Common{Output: []build.OutputFile{
 				{Path: "a", To: build.Module}, {Path: "b", To: build.Program},
 			}},
-			Rest: map[string]any{"file": "a"},
+			Fields: map[string]any{"file": "a"},
 		}, "output[1].to", `backend "touch" makes no program`},
 		{touch(), "what the build makes", component(), buildtest.Block{
-			Rest: map[string]any{"file": "program"},
+			Fields: map[string]any{"file": "program"},
 		}, "", `backend "touch" makes no program, but the build says it does`},
 		{touch(), "what the component wants", executable, buildtest.Block{
-			Rest: map[string]any{"file": "a"},
+			Fields: map[string]any{"file": "a"},
 		}, "", `backend "touch" makes nothing the component wants`},
 		{programs, "what the build makes for the component", module, buildtest.Block{
-			Rest: map[string]any{"file": "program"},
+			Fields: map[string]any{"file": "program"},
 		}, "", `the build makes a program, which the component does not want`},
 	}
 
@@ -204,7 +204,7 @@ func TestValidateOfABackendTheCoreRefuses(t *testing.T) {
 			`program, once each`},
 	} {
 		_, err := buildtest.Validate(test.backend, component(), buildtest.Block{
-			Rest: map[string]any{"file": "a"},
+			Fields: map[string]any{"file": "a"},
 		})
 		require.ErrorIs(t, err, build.ErrBackend)
 		require.EqualError(t, err, test.msg)
@@ -214,7 +214,7 @@ func TestValidateOfABackendTheCoreRefuses(t *testing.T) {
 func TestValidateHook(t *testing.T) {
 	t.Parallel()
 
-	_, err := buildtest.ValidateHook(touch(), buildtest.Block{Rest: map[string]any{"file": "a"}})
+	_, err := buildtest.ValidateHook(touch(), buildtest.Block{Fields: map[string]any{"file": "a"}})
 
 	var fieldErr *build.FieldError
 
@@ -225,7 +225,7 @@ func TestValidateHook(t *testing.T) {
 
 	hook.Hook = true
 
-	bld, err := buildtest.ValidateHook(hook, buildtest.Block{Rest: map[string]any{"file": "a"}})
+	bld, err := buildtest.ValidateHook(hook, buildtest.Block{Fields: map[string]any{"file": "a"}})
 	require.NoError(t, err)
 	assert.Equal(t, touchBuild{file: "a"}, bld)
 

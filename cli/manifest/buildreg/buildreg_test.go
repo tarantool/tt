@@ -131,7 +131,7 @@ func TestAddRefused(t *testing.T) {
 			// error: a backend whose tests pass is one tt takes.
 			_, testErr := buildtest.Validate(refused, build.Component{
 				Name: "a", Path: "a", Namespace: "demo", Package: "demo", Wants: nil,
-			}, buildtest.Block{Common: build.Common{}, Incremental: false, Rest: nil})
+			}, buildtest.Block{Common: build.Common{}, Incremental: false, Fields: nil})
 			require.ErrorIs(t, testErr, buildreg.ErrBackend)
 			assert.Equal(t, `module "zig": `+testErr.Error(), err.Error())
 		})
@@ -149,7 +149,7 @@ func TestBuildtestTakesWhatTheRegistryTakes(t *testing.T) {
 
 	_, err := buildtest.Validate(taken, build.Component{
 		Name: "a", Path: "a", Namespace: "demo", Package: "demo", Wants: nil,
-	}, buildtest.Block{Common: build.Common{}, Incremental: false, Rest: nil})
+	}, buildtest.Block{Common: build.Common{}, Incremental: false, Fields: nil})
 	require.NoError(t, err)
 
 	for _, check := range []build.FileCheck{fileCheck(""), {Suffix: ".wasm", Check: nil}} {
