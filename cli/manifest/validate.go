@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/manifest/native"
@@ -56,7 +57,10 @@ func isHookName(name string) bool {
 // is a warning: the build refuses it, but a command that builds nothing can
 // work with the manifest still.
 func (m *Manifest) Validate(checker BuildChecker) ([]string, error) {
-	var warnings []string
+	var (
+		warnings []string
+		links    map[string][]string
+	)
 
 	checks := []func() error{
 		m.validateVersion,
@@ -65,13 +69,15 @@ func (m *Manifest) Validate(checker BuildChecker) ([]string, error) {
 		func() error { return validateDependencies("dependencies", m.Dependencies) },
 		func() error { return validateDependencies("dev_dependencies", m.DevDependencies) },
 		func() error {
-			componentWarnings, err := m.validateComponents(checker)
+			componentWarnings, componentLinks, err := m.validateComponents(checker)
 
 			warnings = append(warnings, componentWarnings...)
+			links = componentLinks
 
 			return err
 		},
 		m.validateProducts,
+		func() error { return m.validateLinks(links) },
 	}
 
 	for _, check := range checks {
@@ -244,11 +250,17 @@ func validateDependency(field string, dep Dependency) error {
 	return nil
 }
 
-func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
+// validateComponents checks the components, and returns the warnings of
+// their checks and the components whose libraries the build of each links,
+// by component (BuildCheck.Links).
+func (m *Manifest) validateComponents(
+	checker BuildChecker,
+) ([]string, map[string][]string, error) {
 	// programs maps a program a component builds to that component: two of
 	// them building one name would overwrite each other's file in
 	// .rocks/bin/.
 	programs := map[string]string{}
+	links := map[string][]string{}
 
 	var warnings []string
 
@@ -257,21 +269,21 @@ func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
 
 		field := "components." + name
 		if !nameRe.MatchString(name) {
-			return nil, invalid(field, "name must match [a-z][a-z0-9-]*")
+			return nil, nil, invalid(field, "name must match [a-z][a-z0-9-]*")
 		}
 
 		if comp.Path == "" {
-			return nil, invalid(field+".path", "is required")
+			return nil, nil, invalid(field+".path", "is required")
 		}
 
 		err := validateDependencies(field+".dependencies", comp.Dependencies)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		err = validateKind(field, comp)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if comp.Kind != "" {
@@ -288,20 +300,74 @@ func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
 		warnings = append(warnings, buildWarnings...)
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		for _, program := range check.Programs {
 			if other, taken := programs[program]; taken {
-				return nil, invalid(field+".build",
+				return nil, nil, invalid(field+".build",
 					"program %q is built by component %q too", program, other)
 			}
 
 			programs[program] = name
 		}
+
+		if len(check.Links) > 0 {
+			links[name] = check.Links
+		}
 	}
 
-	return warnings, nil
+	return warnings, links, nil
+}
+
+// validateLinks checks the components whose libraries the build of each
+// component of links links: each is a component of the package, and every
+// product of the component has it and builds it first, in the order of its
+// components, so that what it made for linking is there when the build that
+// links it runs. The product of a manifest without [products] builds its
+// components in the order of their names.
+func (m *Manifest) validateLinks(links map[string][]string) error {
+	for _, name := range sortedKeys(links) {
+		for index, other := range links[name] {
+			if _, ok := m.Components[other]; !ok {
+				return invalid(fmt.Sprintf("components.%s.build.link[%d]", name, index),
+					"%q is no component of the package", other)
+			}
+		}
+	}
+
+	products := m.EffectiveProducts()
+
+	for _, product := range sortedKeys(products) {
+		components := products[product].Components
+
+		for at, name := range components {
+			for index, other := range links[name] {
+				before := slices.Index(components, other)
+				if before >= 0 && before < at {
+					continue
+				}
+
+				if len(m.Products) == 0 {
+					return invalid(fmt.Sprintf("components.%s.build.link[%d]", name, index),
+						"component %q is built after %q, as the components of a manifest "+
+							"without [products] are built in the order of their names: declare "+
+							"a product that lists %q before %q", other, name, other, name)
+				}
+
+				what := "has no component " + strconv.Quote(other)
+				if before >= 0 {
+					what = "builds it after " + strconv.Quote(name)
+				}
+
+				return invalid("products."+product+".components",
+					"component %q links the libraries of component %q, and the product %s: "+
+						"list %q before %q", name, other, what, other, name)
+			}
+		}
+	}
+
+	return nil
 }
 
 // validateComponentBuild checks the build block of the component name: it
@@ -367,16 +433,16 @@ func (m *Manifest) checkBuild(
 }
 
 // validateOutput checks the entries of output, at field: each has a path,
-// and goes to lib, share or bin.
+// and goes to lib, share, bin or link.
 func validateOutput(field string, output []OutputEntry) error {
 	for i, entry := range output {
 		entryField := fmt.Sprintf("%s[%d]", field, i)
 
 		switch entry.To {
-		case "", OutputToLib, OutputToShare, OutputToBin:
+		case "", OutputToLib, OutputToShare, OutputToBin, OutputToLink:
 		default:
-			return invalid(entryField+".to", "%q is not %s, %s or %s", entry.To,
-				OutputToLib, OutputToShare, OutputToBin)
+			return invalid(entryField+".to", "%q is not %s, %s, %s or %s", entry.To,
+				OutputToLib, OutputToShare, OutputToBin, OutputToLink)
 		}
 
 		if entry.Path == "" && entry.To != "" {

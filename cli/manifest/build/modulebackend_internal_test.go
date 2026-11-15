@@ -2,7 +2,9 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -312,6 +314,7 @@ func TestRun_moduleBackend(t *testing.T) {
 		State:     filepath.Join(dir, buildDirName),
 		Tools:     ProjectBinDir(dir),
 		Tree:      tree,
+		Link:      filepath.Join(dir, buildDirName, linkDirName, "default", "fast"),
 	}, fast.Dirs)
 	assert.False(t, fast.Hook)
 	assert.Equal(t, "/nonexistent", fast.Tarantool.Prefix)
@@ -905,6 +908,77 @@ func TestRun_outputOfEveryType(t *testing.T) {
 			assert.Equal(t, ".\n", string(data))
 		})
 	}
+}
+
+// TestRun_outputToLink checks that a file of output with to = "link" goes
+// to _build/link/<product>/<component>/, a header to include/ of it, and
+// neither into the stage nor the tree nor the record of what the component
+// made; that an incremental build skipped copies them again; and that the
+// next build of the component empties the directory first, so what it no
+// longer makes is not left to link.
+func TestRun_outputToLink(t *testing.T) {
+	t.Parallel()
+
+	script := `mkdir -p build && echo a > build/libbase.a && echo h > build/base.h && ` +
+		`echo . >> ../builds.log`
+	block := "backend = 'shell'\ncommand = 'sh'\nargs = ['-c', '''" + script + "''']\n" +
+		"incremental = true\n"
+	manifest := func(output string) string {
+		return manifestHead + "\n[components.base]\npath = 'base'\n\n[components.base.build]\n" +
+			block + output
+	}
+
+	dir := setupProject(t, manifest(`output = [{ path = 'build/libbase.a', to = 'link' }, `+
+		`{ path = 'build/base.h', to = 'link' }]`+"\n"), map[string]string{
+		"base/.gitignore": "/build/\n",
+	})
+
+	link := filepath.Join(dir, buildDirName, linkDirName, "default", "base")
+	tree := filepath.Join(dir, rocksDirName)
+	stage := packageStage(dir, "default")
+
+	for build := 1; build <= 2; build++ {
+		_, err := RunResult(context.Background(), dryOptions(dir))
+		require.NoError(t, err, build)
+
+		assert.FileExists(t, filepath.Join(link, "libbase.a"), build)
+		assert.FileExists(t, filepath.Join(link, "include", "base.h"), build)
+		assert.NoFileExists(t, filepath.Join(link, "base.h"), build)
+
+		for _, root := range []string{stage, tree} {
+			err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+				if err == nil && !entry.IsDir() {
+					assert.NotContains(t, []string{"libbase.a", "base.h"}, entry.Name(), path)
+				}
+
+				return err
+			})
+			if !errors.Is(err, fs.ErrNotExist) {
+				require.NoError(t, err)
+			}
+		}
+
+		assert.Equal(t, madeFiles{Modules: nil, Data: nil, Programs: nil}, recordOf(t, dir)["base"])
+
+		if build == 1 {
+			// A file there the build did not make is not the component's.
+			require.NoError(t, os.WriteFile(filepath.Join(link, "libstale.a"), nil, 0o600))
+		}
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "builds.log"))
+	require.NoError(t, err)
+	assert.Equal(t, ".\n", string(data), "the second build was skipped")
+	assert.NoFileExists(t, filepath.Join(link, "libstale.a"), "the skipped build emptied it")
+
+	writeFile(t, filepath.Join(dir, manifestFileName), manifest(
+		`output = [{ path = 'build/libbase.a', to = 'link' }]`+"\n"))
+
+	_, err = RunResult(context.Background(), dryOptions(dir))
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(link, "libbase.a"))
+	assert.NoDirExists(t, filepath.Join(link, "include"), "the header is no longer made")
 }
 
 // copyBuild writes the file the output of its block lists, relative to the

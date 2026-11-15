@@ -352,7 +352,7 @@ func (b cmakeBuild) copyOutputs(c *build.Context) error {
 			}
 		}
 
-		err := build.CopyFile(filepath.Join(c.Dirs.Of(output.To), name),
+		err := build.CopyFile(c.Dirs.OutputPath(output.To, name),
 			filepath.Join(tree, output.Path))
 		if err != nil {
 			return fmt.Errorf("copy declared output %q: %w", output.Path, err)

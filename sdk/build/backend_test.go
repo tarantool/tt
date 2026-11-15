@@ -78,16 +78,53 @@ func TestDirsOf(t *testing.T) {
 	t.Parallel()
 
 	//nolint:exhaustruct // Only the directories of the results matter.
-	dirs := build.Dirs{Modules: "/stage/lib/app", Share: "/stage/lua/app", Programs: "/stage/bin"}
+	dirs := build.Dirs{
+		Modules: "/stage/lib/app", Share: "/stage/lua/app", Programs: "/stage/bin",
+		Link: "/state/link/default/foo",
+	}
 
-	assert.Equal(t, []build.Result{build.Module, build.Data, build.Program}, build.Results())
+	assert.Equal(t, []build.Result{build.Module, build.Data, build.Program, build.Link},
+		build.Results())
 	// The values of the types never change: a Result is stored and compared
 	// as the string it is.
-	assert.Equal(t, []build.Result{"module", "data", "program"}, build.Results())
+	assert.Equal(t, []build.Result{"module", "data", "program", "link"}, build.Results())
 	assert.Equal(t, "/stage/lib/app", dirs.Of(build.Module))
 	assert.Equal(t, "/stage/lua/app", dirs.Of(build.Data))
 	assert.Equal(t, "/stage/bin", dirs.Of(build.Program))
+	assert.Equal(t, "/state/link/default/foo", dirs.Of(build.Link))
 	assert.Empty(t, dirs.Of("executable"))
+}
+
+// TestDirsOutputPath pins where a file of output goes: under its name in the
+// directory of its type, a header of a library to link under include/.
+func TestDirsOutputPath(t *testing.T) {
+	t.Parallel()
+
+	//nolint:exhaustruct // Only the directories of the results matter.
+	dirs := build.Dirs{Modules: "/stage/lib/app", Link: "/state/link/default/foo"}
+
+	assert.Equal(t, "/stage/lib/app/foo.h", dirs.OutputPath(build.Module, "foo.h"))
+	assert.Equal(t, "/state/link/default/foo/libfoo.a", dirs.OutputPath(build.Link, "libfoo.a"))
+
+	for _, header := range []string{"foo.h", "foo.hh", "foo.hpp", "foo.hxx"} {
+		assert.Equal(t, "/state/link/default/foo/include/"+header,
+			dirs.OutputPath(build.Link, header))
+	}
+
+	assert.Empty(t, dirs.OutputPath(build.Program, "tool"), "no directory of programs")
+	assert.Empty(t, dirs.OutputPath("executable", "tool"))
+}
+
+// TestDirsLinkOf pins where the libraries another component made for linking
+// are: beside the Link of the build, and nowhere for a build of no Link.
+func TestDirsLinkOf(t *testing.T) {
+	t.Parallel()
+
+	//nolint:exhaustruct // Only Link matters.
+	dirs := build.Dirs{Link: "/state/link/default/app"}
+
+	assert.Equal(t, "/state/link/default/foo", dirs.LinkOf("foo"))
+	assert.Empty(t, build.Dirs{}.LinkOf("foo")) //nolint:exhaustruct // A hook has no Link.
 }
 
 func TestSupportedOS(t *testing.T) {

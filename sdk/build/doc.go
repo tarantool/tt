@@ -23,7 +23,8 @@
 // which the core asks before any component is built, so that a missing tool
 // fails the build before the first long compile; a [Producer], which says
 // what types of results its block asks for; a [ProgramNamer], which names
-// the programs it makes; an [InputHasher], which adds to what an incremental
+// the programs it makes; a [Linker], which names the components whose
+// libraries it links; an [InputHasher], which adds to what an incremental
 // build is skipped by. Those that may run a command - Preflight, Inputs, and
 // the Check of a [FileCheck] - are given the context of the build. The core
 // finds these interfaces by type assertion, and refuses a Build with a
@@ -35,8 +36,10 @@
 // [Dirs.Programs]. One build may make all three, and a backend says which
 // types its builds make ([Backend.Produces]). The three are the places of a
 // rock, and the set is the core's: a backend makes some of them and adds
-// none. A backend copies what its
-// tool built into these directories with [CopyFile]. The files of the
+// none. A fourth, [Link], is a library a component makes for the components
+// built after it to link, into [Dirs.Link], which is never installed. A
+// backend copies what its tool built into these directories with
+// [CopyFile], each file where [Dirs.OutputPath] says. The files of the
 // component - its Lua sources, by default - are laid out by the core, which
 // a backend whose sources are no files of the package switches off
 // ([Backend.NoSourceLayout]).

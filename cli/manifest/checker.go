@@ -50,6 +50,10 @@ type BuildCheck struct {
 	// into .rocks/bin/, as far as its block tells them; a build may make
 	// others its block does not name. Nil for a hook.
 	Programs []string
+	// Links are the components whose libraries the build of a component
+	// links (build.Linker), which Validate checks the products build
+	// before it. Nil for a hook.
+	Links []string
 }
 
 // ComponentTarget returns what the build block of the component name builds,

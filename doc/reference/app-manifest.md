@@ -280,6 +280,7 @@ and the system scopes:
 | `lib` | a module, which `require` loads | `lib/tarantool/<namespace>/<file>` |
 | `share` | a data file, such as `.wasm` | `share/tarantool/<namespace>/<file>`, beside the Lua files of the package |
 | `bin` | a program, a program of the component, which `tt instance` finds by it | `bin/<file>` |
+| `link` | a library, or a header of one, for the `c` and `lua-c` components built after it to link (`link`, below) | nowhere: it goes to `_build/link/<product>/<component>/`, a header to `include/` of it |
 
 `<namespace>` is the `namespace` of the component, the name of the package
 by default. An entry with no `to` is a module (`lib`), but for a backend
@@ -374,7 +375,7 @@ directory of the application, which is the working directory of its
 instances and of `tt run`: `.rocks/share/tarantool/shop/rates.json`.
 
 A `to` of another value is an error, `components.rates.build.output[0].to:
-"etc" is not lib, share or bin`, and so is a table without `path`; a value
+"etc" is not lib, share, bin or link`, and so is a table without `path`; a value
 that is neither a string, a table nor an array of them is `output must be
 a file, a table { path = ..., to = ... } or an array of them, got integer`.
 A backend that makes no file of the type refuses the entry:

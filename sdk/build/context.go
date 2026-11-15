@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -26,12 +27,12 @@ func (t Target) ModuleExt() string {
 }
 
 // Dirs are the directories of a build, all of them absolute. The core
-// creates Work, Modules, Share and Programs before the build runs and takes
-// as made what the build leaves in Modules, Share and Programs, each by its
-// type ([Result]) - a type its backend does not produce fails the build
-// ([ErrNotProduced]) - and anything else there that no build made is
-// removed. The build of a hook has no Component, Work, Modules, Share and
-// Programs: they are empty.
+// creates Work, Modules, Share, Programs and Link before the build runs and
+// takes as made what the build leaves in Modules, Share and Programs, each
+// by its type ([Result]) - a type its backend does not produce fails the
+// build ([ErrNotProduced]) - and anything else there that no build made is
+// removed. The build of a hook has no Component, Work, Modules, Share,
+// Programs and Link: they are empty.
 type Dirs struct {
 	// Project is the root of the project the component is of: the package,
 	// or a path dependency or a source rock being built.
@@ -68,10 +69,17 @@ type Dirs struct {
 	// Tree is the rocks tree the dependencies of the project are installed
 	// into.
 	Tree string
+	// Link is where the build puts the libraries it makes for the
+	// components built after it to link ([Link]), and their headers under
+	// include/ ([Dirs.OutputPath]): a directory of the component in the
+	// state of the build of its product, out of the package, which the core
+	// empties before each build of the component. The libraries another
+	// component made are in [Dirs.LinkOf].
+	Link string
 }
 
 // Of returns the directory the results of the type result go to: Modules,
-// Share or Programs; empty for no type of [Results].
+// Share, Programs or Link; empty for no type of [Results].
 func (d Dirs) Of(result Result) string {
 	switch result {
 	case Module:
@@ -80,9 +88,49 @@ func (d Dirs) Of(result Result) string {
 		return d.Share
 	case Program:
 		return d.Programs
+	case Link:
+		return d.Link
 	default:
 		return ""
 	}
+}
+
+// linkInclude is the directory of [Dirs.Link] the headers go to.
+const linkInclude = "include"
+
+// OutputPath returns where a file of the type result, named name, goes: name
+// in the directory of the type ([Dirs.Of]), but a header (.h, .hh, .hpp,
+// .hxx) of [Link], which goes under include/ of it, where the build that
+// links the libraries of the directory finds it. Empty for no type of
+// [Results].
+func (d Dirs) OutputPath(result Result, name string) string {
+	dir := d.Of(result)
+	if dir == "" {
+		return ""
+	}
+
+	if result == Link && isHeader(name) {
+		return filepath.Join(dir, linkInclude, name)
+	}
+
+	return filepath.Join(dir, name)
+}
+
+// isHeader reports whether the file name is a header of C or C++.
+func isHeader(name string) bool {
+	return slices.Contains([]string{".h", ".hh", ".hpp", ".hxx"}, filepath.Ext(name))
+}
+
+// LinkOf returns the directory of the libraries the component name of the
+// package made for linking, its [Dirs.Link]: the libraries are there when
+// that component was built before this one, as its products build it, and
+// its headers in include/ of it. Empty for a build of no Link, a hook's.
+func (d Dirs) LinkOf(component string) string {
+	if d.Link == "" {
+		return ""
+	}
+
+	return filepath.Join(filepath.Dir(d.Link), component)
 }
 
 // Tarantool is the Tarantool a component is built against. How a native

@@ -450,6 +450,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   check then reports. A link that fails because a static library was not
   built with `-fPIC` - `libz.a` of Debian and Ubuntu is not - says so,
   naming the library.
+- A `c` or `lua-c` module links a library another component of the package
+  builds: the build of that component sends it to `to = "link"` of its
+  `output` (`make`, `shell`, `cmake`), with its headers, which tt copies
+  into `_build/link/<product>/<component>/`, a header into `include/` of it,
+  out of the package; `link = ["foo"]` of the `c` or `lua-c` block adds
+  `-I` of that `include/` to the compiles and `-L` of the directory and
+  `-l<name>` of each `lib<name>.a`, `.so` or `.dylib` there to the link,
+  after `libraries` (one `libraries` names keeps its place), and a change
+  of them links the module again. Every product of the component has to
+  build the named component before it, which `tt` checks with the
+  manifest: `products.<p>.components: component "mod" links the libraries
+  of component "foo", and the product builds it after "mod": list "foo"
+  before "mod"`; a manifest without `[products]` builds its components in
+  the order of their names. The directory is emptied before each build of
+  the component, and `tt package clean <component>` removes it. The SDK of
+  build backends has the result type `Link`, `Dirs.Link`, `Dirs.LinkOf`,
+  `Dirs.OutputPath` and the optional interface `Linker`; `Results()` lists
+  `Link` last.
 - A `lua-c` build fails when its module exports no `luaopen_<name>`, the
   function `require` calls, or needs functions of the Lua API by their C++
   names - a C++ source that includes `lua.h` rather than `lua.hpp` - which

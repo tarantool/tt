@@ -68,7 +68,7 @@ func TestBackends(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		"module", "sources", "include_dirs", "libraries", "library_dirs", "rpath", "pkg_config",
-		"defines", "cflags", "cxxflags", "ldflags", "platforms",
+		"link", "defines", "cflags", "cxxflags", "ldflags", "platforms",
 	}, fields)
 }
 
@@ -103,6 +103,7 @@ func TestConfig(t *testing.T) {
 		LibraryDirs: []string{"/opt/lib"},
 		Rpath:       []string{"$ORIGIN"},
 		PkgConfig:   nil,
+		Link:        nil,
 		Defines:     []string{"NDEBUG"},
 		Cflags:      []string{"-Wall"},
 		Cxxflags:    []string{"-std=c++17"},
@@ -191,6 +192,12 @@ func TestValidateErrors(t *testing.T) {
 		{"an empty pkg_config of a platform", module(map[string]any{
 			"platforms": map[string]any{"darwin": map[string]any{"pkg_config": []any{""}}},
 		}), nil, "platforms.darwin.pkg_config", "must not contain an empty entry"},
+		{"a link of no name", module(map[string]any{"link": []any{"Foo"}}), nil,
+			"link[0]", `"Foo" is not the name of a component`},
+		{"a link of itself", module(map[string]any{"link": []any{"foo", "native"}}), nil,
+			"link[1]", `"native" is the component itself`},
+		{"a link twice", module(map[string]any{"link": []any{"foo", "foo"}}), nil,
+			"link[1]", `"foo" is listed twice`},
 		{"a platform of no OS", module(map[string]any{
 			"platforms": map[string]any{"macos": map[string]any{}},
 		}), nil, "platforms.macos", `"macos" is not an OS tt builds for (want linux or darwin)`},
@@ -713,4 +720,76 @@ func TestRunPkgConfig(t *testing.T) {
 	require.ErrorIs(t, err, build.ErrNoTool)
 	assert.Contains(t, err.Error(), `pkg_config lists "zlib" and "nosuchlib", which the `+
 		`build asks "nosuch-pkg-config" about, and it is not in PATH`)
+}
+
+// TestRunLink checks that a build links the libraries the components of link
+// made for linking, from the directory of each: -I of its include/ in every
+// compile, -L of the directory and -l of each library in it after
+// libraries; that the build names the component Links; and that a component
+// not built, or one that made no library, fails the build naming it.
+func TestRunLink(t *testing.T) {
+	t.Parallel()
+
+	rest := map[string]any{
+		"module": "m", "sources": []any{"a.c"}, "libraries": []any{"z"},
+		"link": []any{"foo", "bar"},
+	}
+
+	harness, bld := fakeHarness(t, C(), rest, map[string]string{"CC": "fakecc"})
+
+	writeFile(t, harness, "a.c", "/* a.c */\n")
+	assert.Equal(t, []string{"foo", "bar"}, bld.Links())
+
+	foo := harness.Context.Dirs.LinkOf("foo")
+	bar := harness.Context.Dirs.LinkOf("bar")
+
+	err := harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `link[0]: component "foo" has not been built: build it `+
+		`first, as a build of the whole product does before "native"`)
+
+	for _, file := range []string{
+		filepath.Join(foo, "libfoo.a"), filepath.Join(foo, "libfoo.so"),
+		filepath.Join(foo, "libfoo.so.1"), filepath.Join(foo, "include", "foo.h"),
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o700))
+		require.NoError(t, os.WriteFile(file, nil, 0o600))
+	}
+
+	require.NoError(t, os.MkdirAll(bar, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(bar, "bar.h"), nil, 0o600))
+
+	err = harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `link[1]: component "bar" made no library to link, `+
+		`lib<name>.a, .so or .dylib: its output sends one to = "link"`)
+
+	require.NoError(t, os.WriteFile(filepath.Join(bar, "libbar.a"), nil, 0o600))
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	object := filepath.Join(harness.Context.Dirs.Work, "obj", objectName("a.c"))
+	out := filepath.Join(harness.Context.Dirs.Modules, "m"+harness.Context.Target.ModuleExt())
+	libFlags := "-shared -Wl,-Bsymbolic-functions"
+
+	if runtime.GOOS == "darwin" {
+		libFlags = "-bundle -undefined dynamic_lookup -all_load"
+	}
+
+	assert.Equal(t, []string{
+		"fakecc -O2 -g -fPIC " + reproducible(harness) + " -I/tt/include/tarantool -I" +
+			filepath.Join(foo, "include") +
+			" -MD -MF " + object + ".d -MQ " + object + " -c a.c -o " + object + ".tmp",
+		"fakecc " + libFlags + " -o " + out + " " + object + " -L" + foo + " -L" + bar +
+			" -lz -lfoo -lbar",
+	}, calls(t, harness))
+
+	// A library of link changed links the module again.
+	ranBefore := len(calls(t, harness))
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+	assert.Len(t, calls(t, harness), ranBefore, "nothing changed")
+
+	require.NoError(t, os.WriteFile(filepath.Join(bar, "libbar.a"), []byte("new"), 0o600))
+	require.NoError(t, harness.Run(t.Context(), bld))
+	assert.Len(t, calls(t, harness), ranBefore+1, "the link again")
 }

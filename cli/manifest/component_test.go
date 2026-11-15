@@ -362,7 +362,7 @@ func TestOutputEntryErrors(t *testing.T) {
 		name, output, field, msg string
 	}{
 		{"a place of no name", `[{ path = "a", to = "etc" }]`, "components.a.build.output[0].to",
-			`"etc" is not lib, share or bin`},
+			`"etc" is not lib, share, bin or link`},
 		{"no path", `["a", { to = "bin" }]`, "components.a.build.output[1].path", "is required"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -669,6 +669,47 @@ func TestValidateComponentBuilds(t *testing.T) {
 			msg:   `program "b" is built by component "a" too`,
 		},
 		{
+			name: "a link of no component",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lib\"\n" +
+				"module = \"a\"\nlink = [\"foo\"]\n",
+			field: "components.a.build.link[0]",
+			msg:   `"foo" is no component of the package`,
+		},
+		{
+			name: "a link built after, of no products",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lib\"\n" +
+				"module = \"a\"\nlink = [\"foo\"]\n" +
+				"[components.foo]\npath = \"foo\"\n[components.foo.build]\nbackend = \"tree\"\n" +
+				"output = [{ path = \"libfoo.a\", to = \"link\" }]\n",
+			field: "components.a.build.link[0]",
+			msg: `component "foo" is built after "a", as the components of a manifest ` +
+				`without [products] are built in the order of their names: declare a product ` +
+				`that lists "foo" before "a"`,
+		},
+		{
+			name: "a link built after by a product",
+			body: "[components.mod]\npath = \"mod\"\n[components.mod.build]\nbackend = \"lib\"\n" +
+				"module = \"mod\"\nlink = [\"foo\"]\n" +
+				"[components.foo]\npath = \"foo\"\n[components.foo.build]\nbackend = \"tree\"\n" +
+				"output = [{ path = \"libfoo.a\", to = \"link\" }]\n" +
+				"[products.app]\ncomponents = [\"foo\", \"mod\"]\ndefault = true\n" +
+				"[products.lib]\ncomponents = [\"mod\", \"foo\"]\n",
+			field: "products.lib.components",
+			msg: `component "mod" links the libraries of component "foo", and the product ` +
+				`builds it after "mod": list "foo" before "mod"`,
+		},
+		{
+			name: "a link a product has not",
+			body: "[components.mod]\npath = \"mod\"\n[components.mod.build]\nbackend = \"lib\"\n" +
+				"module = \"mod\"\nlink = [\"foo\"]\n" +
+				"[components.foo]\npath = \"foo\"\n[components.foo.build]\nbackend = \"tree\"\n" +
+				"output = [{ path = \"libfoo.a\", to = \"link\" }]\n" +
+				"[products.app]\ncomponents = [\"mod\"]\n",
+			field: "products.app.components",
+			msg: `component "mod" links the libraries of component "foo", and the product ` +
+				`has no component "foo": list "foo" before "mod"`,
+		},
+		{
 			name:  "a field of exe on a hook",
 			body:  "[hooks.pre_build]\ncommand = \"./gen.sh\"\ncgo = true\n",
 			field: "hooks.pre_build.cgo",
@@ -771,6 +812,24 @@ func TestValidateComponentBuildsAccepted(t *testing.T) {
 		"an output to share of kind = module": "[components.tool]\npath = \"tool\"\n" +
 			"kind = \"module\"\n[components.tool.build]\nbackend = \"shell\"\n" +
 			"command = \"./b.sh\"\noutput = [{ path = \"t.wasm\", to = \"share\" }]\n",
+		// A library to link is no result of the package a kind says
+		// anything of.
+		"an output to link of kind = module": "[components.foo]\npath = \"foo\"\n" +
+			"kind = \"module\"\n[components.foo.build]\nbackend = \"make\"\n" +
+			"make_target = \"all\"\noutput = [{ path = \"libfoo.a\", to = \"link\" }, " +
+			"{ path = \"foo.h\", to = \"link\" }]\n",
+		// The components of no [products] are built in the order of their
+		// names.
+		"a link built first, of no products": "[components.mod]\npath = \"mod\"\n" +
+			"[components.mod.build]\nbackend = \"lib\"\nmodule = \"mod\"\nlink = [\"base\"]\n" +
+			"[components.base]\npath = \"base\"\n[components.base.build]\nbackend = \"tree\"\n" +
+			"output = [{ path = \"libbase.a\", to = \"link\" }]\n",
+		"a link built first by every product": "[components.mod]\npath = \"mod\"\n" +
+			"[components.mod.build]\nbackend = \"lib\"\nmodule = \"mod\"\nlink = [\"foo\"]\n" +
+			"[components.foo]\npath = \"foo\"\n[components.foo.build]\nbackend = \"tree\"\n" +
+			"output = [{ path = \"libfoo.a\", to = \"link\" }]\n" +
+			"[products.app]\ncomponents = [\"foo\", \"mod\"]\ndefault = true\n" +
+			"[products.foo]\ncomponents = [\"foo\"]\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
