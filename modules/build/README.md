@@ -36,18 +36,28 @@ how to write a backend of your own, in
 
 The tests that compile against Tarantool are behind the `integration` build
 tag. They need a `tarantool` in `PATH` with its headers under its prefix,
-`<prefix>/include/tarantool`, a C compiler, cmake, cargo and zig 0.16.0,
-and skip what they cannot run:
+`<prefix>/include/tarantool`, a C compiler, cmake, cargo and zig 0.17.1,
+and skip what they cannot run, saying why with `-v`:
 
 ```sh
 go test -tags integration ./...
 ```
 
+`TT_CLI_TARANTOOL_PREFIX` names the prefix of the headers instead, as it
+does for tt, for a Tarantool whose headers are elsewhere: the c and lua-c
+tests then compile against `<prefix>/include/tarantool` and run the
+`tarantool` in `PATH`, else `<prefix>/bin/tarantool`:
+
+```sh
+TT_CLI_TARANTOOL_PREFIX=/opt/tarantool go test -tags integration -v ./cc/
+```
+
 The zig test of a project of
-[zig-tarantool](https://git.srht.bigb.es/~bigbes/zig-tarantool) builds it
-against a checkout of zig-tarantool that has the helpers of its
-`build.zig`, `addModule`, `installModule` and `addExecutable`, which
-`TT_TEST_ZIG_TARANTOOL` names; without one, the test is skipped:
+[zig-tarantool](https://github.com/tarantool-contrib/zig-tarantool) builds
+it against a checkout of zig-tarantool, which `TT_TEST_ZIG_TARANTOOL`
+names: one with the helpers of its `build.zig`, `addModule`,
+`installModule` and `addExecutable`, such as commit `c43e6c8`, which pins
+zig 0.17.1. Without one, the test is skipped:
 
 ```sh
 TT_TEST_ZIG_TARANTOOL=/path/to/zig-tarantool go test -tags integration ./zig/
