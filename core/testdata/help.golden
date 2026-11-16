@@ -3046,7 +3046,9 @@ EXAMPLES
 Apply the data changes of snapshots and write-ahead logs to an instance, over
 its binary port, transaction by transaction, in their order. No local
 Tarantool is needed. The target is an instance of an application, reached at
-its binary port, or a URI: [tcp://][username:password@]host:port or
+the first address of iproto.listen of its config when that lists TCP
+addresses only, as the built-in templates do, or else at its binary port, or
+a URI: [tcp://][username:password@]host:port or
 [unix://][username:password@]socketpath, with the TLS settings in the flags or
 in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=..., and the
 authentication method in --auth-type or ?auth_type=auto|chap-sha1|pap-sha256.
@@ -3116,7 +3118,8 @@ target refused others; 1 - the target refused the first one it was given, or
 the request is invalid; 2 - the connection failed.
 
 The command supports the TT_CLI_USERNAME and TT_CLI_PASSWORD environment
-variables for a URI without credentials.
+variables for a target without credentials: without any, the
+connection is guest's.
 
 USAGE
   tt data play (<APP>:<INSTANCE> | <URI>) <FILE|DIR>... [flags]
@@ -4137,7 +4140,12 @@ the project builds with no network at all. With no arguments the project's
 locked closure is mirrored at its exact versions — every product's dependencies
 and the dev closure — which needs a lock, so run tt package resolve first. A
 dependency that does not come from a registry has no rock file to mirror and is
-skipped with a warning. Re-running overwrites and re-indexes, so a mirror can be
+skipped with a warning. A version a server offers as a bare rockspec, with no
+source rock and no rock of this platform, gets its source rock packed beside it,
+as luarocks pack <rockspec> makes it: the sources its source.url names are
+fetched now, a git repository at the tag or branch the rockspec pins, and the
+download fails if they cannot be. A rock whose build itself downloads still
+needs the network. Re-running overwrites and re-indexes, so a mirror can be
 extended in place. Each written path is printed to stdout.
 
 USAGE
@@ -4600,8 +4608,11 @@ Use "tt replicaset <command> --help" for more information about a command.
 === tt replicaset bootstrap --help
 Bootstrap an application or instance.
 
+Without a target, the command acts on the project of the
+current directory, as tt instance does.
+
 USAGE
-  tt replicaset bootstrap [--timeout secs] [flags] (<APP> | <APP>:<INSTANCE>)
+  tt replicaset bootstrap [--timeout secs] [flags] [<APP> | <APP>:<INSTANCE>]
 
 FLAGS
       --bootstrap-vshard    bootstrap vshard
@@ -4680,6 +4691,15 @@ FLAGS
 
 === tt replicaset expel --help
 Expel an instance from a replicaset.
+
+With the centralized config, the instance is removed the way the Tarantool
+documentation removes one: it is stopped, its entry is deleted from the
+config, the other instances of the replicaset reload the config, and the
+instance is deleted from the _cluster space on the writable one of them,
+waiting up to --timeout seconds for one. The leader of a replicaset with
+manual failover is refused: promote another instance first. The data of the
+expelled instance is left on disk, and an instances.yaml that names it still
+does.
 
 USAGE
   tt replicaset expel [-f] [--config|--custom] [--timeout secs] <APP>:<INSTANCE>
@@ -4859,13 +4879,16 @@ FLAGS
 === tt replicaset status --help
 Show a replicaset status.
 
+Without a target, the command acts on the project of the
+current directory, as tt instance does.
+
 The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies the Tarantool username
 * TT_CLI_PASSWORD - specifies the Tarantool password
 
 USAGE
-  tt replicaset status [--config|--custom] [flags] (<APP> | <APP>:<INSTANCE> |
-  <URI>)
+  tt replicaset status [--config|--custom] [flags] [<APP> | <APP>:<INSTANCE> |
+  <URI>]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
@@ -4967,13 +4990,16 @@ command.
 === tt replicaset vshard bootstrap --help
 Bootstrap vshard in the cluster.
 
+Without a target, the command acts on the project of the
+current directory, as tt instance does.
+
 The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies the Tarantool username
 * TT_CLI_PASSWORD - specifies the Tarantool password
 
 USAGE
   tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]
-  (<APP> | <APP>:<INSTANCE> | <URI>)
+  [<APP> | <APP>:<INSTANCE> | <URI>]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
