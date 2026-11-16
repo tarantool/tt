@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -122,12 +123,17 @@ func TestBuildArgs(t *testing.T) {
 func TestJobs(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, runtime.NumCPU(), jobs([]string{"PATH=/bin"}))
-	assert.Equal(t, runtime.NumCPU(), jobs([]string{"CMAKE_BUILD_PARALLEL_LEVEL="}))
-	assert.Zero(t, jobs([]string{"CMAKE_BUILD_PARALLEL_LEVEL=3"}))
-	assert.Zero(t, jobs([]string{
+	assert.Equal(t, runtime.NumCPU(), jobs(0, []string{"PATH=/bin"}))
+	assert.Equal(t, runtime.NumCPU(), jobs(0, []string{"CMAKE_BUILD_PARALLEL_LEVEL="}))
+	assert.Zero(t, jobs(0, []string{"CMAKE_BUILD_PARALLEL_LEVEL=3"}))
+	assert.Zero(t, jobs(0, []string{
 		"CMAKE_BUILD_PARALLEL_LEVEL=", "CMAKE_BUILD_PARALLEL_LEVEL=2",
 	}))
+
+	// The jobs of the build win over the level of the environment.
+	assert.Equal(t, 5, jobs(5, []string{"PATH=/bin"}))
+	assert.Equal(t, 5, jobs(5, []string{"CMAKE_BUILD_PARALLEL_LEVEL=3"}))
+	assert.Equal(t, 1, jobs(1, []string{"CMAKE_BUILD_PARALLEL_LEVEL="}))
 
 	// The level the env of the build sets is in the environment of its
 	// commands, which is where the backend reads it.
@@ -135,7 +141,69 @@ func TestJobs(t *testing.T) {
 
 	harness.Context.Env[parallelLevel] = "2"
 
-	assert.Zero(t, jobs(harness.Context.Command(t.Context(), cmakeTool).Env))
+	assert.Zero(t, jobs(harness.Context.Jobs, harness.Context.Command(t.Context(), cmakeTool).Env))
+}
+
+// TestRunJobs checks the argv of cmake --build a run gives the fake cmake,
+// which records it: --parallel of the jobs of the build when they are set,
+// even with CMAKE_BUILD_PARALLEL_LEVEL in the env of the build; with none,
+// one a CPU, or no --parallel with the level set, cmake reading it.
+func TestRunJobs(t *testing.T) {
+	t.Parallel()
+
+	cpus := strconv.Itoa(runtime.NumCPU())
+
+	for _, test := range []struct {
+		name  string
+		jobs  int
+		level string
+		want  []string
+	}{
+		{"default", 0, "", []string{"--parallel", cpus}},
+		{"level", 0, "3", nil},
+		{"jobs", 2, "", []string{"--parallel", "2"}},
+		{"jobs over level", 2, "3", []string{"--parallel", "2"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			harness := buildtest.New(t, Backend(), component())
+			argv := filepath.Join(t.TempDir(), "argv")
+
+			// The fake is written aside and copied with no fork in between,
+			// so that starting it is not refused while parallel tests start
+			// processes.
+			script := filepath.Join(t.TempDir(), cmakeTool)
+			require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\n"+
+				`[ "$1" = --build ] && printf '%s\n' "$@" > '`+argv+"'\n"+
+				`mkdir -p "$TT_BUILD_DIR/lib" && : > "$TT_BUILD_DIR/lib/m.so"`+"\n"), 0o700))
+			require.NoError(t, build.CopyFile(filepath.Join(harness.Context.Dirs.Tools,
+				cmakeTool), script))
+
+			harness.SetJobs(test.jobs)
+
+			if test.level != "" {
+				harness.Context.Env[parallelLevel] = test.level
+			}
+
+			bld, err := buildtest.Validate(Backend(), component(), buildtest.Block{
+				Common: build.Common{
+					Cwd: "", Env: nil, Output: modules("lib/m.so"), Static: false,
+				},
+				Incremental: false,
+				Fields:      nil,
+			})
+			require.NoError(t, err)
+			require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+
+			data, err := os.ReadFile(argv)
+			require.NoError(t, err)
+
+			want := append([]string{"--build", harness.Context.Dirs.Work, "--config",
+				DefaultBuildType}, test.want...)
+			assert.Equal(t, want, strings.Fields(string(data)))
+		})
+	}
 }
 
 // writeCache writes a CMakeCache.txt into tree that records source and

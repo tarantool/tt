@@ -402,6 +402,32 @@ func TestRunCopiesTheModuleAndTheProgram(t *testing.T) {
 	assert.Equal(t, "installing\n", harness.Printed())
 }
 
+// TestRunJobs: the jobs of the build are -j<N> of zig build, one word, and
+// with none zig build is given no -j.
+func TestRunJobs(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	work := harness.Context.Dirs.Work
+	log := fakeZig(t, harness)
+	bld := validate(t, component(), map[string]any{"module": "hello"}, false)
+	head := []string{
+		"build", "-p", filepath.Join(work, "zig-out"),
+		"--cache-dir", filepath.Join(work, "zig-cache"),
+		"--pkg-dir", filepath.Join(work, "zig-pkg"),
+	}
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+	assert.Equal(t, append(slices.Clone(head), "--release=safe"),
+		readLines(t, log+".args")[1:])
+
+	harness.SetJobs(6)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+	assert.Equal(t, append(slices.Clone(head), "-j6", "--release=safe"),
+		readLines(t, log+".args")[1:])
+}
+
 // TestRunOfThePackageDirectory: zig 0.17 and later fetch the packages into
 // zig-pkg/ of the work directory, --pkg-dir, unless the env of the build
 // names a directory of its own; an older zig, which refuses --pkg-dir, and a

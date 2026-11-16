@@ -226,7 +226,7 @@ func (b cmakeBuild) Run(ctx context.Context, c *build.Context) error {
 	// The number of jobs depends on the environment the command gets.
 	cmd := c.Command(ctx, cmakeTool)
 
-	cmd.Args = append(cmd.Args, buildArgs(b.config, tree, jobs(cmd.Env))...)
+	cmd.Args = append(cmd.Args, buildArgs(b.config, tree, jobs(c.Jobs, cmd.Env))...)
 
 	err = c.Run(cmd)
 	if err != nil {
@@ -293,12 +293,19 @@ func buildArgs(config Config, tree string, jobs int) []string {
 	return args
 }
 
-// jobs is the number of jobs cmake --build is given: one a CPU, unless
-// CMAKE_BUILD_PARALLEL_LEVEL in environ says how many, which cmake reads
-// when it is given none. A bare --parallel would not do: it runs make -j,
-// as many jobs at once as there is work, which a large project with
-// third-party libraries to build can run a machine out of memory with.
-func jobs(environ []string) int {
+// jobs is the number of jobs cmake --build is given: set, the Jobs of the
+// build (build.Context.Jobs), as tt package build --jobs sets them, which
+// win over CMAKE_BUILD_PARALLEL_LEVEL, being said for this build; otherwise
+// one a CPU, unless CMAKE_BUILD_PARALLEL_LEVEL in environ says how many,
+// which cmake reads when it is given none. A bare --parallel would not do:
+// it runs make -j, as many jobs at once as there is work, which a large
+// project with third-party libraries to build can run a machine out of
+// memory with.
+func jobs(set int, environ []string) int {
+	if set > 0 {
+		return set
+	}
+
 	level, ok := build.LookupEnv(environ, parallelLevel)
 	if ok && level != "" {
 		return 0

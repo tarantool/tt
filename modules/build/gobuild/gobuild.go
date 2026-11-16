@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/build"
@@ -159,7 +160,7 @@ func (b goBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	args, err := goArgs(b.config, filepath.Join(c.Dirs.Programs, b.program), b.static)
+	args, err := goArgs(b.config, filepath.Join(c.Dirs.Programs, b.program), b.static, c.Jobs)
 	if err != nil {
 		return err
 	}
@@ -194,8 +195,18 @@ func targetEnv(config Config, target build.Target) []string {
 // A static cgo program gets its tags and linker flags first, so that the
 // block's own come after them and may override them; the build checks the
 // program it gets whatever the flags were.
-func goArgs(config Config, output string, static bool) ([]string, error) {
+//
+// jobs, the Jobs of the build (build.Context.Jobs), is -p, the number of
+// the compiles and links go build runs at once, when they are set; without
+// them go build runs one a CPU, GOMAXPROCS, its own default. -p says how
+// fast the program is built, not what it is: it is of no key of the build
+// cache of go.
+func goArgs(config Config, output string, static bool, jobs int) ([]string, error) {
 	args := []string{"build", "-trimpath", "-o", output}
+
+	if jobs > 0 {
+		args = append(args, "-p", strconv.Itoa(jobs))
+	}
 
 	var tags, ldflags []string
 

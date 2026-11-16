@@ -45,6 +45,15 @@ and its tests run it through `sdk/build/buildtest`.
 - `gobuild` - Go programs.
 - `zig` - zig build of a `build.zig`: a module, a program or both.
 
+`Context.Jobs`, `-j` of `tt package build`, is how many jobs a build runs
+at once: the compiles of `cc`, `--parallel` of cmake, which wins over
+`CMAKE_BUILD_PARALLEL_LEVEL`, `-j` of cargo, `-p` of go build, `-j<N>` of
+zig build. With `0` the compiles of `cc` and cmake run one a CPU, as they
+do without `-j`, and cargo, go and zig are given no option, their own
+default. make and shell get none either: their commands read
+`TT_BUILD_JOBS`, which the core sets for every build. The jobs are in no
+key of the cache of `cc`.
+
 The fields of each backend are described in
 [the reference of the application manifest](../../doc/reference/app-manifest.md);
 how to write a backend of your own, in

@@ -324,7 +324,7 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 		}
 	}
 
-	err = c.Run(c.Command(ctx, zigTool, b.args(c.Dirs.Work, dirs, target)...))
+	err = c.Run(c.Command(ctx, zigTool, b.args(c.Dirs.Work, dirs, target, c.Jobs)...))
 	if err != nil {
 		return err
 	}
@@ -441,11 +441,21 @@ func takesPkgDir(version string) bool {
 // args builds the zig build argv of a build whose work directory is work,
 // with the options of its directories dirs (dirArgs), for the zig target
 // triple target, or for the host when it is empty.
-func (b zigBuild) args(work string, dirs []string, target string) []string {
+//
+// jobs, the Jobs of the build (build.Context.Jobs), is -j<jobs>, as zig
+// build spells it, one word, when they are set: the most jobs the build
+// runs at once, the steps and the compiles of their objects; without them
+// zig runs one a CPU, its own default. The jobs are of no key of the cache
+// of zig.
+func (b zigBuild) args(work string, dirs []string, target string, jobs int) []string {
 	args := append([]string{"build"}, b.config.Steps...)
 
 	args = append(args, "-p", filepath.Join(work, prefixDir))
 	args = append(args, dirs...)
+
+	if jobs > 0 {
+		args = append(args, "-j"+strconv.Itoa(jobs))
+	}
 
 	if mode := releaseModes[b.optimize()]; mode != "" {
 		args = append(args, "--release="+mode)

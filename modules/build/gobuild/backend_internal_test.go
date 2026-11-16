@@ -44,16 +44,16 @@ func validate(t *testing.T, rest map[string]any, static bool) build.Build {
 	return bld
 }
 
-// writeTool writes the shell script body as the program name in dir. The
-// script is written aside and copied with no fork in between, so that
-// starting it is not refused while parallel tests start processes.
-func writeTool(t *testing.T, dir, name, body string) {
+// writeTool writes the shell script body as go in dir. The script is
+// written aside and copied with no fork in between, so that starting it is
+// not refused while parallel tests start processes.
+func writeTool(t *testing.T, dir, body string) {
 	t.Helper()
 
-	src := filepath.Join(t.TempDir(), name)
+	src := filepath.Join(t.TempDir(), goTool)
 	require.NoError(t, os.WriteFile(src, []byte("#!/bin/sh\n"+body), 0o600))
 	require.NoError(t, os.Chmod(src, 0o700))
-	require.NoError(t, build.CopyFile(filepath.Join(dir, name), src))
+	require.NoError(t, build.CopyFile(filepath.Join(dir, goTool), src))
 }
 
 func TestValidate(t *testing.T) {
@@ -179,7 +179,7 @@ func TestPreflight(t *testing.T) {
 		t.Parallel()
 
 		harness := buildtest.New(t, Backend(), component())
-		writeTool(t, harness.Context.Dirs.Tools, "go", "")
+		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		harness.Context.Target = build.Target{OS: "darwin", Arch: "arm64"}
 
@@ -214,7 +214,7 @@ func TestPreflight(t *testing.T) {
 		harness := buildtest.New(t, Backend(), component())
 
 		harness.Context.Env["PATH"] = t.TempDir()
-		writeTool(t, harness.Context.Dirs.Tools, "go", "")
+		writeTool(t, harness.Context.Dirs.Tools, "")
 
 		preflighter, ok := validate(t, nil, false).(build.Preflighter)
 		require.True(t, ok)
@@ -233,7 +233,7 @@ func TestRunSelectsTheTarget(t *testing.T) {
 	facts := harness.Context
 	log := filepath.Join(facts.Dirs.State, "go")
 
-	writeTool(t, facts.Dirs.Tools, "go", `printf '%s\n' "$PWD" "$@" > "`+log+`.args"
+	writeTool(t, facts.Dirs.Tools, `printf '%s\n' "$PWD" "$@" > "`+log+`.args"
 printf '%s\n' "$GOOS" "$GOARCH" "$CGO_ENABLED" "$CC" > "`+log+`.env"
 `)
 
@@ -263,6 +263,35 @@ printf '%s\n' "$GOOS" "$GOARCH" "$CGO_ENABLED" "$CC" > "`+log+`.env"
 	env, err = os.ReadFile(log + ".env")
 	require.NoError(t, err)
 	assert.Equal(t, "linux\narm64\n1\nmusl-gcc\n", string(env))
+}
+
+// TestRunJobs: the jobs of the build are -p of go build, and with none go
+// build is given no -p.
+func TestRunJobs(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	facts := harness.Context
+	log := filepath.Join(facts.Dirs.State, "go.args")
+	output := filepath.Join(facts.Dirs.Programs, "gw")
+
+	writeTool(t, facts.Dirs.Tools, `printf '%s\n' "$@" > "`+log+`"`+"\n")
+
+	bld := validate(t, map[string]any{"name": "gw"}, false)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	args, err := os.ReadFile(log)
+	require.NoError(t, err)
+	assert.Equal(t, "build\n-trimpath\n-o\n"+output+"\n.\n", string(args))
+
+	harness.SetJobs(5)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	args, err = os.ReadFile(log)
+	require.NoError(t, err)
+	assert.Equal(t, "build\n-trimpath\n-o\n"+output+"\n-p\n5\n.\n", string(args))
 }
 
 // The go backend is run below on the real toolchain, on a program small

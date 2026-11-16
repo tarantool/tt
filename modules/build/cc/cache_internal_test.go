@@ -4,6 +4,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -342,6 +343,55 @@ func rebuild(t *testing.T, harness *buildtest.Harness, bld ccBuild) ([]string, b
 	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
 
 	return compiled(calls(t, harness)[before:])
+}
+
+// TestCacheJobs checks that the jobs of a build are of no key: a build with
+// other jobs, and so another TT_BUILD_JOBS in the environment of the
+// compiles, compiles and links nothing that is up to date.
+func TestCacheJobs(t *testing.T) {
+	t.Parallel()
+
+	harness, bld := cachedHarness(t, "a.c", "b.c", "sub/c.cpp")
+
+	sources, linked := rebuild(t, harness, bld)
+	assert.Equal(t, []string{"a.c", "b.c", "sub/c.cpp"}, sources)
+	assert.True(t, linked)
+
+	for _, jobs := range []int{1, 7, 0} {
+		harness.SetJobs(jobs)
+
+		sources, linked = rebuild(t, harness, bld)
+		assert.Empty(t, sources, "jobs %d", jobs)
+		assert.False(t, linked, "jobs %d", jobs)
+	}
+
+	// A change is compiled whatever the jobs.
+	harness.SetJobs(2)
+	writeFile(t, harness, "b.c", "/* b.c changed */\n")
+
+	sources, linked = rebuild(t, harness, bld)
+	assert.Equal(t, []string{"b.c"}, sources)
+	assert.True(t, linked)
+}
+
+// TestMaxJobs checks the size of the pool of the compiles: the Jobs of the
+// build, or one a CPU when it is 0.
+func TestMaxJobs(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, C(), component())
+
+	assert.Equal(t, runtime.NumCPU(), maxJobs(harness.Context))
+
+	for _, jobs := range []int{1, 3, 128} {
+		harness.SetJobs(jobs)
+
+		assert.Equal(t, jobs, maxJobs(harness.Context))
+	}
+
+	harness.SetJobs(0)
+
+	assert.Equal(t, runtime.NumCPU(), maxJobs(harness.Context))
 }
 
 // TestCache checks that a build compiles only the objects whose inputs
