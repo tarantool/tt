@@ -49,9 +49,8 @@ const (
 // directories under the version. The links are not part of what was
 // signed; the package itself cannot hold var/ (pack refuses it).
 //
-// Install activates what it installed. There is no command yet to switch
-// between installed versions or to roll back to an earlier one; until there
-// is, installing a version is how it is made active.
+// Install activates what it installed. tt package switch makes another
+// installed version active, as a rollback does, with the same state.Activate.
 func installVersion(
 	ctx context.Context, opts Options, archive *Archive, header *Header,
 ) (*OneResult, error) {

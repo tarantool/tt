@@ -593,9 +593,12 @@ them, and a project that depends on it.
   application runs on it whatever `<root>/bin/` selects; so do the command
   wrappers of its rocks, written for the version where it is, but those of a
   signed version, which is installed as it was signed. Versions live side
-  by side; `--upgrade` installs only a newer one, and `--force` reinstalls
-  one that is there, which is refused while an instance of the application
-  runs.
+  by side, and every install makes the version it installs active;
+  `--upgrade` installs only a version newer than every installed one, and
+  `--force` reinstalls one that is there, which is refused while an
+  instance of the application runs. `tt package switch` makes another
+  installed version active again, as a rollback does, while the instances
+  run; they move to it on `tt instance restart`.
 
 `tt package list` shows what a scope holds; `tt package uninstall` removes a
 guest from a project, or every version of an application from the user or

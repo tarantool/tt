@@ -20,6 +20,7 @@ import (
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/sdk/scope"
 
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
@@ -33,7 +34,9 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 	oldrocks "github.com/tarantool/tt/v3/cli/rocks"
 	"github.com/tarantool/tt/v3/cli/util"
+	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
+	"github.com/tarantool/tt/v3/internal/systemd"
 )
 
 // ErrNoTarantool reports that no tarantool executable was found, to the
@@ -67,7 +70,8 @@ var (
 	packageDebugInfo string
 )
 
-// Flags shared by the scope-addressed subcommands: install, list and uninstall.
+// Flags shared by the scope-addressed subcommands: install, list, switch and
+// uninstall.
 var (
 	packageScope   string
 	packageUpgrade bool
@@ -97,6 +101,13 @@ var (
 )
 
 const packageAddMaxArgs = 2
+
+// packageSwitchMaxArgs is NAME and VERSION of `tt package switch`.
+const packageSwitchMaxArgs = 2
+
+// errNoSwitchVersion reports `tt package switch NAME` without a terminal to
+// choose the version on.
+var errNoSwitchVersion = errors.New("no version to switch to")
 
 // manifestFileName is the package manifest the directory-scoped registry
 // commands read [platform].registries from.
@@ -130,6 +141,7 @@ func NewPackageCmd() *cobra.Command {
 		newPackageDepsCmd(),
 		newPackageInstallCmd(),
 		newPackageListCmd(),
+		newPackageSwitchCmd(),
 		newPackageUninstallCmd(),
 		newPackageSearchCmd(),
 		newPackageDownloadCmd(),
@@ -562,6 +574,247 @@ func runPackageList(format *output.FormatFlag) error {
 	return emitResult(format, listing)
 }
 
+// newPackageSwitchCmd wires `tt package switch NAME [VERSION]`.
+func newPackageSwitchCmd() *cobra.Command {
+	switchCmd := &cobra.Command{
+		Use:   "switch NAME [VERSION]",
+		Short: "Make another installed version of an application active",
+		Long: "Point <root>/apps/<name> at the installed version " +
+			"<root>/versions/<name>/<name>_<version>/, as tt package install does " +
+			"for the version it installs, and so roll back to an earlier version, " +
+			"or forward again, with no archive. The link is replaced in one " +
+			"rename: whoever resolves it at the same time gets the old version or " +
+			"the new one. Nothing is stopped or restarted: an instance runs the " +
+			"version it was started from, restarts after a failure included, until " +
+			"tt instance restart, or systemctl restart for an instance under the " +
+			"units of tt service systemd, which name the application rather than a " +
+			"version. switch names the running instances that do not run the version " +
+			"it made active, and tt instance status --details shows the version " +
+			"every running instance runs. A version whose lock " +
+			"bundles a tarantool that is no longer installed in the scope is " +
+			"refused, as it could not start. Without VERSION, switch offers the " +
+			"installed versions to choose from on a terminal, and otherwise lists " +
+			"them, the active one marked, and fails. The project scope holds one " +
+			"version of every package, so switch applies to the user and system " +
+			"scopes only.",
+		Example: `# Roll back to 1.0.0 while the instances run, then restart them.
+  $ tt package switch kv-api 1.0.0 --scope user
+  $ tt instance restart kv-api:* --scope user --yes
+
+  # Choose a version interactively.
+  $ tt package switch kv-api --scope user`,
+		Args: cobra.RangeArgs(1, packageSwitchMaxArgs),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return commandError(cmd, runPackageSwitch(args))
+		},
+	}
+
+	switchCmd.Flags().StringVar(&packageScope, "scope", "project",
+		"scope of the application: user or system (the root tt binary uses); "+
+			"the project scope has no versions to switch between")
+
+	return switchCmd
+}
+
+// runPackageSwitch switches the active version of an application and tells
+// which of its instances still run what they were started from.
+func runPackageSwitch(args []string) error {
+	projectDir, err := projectRootDir()
+	if err != nil {
+		return err
+	}
+
+	opts := inventory.SwitchOptions{
+		ProjectDir: projectDir,
+		Scope:      state.Scope(packageScope),
+		Package:    args[0],
+		Version:    "",
+		Warn:       func(msg string) { log.Warn(msg) },
+	}
+
+	if len(args) == packageSwitchMaxArgs {
+		opts.Version = args[1]
+	} else {
+		opts.Version, err = chooseAppVersion(opts)
+		if err != nil {
+			return err
+		}
+	}
+
+	result, err := inventory.Switch(opts)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case result.AlreadyActive:
+		_, _ = fmt.Fprintf(os.Stdout, "%s %s is already active in %s scope\n",
+			result.Package, result.Version, result.Scope)
+	case result.Previous != "":
+		_, _ = fmt.Fprintf(os.Stdout, "switched %s from %s to %s in %s scope\n",
+			result.Package, result.Previous, result.Version, result.Scope)
+	default:
+		_, _ = fmt.Fprintf(os.Stdout, "switched %s to %s in %s scope\n",
+			result.Package, result.Version, result.Scope)
+	}
+
+	warnRestart(result.Package, result.Scope, projectDir, result.Version, result.Running)
+
+	return nil
+}
+
+// warnRestart warns about the running instances of the application pkg of
+// scope that do not run version, which an install or a switch has just made
+// active (restartHints).
+func warnRestart(
+	pkg string, scope state.Scope, projectDir, version string, running []inventory.RunningInstance,
+) {
+	if len(running) == 0 {
+		return
+	}
+
+	units, err := systemdUnits(scope, projectDir, pkg)
+	if err != nil {
+		log.Warnf("cannot tell the systemd units of %s: %s", pkg, err)
+	}
+
+	for _, hint := range restartHints(pkg, scope, version, running, units) {
+		log.Warn(hint)
+	}
+}
+
+// systemdUnits returns the units tt service systemd installed for the
+// instances of the application name, by instance, from the mark it keeps in
+// <root>/etc/<name>/; none when it installed none.
+//
+// The units name the application, not a version: they run
+// tt instance start <name>:<inst>, which resolves <root>/apps/<name> anew, so
+// a unit restarted after an install or a switch runs the active version.
+func systemdUnits(scope state.Scope, projectDir, name string) (map[string]string, error) {
+	root, err := state.ScopeRoot(scope, projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("locating the %s scope: %w", scope, err)
+	}
+
+	mark, _, err := systemd.ReadMark(app.HostDir(root, name))
+	if err != nil {
+		return nil, fmt.Errorf("reading the mark of the units: %w", err)
+	}
+
+	return mark.Instances, nil
+}
+
+// restartHints tells about the running instances of the application pkg that
+// do not run its active version yet, after an install or a switch made
+// version active, and how to restart them onto it: with tt instance restart,
+// or with systemctl for those under systemd units, units by instance, which
+// tt instance restart refuses. An instance whose version is not known, as one
+// an older tt started, counts as one that does not run it.
+func restartHints(
+	pkg string, scope state.Scope, version string, running []inventory.RunningInstance,
+	units map[string]string,
+) []string {
+	var behind []inventory.RunningInstance
+
+	for _, inst := range running {
+		if inst.Version != version {
+			behind = append(behind, inst)
+		}
+	}
+
+	if len(behind) == 0 {
+		return nil
+	}
+
+	var names, targets, managed []string
+
+	same := behind[0].Version
+
+	for _, inst := range behind {
+		if inst.Version != same {
+			same = ""
+		}
+	}
+
+	for _, inst := range behind {
+		switch {
+		case same != "":
+			names = append(names, inst.Name)
+		case inst.Version != "":
+			names = append(names, inst.Name+" ("+inst.Version+")")
+		default:
+			names = append(names, inst.Name+" (version unknown)")
+		}
+
+		if unit := units[inst.Name]; unit != "" {
+			managed = append(managed, unit)
+		} else {
+			targets = append(targets, pkg+":"+inst.Name)
+		}
+	}
+
+	counted := fmt.Sprintf("%d instances of %s run", len(behind), pkg)
+	if len(behind) == 1 {
+		counted = fmt.Sprintf("1 instance of %s runs", pkg)
+	}
+
+	what := "another version than " + version
+	if same != "" {
+		what = same
+	}
+
+	hints := []string{fmt.Sprintf("%s %s: %s", counted, what, strings.Join(names, ", "))}
+
+	if len(targets) > 0 {
+		hints = append(hints, fmt.Sprintf("to move them to %s: tt instance restart %s "+
+			"--scope %s", version, strings.Join(targets, ","), scope))
+	}
+
+	if len(managed) > 0 {
+		hints = append(hints, fmt.Sprintf("to move those under systemd to %s: "+
+			"systemctl restart %s", version, strings.Join(managed, " ")))
+	}
+
+	return hints
+}
+
+// chooseAppVersion asks which installed version of the application to switch
+// to, the way tt binary switch asks for a version: a menu on a terminal, the
+// active version marked. Without a terminal there is nobody to ask, so the
+// installed versions are listed on stdout and the command fails rather than
+// switch to nothing in silence, as a script missing its version would.
+func chooseAppVersion(opts inventory.SwitchOptions) (string, error) {
+	installed, err := inventory.InstalledApp(opts)
+	if err != nil {
+		return "", err
+	}
+
+	if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
+		_, _ = fmt.Fprintf(os.Stdout, "installed versions of %s in %s scope:\n",
+			installed.Name, opts.Scope)
+
+		for _, ver := range installed.Versions {
+			mark := " "
+			if ver == installed.Active {
+				mark = "*"
+			}
+
+			_, _ = fmt.Fprintf(os.Stdout, "%s %s\n", mark, ver)
+		}
+
+		return "", sdk.Errorf(sdk.ExitFailure, "%w; name one: tt package switch %s VERSION "+
+			"--scope %s", errNoSwitchVersion, installed.Name, opts.Scope)
+	}
+
+	chosen, err := switcher.ChooseFrom("Select "+installed.Name+" version",
+		installed.Versions, installed.Active)
+	if err != nil {
+		return "", fmt.Errorf("cannot switch %s: %w", installed.Name, err)
+	}
+
+	return chosen, nil
+}
+
 // newPackageUninstallCmd wires `tt package uninstall NAME`.
 func newPackageUninstallCmd() *cobra.Command {
 	uninstallCmd := &cobra.Command{
@@ -680,10 +933,17 @@ func newPackageInstallCmd() *cobra.Command {
 			"<root>/versions/<name>/<name>_<version>/, laid out like a project " +
 			"next to what tt binary installs into the same root, and " +
 			"<root>/apps/<name> is pointed at it: install activates the version it " +
-			"installed. It runs on the tarantool its lock bundles, whatever " +
-			"<root>/bin/tarantool selects. Versions live side by side; installing " +
-			"one that is already there needs --force, which is refused while " +
-			"instances of the application run.",
+			"installed, whether it is newer or older than the active one, so a " +
+			"plain install of a newer archive is an upgrade already; --upgrade only " +
+			"adds the check that the archive is newer than every installed version, " +
+			"and does nothing otherwise. It runs on the tarantool its lock bundles, " +
+			"whatever <root>/bin/tarantool selects. Versions live side by side; " +
+			"installing one that is already there needs --force, which is refused " +
+			"while instances of the application run. Running instances keep the " +
+			"version they were started from until tt instance restart; install " +
+			"names those that do not run the version it installed. To roll back, " +
+			"or to make any other installed version active again, use " +
+			"tt package switch: it needs no archive and no stop.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackageInstall(args))
@@ -766,6 +1026,19 @@ func runPackageInstall(archives []string) error {
 
 		_, _ = fmt.Fprintf(os.Stdout, "installed %s %s into %s scope\n",
 			one.Package, one.Version, one.Scope)
+
+		// An application version is made active as it is installed; the
+		// instances that run go on running what they were started from.
+		if one.Scope == install.ScopeProject {
+			continue
+		}
+
+		running, err := inventory.RunningInstances(one.Scope, projectDir, one.Package)
+		if err != nil {
+			log.Warnf("cannot tell which instances of %s run: %s", one.Package, err)
+		}
+
+		warnRestart(one.Package, one.Scope, projectDir, one.Version, running)
 	}
 
 	return nil

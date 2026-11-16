@@ -125,18 +125,57 @@ func ChooseVersion(scope binary.Scope, program binary.Program) (string, error) {
 			errNoInstalledVersionsInScope, program)
 	}
 
+	index, err := selectVersion("Select version", versionChoices(versions), 0)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSuffix(versions[index].Str, " [active]"), nil
+}
+
+// ChooseFrom shows the menu of versions ChooseVersion shows, for versions
+// other than those of a program of tt binary, such as the installed versions
+// of an application tt package switch offers: active, if it is one of them,
+// is marked and selected first.
+func ChooseFrom(label string, versions []string, active string) (string, error) {
+	choices := make([]string, 0, len(versions))
+	cursor := 0
+
+	for i, installed := range versions {
+		if installed == active {
+			choices = append(choices, binary.Bold(color.GreenString(installed+" [active]")))
+			cursor = i
+
+			continue
+		}
+
+		choices = append(choices, color.YellowString(installed))
+	}
+
+	index, err := selectVersion(label, choices, cursor)
+	if err != nil {
+		return "", err
+	}
+
+	return versions[index], nil
+}
+
+// selectVersion shows a menu of choices with the cursor at cursor and returns
+// the index of the chosen one.
+func selectVersion(label string, choices []string, cursor int) (int, error) {
 	versionSelect := promptui.Select{
-		Label:        "Select version",
-		Items:        versionChoices(versions),
+		Label:        label,
+		Items:        choices,
+		CursorPos:    cursor,
 		HideSelected: true,
 	}
 
 	index, _, err := versionSelect.Run()
 	if err != nil {
-		return "", fmt.Errorf("failed to choose version: %w", err)
+		return 0, fmt.Errorf("failed to choose version: %w", err)
 	}
 
-	return strings.TrimSuffix(versions[index].Str, " [active]"), nil
+	return index, nil
 }
 
 // validateProgram limits switching to products with installed executables.

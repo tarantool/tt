@@ -1,8 +1,9 @@
-// Package inventory implements the two commands that work over what an install
-// left on disk: tt package list, which reports the packages present in a scope,
-// and tt package uninstall, which removes a guest package and the shared
+// Package inventory implements the commands that work over what an install
+// left on disk: tt package list, which reports the packages present in a scope;
+// tt package uninstall, which removes a guest package and the shared
 // dependencies it was the last to hold, or, in the user and system scopes, an
-// application with all its installed versions.
+// application with all its installed versions; and tt package switch, which
+// makes another installed version of such an application the active one.
 //
 // Both are pure metadata operations. Nothing here contacts a registry, runs a
 // build, or re-resolves anything: the source of truth is what install wrote and

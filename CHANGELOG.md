@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt package switch NAME VERSION --scope user|system` makes another
+  installed version of an application active, as `tt binary switch` does for
+  a binary, so a rollback no longer needs the old archive, `--force` and a
+  stop of the instances. It points `<root>/apps/<name>` at the version in one
+  rename while the instances run; they keep the version they started from
+  until `tt instance restart`, as after an upgrade, and the units of
+  `tt service systemd` need no change. It refuses a version that is not
+  installed, naming those that are, and one whose bundled Tarantool is gone
+  from the scope; without a version it offers the installed ones on a
+  terminal and lists them otherwise.
+- `tt package install` and `tt package switch` in the user and system scopes
+  name the running instances that do not run the version they made active,
+  with the `tt instance restart` or `systemctl restart` that moves them.
+  `tt instance status --details` shows the version of the application every
+  running instance runs, with "restart pending" when another one is active,
+  and `-o json` and `-o yaml` give it as `version` and `restart_pending`. The
+  watchdog records the directory it started the instance from in
+  `var/run/<app>/<inst>/app.dir`.
 - Rock servers that publish a `tt-rocks-index.json`, an index that names
   every file of a rock version by URL with its sha256, so the rocks may live
   on release pages and the index in git. Resolving reads the rockspec the

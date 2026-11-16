@@ -3901,6 +3901,7 @@ COMMANDS
   remove      Drop a declared dependency and re-resolve the lock
   resolve     Rewrite the lock from the manifest without building
   search      Find rocks whose name contains TERM on the configured servers
+  switch      Make another installed version of an application active
   uninstall   Remove an installed guest package from a scope
   update      Re-resolve the lock against newer registry versions
 
@@ -4146,10 +4147,17 @@ explanation; a project that selects no tarantool yet gets the bundled one
 selected in .tarantool/bin. In the user and system scopes the archive becomes
 one version of an application, <root>/versions/<name>/<name>_<version>/, laid
 out like a project next to what tt binary installs into the same root, and
-<root>/apps/<name> is pointed at it: install activates the version it installed.
-It runs on the tarantool its lock bundles, whatever <root>/bin/tarantool
-selects. Versions live side by side; installing one that is already there needs
---force, which is refused while instances of the application run.
+<root>/apps/<name> is pointed at it: install activates the version it installed,
+whether it is newer or older than the active one, so a plain install of a newer
+archive is an upgrade already; --upgrade only adds the check that the archive is
+newer than every installed version, and does nothing otherwise. It runs on the
+tarantool its lock bundles, whatever <root>/bin/tarantool selects. Versions live
+side by side; installing one that is already there needs --force, which is
+refused while instances of the application run. Running instances keep the
+version they were started from until tt instance restart; install names those
+that do not run the version it installed. To roll back, or to make any other
+installed version active again, use tt package switch: it needs no archive and
+no stop.
 
 USAGE
   tt package install ARCHIVE... [flags]
@@ -4344,6 +4352,44 @@ FLAGS
 GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
+
+=== tt package switch --help
+Point <root>/apps/<name> at the installed version
+<root>/versions/<name>/<name>_<version>/, as tt package install does for the
+version it installs, and so roll back to an earlier version, or forward again,
+with no archive. The link is replaced in one rename: whoever resolves it at the
+same time gets the old version or the new one. Nothing is stopped or restarted:
+an instance runs the version it was started from, restarts after a failure
+included, until tt instance restart, or systemctl restart for an instance under
+the units of tt service systemd, which name the application rather than a
+version. switch names the running instances that do not run the version it made
+active, and tt instance status --details shows the version every running
+instance runs. A version whose lock bundles a tarantool that is no longer
+installed in the scope is refused, as it could not start. Without VERSION,
+switch offers the installed versions to choose from on a terminal, and otherwise
+lists them, the active one marked, and fails. The project scope holds one
+version of every package, so switch applies to the user and system scopes only.
+
+USAGE
+  tt package switch NAME [VERSION] [flags]
+
+FLAGS
+  -h, --help           help for switch
+      --scope string   scope of the application: user or system (the root tt
+                       binary uses); the project scope has no versions to switch
+                       between (default "project")
+
+GLOBAL FLAGS
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
+
+EXAMPLES
+  # Roll back to 1.0.0 while the instances run, then restart them.
+  $ tt package switch kv-api 1.0.0 --scope user
+  $ tt instance restart kv-api:* --scope user --yes
+
+  # Choose a version interactively.
+  $ tt package switch kv-api --scope user
 
 === tt package uninstall --help
 Remove a guest package: its files and its metadata, plus every shared dependency

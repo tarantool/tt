@@ -166,8 +166,31 @@ Install the new version, then restart the units one by one, replicas first:
 # systemctl restart kv-api@kv-a.service
 ```
 
+The units name the application, not a version: they run
+`tt instance start kv-api:%i`, which resolves `apps/kv-api` anew at every
+start, so a restarted unit runs the active version. `install` names the
+units whose instances do not run the version it installed.
+
 When the instances, `restart` or `stop_timeout` change in `instances.yaml`,
 run `tt service systemd install kv-api` and `systemctl daemon-reload` again.
+
+## Roll back
+
+The earlier version is still installed: make it active again, then restart
+the units one by one, as for an upgrade:
+
+```console
+# tt package switch kv-api 1.0.0 --scope system
+switched kv-api from 1.1.0 to 1.0.0 in system scope
+   ⚠ 2 instances of kv-api run 1.1.0: kv-a, kv-b
+   ⚠ to move those under systemd to 1.0.0: systemctl restart kv-api@kv-a.service kv-api@kv-b.service
+# systemctl restart kv-api@kv-b.service
+# systemctl restart kv-api@kv-a.service
+```
+
+The units need no change. If the two versions describe different
+instances in their templates, run `tt service systemd install kv-api`
+again, as after such an upgrade.
 
 ## Logs
 
