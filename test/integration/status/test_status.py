@@ -95,6 +95,20 @@ def wait_instance_status(tt_cmd, tmpdir, full_inst_name, status, port=None, time
     elif status == "box":
         cmd = "return box.info.status"
         expected_statuses = ["running"]
+    elif status == "upstream":
+        # The instance follows every other instance of box.cfg.replication:
+        # each one is registered and its upstream is in the follow status.
+        cmd = (
+            "local n = 0 "
+            "for _, r in pairs(box.info.replication) do "
+            "if r.upstream ~= nil then "
+            "if r.upstream.status ~= 'follow' then return r.upstream.status end "
+            "n = n + 1 "
+            "end "
+            "end "
+            "return n == #box.cfg.replication - 1 and 'follows_all' or 'follows_some'"
+        )
+        expected_statuses = ["follows_all"]
     else:
         raise RuntimeError(f"Not supported status to check: {status}")
 
@@ -162,8 +176,15 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
 
         full_master_inst_name = f"{app_name}:{instances[0]}"
 
-        # Wait for the configuration setup to complete
-        assert wait_instance_status(tt_cmd, app_path, full_master_inst_name, "config")
+        # The config is broken once every instance has read it: tarantool
+        # reads it again while it starts, and a replica that is still
+        # starting fails on the broken one and exits. The replica can finish
+        # a second after the master: it waits out the master's bootstrap.
+        for inst in instances:
+            assert wait_instance_status(tt_cmd, app_path, f"{app_name}:{inst}", "config")
+        # UPSTREAM shows the last attempt of the master to connect to the
+        # replica until the next one, a second later.
+        assert wait_instance_status(tt_cmd, app_path, full_master_inst_name, "upstream")
 
         # Break the configuration by modifying the config.yaml file
         config_path = os.path.join(app_path, cluster_config_file)
@@ -188,9 +209,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         assert status_info[full_master_inst_name]["MODE"] == "RW"
         assert status_info[full_master_inst_name]["CONFIG"] == "check_errors"
         assert status_info[full_master_inst_name]["BOX"] == "running"
-
-        # We cannot be certain that the instance bootstrap has completed.
-        assert status_info[full_master_inst_name]["UPSTREAM"] in ["--", "loading"]
+        assert status_info[full_master_inst_name]["UPSTREAM"] == "--"
         assert f"[config][error]: {error_message}" in status_out
     finally:
         stop_application(tt_cmd, app_name, app_path)
