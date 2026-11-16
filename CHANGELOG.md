@@ -1226,6 +1226,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   into `.templates/default/` and the rest stays at the root, as the
   built-in templates lay a project out. It made `myapp/instances.yaml` and
   `myapp/config.yaml`, which tt did not take for a project.
+- A mirror `tt package download` writes builds with no network for a rock
+  its server offers only as a rockspec, as most rocks of
+  rocks.tarantool.org are, `checks` among them. The rockspec alone was
+  downloaded, and a build against the mirror fetched its `source.url`, a
+  git repository, and failed offline with `fetch.git: clone ...: connection
+  refused`. Download now packs such a rockspec into the source rock
+  `luarocks pack <rockspec>` makes, `<name>-<version>.src.rock` beside the
+  rockspec, with the sources fetched at download time - a git repository at
+  the tag or branch the rockspec pins - and the manifests and
+  `tt-rocks-index.json` list both; it fails if the sources cannot be
+  fetched. The same sources pack into the same bytes, so a lock resolved
+  against the mirror keeps matching a mirror made again. A version the
+  server offers as a source rock or a rock of the platform is downloaded as
+  before, and the locked closure, the dev one included, and `NAME@VERSION`
+  are mirrored alike. A lock resolved where the version was a bare rockspec
+  pins `artifacts = {rockspec = 'sha256:…'}` and no source rock; an install
+  takes the source rock then when the rockspec it bundles has the pinned
+  sha256, and checks the rest of it, the sources, against the sha256 the
+  mirror's index lists, as the sources the rockspec named were checked
+  against nothing. A rock whose build itself downloads something still needs
+  the network.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in

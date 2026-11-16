@@ -25,6 +25,8 @@ const (
 	// sourceRegistry is the lock's source value for a dependency that comes
 	// from a rock server, the only kind a mirror can hold.
 	sourceRegistry = "registry"
+	// rockspecSuffix ends the name of a downloaded rockspec.
+	rockspecSuffix = ".rockspec"
 	// dirPerm is the mode a created download directory gets.
 	dirPerm fs.FileMode = 0o755
 )
@@ -90,6 +92,15 @@ func (o DownloadOptions) emit(msg string) {
 // dependency that does not come from a registry has no artifact to mirror and
 // is reported and skipped.
 //
+// Each rock is downloaded as the servers offer it best: a rock of this
+// platform, else a source rock, else a bare rockspec. A rockspec alone does
+// not make the mirror self-contained, since a build of it fetches its
+// source.url, so it is packed into the source rock `luarocks pack <rockspec>`
+// makes, with the sources fetched now, at the tag or branch the rockspec
+// pins, and both land in the directory. The index lists the two; a build
+// takes the source rock, which bundles that very rockspec. A rock whose build
+// itself downloads still needs the network.
+//
 // The run is idempotent: a rock already in the directory is overwritten and
 // the index is rebuilt from whatever the directory then holds, so re-running
 // after adding a dependency extends the mirror rather than requiring a fresh
@@ -127,6 +138,19 @@ func Download(ctx context.Context, opts DownloadOptions) ([]string, error) {
 		}
 
 		written = append(written, path)
+
+		// A rockspec is what the servers offer when they have neither a
+		// source rock nor a rock of this platform: its sources are at its
+		// source.url, which a build from the mirror could not reach, so they
+		// are packed beside it.
+		if strings.HasSuffix(path, rockspecSuffix) {
+			srcRock, packErr := adapter.PackRockspec(ctx, path)
+			if packErr != nil {
+				return nil, stateErrorf("downloading %s: packing its sources: %w", ref, packErr)
+			}
+
+			written = append(written, srcRock)
+		}
 	}
 
 	err = index(ctx, opts.Dir, opts.Warn)

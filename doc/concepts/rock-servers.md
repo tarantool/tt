@@ -103,7 +103,12 @@ through its manifests. From such a server:
   platform against those digests before it unpacks it, whichever server
   serves it. A file that does not match is not installed. A platform the
   lock pins no file for is an error too: `tt package resolve` pins the files
-  the server serves now.
+  the server serves now. A source rock (`.src.rock`) is the one exception:
+  when the lock pins the rockspec of the version and no source rock, as it
+  does for a version the server served as a bare rockspec, a source rock
+  installs if the rockspec it bundles has the pinned sha256. The sources in
+  it are checked against the sha256 the serving index lists, as the sources
+  a bare rockspec names were against nothing.
 
 ### Writing an index
 
@@ -177,12 +182,32 @@ Running it again extends the mirror in place. A dependency that does not
 come from a rock server, a `path` one, has no rock to mirror and is skipped
 with a warning.
 
+Each version is downloaded as the server offers it best: the rock of this
+platform or an `.all.rock`, else its source rock, else its bare rockspec. A
+rockspec names its sources by `source.url`, a git repository most often,
+which a build would fetch, so download packs them into the source rock
+`luarocks pack <rockspec>` makes, `<name>-<version>.src.rock`, and puts it
+beside the rockspec: the rockspec and the sources, a git repository cloned
+at the tag or branch the rockspec pins. The download fails when the sources
+cannot be fetched. A build from the mirror takes the source rock and
+fetches nothing:
+
+```console
+$ tt package download --dir ../mirror
+.../mirror/checks-3.4.1-1.rockspec
+.../mirror/checks-3.4.1-1.src.rock
+indexed 2 rock(s) in .../mirror
+$ TT_REGISTRIES=$PWD/../mirror tt package build --locked
+```
+
+Packing the same sources again gives the same bytes, so a lock resolved
+against the mirror keeps matching it. A rock whose build downloads something
+itself, a CMake build that fetches a dependency, say, still needs the
+network: the mirror holds what the rockspec names, not what its build does.
+
 `tt wasm rock` packs a server of the same kind for the `wasm` rock of
 tarantool-wasm: the rock of every platform of a release, with its index; see
 [Run WebAssembly components](../how-to/wasm-components.md#share-the-rock).
-
-<!-- TODO(writers): verify the offline build end to end; a rockspec-only rock
-was reported to need its git source (see the v3 features notes). -->
 
 ## tt rocks
 

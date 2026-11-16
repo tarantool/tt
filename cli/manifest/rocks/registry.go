@@ -128,6 +128,26 @@ func (a *Adapter) Download(
 	return path, nil
 }
 
+// PackRockspec packs the rockspec at specPath, relative to the working
+// directory unless absolute, into its source rock in the working directory,
+// as `luarocks pack <rockspec>` does, and returns its path: the rockspec and
+// the sources its source.url names, fetched at the tag or branch it pins, so
+// a build from it needs no network. Like Download it runs on the native
+// backend.
+func (a *Adapter) PackRockspec(ctx context.Context, specPath string) (string, error) {
+	rocksClient, err := a.Client(client.BackendNative)
+	if err != nil {
+		return "", err
+	}
+
+	path, err := rocksClient.Pack(ctx, specPath, client.PackOpts{SrcOnly: true})
+	if err != nil {
+		return "", fmt.Errorf("rocks: pack %s: %w", filepath.Base(specPath), err)
+	}
+
+	return path, nil
+}
+
 // findRockspec returns the single top-level *.rockspec in dir. It does not
 // recurse: a bare .rockspec download is one top-level file, and a .src.rock
 // carries its rockspec at the archive root, while the bundled source tree may

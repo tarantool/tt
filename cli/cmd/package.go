@@ -1592,7 +1592,13 @@ func newPackageDownloadCmd() *cobra.Command {
 			"is mirrored at its exact versions — every product's dependencies " +
 			"and the dev closure — which needs a lock, so run tt package " +
 			"resolve first. A dependency that does not come from a registry has " +
-			"no rock file to mirror and is skipped with a warning. Re-running " +
+			"no rock file to mirror and is skipped with a warning. A version " +
+			"a server offers as a bare rockspec, with no source rock and no " +
+			"rock of this platform, gets its source rock packed beside it, as " +
+			"luarocks pack <rockspec> makes it: the sources its source.url " +
+			"names are fetched now, a git repository at the tag or branch the " +
+			"rockspec pins, and the download fails if they cannot be. A rock " +
+			"whose build itself downloads still needs the network. Re-running " +
 			"overwrites and re-indexes, so a mirror can be extended in place. " +
 			"Each written path is printed to stdout.",
 		Args: cobra.ArbitraryArgs,
