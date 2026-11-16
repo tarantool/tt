@@ -46,8 +46,11 @@ func usageOf(cmd *cobra.Command) string {
 type ExternalCommand struct {
 	// Name is the command's name.
 	Name string
-	// Help is the module's one-line description.
-	Help string
+	// Help returns the module's one-line description. It may run the
+	// module, so it is called only when the usage of the root is written,
+	// and before the list of the commands is, which shows the command with
+	// it too.
+	Help func() string
 }
 
 // configureHelpCommand sets rootCmd's help command and templates, listing
@@ -58,9 +61,17 @@ func configureHelpCommand(rootCmd *cobra.Command, external []ExternalCommand) {
 	})
 	cobra.AddTemplateFunc("heading", helpHeading)
 	cobra.AddTemplateFunc("usage", usageOf)
+	// The modules describe themselves only for the usage of the root, the
+	// one that lists them.
+	cobra.AddTemplateFunc("externalCommands", func(cmd *cobra.Command) string {
+		if cmd.HasParent() {
+			return ""
+		}
+
+		return getExternalCommandsString(cmd, external)
+	})
 	rootCmd.SetHelpTemplate(helpTemplate)
-	// Add information about external modules into help template.
-	rootCmd.SetUsageTemplate(fmt.Sprintf(usageTemplate, getExternalCommandsString(external)))
+	rootCmd.SetUsageTemplate(usageTemplate)
 
 	internalHelpModule := func(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		cmd, _, err := rootCmd.Find(args)
@@ -87,22 +98,27 @@ func configureHelpCommand(rootCmd *cobra.Command, external []ExternalCommand) {
 	rootCmd.SetHelpCommand(helpCmd)
 }
 
-// getExternalCommandsString returns a pretty string of descriptions for
-// external commands, sorted by name.
-func getExternalCommandsString(external []ExternalCommand) string {
+// getExternalCommandsString returns the EXTERNAL COMMANDS part of the usage
+// of root, the external commands sorted by name with their descriptions, or
+// "" when there are none. It starts with the line break that ends the line
+// before it.
+func getExternalCommandsString(root *cobra.Command, external []ExternalCommand) string {
 	var output strings.Builder
 
 	for _, command := range sortedExternalCommands(external) {
 		output.WriteString("  ")
 		output.WriteString(command.Name)
 		output.WriteByte('\t')
-		output.WriteString(command.Help)
+
+		if command.Help != nil {
+			output.WriteString(command.Help())
+		}
+
 		output.WriteByte('\n')
 	}
 
 	if output.Len() != 0 {
-		// A part of the usage template, after the space that precedes it.
-		return "\n{{heading . \"EXTERNAL COMMANDS\"}}\n" +
+		return "\n" + helpHeading(root, "EXTERNAL COMMANDS") + "\n" +
 			strings.TrimSuffix(output.String(), "\n")
 	}
 
@@ -219,8 +235,11 @@ func textWidth(text string) int {
 // it only when it inherits flags: the root shows the subcommand form alone.
 //
 // The headings go through heading (helpHeading), which makes them bold only
-// on a terminal.
-const usageTemplate = `{{heading . "USAGE"}}
+// on a terminal. The usage of the root has the external commands under
+// EXTERNAL COMMANDS, which it gets first: getting them has the modules
+// describe themselves, and that gives their commands the descriptions the
+// list of COMMANDS shows.
+const usageTemplate = `{{$external := externalCommands .}}{{heading . "USAGE"}}
 {{- if (and .Runnable (or .HasAvailableInheritedFlags (not .HasAvailableSubCommands)))}}
   {{.UseLine}}
 {{end -}}
@@ -256,7 +275,7 @@ const usageTemplate = `{{heading . "USAGE"}}
 {{end}}
 {{end -}}
 
-{{- if not .HasParent}} %s
+{{- if not .HasParent}} {{$external}}
 {{end -}}
 
 {{- if .HasAvailableLocalFlags}}

@@ -291,7 +291,7 @@ func build(
 	if !config.withoutExternalModules {
 		// After Configure: the files of the modules are read through the
 		// integrity checks it sets up.
-		external, err = mountExternalModules(root, registry)
+		external, err = mountExternalModules(root, registry, args)
 		if err != nil {
 			return nil, err
 		}
@@ -304,9 +304,11 @@ func build(
 
 // mountExternalModules hangs the external modules TT_CLI_MODULES_PATH lists
 // on root, whose commands registry records, and tt modules, and returns the
-// external commands the root help lists.
+// external commands the root help lists. args is the command line tt runs:
+// the modules describe themselves for a completion of a command name it
+// asks for, and otherwise only for the help that lists them.
 func mountExternalModules(
-	root *cobra.Command, registry *mount.Registry,
+	root *cobra.Command, registry *mount.Registry, args []string,
 ) ([]cmd.ExternalCommand, error) {
 	modules, err := extmod.Mount(root, extmod.Options{
 		Path:          os.Getenv(extmod.PathEnv),
@@ -316,6 +318,8 @@ func mountExternalModules(
 		Reserved:      reserved(),
 		Log:           log.Logger(),
 		Streams:       output.StdStreams(),
+		CacheDir:      extmod.DefaultCacheDir(),
+		Args:          args,
 	})
 	if err != nil {
 		return nil, err

@@ -133,7 +133,9 @@ func TestHelpColor(t *testing.T) {
 
 	// So the help written to them has no escape sequences.
 	root := NewCmdRoot()
-	configureHelpCommand(root, []ExternalCommand{{Name: "ext", Help: "An external command"}})
+	configureHelpCommand(root, []ExternalCommand{{
+		Name: "ext", Help: func() string { return "An external command" },
+	}})
 
 	var out strings.Builder
 

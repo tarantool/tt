@@ -25,8 +25,26 @@ if the module had no manifest. tt reads
 
 A module with no manifest is an executable named `main` that prints the same
 `version` and `help`, as YAML, when called with `--description --version`.
-tt runs it so every time it starts, whatever the command, to list the
-module: a manifest saves that run.
+A reply that is not YAML is taken for the description in plain text: its
+first line that is not empty is the `help`, and the version is unknown.
+
+```sh
+#!/bin/sh
+case "$1" in
+--description) echo "Upload tt backups to an S3 bucket"; exit 0 ;;
+esac
+# ... the command itself
+```
+
+tt runs it with `--description --version` only for a list that shows the
+module: `tt help`, `tt --help`, `tt modules list` and the shell completion
+of a command name. Other commands, `tt version` and the completion of
+anything else do not run it, and neither does a run of the module itself.
+The reply is kept in the user cache, `<user cache>/tt/modules/`
+(`~/.cache/tt/modules/` on Linux, `$XDG_CACHE_HOME/tt/modules/` when
+`XDG_CACHE_HOME` is set), by the path, the size and the modification time of
+the executable, so a module is asked again once it changes. A module that
+fails, exits non-zero or cannot be run, is asked again next time.
 
 `help` describes the module wherever tt lists it: among the commands of
 `tt --help`, under its EXTERNAL COMMANDS, in shell completion and in
@@ -52,12 +70,16 @@ $ tt upload-backups --help
 ```
 
 Each subdirectory of a listed directory with a manifest or a `main` is a
-module. When two directories hold a module of the same name, the first one
-listed wins, and tt warns of the other. A listed path that does not exist is
-skipped; one that exists but is not a directory, or a directory tt cannot
-read, fails every command of tt. A module tt cannot describe - a manifest
-that does not parse, a field missing, no answer to
-`--description --version` - is skipped with a warning.
+module, a command of tt by the name of the directory: tt neither reads nor
+runs it to add the command. When two directories hold a module of the same
+name, the first one listed wins, and tt warns of the other. A listed path
+that does not exist is skipped; one that exists but is not a directory, or a
+directory tt cannot read, fails every command of tt. A module tt cannot
+describe - a manifest that does not parse or misses a field, a `main` that
+fails when called with `--description --version` or cannot be run - is
+listed by its name alone, with a warning from `tt help` and
+`tt modules list`; the completion and the other commands say nothing of it.
+A module whose manifest cannot be read fails to run.
 
 ## How tt runs it
 
@@ -80,9 +102,9 @@ In a distribution built with `integrity = "rsa"`, tt reads the manifest of
 a module and its executable - before every run and every `--help` - through
 the integrity checks. Under `--integrity-check` a file is refused unless a
 signed hashes file of the project, or of the runtimes tt runs, lists it, so
-a module outside the signed tree stops working: tt skips it with a
-warning. A module whose manifest is listed and whose executable is not is
-listed by tt and fails to run (see
+a module outside the signed tree stops working: it fails to run, and the
+help of tt warns that it cannot describe it. A module whose manifest is
+listed and whose executable is not is listed by tt and fails to run (see
 [Sign packages](sign-packages.md#limits)). Without `--integrity-check`
 nothing is checked.
 

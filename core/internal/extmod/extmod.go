@@ -5,17 +5,25 @@
 // A module's directory holds a manifest (manifest.yaml) naming the module's
 // executable, its version and its one-line help, or an executable named main
 // that prints the version and the help when called with --description
-// --version. The manifest is read, and the executable is read before each
-// call, through tt's integrity checks: a module whose files they refuse is
-// not run.
+// --version: YAML with version and help, or the help alone as plain text.
+// The manifest is read, and the executable is read before each call, through
+// tt's integrity checks: a module whose files they refuse is not run.
 //
-// Mount hangs a proxy command for every module at tt's root. The proxy takes
-// its arguments as they are, flags included, runs the module with them on
-// tt's standard streams and ends tt with the module's exit code. A module
-// named like a command at the root takes the command's place, subcommands
-// and all, unless -I keeps tt's own; only the debug log says that it does. A
-// module with no command of its name is added. Mount also adds tt modules,
-// which lists the modules.
+// Mount hangs a proxy command for every module at tt's root, by the name of
+// its directory, without reading or running the module. The proxy takes its
+// arguments as they are, flags included, runs the module with them on tt's
+// standard streams and ends tt with the module's exit code. A module named
+// like a command at the root takes the command's place, subcommands and all,
+// unless -I keeps tt's own; only the debug log says that it does. A module
+// with no command of its name is added. Mount also adds tt modules, which
+// lists the modules.
+//
+// A module is asked to describe itself only for a listing of the commands:
+// the help of tt, tt modules list and the completion of a command name. The
+// reply is kept in the user cache (DefaultCacheDir) by the path, the size
+// and the modification time of the executable, so a module is asked again
+// once it changes. Only a listing warns about a module that cannot describe
+// itself, and the completion does not.
 package extmod
 
 import (
@@ -24,6 +32,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -71,38 +80,50 @@ type Options struct {
 	// Streams are the streams a module runs attached to and tt modules
 	// lists the modules on.
 	Streams output.Streams
+	// CacheDir keeps the replies of the executables of the modules to
+	// --description --version, DefaultCacheDir for tt; "" keeps none.
+	CacheDir string
+	// Args is the command line tt runs, without the name of tt: for a
+	// completion of a command name, the modules it may list are asked to
+	// describe themselves, so that it offers them with their help.
+	Args []string
 }
 
 // Mount finds the external modules opts.Path lists and hangs a proxy for
-// each at root, then adds tt modules. It returns the modules tt runs or
-// would run without -I, sorted by name: the ones tt modules lists and the
-// root help shows under EXTERNAL COMMANDS.
+// each at root, by its name, then adds tt modules. It returns the modules tt
+// runs or would run without -I, sorted by name: the ones tt modules lists
+// and the root help shows under EXTERNAL COMMANDS.
 //
-// A module is skipped, with a warning, when it cannot be described - no
-// manifest and no answer to --description --version, a manifest the
-// integrity checks refuse or, for a module with no manifest, an executable
-// they refuse, a manifest that does not parse -, when it is named like one
-// of the protected commands, and when the tree cannot hold its command, such
-// as when the name is another command's alias. A module with a manifest
-// whose executable the checks refuse is kept: its runs and its help fail.
-// Mount fails when a directory opts.Path lists is not one or cannot be read,
-// and when tt modules cannot be added.
-func Mount(root *cobra.Command, opts Options) ([]Manifest, error) {
+// Nothing of a module is read or run here: a module that cannot describe
+// itself is found out by a listing (Module.Listed), and one that cannot run
+// by its run. When opts.Args completes a command name, the modules whose
+// names it may complete to describe themselves, quietly, for the completion
+// to offer them with their help.
+//
+// A module is skipped, with a warning, when it is named like one of the
+// protected commands, and when the tree cannot hold its command, such as
+// when the name is another command's alias. Mount fails when a directory
+// opts.Path lists is not one or cannot be read, and when tt modules cannot
+// be added.
+func Mount(root *cobra.Command, opts Options) ([]*Module, error) {
 	found, err := discover(opts.Path, opts.Log)
 	if err != nil {
 		return nil, err
 	}
 
-	modules := make([]Manifest, 0, len(found))
+	modules := make([]*Module, 0, len(found))
 
 	for _, name := range slices.Sorted(maps.Keys(found)) {
-		manifest, ok := describe(name, found[name], opts)
-		if !ok {
+		if slices.Contains(protected, name) {
+			warnf(opts.Log, "External module %q (%s) is ignored: tt does not let a module "+
+				"replace the command %q", name, found[name].Directory, name)
+
 			continue
 		}
 
-		if hang(root, manifest, opts) {
-			modules = append(modules, manifest)
+		module := newModule(name, found[name], &opts)
+		if hang(root, module, &opts) {
+			modules = append(modules, module)
 		}
 	}
 
@@ -112,47 +133,60 @@ func Mount(root *cobra.Command, opts Options) ([]Manifest, error) {
 		return nil, fmt.Errorf("adding tt modules: %w", err)
 	}
 
+	prefix, completing := completedCommandName(root, opts.Args)
+	if completing {
+		for _, module := range modules {
+			if strings.HasPrefix(module.Name, prefix) {
+				_, _ = module.Describe()
+			}
+		}
+	}
+
 	return modules, nil
 }
 
-// describe returns the manifest of the module name found at entry, and
-// false, having warned, for a module that is protected or cannot be
-// described. A protected module is not read at all.
-func describe(name string, entry modulesEntry, opts Options) (Manifest, bool) {
-	var none Manifest
-
-	if slices.Contains(protected, name) {
-		warnf(opts.Log, "External module %q (%s) is ignored: tt does not let a module "+
-			"replace the command %q", name, entry.Directory, name)
-
-		return none, false
+// completedCommandName returns the prefix of the command name args, the
+// command line of tt, asks cobra to complete with descriptions, and false
+// when args asks for no such completion: when it runs a command, when it
+// completes the arguments or the flags of one, or when it asks for no
+// descriptions.
+func completedCommandName(root *cobra.Command, args []string) (string, bool) {
+	if len(args) < 2 || args[0] != cobra.ShellCompRequestCmd {
+		return "", false
 	}
 
-	manifest, err := makeManifest(entry, opts.Open)
-	if err != nil {
-		warnf(opts.Log, "Failed to get information about module %q: %s", name, err)
-
-		return none, false
+	toComplete := args[len(args)-1]
+	if strings.HasPrefix(toComplete, "-") {
+		return "", false
 	}
 
-	manifest.Name = name
+	cmd, rest, err := root.Find(args[1 : len(args)-1])
+	if err != nil || cmd != root {
+		return "", false
+	}
 
-	return manifest, true
+	for _, arg := range rest {
+		if !strings.HasPrefix(arg, "-") {
+			return "", false
+		}
+	}
+
+	return toComplete, true
 }
 
-// hang puts the proxy of the module of manifest at root, in place of the
-// command of its name, if any, answering to that command's aliases too, and
-// reports whether the module is available: hung, or kept out by
-// opts.ForceInternal. A module the tree cannot hold is not, and is warned
-// about. A replaced command is logged at the debug level only: whoever
-// installed the module meant it to replace the command.
-func hang(root *cobra.Command, manifest Manifest, opts Options) bool {
-	old := byName(root, manifest.Name)
+// hang puts the proxy of module at root, in place of the command of its
+// name, if any, answering to that command's aliases too, and reports whether
+// the module is available: hung, or kept out by opts.ForceInternal. A module
+// the tree cannot hold is not, and is warned about. A replaced command is
+// logged at the debug level only: whoever installed the module meant it to
+// replace the command.
+func hang(root *cobra.Command, module *Module, opts *Options) bool {
+	old := byName(root, module.Name)
 	if old != nil && opts.ForceInternal {
 		return true
 	}
 
-	proxy := newProxy(manifest, opts)
+	proxy := newProxy(module)
 	replaced := ""
 
 	if old != nil {
@@ -167,50 +201,65 @@ func hang(root *cobra.Command, manifest Manifest, opts Options) bool {
 		proxy.Aliases = slices.Clone(old.Aliases)
 	}
 
-	err := opts.Registry.Replace(root, old, proxy, manifest.Name, opts.Reserved)
+	err := opts.Registry.Replace(root, old, proxy, module.Name, opts.Reserved)
 	if err != nil {
-		warnf(opts.Log, "External module %q (%s) is ignored: %s", manifest.Name,
-			manifest.Main, err)
+		warnf(opts.Log, "External module %q (%s) is ignored: %s", module.Name,
+			module.location(), err)
 
 		return false
 	}
 
+	module.proxy = proxy
+
 	if old != nil {
 		opts.Log.Debug(fmt.Sprintf("External module %q (%s) replaces the %s; "+
-			"run tt with -I to keep it", manifest.Name, manifest.Main, replaced))
+			"run tt with -I to keep it", module.Name, module.location(), replaced))
 	}
 
 	return true
 }
 
-// newProxy returns the command that runs the module of manifest: it takes
-// its arguments as they are, flags included, and its help is the module's.
-// Its description is the module's one-line help, which the root help lists
-// it with and the completion offers it with, as for any other command.
-func newProxy(manifest Manifest, opts Options) *cobra.Command {
+// newProxy returns the command that runs module: it takes its arguments as
+// they are, flags included, and its help is the module's. Its description
+// is the module's one-line help once the module has described itself
+// (Module.Describe), which the root help lists it with and the completion
+// offers it with, as for any other command.
+func newProxy(module *Module) *cobra.Command {
 	proxy := &cobra.Command{
-		Use:                manifest.Name,
-		Short:              manifest.Help,
+		Use:                module.Name,
+		Short:              "",
 		DisableFlagParsing: true,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return runModule(manifest.Main, args, opts.Open, opts.Streams)
+			main, err := module.executable()
+			if err != nil {
+				return err
+			}
+
+			return runModule(main, args, module.opts.Open, module.opts.Streams)
 		},
 	}
 
-	proxy.SetHelpFunc(helpFunc(manifest, opts.Open))
+	proxy.SetHelpFunc(helpFunc(module))
 
 	return proxy
 }
 
-// helpFunc returns a help function that prints what the module of manifest
-// prints for --help, its executable read through open first. The help goes
-// to the command's output, stdout unless set otherwise, as any command's
-// help does.
-func helpFunc(manifest Manifest, open Opener) func(*cobra.Command, []string) {
+// helpFunc returns a help function that prints what module prints for
+// --help, its executable read through the integrity checks first. The help
+// goes to the command's output, stdout unless set otherwise, as any
+// command's help does.
+func helpFunc(module *Module) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, _ []string) {
-		help, err := moduleHelp(manifest.Main, open)
+		main, err := module.executable()
 		if err != nil {
-			cmd.PrintErrf("failed to get help for module %q: %s\n", manifest.Name, err)
+			cmd.PrintErrf("failed to get help for module %q: %s\n", module.Name, err)
+
+			return
+		}
+
+		help, err := moduleHelp(main, module.opts.Open)
+		if err != nil {
+			cmd.PrintErrf("failed to get help for module %q: %s\n", module.Name, err)
 
 			return
 		}

@@ -110,9 +110,9 @@ func firstLine(help string) string {
 }
 
 // makeManifest describes the module of entry: from its manifest when it has
-// one, from the answer of its executable otherwise. Both are read through
-// open first.
-func makeManifest(entry modulesEntry, open Opener) (Manifest, error) {
+// one, from the answer of its executable otherwise, which cacheDir keeps.
+// Both are read through open first.
+func makeManifest(entry modulesEntry, open Opener, cacheDir string) (Manifest, error) {
 	if entry.Manifest != "" {
 		return readManifest(entry.Directory, entry.Manifest, open)
 	}
@@ -125,7 +125,7 @@ func makeManifest(entry modulesEntry, open Opener) (Manifest, error) {
 		TtVersion:   "",
 		Description: "",
 		Homepage:    "",
-	}, open)
+	}, open, cacheDir)
 }
 
 // discover returns the modules in the directories list names, separated by

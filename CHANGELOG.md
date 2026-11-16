@@ -551,6 +551,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt run script.lua -- -h` hand `-h` to the script, where they printed the
   help of `tt run` (#1213), and `tt run -- -h` asks Tarantool for its own
   help.
+- tt no longer runs every external module with `--description --version`
+  each time it starts, `tt __complete` included. A module is a command of
+  tt by the name of its directory, and is asked to describe itself only
+  for a list that shows it: `tt help`, `tt --help`, `tt modules list` and
+  the completion of a command name. The reply is kept in
+  `<user cache>/tt/modules/` by the path, the size and the modification
+  time of the executable, so a module is asked again once it changes. A
+  reply that is not YAML is the description in plain text, its first line
+  that is not empty, with an unknown version, where it was refused with
+  `can't parse module info`; a YAML reply without a version is no longer
+  refused either. A module that fails to describe itself, or whose manifest
+  cannot be read, is listed by its name alone, and only `tt help` and
+  `tt modules list` warn about it, where every command of tt warned and
+  left the module out.
 - Breaking: `tt create` refuses a template that makes no project, one that
   writes neither `app.manifest.toml` nor an `instances.yaml` or a
   `config.yaml`, and creates nothing: the directory it made was one no

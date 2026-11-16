@@ -18,8 +18,11 @@ func TestMountFindsModules(t *testing.T) {
 	tests := map[string]struct {
 		envModules string
 		want       []extmod.Manifest
-		err        string
-		log        []string
+		// errs are what the modules that cannot describe themselves fail
+		// with, by name.
+		errs map[string]string
+		err  string
+		log  []string
 	}{
 		"no modules path": {
 			envModules: "",
@@ -106,18 +109,29 @@ func TestMountFindsModules(t *testing.T) {
 
 		"wrong modules manifest": {
 			envModules: "testdata/bad_manifest",
-			want:       []extmod.Manifest{},
-			log: []string{
-				`Failed to get information about module "broken": failed to parse manifest`,
-				`Failed to get information about module "empty": failed to find module executable`,
-				`Failed to get information about module "no-help": help field is mandatory`,
-				`Failed to get information about module "no-ver": version field is mandatory`,
-				`Failed to get information about module "no_version":` +
-					` reply for --version is mandatory for module`,
-				`Failed to get information about module "not-exists":` +
-					` failed to find module executable`,
-				`Failed to get information about module "not-mf": failed to read manifest`,
-				`Failed to get information about module "simple": can't parse module info`,
+			// A reply that is no YAML is the help in plain text, and a reply
+			// with no version gives none.
+			want: []extmod.Manifest{
+				{
+					Name:    "no_version",
+					Main:    "testdata/bad_manifest/no_version/main",
+					Help:    "only description reply; no version",
+					Version: "",
+				},
+				{
+					Name:    "simple",
+					Main:    "testdata/bad_manifest/simple/main",
+					Help:    "Module without version and description support",
+					Version: "",
+				},
+			},
+			errs: map[string]string{
+				"broken":     "failed to parse manifest",
+				"empty":      "failed to find module executable",
+				"no-help":    "help field is mandatory",
+				"no-ver":     "version field is mandatory",
+				"not-exists": "failed to find module executable",
+				"not-mf":     "failed to read manifest",
 			},
 		},
 
@@ -155,8 +169,26 @@ func TestMountFindsModules(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
 
+			described := []extmod.Manifest{}
+
+			for _, module := range got {
+				manifest, err := module.Describe()
+				if want, failing := tt.errs[module.Name]; failing {
+					require.ErrorContains(t, err, want, module.Name)
+
+					continue
+				}
+
+				require.NoError(t, err, module.Name)
+
+				described = append(described, manifest)
+			}
+
+			assert.Equal(t, tt.want, described)
+			assert.Len(t, got, len(tt.want)+len(tt.errs), "every module is mounted")
+
+			// Describing a module warns about nothing.
 			messages := tree.log.Messages()
 			require.Len(t, messages, len(tt.log), strings.Join(messages, "\n"))
 

@@ -39,6 +39,10 @@ type tree struct {
 	errOut   *bytes.Buffer
 	// forceInternal is -I.
 	forceInternal bool
+	// cacheDir keeps the replies of the modules, none when it is "".
+	cacheDir string
+	// args is the command line tt runs, for the completion.
+	args []string
 	// refused are the files the integrity checks refuse when they are opened.
 	refused []string
 	// refusedAtEnd are the files the integrity checks refuse only once they
@@ -137,7 +141,7 @@ func (tr *tree) openedFiles() []string {
 }
 
 // mount mounts the external modules path lists on the tree.
-func (tr *tree) mount(path string) ([]extmod.Manifest, error) {
+func (tr *tree) mount(path string) ([]*extmod.Module, error) {
 	logger, records := logtest.New(tr.t)
 
 	tr.log = records
@@ -150,7 +154,26 @@ func (tr *tree) mount(path string) ([]extmod.Manifest, error) {
 		Reserved:      reserved(),
 		Log:           logger,
 		Streams:       output.Streams{In: strings.NewReader(""), Out: tr.out, Err: tr.errOut},
+		CacheDir:      tr.cacheDir,
+		Args:          tr.args,
 	})
+}
+
+// describe returns what modules describe themselves as, failing the test
+// on a module that cannot.
+func describe(t *testing.T, modules []*extmod.Module) []extmod.Manifest {
+	t.Helper()
+
+	manifests := make([]extmod.Manifest, 0, len(modules))
+
+	for _, module := range modules {
+		manifest, err := module.Describe()
+		require.NoError(t, err, module.Name)
+
+		manifests = append(manifests, manifest)
+	}
+
+	return manifests
 }
 
 // run executes args on the tree and returns the command run and its error.
@@ -172,7 +195,7 @@ func (tr *tree) find(name string) *cobra.Command {
 }
 
 // names returns the names of modules.
-func names(modules []extmod.Manifest) []string {
+func names(modules []*extmod.Module) []string {
 	result := make([]string, 0, len(modules))
 
 	for _, module := range modules {
@@ -240,8 +263,9 @@ func group(name string, subs ...*cobra.Command) *cobra.Command {
 }
 
 // TestMountAddsModule checks that a module with no command of its name is
-// added: it gets its arguments as they are, flags included, its help is the
-// module's and the module's one-line help describes it.
+// added, by its name alone: nothing of it is read until it describes itself,
+// and then its one-line help describes it. It gets its arguments as they
+// are, flags included, and its help is the module's.
 func TestMountAddsModule(t *testing.T) {
 	t.Parallel()
 
@@ -253,13 +277,17 @@ func TestMountAddsModule(t *testing.T) {
 
 	modules, err := tree.mount(dir)
 	require.NoError(t, err)
-	assert.Equal(t, []extmod.Manifest{{
-		Name: "hello", Version: "1.0.0", Main: main, Help: "Say hello",
-	}}, modules)
+	assert.Equal(t, []string{"hello"}, names(modules))
+	assert.Empty(t, tree.openedFiles(), "a module is mounted without being read")
 	assert.Empty(t, tree.log.Messages())
 
 	proxy := tree.find("hello")
 	require.NotNil(t, proxy)
+	assert.Empty(t, proxy.Short, "not described yet")
+
+	assert.Equal(t, []extmod.Manifest{{
+		Name: "hello", Version: "1.0.0", Main: main, Help: "Say hello",
+	}}, describe(t, modules))
 	assert.Equal(t, "Say hello", proxy.Short, "the module's help describes its command")
 
 	cmd, err := tree.run("hello", "a", "--b", "-c", "--help")
@@ -431,8 +459,7 @@ func TestMountProtected(t *testing.T) {
 	assert.Equal(t, []string{"hello"}, names(modules))
 	assert.Same(t, version, tree.find("version"))
 	assert.NoFileExists(t, marker, "an ignored module is not run")
-	assert.Equal(t, []string{filepath.Join(dir, "hello", "manifest.yaml")}, tree.openedFiles(),
-		"an ignored module is not read")
+	assert.Empty(t, tree.openedFiles(), "no module is read to be mounted")
 
 	want := make([]string, 0, len(protected))
 	for _, name := range protected {
@@ -445,6 +472,9 @@ func TestMountProtected(t *testing.T) {
 	_, err = tree.run("modules", "list")
 	require.NoError(t, err)
 	assert.Equal(t, "hello - External hello\n", tree.out.String())
+	assert.Equal(t, []string{filepath.Join(dir, "hello", "manifest.yaml")}, tree.openedFiles(),
+		"an ignored module is not read")
+	assert.NoFileExists(t, marker, "an ignored module is not run")
 }
 
 // TestMountRefused checks that a module the tree cannot hold is ignored,
@@ -476,9 +506,10 @@ func TestMountRefused(t *testing.T) {
 
 // TestMountIntegrity checks that what the integrity checks refuse, when
 // they open a file or only once they have read it to the end, is neither
-// read nor run: a module whose manifest they refuse is ignored, one whose
-// executable they refuse fails to run and has no help, and one with no
-// manifest is not asked to describe itself.
+// read nor run: a module whose manifest they refuse cannot describe itself
+// or run, one whose executable they refuse fails to run and has no help,
+// and one with no manifest is not asked to describe itself. The listing
+// says why.
 func TestMountIntegrity(t *testing.T) {
 	t.Parallel()
 
@@ -504,7 +535,17 @@ func TestMountIntegrity(t *testing.T) {
 
 	modules, err := tree.mount(dir)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"badmain", "latemain"}, names(modules))
+	assert.Equal(t, []string{
+		"badmain", "badmanifest", "latemain", "latemanifest", "latenomanifest", "nomanifest",
+	}, names(modules))
+	assert.Empty(t, tree.log.Messages())
+
+	_, err = tree.run("modules", "list")
+	require.NoError(t, err)
+	assert.Equal(t, "badmain - x\nbadmanifest - \nlatemain - x\nlatemanifest - \n"+
+		"latenomanifest - \nnomanifest - \n", tree.out.String())
+	tree.out.Reset()
+
 	assert.Equal(t, []string{
 		`Failed to get information about module "badmanifest": failed to read manifest: ` +
 			errRefused.Error(),
@@ -529,6 +570,15 @@ func TestMountIntegrity(t *testing.T) {
 			`for "`+main+`": `+errRefused.Error()+"\n", tree.errOut.String())
 	}
 
+	_, err = tree.run("badmanifest", "x")
+	require.ErrorIs(t, err, errRefused)
+	require.EqualError(t, err, `external module "badmanifest": failed to read manifest: `+
+		errRefused.Error())
+
+	_, err = tree.run("nomanifest", "x")
+	require.EqualError(t, err, `integrity check failed for "`+noManifest+`": `+
+		errRefused.Error())
+
 	assert.NoFileExists(t, marker, "a refused executable is not run")
 	assert.Empty(t, tree.out.String())
 }
@@ -536,7 +586,7 @@ func TestMountIntegrity(t *testing.T) {
 // TestMountHelpFirstLine checks that a module is described by the first line
 // of its help, whether the manifest gives the help or the module does when
 // asked with --description: its command and tt modules list show that line,
-// and a help with no line at all is refused as a missing one.
+// and a manifest whose help has no line at all is refused as a missing one.
 func TestMountHelpFirstLine(t *testing.T) {
 	t.Parallel()
 
@@ -552,7 +602,13 @@ func TestMountHelpFirstLine(t *testing.T) {
 
 	modules, err := tree.mount(dir)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"asked", "folded"}, names(modules))
+	assert.Equal(t, []string{"asked", "blank", "folded"}, names(modules))
+	assert.Empty(t, tree.log.Messages())
+
+	_, err = tree.run("modules", "list")
+	require.NoError(t, err)
+	assert.Equal(t, "asked - Asked first line.\nblank - \nfolded - First line of the help.\n",
+		tree.out.String())
 	assert.Equal(t, []string{
 		`Failed to get information about module "blank": ` +
 			`help field is mandatory for module Manifest`,
@@ -560,15 +616,11 @@ func TestMountHelpFirstLine(t *testing.T) {
 
 	for name, want := range map[string]string{
 		"asked":  "Asked first line.",
+		"blank":  "",
 		"folded": "First line of the help.",
 	} {
 		assert.Equal(t, want, tree.find(name).Short, name)
 	}
-
-	_, err = tree.run("modules", "list")
-	require.NoError(t, err)
-	assert.Equal(t, "asked - Asked first line.\nfolded - First line of the help.\n",
-		tree.out.String())
 }
 
 // TestMountModulesList checks what tt modules list prints.
