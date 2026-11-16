@@ -338,7 +338,18 @@ func TestTestPathsRefuseAMissingSubPath(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
 
 	_, err := run.TestPaths(root, []string{"test/nowhere"})
-	require.ErrorIs(t, err, run.ErrNoTestDir)
+	require.ErrorIs(t, err, run.ErrNoTestPath)
+	assert.NotErrorIs(t, err, run.ErrNoTestDir)
+}
+
+// A file that is not there is not reported as a missing test directory.
+func TestTestPathsRefuseAMissingFile(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
+
+	_, err := run.TestPaths(root, []string{"test/nosuch_test.lua"})
+	require.ErrorIs(t, err, run.ErrNoTestPath)
+	assert.Equal(t, "no such test file or directory: test/nosuch_test.lua in "+root, err.Error())
 }
 
 // One bad sub-path among good ones fails the whole run rather than shrinking
@@ -348,7 +359,7 @@ func TestTestPathsRefuseAMissingSubPathAmongOthers(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "unit"), dirMode))
 
 	_, err := run.TestPaths(root, []string{"test/unit", "test/nowhere"})
-	require.ErrorIs(t, err, run.ErrNoTestDir)
+	require.ErrorIs(t, err, run.ErrNoTestPath)
 	assert.Contains(t, err.Error(), "test/nowhere")
 }
 
@@ -360,7 +371,8 @@ func TestTestPathsRefuseAnEscapingSubPath(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(filepath.Dir(root), "elsewhere"), dirMode))
 
 	_, err := run.TestPaths(root, []string{"test", "../elsewhere"})
-	require.ErrorIs(t, err, run.ErrNoTestDir)
+	require.ErrorIs(t, err, run.ErrNoTestPath)
+	assert.Contains(t, err.Error(), "is outside the project")
 }
 
 // An absolute path inside the project is relativized rather than refused: it is

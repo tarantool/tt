@@ -62,6 +62,9 @@ var (
 	ErrNoManifest = errors.New("not a tt package directory")
 	// ErrNoTestDir reports a project with nowhere to run tests from.
 	ErrNoTestDir = errors.New("no test directory")
+	// ErrNoTestPath reports a test file or directory given on the command
+	// line that is not there, or not in the project.
+	ErrNoTestPath = errors.New("no such test file or directory")
 	// ErrNoTarantool reports that the project has no tarantool of its own and
 	// there is none on PATH. It is the resolver's error, so errors.Is matches
 	// it whichever package a caller names it by.
@@ -349,7 +352,7 @@ func checkedSubPath(root, subPath string) (string, error) {
 	if filepath.IsAbs(clean) {
 		relative, err := filepath.Rel(root, clean)
 		if err != nil {
-			return "", fmt.Errorf("%w: %s is outside %s", ErrNoTestDir, subPath, root)
+			return "", fmt.Errorf("%w: %s is outside the project %s", ErrNoTestPath, subPath, root)
 		}
 
 		clean = relative
@@ -358,12 +361,12 @@ func checkedSubPath(root, subPath string) (string, error) {
 	// A path that climbs out of the project would run tests from somewhere the
 	// project's own .rocks/ tree does not describe.
 	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("%w: %s is outside %s", ErrNoTestDir, subPath, root)
+		return "", fmt.Errorf("%w: %s is outside the project %s", ErrNoTestPath, subPath, root)
 	}
 
 	info, err := os.Stat(filepath.Join(root, clean))
 	if err != nil {
-		return "", fmt.Errorf("%w: %s does not exist in %s", ErrNoTestDir, subPath, root)
+		return "", fmt.Errorf("%w: %s in %s", ErrNoTestPath, subPath, root)
 	}
 
 	if info.IsDir() {

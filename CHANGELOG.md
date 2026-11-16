@@ -954,6 +954,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- `tt test test/nosuch_test.lua` says `no such test file or directory:
+  test/nosuch_test.lua in <project>`, where it said `no test directory` of
+  a path that was a file.
 - A `pre_build`, `post_build` or `clean` hook that fails names itself once:
   the error read `pre_build hook: pre_build hook: failed to run ...`.
 - JSON that tt prints writes `<`, `>` and `&` as they are: `tt package

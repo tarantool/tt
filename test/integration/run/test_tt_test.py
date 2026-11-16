@@ -137,6 +137,18 @@ def test_test_refuses_a_missing_sub_path(run_tt, project: Path, fake_luatest):
     assert "test/nowhere" in result.stderr
 
 
+def test_test_names_a_missing_file_as_one(run_tt, project: Path, fake_luatest):
+    """A test file that is not there is not reported as a missing test directory."""
+    fake_luatest()
+    (project / "test").mkdir()
+
+    result = run_tt("test", "test/nosuch_test.lua")
+
+    assert result.returncode == 1
+    assert "no such test file or directory: test/nosuch_test.lua" in result.stderr
+    assert "no test directory" not in result.stderr
+
+
 def test_test_passes_luatest_arguments_after_the_separator(run_tt, project: Path, fake_luatest):
     fake_luatest()
     (project / "test").mkdir()
