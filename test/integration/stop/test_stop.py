@@ -88,6 +88,9 @@ def check_stop(tt, tt_app, target, input, is_confirm, *args):
             if was_running:
                 orig_pid = orig_status[inst]["PID"]
                 assert f"The Instance {inst} (PID = {orig_pid}) has been terminated." in out
+            else:
+                # As tt instance kill and logrotate say it.
+                assert f"The instance {inst} is not running." in out
         else:
             assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]
             if was_running:

@@ -24,12 +24,9 @@ def check_logrotate(tt, tt_app, target):
         expected_instances.append(inst)
 
     # Do logrotate. An instance that does not run has no log to reopen,
-    # which fails it; the others rotate their logs all the same.
+    # which is said and is no failure, as for stop and kill.
     p = tt.run("instance", "logrotate", target)
-    assert p.returncode == tt_helper.instances_rc(
-        len(target_instances),
-        len(target_instances) - len(expected_instances),
-    )
+    assert p.returncode == 0, p.stdout
 
     # Wait for the log files to be re-created.
     assert utils.wait_files(5, tt_helper.log_files(tt_app, expected_instances))
@@ -49,7 +46,7 @@ def check_logrotate(tt, tt_app, target):
                 with open(tt_app.log_path(inst, utils.log_file)) as f:
                     assert "reopened" in f.read()
             else:
-                assert f"{inst}: the instance is not running, it must be started" in p.stdout
+                assert f"The instance {inst} is not running." in p.stdout
 
     # Stop running instances and make sure there are non-watchdog messages,
     # i.e. tarantool binary also puts its logs here.

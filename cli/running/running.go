@@ -392,8 +392,28 @@ func StopAll(runs []InstanceCtx) error {
 // order. The process of an external process whose watchdog is gone is stopped
 // as the watchdog would have stopped it (stopOrphan). An instance whose pid
 // file nobody holds is not running: the file is stale, and goes
-// (interruptWatchdog).
+// (interruptWatchdog). An instance that is not running is no failure, and
+// is not told of: a restart starts it next.
 func StopAllResults(runs []InstanceCtx) []error {
+	return stopAll(runs, false)
+}
+
+// StopAllSaying is StopAllResults for tt instance stop, which says of every
+// instance that is not running that it is not (LogNotRunning), as
+// tt instance kill and logrotate do.
+func StopAllSaying(runs []InstanceCtx) []error {
+	return stopAll(runs, true)
+}
+
+// LogNotRunning says that the instance name is not running, which is no
+// failure of a command that stops it, kills it or rotates its logs.
+func LogNotRunning(name string) {
+	log.Infof("The instance %s is not running.", name)
+}
+
+// stopAll is StopAllResults, which says of the instances that are not
+// running that they are not with say.
+func stopAll(runs []InstanceCtx, say bool) []error {
 	type instanceProcess struct {
 		index int
 		name  string
@@ -422,11 +442,14 @@ func StopAllResults(runs []InstanceCtx) []error {
 
 		name := GetAppInstanceName(run)
 
-		pid, err := interruptWatchdog(&run)
+		pid, stale, err := interruptWatchdog(&run)
 
 		switch {
 		case err != nil:
 			stopErrors[index] = fmt.Errorf("failed to stop instance %s: %w", name, err)
+		case pid == 0 && say && !stale:
+			// A stale pid file removed is told of as such.
+			LogNotRunning(name)
 		case pid == 0:
 			log.Debugf("The instance %s is already stopped", name)
 		default:
@@ -461,29 +484,30 @@ func StopAllResults(runs []InstanceCtx) []error {
 // interruptWatchdog sends SIGINT to the watchdog of run, the process that
 // holds its pid file, and returns its pid; zero when no watchdog holds the
 // file. A file nobody holds is removed (removeStale): the pid in it names a
-// watchdog that is gone, or an unrelated process by now, and gets no signal.
-func interruptWatchdog(run *InstanceCtx) (int, error) {
+// watchdog that is gone, or an unrelated process by now, and gets no signal;
+// stale tells that it was removed, which removeStale says.
+func interruptWatchdog(run *InstanceCtx) (int, bool, error) {
 	pid, owned, err := pidfile.Owner(run.PIDFile)
 	if err != nil {
-		return 0, fmt.Errorf("can't get pid of running process: %w", err)
+		return 0, false, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
 	switch {
 	case !owned:
-		_, err = removeStale(run, pid)
+		removed, err := removeStale(run, pid)
 
-		return 0, err
+		return 0, removed, err
 	case pid == 0:
 		// A watchdog holds the file and has not written its pid yet.
-		return 0, errWatchdogStarting
+		return 0, false, errWatchdogStarting
 	}
 
 	err = process_utils.Interrupt(pid)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 
-	return pid, nil
+	return pid, false, nil
 }
 
 // removeStale removes the pid file of run that nobody holds, while it still
@@ -567,7 +591,7 @@ func Kill(run InstanceCtx) error {
 		}
 
 		if !removed {
-			log.Infof("The instance %s is not running.", fullInstanceName)
+			LogNotRunning(fullInstanceName)
 		}
 
 		return nil
@@ -706,7 +730,8 @@ func PIDFileStatus(path string) process_utils.ProcessState {
 // that does not handle the signal yet, having only just been started, does
 // not get it, rather than dying of it (supervisor.ErrReloadNotHandled). Only the
 // watchdog that holds the pid file gets the signal: the pid in a file nobody
-// holds may name an unrelated process by now.
+// holds may name an unrelated process by now, and is an error. An instance
+// with no pid file is not running, which is said and is no failure.
 func Logrotate(run *InstanceCtx) error {
 	fullInstanceName := GetAppInstanceName(*run)
 
@@ -717,8 +742,14 @@ func Logrotate(run *InstanceCtx) error {
 		return fmt.Errorf("can't rotate logs: %w", err)
 	case !owned && pid != 0:
 		return errInstanceDead
-	case !owned || pid == 0:
-		return fmt.Errorf("%s%w", fullInstanceName, errTheInstanceIsNotRunningItMustBeStarted)
+	case !owned:
+		// No log to reopen, which is no failure, as for tt instance stop
+		// and kill.
+		LogNotRunning(fullInstanceName)
+
+		return nil
+	case pid == 0:
+		return fmt.Errorf("can't rotate logs: %w", errWatchdogStarting)
 	}
 
 	err = syscall.Kill(pid, syscall.SIGHUP)

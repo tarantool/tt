@@ -1038,6 +1038,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   lines of each with `<app>:<instance>: `, as `tt instance logs` does, so
   that the lines of an instance read and grep the same in both. It wrote
   the instance and a space, with no colon.
+- `tt instance stop`, `kill` and `logrotate` of an instance that is not
+  running all say `The instance <app>:<instance> is not running.` and exit
+  with 0. `stop` said nothing, and `logrotate` failed with `the instance is
+  not running, it must be started`, exit code 1. The stop of `tt instance
+  restart` says nothing of an instance it is about to start.
 - A rock server that cannot be reached or read is one line: what was being
   done, the server, where it is configured and why, `resolving "checks":
   cannot reach rock server http://no-such-host.invalid/ (from

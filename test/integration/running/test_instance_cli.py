@@ -39,19 +39,27 @@ def test_partial_success_exit_code(tt_cmd, tmp_path):
         run_dir = utils.inst_run_dir(app_path, "app", "worker")
         assert utils.wait_files(5, [os.path.join(run_dir, utils.pid_file)])
 
-        # master does not run: it has no log to reopen.
+        # master does not run: it has no log to reopen, which is said and is
+        # no failure, as for stop and kill.
         cmd = [tt_cmd, "instance", "logrotate", "app:master,app:worker"]
         rc, out = utils.run_command_and_get_output(cmd, cwd=app_path)
-        assert rc == 3, out
+        assert rc == 0, out
         assert "app:worker (PID = " in out
         assert "logs has been rotated" in out
-        assert "app:master: the instance is not running, it must be started" in out
+        assert "The instance app:master is not running." in out
+
+        # One whose pid file cannot be read fails.
+        write_unreadable_pid_file(app_path, "master")
+        rc, out = utils.run_command_and_get_output(cmd, cwd=app_path)
+        assert rc == 3, out
+        assert "logs has been rotated" in out
         assert "logrotate failed for 1 of 2 instances: app:master" in out
 
         cmd = [tt_cmd, "instance", "logrotate", "app:master"]
         rc, out = utils.run_command_and_get_output(cmd, cwd=app_path)
         assert rc == 1, out
         assert "failed for" not in out
+        os.rmdir(os.path.join(utils.inst_run_dir(app_path, "app", "master"), utils.pid_file))
 
         cmd = [tt_cmd, "instance", "logrotate", "app:worker"]
         rc, out = utils.run_command_and_get_output(cmd, cwd=app_path)

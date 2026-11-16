@@ -1,6 +1,8 @@
 package running
 
 import (
+	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/internal/pidfile"
 )
@@ -157,6 +160,51 @@ func TestStopStale(t *testing.T) {
 	}
 }
 
+// TestNotRunningIsSaid pins that tt instance stop, kill and logrotate of an
+// instance with no pid file say alike that it is not running, at the info
+// level, and do not fail; the stop of a restart says nothing.
+func TestNotRunningIsSaid(t *testing.T) {
+	run := killRun(t)
+
+	run.AppName, run.InstName = "app", "inst"
+
+	logger, recorder := logtest.New(t)
+	previous := slog.Default()
+
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	// said returns the messages at the info level and above logged since
+	// the first from records.
+	said := func(from int) []string {
+		var messages []string
+
+		for _, record := range recorder.Records()[from:] {
+			if record.Level >= slog.LevelInfo {
+				messages = append(messages, record.Message)
+			}
+		}
+
+		return messages
+	}
+
+	for name, act := range map[string]func() error{
+		"stop":      func() error { return errors.Join(StopAllSaying([]InstanceCtx{*run})...) },
+		"kill":      func() error { return Kill(*run) },
+		"logrotate": func() error { return Logrotate(run) },
+	} {
+		from := len(recorder.Records())
+
+		require.NoError(t, act(), name)
+		assert.Equal(t, []string{"The instance app:inst is not running."}, said(from), name)
+	}
+
+	from := len(recorder.Records())
+
+	require.NoError(t, errors.Join(StopAllResults([]InstanceCtx{*run})...))
+	assert.Empty(t, said(from), "the stop of a restart says nothing")
+}
+
 // stopVictim starts a process that stands for an unrelated process that has
 // taken the pid of a dead watchdog, and returns its pid. The test fails if
 // the process exits before the test ends: it got a signal meant for the
@@ -268,7 +316,7 @@ func TestClearForWatchdog(t *testing.T) {
 	assert.True(t, running, "a starting watchdog is taken for none")
 	assert.Zero(t, pid)
 
-	_, err = interruptWatchdog(run)
+	_, _, err = interruptWatchdog(run)
 	require.ErrorIs(t, err, errWatchdogStarting, "a starting watchdog is signalled")
 	require.NoError(t, reserved.Release())
 }

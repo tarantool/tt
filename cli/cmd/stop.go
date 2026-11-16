@@ -55,11 +55,13 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 	return stopInstances(instances)
 }
 
-// stopInstances interrupts all supervisors before collecting individual outcomes.
+// stopInstances interrupts all supervisors before collecting individual
+// outcomes. An instance that is not running is no failure: it is said to be
+// not running, as tt instance kill and logrotate say it.
 func stopInstances(instances []running.InstanceCtx) error {
 	result := newInstancesResult("stop", len(instances))
 
-	for i, err := range running.StopAllResults(instances) {
+	for i, err := range running.StopAllSaying(instances) {
 		if err != nil {
 			result.fail(running.GetAppInstanceName(instances[i]), err)
 		}

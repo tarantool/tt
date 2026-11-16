@@ -224,6 +224,10 @@ not running.
 script or a pipe, a command that needs one fails with code 1 unless it is
 given `--yes`.
 
+An instance that is not running is no failure of `stop`, `kill` or
+`logrotate`: each says `The instance <app>:<instance> is not running.` and
+goes on.
+
 A command over several instances goes on after an instance it fails for. It
 exits with 3 when it failed for some of the instances only, with 1 when it
 failed for all of them, and with the code of the error when there is one
