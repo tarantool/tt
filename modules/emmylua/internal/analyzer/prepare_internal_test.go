@@ -298,11 +298,13 @@ func TestPackRocksWithoutBuilds(t *testing.T) {
 	t.Parallel()
 
 	_, err := PackRocks(t.Context(), PackOptions{Dir: t.TempDir(), Version: DefaultVersion})
-	require.ErrorIs(t, err, ErrUnsupportedPlatform)
-	require.ErrorContains(t, err, "EmmyLua 0.30.0pre1 has no builds to download: pack it "+
-		"from a build of 599c33862491c5ca0f325e0ef549ad34c510ca97 (--from), or pack 0.25.1, "+
-		"which has (--version 0.25.1); tt package download emmylua@0.30.0pre1 --registry "+
-		DefaultRockServer+" --dir DIR takes the rock of this host the rock index serves")
+	require.ErrorIs(t, err, ErrNoBuilds)
+	require.NotErrorIs(t, err, ErrUnsupportedPlatform)
+	require.EqualError(t, err, "no builds to download for EmmyLua 0.30.0pre1, a commit of "+
+		"EmmyLua: pack it from a build of 599c33862491c5ca0f325e0ef549ad34c510ca97 (--from), "+
+		"or pack 0.25.1, which has them (--version 0.25.1); tt package download "+
+		"emmylua@0.30.0pre1 --registry "+DefaultRockServer+" --dir DIR takes the rock of "+
+		"this host the rock index serves")
 }
 
 //nolint:paralleltest // Sets the environment.

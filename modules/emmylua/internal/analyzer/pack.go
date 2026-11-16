@@ -108,13 +108,13 @@ func packReleaseRocks(ctx context.Context, opts PackOptions, release Release) ([
 	if len(release.Platforms) == 0 {
 		downloadable, err := DownloadableVersion()
 		if err == nil {
-			downloadable = ", or pack " + downloadable + ", which has (--version " +
+			downloadable = ", or pack " + downloadable + ", which has them (--version " +
 				downloadable + ")"
 		}
 
-		return nil, fmt.Errorf("%w: EmmyLua %s has no builds to download: pack it from a "+
+		return nil, fmt.Errorf("%w for EmmyLua %s, a commit of EmmyLua: pack it from a "+
 			"build of %s (--from)%s; tt package download %s@%s --registry %s --dir DIR "+
-			"takes the rock of this host the rock index serves", ErrUnsupportedPlatform,
+			"takes the rock of this host the rock index serves", ErrNoBuilds,
 			release.Version, release.Ref, downloadable, RockName, release.Version,
 			DefaultRockServer)
 	}

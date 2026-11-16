@@ -1664,6 +1664,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   terminal the prompt is written to stderr. `tt binary install` reported
   the failure twice, and `tt binary search` printed `Available versions of
   tcm:` before it: the heading now comes only with the versions.
+- `tt emmylua rock --version 0.30.0pre1`, a release tt knows from a commit
+  of EmmyLua, fails saying that the release has no builds to download for
+  any platform, and how to pack it from a local build. The error began with
+  `unsupported platform`, as if the host were to blame.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

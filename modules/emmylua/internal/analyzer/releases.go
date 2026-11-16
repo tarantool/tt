@@ -253,8 +253,8 @@ func LookupRelease(version string) (Release, error) {
 
 // DownloadableVersion returns the newest release tt knows that has builds to
 // download, which tt emmylua rock packs unless told another: DefaultVersion
-// is a commit with none. It fails with an error wrapping
-// ErrUnsupportedPlatform when no release has them.
+// is a commit with none. It fails with an error wrapping ErrNoBuilds when
+// no release has them.
 func DownloadableVersion() (string, error) {
 	known, err := knownReleases()
 	if err != nil {
@@ -279,8 +279,8 @@ func DownloadableVersion() (string, error) {
 	}
 
 	if newest == "" {
-		return "", fmt.Errorf("%w: no release tt knows has builds to download; pack a "+
-			"local build (--from)", ErrUnsupportedPlatform)
+		return "", fmt.Errorf("%w for any release tt knows: pack a local build (--from)",
+			ErrNoBuilds)
 	}
 
 	return newest, nil
@@ -338,8 +338,8 @@ func (r Release) platform(goos, goarch string) (Platform, error) {
 	}
 
 	if len(r.Platforms) == 0 {
-		return Platform{}, fmt.Errorf("%w: EmmyLua %s has no builds to download; "+
-			"pack it from a build of %s (--from)", ErrUnsupportedPlatform, r.Version, r.Ref)
+		return Platform{}, fmt.Errorf("%w for EmmyLua %s, a commit of EmmyLua: pack it "+
+			"from a build of %s (--from)", ErrNoBuilds, r.Version, r.Ref)
 	}
 
 	supported := make([]string, 0, len(r.Platforms))

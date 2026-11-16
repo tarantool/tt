@@ -3,6 +3,7 @@ package analyzer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,8 +52,12 @@ func TestReleasePlatform(t *testing.T) {
 	local, err := LookupRelease("0.30.0pre1")
 	require.NoError(t, err)
 
+	// A release with no builds at all is no question of the platform.
 	_, err = local.platform("linux", "amd64")
-	require.ErrorIs(t, err, ErrUnsupportedPlatform)
+	require.ErrorIs(t, err, ErrNoBuilds)
+	require.NotErrorIs(t, err, ErrUnsupportedPlatform)
+	assert.True(t, strings.HasPrefix(err.Error(), "no builds to download for EmmyLua "+
+		"0.30.0pre1"), err.Error())
 	assert.Contains(t, err.Error(), "--from")
 }
 
@@ -86,7 +91,7 @@ func TestDownloadableVersionReleases(t *testing.T) {
 		[]byte(`{"0.11.0pre1": {"version": "0.11.0pre1"}}`), 0o644))
 
 	_, err = DownloadableVersion()
-	require.ErrorIs(t, err, ErrUnsupportedPlatform)
+	require.ErrorIs(t, err, ErrNoBuilds)
 }
 
 func TestRockArch(t *testing.T) {
