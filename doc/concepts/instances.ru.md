@@ -3,7 +3,7 @@
 Команды управления инстансами - `tt instance start`, `stop`, `restart`,
 `kill`, `status`, `logs`, `logrotate`, `check`, `clean` и `connect` -
 работают с инстансами приложения на этом хосте. `tt connect` - это
-`tt instance connect`, а `tt play` принимает те же цели.
+`tt instance connect`, а `tt data play` принимает те же цели.
 
 ## Пара файлов {#the-pair}
 

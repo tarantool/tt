@@ -114,7 +114,7 @@ output = [{ path = "build/gw-cli", to = "bin" }]
   получает его, поскольку он привёл бы к его завершению; об этом пишется в
   `tt.log`.
 - `tt instance clean` удаляет лог процесса и каталог его данных.
-- `tt connect`, `tt play`, `tt instance kill --dump` и команды кластера
+- `tt connect`, `tt data play`, `tt instance kill --dump` и команды кластера
   отклоняют внешний процесс: это не инстанс Tarantool.
 - Инстансы запускаются в порядке, указанном в `instances.yaml`, и ни один не
   ждёт готовности другого.

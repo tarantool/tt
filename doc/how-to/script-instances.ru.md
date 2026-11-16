@@ -57,7 +57,7 @@ Tarantool запускает скрипт в каталоге приложени
 
 ## Что с ними работает {#what-works-on-it}
 
-- `tt connect`, `tt play`, `tt instance status` и `tt instance logrotate`
+- `tt connect`, `tt data play`, `tt instance status` и `tt instance logrotate`
   работают как с любым инстансом Tarantool.
 - `tt instance check` проверяет синтаксис скрипта.
 - `tt instance clean` удаляет его данные и журнал.

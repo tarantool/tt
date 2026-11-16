@@ -3,7 +3,7 @@
 The instance commands - `tt instance start`, `stop`, `restart`, `kill`,
 `status`, `logs`, `logrotate`, `check`, `clean` and `connect` - act on the
 instances of an application on this host. `tt connect` is
-`tt instance connect`, and `tt play` takes the same targets.
+`tt instance connect`, and `tt data play` takes the same targets.
 
 ## The pair
 

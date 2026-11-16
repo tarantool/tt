@@ -116,7 +116,11 @@ $ mage docs:build    # site/, failing on a broken link
 The [command reference](reference/commands/index.md) is generated from the
 help of tt by `mage docs:reference`: edit the help of a command, not its
 page. A new top-level command needs its page added to the nav of
-`zensical.toml`; the build fails until it is.
+`zensical.toml`; the build fails until it is. The reference is not in git, and
+`go test ./core -run TestCLIReferenceMatchesDocs` checks the documentation
+against the reference of the tt it builds: the nav lists exactly its pages,
+every link to it and its anchors resolve, and a copy an earlier
+`mage docs:reference` left in `doc/reference/commands/` is not stale.
 
 ### Translations
 

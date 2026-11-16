@@ -110,7 +110,7 @@ no shared library, and the build checks that it got one; the programs of
   that does not catch, ignore or block that signal does not get it, since it
   would die of it; `tt.log` says so.
 - `tt instance clean` removes its log and its data directory.
-- `tt connect`, `tt play`, `tt instance kill --dump` and the cluster
+- `tt connect`, `tt data play`, `tt instance kill --dump` and the cluster
   commands refuse an external process: it is not a Tarantool instance.
 - The instances start in the order of `instances.yaml`, and none waits for
   another to be ready.

@@ -1437,6 +1437,9 @@ Common description. For a detailed description, use `tt help command` .
 - `data` - read snapshots and write-ahead logs without Tarantool: `cat`
     prints their rows as YAML, JSON Lines or Lua, `play` applies their data
     changes to an instance, transaction by transaction.
+- `emmylua (experimental)` - check, document and format the Lua code of a
+    project with EmmyLua, and run its language server for an editor.
+- `wasm (experimental)` - prepare a project for WebAssembly components.
 - `coredump` - pack/unpack/inspect tarantool coredump.
 - `aeon` - connect to an Aeon instance.
 - `tcm` - manage Tarantool Cluster Manager.

@@ -57,7 +57,7 @@ script take the paths from the environment.
 
 ## What works on it
 
-- `tt connect`, `tt play`, `tt instance status` and `tt instance logrotate`
+- `tt connect`, `tt data play`, `tt instance status` and `tt instance logrotate`
   work as with any Tarantool instance.
 - `tt instance check` checks the syntax of the script.
 - `tt instance clean` removes its data and log.

@@ -1037,6 +1037,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   where every Tab printed `_get_comp_words_by_ref: command not found`, the
   `.env/activate.sh` of a project included. `tt completion --help` and the
   installation page say that bash completion needs the package.
+- The documentation names `tt data play` where it still said `tt play`, and
+  the command list of the README has `tt emmylua` and `tt wasm`. A test
+  checks the documentation against the command reference generated from the
+  help of tt: the nav of the site lists exactly its pages, every link to a
+  command page and its anchor resolve, and a copy of the reference left in
+  `doc/reference/commands/` by an earlier `mage docs:reference` is not stale.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version
