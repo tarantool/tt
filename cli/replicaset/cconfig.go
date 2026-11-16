@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 	goconfig "github.com/tarantool/go-config/v2"
@@ -33,6 +34,10 @@ var (
 	)
 	errFailedToReloadInstanceConfiguration = errors.New(
 		"failed to reload instance configuration for: ",
+	)
+	errExpelLeader        = errors.New("cannot expel the leader")
+	errNoWritableInstance = errors.New(
+		"no writable instance is left in the replicaset to delete it on",
 	)
 	errInstanceNotFound                = errors.New("instance ")
 	errInstanceShouldBeOnline          = errors.New("instance ")
@@ -72,6 +77,13 @@ var (
 
 	//go:embed lua/cconfig/get_sharding_roles_body.lua
 	cconfigGetShardingRolesBody string
+
+	// cconfigExpelFromClusterBody deletes an expelled instance from _cluster
+	// on a writable instance, and returns false on a read-only one. The body
+	// has no comments: the text console gets it as one line.
+	//
+	//go:embed lua/cconfig/expel_from_cluster_body.lua
+	cconfigExpelFromClusterBody string
 )
 
 // cconfigTopology used to export topology information from a Tarantool
@@ -248,18 +260,17 @@ func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 	}
 
 	var (
-		instances   []running.InstanceCtx
+		survivors   []running.InstanceCtx
 		unavailable []string
 	)
 
 	for _, inst := range targetReplicaset.Instances {
-		if !inst.InstanceCtxFound {
-			if inst.Alias != ctx.InstName {
-				// The target instance could be offline.
-				unavailable = append(unavailable, inst.Alias)
-			}
-		} else {
-			instances = append(instances, inst.InstanceCtx)
+		switch {
+		case inst.Alias == ctx.InstName:
+		case !inst.InstanceCtxFound:
+			unavailable = append(unavailable, inst.Alias)
+		default:
+			survivors = append(survivors, inst.InstanceCtx)
 		}
 	}
 
@@ -273,13 +284,11 @@ func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 		log.Warn(msg)
 	}
 
-	isConfigPublished, err := c.expel(targetInstance.InstanceCtx, ctx.InstName)
-	// Check the config was published.
-	if isConfigPublished {
-		err = errors.Join(err, reloadCConfig(instances))
+	if len(survivors) == 0 {
+		return errNotFoundAnyOtherInstanceJoinedToAReplicaset
 	}
 
-	return err
+	return c.expel(targetInstance, survivors, ctx.Timeout)
 }
 
 // getCConfigInstanceTopology returns a topology for an instance.
@@ -825,21 +834,38 @@ func (c *CConfigApplication) demote(instance Instance,
 	return true, nil
 }
 
-// expel expels an instance in the application and returns true
-// if the instance config was published.
-func (c *CConfigApplication) expel(instance running.InstanceCtx, name string) (bool, error) {
-	clusterCfgPath := instance.ClusterConfigPath
+// expel removes an instance from its replicaset the way the documentation
+// of Tarantool does (patchCConfigExpel): it stops the instance, removes it
+// from the config, reloads the config of the other instances of the
+// replicaset, survivors, and deletes the instance from _cluster on the one
+// of them that is writable.
+func (c *CConfigApplication) expel(target Instance, survivors []running.InstanceCtx,
+	timeout int,
+) error {
+	clusterCfgPath := target.InstanceCtx.ClusterConfigPath
 
 	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
-		return false, fmt.Errorf("failed to get cluster config: %w", err)
+		return fmt.Errorf("failed to get cluster config: %w", err)
 	}
 
 	goView := clusterCfg.Snapshot()
 
-	cconfigInstance, err := getCConfigInstance(goView, name)
+	cconfigInstance, err := getCConfigInstance(goView, target.Alias)
 	if err != nil {
-		return false, err
+		return err
+	}
+
+	err = checkExpelLeader(&goView, cconfigInstance)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Stopping the instance %s", target.Alias)
+
+	err = running.Stop(&target.InstanceCtx)
+	if err != nil {
+		return fmt.Errorf("failed to stop %q: %w", target.Alias, err)
 	}
 
 	err = patchLocalCConfig(
@@ -851,10 +877,71 @@ func (c *CConfigApplication) expel(instance running.InstanceCtx, name string) (b
 		},
 	)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, err
+	err = reloadCConfig(survivors)
+	if err != nil {
+		return err
+	}
+
+	// With election failover a new leader may yet have to be elected.
+	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
+
+	for {
+		err = deleteFromCluster(survivors, target.UUID)
+		if !errors.Is(err, errNoWritableInstance) || time.Now().After(deadline) {
+			break
+		}
+
+		time.Sleep(expelRetryInterval)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to delete %q from _cluster: %w", target.Alias, err)
+	}
+
+	log.Infof("The instance %s is removed from the config and from _cluster. "+
+		"Its data is left in %s; if instances.yaml lists it by name, remove it from there",
+		target.Alias, target.InstanceCtx.WalDir)
+
+	return nil
+}
+
+// expelRetryInterval is how often expel looks for a writable instance to
+// delete the expelled one from _cluster on.
+const expelRetryInterval = 200 * time.Millisecond
+
+// deleteFromCluster deletes the instance of uuid from the _cluster space on
+// the writable instance among instances.
+func deleteFromCluster(instances []running.InstanceCtx, uuid string) error {
+	deleted := false
+
+	err := EvalForeachAlive(instances, InstanceEvalFunc(
+		func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+			args := []any{uuid}
+			opts := connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil}
+
+			data, err := evaler.Eval(cconfigExpelFromClusterBody, args, opts)
+			if err != nil {
+				return true, err
+			}
+
+			if len(data) == 1 {
+				deleted, _ = data[0].(bool)
+			}
+
+			return deleted, nil
+		}))
+	if err != nil {
+		return err
+	}
+
+	if !deleted {
+		return errNoWritableInstance
+	}
+
+	return nil
 }
 
 // demoteElection demotes an instance in the replicaset with "election" failover.
@@ -1153,36 +1240,61 @@ func patchCConfigPromote(config *goconfig.MutableConfig,
 	return config, nil
 }
 
-// patchCConfigExpel patches the config to expel an instance, following the documentation:
-// https://www.tarantool.io/en/doc/latest/how-to/replication/
-// repl_bootstrap/#disconnecting-an-instance
+// patchCConfigExpel patches the config to expel an instance: it removes the
+// instance from the topology, as the documentation of Tarantool removes one
+// from a replicaset:
+// https://www.tarantool.io/en/doc/latest/platform/replication/
+// replication_tutorials/repl_bootstrap/#removing-an-instance
 //
-// It set up:
-// instance.iproto.listen = {}.
+// The disconnecting step of that page, an instance kept with iproto: {} or
+// iproto.listen: {}, leaves a config that tt's schema refuses and from which
+// Tarantool 3.9 builds no replication.peers for the other members. The
+// leader of a replicaset is refused: the config would name a leader the
+// replicaset no longer has.
 func patchCConfigExpel(config *goconfig.MutableConfig,
 	inst cconfigInstance,
 ) (*goconfig.MutableConfig, error) {
-	var (
-		groupName      = inst.groupName
-		replicasetName = inst.replicasetName
-		instName       = inst.name
-	)
-
-	instPath := goconfig.NewKeyPath(fmt.Sprintf(
-		"groups/%s/replicasets/%s/instances/%s",
-		groupName, replicasetName, instName))
-	clearEmptyMapFlowStyle(config, instPath)
-
-	listenPath := goconfig.NewKeyPath(fmt.Sprintf(
-		"groups/%s/replicasets/%s/instances/%s/iproto/listen",
-		groupName, replicasetName, instName))
-
-	err := config.Set(listenPath, map[string]any{})
+	err := checkExpelLeader(config, inst)
 	if err != nil {
-		return nil, fmt.Errorf("failed to clear iproto.listen of %q: %w", instName, err)
+		return nil, err
+	}
+
+	instPath := goconfig.NewKeyPath(fmt.Sprintf("groups/%s/replicasets/%s/instances/%s",
+		inst.groupName, inst.replicasetName, inst.name))
+	if !config.Delete(instPath) {
+		return nil, fmt.Errorf("%w%q not found in the cluster configuration",
+			errInstanceNotFound, inst.name)
 	}
 
 	return config, nil
+}
+
+// configLookuper is a config a value is looked up in: a snapshot or a
+// mutable one.
+type configLookuper interface {
+	Lookup(path goconfig.KeyPath) (goconfig.Value, bool)
+}
+
+// checkExpelLeader refuses to expel the leader its replicaset names in the
+// config, which manual failover has: the config would name a leader the
+// replicaset does not have.
+func checkExpelLeader(config configLookuper, inst cconfigInstance) error {
+	value, ok := config.Lookup(goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/leader", inst.groupName, inst.replicasetName)))
+	if !ok {
+		return nil
+	}
+
+	// A leader that is not a string is for the schema to refuse.
+	var leader string
+
+	_ = value.Get(&leader)
+	if leader != inst.name {
+		return nil
+	}
+
+	return fmt.Errorf("%w %q of %q: promote another instance first with "+
+		"tt replicaset promote", errExpelLeader, inst.name, inst.replicasetName)
 }
 
 // patchCConfigDemote patches the config to demote an instance.

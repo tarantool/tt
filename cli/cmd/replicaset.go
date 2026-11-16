@@ -252,8 +252,17 @@ func newExpelCmd() *cobra.Command {
 		Use: "expel [-f] [--config|--custom] [--timeout secs] " +
 			"<APP>:<INSTANCE>",
 		Short: "Expel an instance from a replicaset",
-		Long:  "Expel an instance from a replicaset.",
-		RunE:  internalRunE(internalReplicasetExpelModule),
+		Long: `Expel an instance from a replicaset.
+
+With the centralized config, the instance is removed the way the Tarantool
+documentation removes one: it is stopped, its entry is deleted from the
+config, the other instances of the replicaset reload the config, and the
+instance is deleted from the _cluster space on the writable one of them,
+waiting up to --timeout seconds for one. The leader of a replicaset with
+manual failover is refused: promote another instance first. The data of the
+expelled instance is left on disk, and an instances.yaml that names it still
+does.`,
+		RunE: internalRunE(internalReplicasetExpelModule),
 		Args:  cobra.ExactArgs(1),
 	}
 

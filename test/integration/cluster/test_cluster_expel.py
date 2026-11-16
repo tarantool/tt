@@ -92,8 +92,5 @@ groups:
       replicaset-001:
         instances:
           instance-001: {}
-          instance-002:
-            iproto:
-              listen: {}
 """
     )

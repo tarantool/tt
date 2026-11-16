@@ -1115,6 +1115,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installed in the user scope: …`, naming the constraint and the
   `tt binary install tarantool <version> --scope user` that satisfies it.
   The install succeeded silently, and the first `tt instance start` failed.
+- `tt replicaset expel` with the centralized config removes the instance the
+  way the Tarantool documentation removes one from a replicaset: it stops the
+  instance, deletes its entry from the config, reloads the config of the
+  other instances of the replicaset, and deletes the instance from `_cluster`
+  on the writable one. It used to keep the instance in the config with
+  `iproto.listen: {}`, which the schema of tt refuses and from which
+  Tarantool 3.9 builds no `replication.peers` for the other members, so the
+  leader of the replicaset of the `cluster` template was left in
+  `check_errors`, while the expelled instance kept running. The leader of a
+  replicaset with manual failover is refused with a hint to promote another
+  instance first. `tt cluster replicaset expel` deletes the entry from the
+  config too.
 - `tt data play <APP>:<INSTANCE>` reaches an instance whose config has it
   listen for iproto on TCP only, as every built-in template does, at the
   first address of its `iproto.listen`, with TLS when that entry has

@@ -1,7 +1,14 @@
 import re
+from pathlib import Path
 
 import pytest
-from replicaset_helpers import copy_application
+from replicaset_helpers import (
+    copy_application,
+    create_template_project,
+    start_template_project,
+    stop_template_project,
+    template_project_status,
+)
 
 from utils import run_command_and_get_output, wait_file
 
@@ -122,10 +129,18 @@ Replicasets state: bootstrapped
     • instance-005 unix/:./instance-005.iproto rw
 
    • Expel instance: instance-003
+   • Stopping the instance instance-003
+   • The Instance test_ccluster_app:instance-003 \\(PID = \\d+\\) has been terminated.
+   • The instance instance-003 is removed from the config and from _cluster.*
    • Done.*
 """,
             out,
         )
+
+        # The instance is gone from the config, and stopped.
+        config = (Path(app_path) / ".templates" / "default" / "config.yaml").read_text()
+        assert "instance-003" not in config
+        assert "instance-002" in config
 
         # Check that the instance has been expelled.
         status_cmd = [tt_cmd, "replicaset", "status", app_name]
@@ -153,3 +168,62 @@ Replicasets state: bootstrapped
         stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:*"]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0
+
+
+def test_expel_cluster_template(tt_cmd, tmp_path):
+    """Expel in a project of the cluster template, whose instances.yaml has
+    "*": the instance is stopped and removed from the config and from
+    _cluster, the config stays valid, and the leader that remains alone in
+    its replicaset is healthy. The leader itself is refused."""
+    instances = ["replicaset-001-a", "replicaset-001-b", "replicaset-002-a", "replicaset-002-b"]
+    app_dir = create_template_project(tt_cmd, tmp_path, "cluster", "ex", "378")
+    start_template_project(tt_cmd, app_dir, instances)
+    try:
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "replicaset", "expel", "ex:replicaset-002-a"],
+            cwd=app_dir,
+        )
+        assert rc == 1
+        assert 'cannot expel the leader "replicaset-002-a" of "replicaset-002"' in out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "replicaset", "expel", "ex:replicaset-002-b"],
+            cwd=app_dir,
+        )
+        assert rc == 0, out
+        assert "The instance replicaset-002-b is removed from the config and from _cluster" in out
+        assert "failed to reload" not in out
+
+        config = (app_dir / ".templates" / "default" / "config.yaml").read_text()
+        assert "replicaset-002-b" not in config
+        assert "listen: {}" not in config
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "show", "--validate", "ex"],
+            cwd=app_dir,
+        )
+        assert rc == 0, out
+
+        # The expelled instance is stopped, and with "*" no longer one of the
+        # project; the leader is configured without alerts.
+        status = template_project_status(tt_cmd, app_dir)
+        assert sorted(status) == sorted(i for i in instances if i != "replicaset-002-b")
+        assert status["replicaset-002-a"]["CONFIG"] == "ready"
+        assert status["replicaset-002-a"]["MODE"] == "RW"
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "connect", "ex:replicaset-002-a", "-f-"],
+            cwd=app_dir,
+            input="box.space._cluster:count()",
+        )
+        assert rc == 0, out
+        assert "- 1" in out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "replicaset", "status", "ex"],
+            cwd=app_dir,
+        )
+        assert rc == 0, out
+        assert "replicaset-002-b" not in out
+    finally:
+        stop_template_project(tt_cmd, app_dir)

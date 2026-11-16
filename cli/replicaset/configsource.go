@@ -428,12 +428,13 @@ func getCConfigExpelPath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
 		instName       = inst.name
 	)
 
+	// The instance is removed from the topology (patchCConfigExpel), so the
+	// key to patch is one that has its whole entry.
 	path := goconfig.NewKeyPath(fmt.Sprintf(
-		"groups/%s/replicasets/%s/instances/%s/iproto/listen",
+		"groups/%s/replicasets/%s/instances/%s",
 		groupName, replicasetName, instName))
-	depth := len(path) - configPathSuffixSegments
 
-	return path, depth, nil
+	return path, len(path), nil
 }
 
 // patchTarget describes a cluster config patch target.

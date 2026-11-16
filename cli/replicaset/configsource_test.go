@@ -803,17 +803,89 @@ func TestCConfigSource_Expel_single_key(t *testing.T) {
 	err := source.Expel(replicaset.ExpelCtx{InstName: "instance-002"})
 	require.NoError(t, err)
 
+	// The instance is gone from the topology: an iproto.listen: {} it was
+	// kept with is refused by the schema of tt and fails replication.peers
+	// of the other instances in Tarantool 3.9.
 	expected := []byte(`groups:
   group-1:
     replicasets:
       replicaset-001:
         instances:
           instance-001: {}
-          instance-002:
-            iproto:
-              listen: {}
 `)
 	assertPublished(t, publisher, "a", expected)
+}
+
+func TestCConfigSource_Expel_keeps_the_rest(t *testing.T) {
+	cfg := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        leader: instance-001
+        instances:
+          instance-001:
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3301
+          instance-002:
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3302
+          instance-003:
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3303
+`)
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
+		{Source: "a", Value: cfg, Revision: revision},
+	}, nil)
+	picker := replicaset.KeyPicker(func(_ []string, _ bool, _ string) (int, error) {
+		return 0, nil
+	})
+	publisher := newOnceMockDataPublisher(nil)
+	source := replicaset.NewCConfigSource(collector, publisher, picker)
+	require.NoError(t, source.Expel(replicaset.ExpelCtx{InstName: "instance-002"}))
+
+	expected := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        leader: instance-001
+        instances:
+          instance-001:
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3301
+          instance-003:
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3303
+`)
+	assertPublished(t, publisher, "a", expected)
+}
+
+func TestCConfigSource_Expel_leader(t *testing.T) {
+	cfg := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        leader: instance-001
+        instances:
+          instance-001: {}
+          instance-002: {}
+`)
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
+		{Source: "a", Value: cfg, Revision: revision},
+	}, nil)
+	picker := replicaset.KeyPicker(func(_ []string, _ bool, _ string) (int, error) {
+		return 0, nil
+	})
+	publisher := newOnceMockDataPublisher(nil)
+	source := replicaset.NewCConfigSource(collector, publisher, picker)
+	err := source.Expel(replicaset.ExpelCtx{InstName: "instance-001"})
+	require.EqualError(t, err, `cannot expel the leader "instance-001" of "replicaset-001": `+
+		`promote another instance first with tt replicaset promote`)
+	require.Zero(t, publisher.Called)
 }
 
 func TestCConfigSource_AddRole(t *testing.T) {
