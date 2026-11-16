@@ -188,8 +188,9 @@ func TestSwitchVersionIdentity(t *testing.T) {
 		{"master", []string{"master", "vmaster"}, "master", "master"},
 		{"sha", []string{"123abcd", "v123abcd"}, "123abcd", "123abcd"},
 		{"missing", []string{"v3.0.0"}, "3.1.0", ""},
-		{"no_major_completion", []string{"v3.0.0"}, "3", ""},
-		{"no_minor_completion", []string{"v3.0.0"}, "3.0", ""},
+		{"major_completion", []string{"v3.0.0"}, "3", "v3.0.0"},
+		{"minor_completion", []string{"v3.0.0"}, "3.0", "v3.0.0"},
+		{"ambiguous_completion", []string{"3.0.0", "v3.0.1"}, "3.0", ""},
 		{"no_master_alias", []string{"vmaster"}, "master", ""},
 		{"no_sha_alias", []string{"v123abcd"}, "123abcd", ""},
 		{"no_numeric_sha_alias", []string{"v1234567"}, "1234567", ""},
@@ -252,9 +253,9 @@ func TestSwitchBundleVersions(t *testing.T) {
 				expected  string
 				err       error
 			}{
-				{"reject_major", []string{product.stable, "4.0.0"}, "3", "",
-					errBinaryNotInstalledInScope},
-				{"reject_minor", []string{product.stable, "3.9.0"}, "3.8", "",
+				{"major", []string{product.stable, "4.0.0"}, "3", product.stable, nil},
+				{"minor", []string{product.stable, "3.9.0"}, "3.8", product.stable, nil},
+				{"missing_minor", []string{product.stable}, "3.9", "",
 					errBinaryNotInstalledInScope},
 				{"patch", []string{product.stable, "3.8.2"}, "3.8.1", product.stable, nil},
 				{"unique_variant", []string{product.variant}, "3.8.1", product.variant, nil},
@@ -271,10 +272,10 @@ func TestSwitchBundleVersions(t *testing.T) {
 					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
 				{"ambiguous_rc", []string{product.stable, product.candidate},
 					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
-				{"reject_major_multiple", []string{product.stable, "3.9.0"},
-					"3", "", errBinaryNotInstalledInScope},
-				{"reject_minor_multiple", []string{product.stable, "3.8.2"},
-					"3.8", "", errBinaryNotInstalledInScope},
+				{"ambiguous_major", []string{product.stable, "3.9.0"},
+					"3", "", version.ErrAmbiguousInstalledVersion},
+				{"ambiguous_minor", []string{product.stable, "3.8.2"},
+					"3.8", "", version.ErrAmbiguousInstalledVersion},
 				{"missing", []string{product.stable}, "3.8.2", "",
 					errBinaryNotInstalledInScope},
 				{"partial_decorated", []string{product.candidate}, "3.8.1-rc1", "",
@@ -326,6 +327,44 @@ func TestSwitchBundleVersions(t *testing.T) {
 					}
 				})
 			}
+		})
+	}
+}
+
+// TestSwitchPartialCommunityVersion: X and X.Y of tarantool and tt take the
+// one installation of those numbers; an exact name wins, and a version not
+// installed is named as asked for, with the installed ones listed.
+func TestSwitchPartialCommunityVersion(t *testing.T) {
+	for _, program := range []binary.Program{binary.ProgramCe, binary.ProgramTt} {
+		t.Run(program.String(), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			root, err := binary.ScopeProject.ArtifactPath()
+			require.NoError(t, err)
+
+			older := installVersion(t, root, program, "3.8.2")
+			newer := installVersion(t, root, program, "v3.9.0")
+
+			for _, step := range []struct {
+				requested string
+				expected  installedFixture
+			}{{"3.8", older}, {"3.9", newer}, {"3.9.0", newer}, {"3.8.2", older}} {
+				ctx := switchContext(binary.ScopeProject, program, step.requested)
+				require.NoError(t, Switch(&ctx), step.requested)
+				assertLink(t, filepath.Join(root, "bin", program.Exec()), step.expected.BinaryPath)
+			}
+
+			ctx := switchContext(binary.ScopeProject, program, "3")
+
+			err = Switch(&ctx)
+			require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
+			require.ErrorContains(t, err, "3.8.2, v3.9.0")
+
+			ctx = switchContext(binary.ScopeProject, program, "3.10")
+			err = Switch(&ctx)
+			require.ErrorIs(t, err, errBinaryNotInstalledInScope)
+			require.EqualError(t, err, "failed to switch binary: "+program.String()+
+				" 3.10 is not installed in the selected scope; installed: 3.8.2 (active), v3.9.0")
 		})
 	}
 }

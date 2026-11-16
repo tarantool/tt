@@ -111,10 +111,13 @@ version, `3.8.1`, without the `gc64` prefix, the revision, or the hash:
 revision keeps the one there unless `--reinstall` is given. Prereleases and
 debug builds stay apart: `3.8.1-rc1`, `debug-3.8.1`.
 
-`tt binary switch` and `tt binary uninstall` take `X.Y.Z` for Enterprise,
-tt Enterprise and TCM, matching the versions installed in the scope; `X`
-and `X.Y` are not expanded. An exact installed name wins; otherwise exactly
-one installation must match, and an ambiguous request changes nothing.
+`tt binary switch` takes `X`, `X.Y` or `X.Y.Z` of every product, matching
+the versions installed in the scope: `tt binary switch tarantool 3.9`
+selects the 3.9.0 installed. `tt binary uninstall`, which removes what it
+matches, takes `X.Y.Z` for Enterprise, tt Enterprise and TCM, and `X` and
+`X.Y` are not expanded. An exact installed name wins; otherwise exactly one
+installation must match, and an ambiguous request changes nothing. A
+version that is not installed is an error that lists the installed ones.
 
 ### Development builds
 

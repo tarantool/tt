@@ -1610,6 +1610,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of the product they name: the menu lists the installed versions of both
   editions, the Enterprise ones as `3.8.1ee`, with the cursor on the active
   one.
+- `tt binary switch tarantool 3.9` selects the one 3.9 installed, as
+  `tt binary install tarantool 3.9` installs one: `switch` takes `X`, `X.Y`
+  and `X.Y.Z` of every product, and fails listing the matches when several
+  are installed. It failed with `binary tarantool_3.9 is not installed`,
+  naming a directory. A version that is not installed is now named as it
+  was asked for, with the installed versions:
+  `tarantool 3.10 is not installed in the selected scope; installed: 3.8.2
+  (active), 3.9.0`; `tt binary uninstall` says the same instead of
+  `program is not installed`. `uninstall`, which removes what it matches,
+  still takes no `X` or `X.Y` of Enterprise, tt Enterprise and TCM.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

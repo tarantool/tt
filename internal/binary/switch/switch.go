@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	errBinaryNotInstalledInScope  = errors.New("binary ")
+	errBinaryNotInstalledInScope  = errors.New("is not installed in the selected scope")
 	errHeadersNotInstalledInScope = errors.New("headers ")
 	errNoInstalledVersionsInScope = errors.New("there are no ")
 	errInvalidVersion             = errors.New("invalid version")
@@ -65,6 +65,11 @@ func Choices(scope binary.Scope, program binary.Program) ([]Choice, error) {
 		return nil, err
 	}
 
+	return choicesIn(root, program)
+}
+
+// choicesIn is Choices of the scope with the root directory root.
+func choicesIn(root string, program binary.Program) ([]Choice, error) {
 	programs := []binary.Program{program}
 	if enterprise := program.EnterpriseProgram(); enterprise != binary.ProgramUnknown {
 		programs = append(programs, enterprise)
@@ -316,6 +321,7 @@ func validateProgram(program binary.Program) error {
 }
 
 // resolveInstalledBundleVersion examines only installation names in the selected scope.
+// X, X.Y and X.Y.Z take the one installation of those numbers.
 func resolveInstalledBundleVersion(root string, program binary.Program,
 	requested string,
 ) (string, error) {
@@ -324,7 +330,7 @@ func resolveInstalledBundleVersion(root string, program binary.Program,
 		return "", err
 	}
 
-	selected, err := binary.MatchInstalledVersion(program, requested, installed)
+	selected, err := binary.MatchInstalledPrefix(program, requested, installed)
 
 	return selected, err
 }
@@ -357,6 +363,37 @@ func findInstalledVersion(root string, program binary.Program,
 		candidates = append(candidates, alternative)
 	}
 
+	selected, installation, found, err := firstInstalled(root, program, candidates)
+	if err != nil || found {
+		return selected, installation, err
+	}
+
+	// X, X.Y or X.Y.Z of tarantool or tt that names no installation exactly
+	// takes the one installation of those numbers, as for the bundles.
+	if !exactVersion && !matchBundleVersion && version.IsNumericVersion(requested) {
+		selected, err := resolveInstalledBundleVersion(root, program, requested)
+
+		switch {
+		case errors.Is(err, version.ErrInstalledVersionNotFound):
+		case err != nil:
+			return "", "", err
+		default:
+			selected, installation, found, err := firstInstalled(root, program,
+				[]string{selected})
+			if err != nil || found {
+				return selected, installation, err
+			}
+		}
+	}
+
+	return "", "", notInstalled(root, program, requested)
+}
+
+// firstInstalled returns the first of candidates installed as program in
+// root, and the directory of its installation.
+func firstInstalled(root string, program binary.Program, candidates []string) (
+	string, string, bool, error,
+) {
 	for _, candidate := range candidates {
 		installation := binary.InstallationPath(root, program, candidate)
 		binPath := filepath.Join(installation, program.Exec())
@@ -366,15 +403,27 @@ func findInstalledVersion(root string, program binary.Program,
 		case errors.Is(err, os.ErrNotExist):
 			continue
 		case err != nil:
-			return "", "", fmt.Errorf("failed to access %q: %w", binPath, err)
+			return "", "", false, fmt.Errorf("failed to access %q: %w", binPath, err)
 		case info.Mode().IsRegular():
-			return candidate, installation, nil
+			return candidate, installation, true, nil
 		}
 	}
 
-	return "", "", fmt.Errorf("%w%s is not installed in the selected scope",
-		errBinaryNotInstalledInScope,
-		program.String()+version.FsSeparator+requested)
+	return "", "", false, nil
+}
+
+// notInstalled is the error of a version of program not installed in root:
+// it names the version as it was asked for and lists the installed ones, as
+// tt binary switch takes them.
+func notInstalled(root string, program binary.Program, requested string) error {
+	choices, err := choicesIn(root, program)
+	if err != nil || len(choices) == 0 {
+		return fmt.Errorf("%s %s %w; no %s versions are installed there",
+			program, requested, errBinaryNotInstalledInScope, program)
+	}
+
+	return fmt.Errorf("%s %s %w; installed: %s",
+		program, requested, errBinaryNotInstalledInScope, joinArguments(choices))
 }
 
 // alternateReleaseSpelling accepts v-prefixed release tags without altering branches or hashes.
@@ -450,8 +499,7 @@ func switchSDK(root, requested string, exact bool) error {
 		selected, err = resolveInstalledBundleVersion(root, binary.ProgramSDK, requested)
 		if err != nil {
 			if errors.Is(err, version.ErrInstalledVersionNotFound) {
-				return fmt.Errorf("%wSDK %s is not installed in the selected scope",
-					errBinaryNotInstalledInScope, requested)
+				return notInstalled(root, binary.ProgramSDK, requested)
 			}
 
 			return err

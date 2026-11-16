@@ -2,6 +2,7 @@ import io
 import json
 import os
 import platform
+import re
 import shutil
 import tarfile
 
@@ -263,8 +264,7 @@ def test_tt_ee_install_scope_and_lifecycle(tt_cmd, tmp_path, scope):
     assert rc == 0, output
     rc, output = binary_command(tt_cmd, tmp_path, "list", scope=scope)
     assert rc == 0, output
-    assert "tt-ee:" in output
-    assert f"{TT_EE_VERSION} [active]" in output
+    assert re.search(rf"^tt-ee +{re.escape(TT_EE_VERSION)} \[active\]$", output, re.M)
     rc, output = binary_command(
         tt_cmd,
         tmp_path,

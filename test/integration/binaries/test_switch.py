@@ -151,18 +151,40 @@ def test_switch_tt_version_spelling(tt_cmd, tmp_path, stored, requested):
         ("tcm", "3.8.1-0-g123abcd"),
     ],
 )
-def test_switch_rejects_incomplete_version(tt_cmd, tmp_path, program, stored, requested):
+def test_switch_expands_partial_version(tt_cmd, tmp_path, program, stored, requested):
     root = tmp_path / ".tarantool"
     active = install_version(root, program, "2.10.3")
-    install_version(root, program, stored)
+    selected = install_version(root, program, stored)
     cmd = [tt_cmd, "binary", "--scope", "project", "switch", program]
     rc, output = run_command_and_get_output([*cmd, "2.10.3"], cwd=tmp_path)
     assert rc == 0, output
+    assert_active(root, active, program)
 
     rc, output = run_command_and_get_output([*cmd, requested], cwd=tmp_path)
 
-    assert rc != 0, output
-    assert "is not installed in the selected scope" in output
+    assert rc == 0, output
+    assert_active(root, selected, program)
+
+
+@pytest.mark.parametrize("program", ["tt", "tarantool"])
+def test_switch_partial_version_ambiguous_or_missing(tt_cmd, tmp_path, program):
+    root = tmp_path / ".tarantool"
+    active = install_version(root, program, "3.8.2")
+    install_version(root, program, "3.9.0")
+    cmd = [tt_cmd, "binary", "--scope", "project", "switch", program]
+    rc, output = run_command_and_get_output([*cmd, "3.8.2"], cwd=tmp_path)
+    assert rc == 0, output
+
+    rc, output = run_command_and_get_output([*cmd, "3"], cwd=tmp_path)
+    assert rc == 1, output
+    assert 'more than one installed version matches "3": 3.8.2, 3.9.0' in output
+
+    rc, output = run_command_and_get_output([*cmd, "3.10"], cwd=tmp_path)
+    assert rc == 1, output
+    assert (
+        f"{program} 3.10 is not installed in the selected scope; installed: 3.8.2 (active), 3.9.0"
+    ) in output
+    assert f"{program}_3.10" not in output
     assert_active(root, active, program)
 
 

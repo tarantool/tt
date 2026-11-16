@@ -97,7 +97,20 @@ func BundleInstallationID(program Program, source version.Version, dev bool) str
 }
 
 // MatchInstalledVersion keeps SDK components and development builds in separate namespaces.
+// A numeric request is X.Y.Z, as version.MatchInstalledVersion takes it.
 func MatchInstalledVersion(program Program, requested string, installed []string) (string, error) {
+	return matchInstalledVersion(program, requested, installed, version.MatchInstalledVersion)
+}
+
+// MatchInstalledPrefix is MatchInstalledVersion that expands X and X.Y too, as
+// version.MatchInstalledPrefix does: tt binary switch takes them.
+func MatchInstalledPrefix(program Program, requested string, installed []string) (string, error) {
+	return matchInstalledVersion(program, requested, installed, version.MatchInstalledPrefix)
+}
+
+func matchInstalledVersion(program Program, requested string, installed []string,
+	match func(string, []string) (string, error),
+) (string, error) {
 	fromSDK := false
 
 	if program == ProgramSDK {
@@ -141,7 +154,7 @@ func MatchInstalledVersion(program Program, requested string, installed []string
 		}
 	}
 
-	selected, err := version.MatchInstalledVersion(requested, candidates)
+	selected, err := match(requested, candidates)
 	if err != nil {
 		return "", err
 	}

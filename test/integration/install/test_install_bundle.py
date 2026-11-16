@@ -409,8 +409,13 @@ def test_bundle_short_version_preserves_sole_installation(
         [tt_cmd, "binary", operation, program, requested],
         cwd=tmp_path,
     )
-    assert rc != 0, output
-    assert "not installed" in output
+    # switch takes X and X.Y of the one installation; uninstall, which
+    # removes it, wants X.Y.Z or the full name.
+    if operation == "switch":
+        assert rc == 0, output
+    else:
+        assert rc != 0, output
+        assert "not installed" in output
     assert list((root / "versions" / program).iterdir()) == [selected]
     assert_active(root, program, full_version)
 

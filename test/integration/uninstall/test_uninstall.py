@@ -93,7 +93,8 @@ def test_uninstall_missing(tt_cmd, tmp_path):
     rc, output = uninstall(tt_cmd, tmp_path, "tt", "1.2.3")
     assert rc == 1
     assert "Removing binary..." in output
-    assert "program is not installed" in output
+    assert "tt 1.2.3 is not installed in the selected scope" in output
+    assert "no tt versions are installed there" in output
     assert not (tmp_path / ".tarantool").exists()
 
 
@@ -277,7 +278,7 @@ def test_uninstall_project_ignores_parent_and_user(tt_cmd, tmp_path, user_root):
     child.mkdir()
     rc, output = uninstall(tt_cmd, child, "tt", "3.0.0")
     assert rc == 1
-    assert "program is not installed" in output
+    assert "tt 3.0.0 is not installed in the selected scope" in output
     assert parent.is_dir() and user.is_dir()
     assert_active(tmp_path / ".tarantool", parent, "tt")
     assert_active(user_root, user, "tt")
@@ -308,7 +309,7 @@ def test_uninstall_scope_isolation_and_replacement(tt_cmd, tmp_path, user_root, 
 
     rc, output = uninstall(tt_cmd, project, "tt", "8.0.0", scope=scope)
     assert rc == 1
-    assert "program is not installed" in output
+    assert "tt 8.0.0 is not installed in the selected scope; installed: v2.0.0" in output
     assert newer.is_dir()
     assert_active(selected_root, replacement, "tt")
 

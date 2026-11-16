@@ -215,13 +215,25 @@ func IsNumericVersion(requested string) bool {
 // A numeric request must match exactly one build, including prereleases and revisions.
 // Partial numbers are never expanded. Literal names such as commit hashes match exactly.
 func MatchInstalledVersion(requested string, installed []string) (string, error) {
+	return matchInstalledVersion(requested, installed, false)
+}
+
+// MatchInstalledPrefix is MatchInstalledVersion that expands X and X.Y too:
+// a numeric request matches the builds whose leading numbers it gives, so
+// 3.8 matches 3.8.1 and 3.8.2, and it must match exactly one of them.
+func MatchInstalledPrefix(requested string, installed []string) (string, error) {
+	return matchInstalledVersion(requested, installed, true)
+}
+
+func matchInstalledVersion(requested string, installed []string, partial bool) (string, error) {
 	if requested == "" {
 		return "", fmt.Errorf("%w: %q", ErrInstalledVersionNotFound, requested)
 	}
 
-	reference, err := Parse(requested)
-	numeric := err == nil && IsNumericVersion(requested)
-	fields := requiredFields{requiredFieldMajor, requiredFieldMinor, requiredFieldPatch}
+	reference, fields, numeric := numericReference(requested)
+	if !partial && len(fields) != semanticVersionParts {
+		numeric = false
+	}
 
 	var matches []string
 
@@ -253,6 +265,32 @@ func MatchInstalledVersion(requested string, installed []string) (string, error)
 		return "", fmt.Errorf("%w %q: %s; specify the full version name",
 			ErrAmbiguousInstalledVersion, requested, strings.Join(matches, ", "))
 	}
+}
+
+// numericReference reads a numeric request, X, X.Y or X.Y.Z, into the
+// version and the fields of it a candidate must have equal. Any other
+// request is not numeric.
+func numericReference(requested string) (Version, requiredFields, bool) {
+	var reference Version
+
+	if !IsNumericVersion(requested) {
+		return reference, nil, false
+	}
+
+	all := requiredFields{requiredFieldMajor, requiredFieldMinor, requiredFieldPatch}
+	parts := strings.Split(requested, ".")
+	values := []*uint64{&reference.Major, &reference.Minor, &reference.Patch}
+
+	for index, part := range parts {
+		value, err := util.AtoiUint64(part)
+		if err != nil {
+			return reference, nil, false
+		}
+
+		*values[index] = value
+	}
+
+	return reference, all[:len(parts)], true
 }
 
 // MatchVersion takes as input an ascending sorted list of versions.

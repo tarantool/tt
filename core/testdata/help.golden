@@ -1552,9 +1552,8 @@ Switching tarantool-sdk (also sdk and SDK) selects all of its components and
 headers together. Use sdk-<bundle-version> to select an individual SDK
 component.
 
-For tarantool-ee, tt-ee, and tcm, X.Y.Z must match a single installed version in
-the
-selected scope.
+X, X.Y, or X.Y.Z must match a single installed version in the selected
+scope: "tt binary switch tarantool 3.9" selects the 3.9.0 installed.
 If multiple builds match, the command reports their full names and requires
 an unambiguous choice before changing the active version.
 Use a full installed version name to select a specific build.

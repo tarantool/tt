@@ -351,3 +351,34 @@ func TestMatchInstalledVersionNotFound(t *testing.T) {
 	require.ErrorIs(t, err, version.ErrInstalledVersionNotFound)
 	assert.Empty(t, got)
 }
+
+// TestMatchInstalledPrefix: X and X.Y match the builds of their leading
+// numbers, and must match exactly one; the rest is MatchInstalledVersion.
+func TestMatchInstalledPrefix(t *testing.T) {
+	installed := []string{"3.8.2", "3.9.0", "v2.11.1", "gc64-3.7.0-0-r1", "master"}
+
+	for requested, want := range map[string]string{
+		"3.9": "3.9.0", "3.8": "3.8.2", "2": "v2.11.1", "2.11": "v2.11.1",
+		"3.7": "gc64-3.7.0-0-r1", "03.09": "3.9.0", "3.9.0": "3.9.0", "master": "master",
+	} {
+		t.Run(requested, func(t *testing.T) {
+			got, err := version.MatchInstalledPrefix(requested, installed)
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
+
+	got, err := version.MatchInstalledPrefix("3", installed)
+	require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
+	require.ErrorContains(t, err, "3.8.2, 3.9.0, gc64-3.7.0-0-r1")
+	assert.Empty(t, got)
+
+	_, err = version.MatchInstalledPrefix("3.8",
+		[]string{"gc64-3.8.1-rc1-0-r1", "gc64-3.8.1-0-r1"})
+	require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
+
+	for _, requested := range []string{"3.10", "4", "", "3.", ".8"} {
+		_, err = version.MatchInstalledPrefix(requested, installed)
+		require.ErrorIs(t, err, version.ErrInstalledVersionNotFound, requested)
+	}
+}

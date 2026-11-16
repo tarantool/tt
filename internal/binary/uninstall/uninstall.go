@@ -261,8 +261,10 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 		programVersion, err = binary.MatchInstalledVersion(program, programVersion, installed)
 	}
 
+	requested := programVersion
+
 	if errors.Is(err, version.ErrInstalledVersionNotFound) {
-		return fmt.Errorf("%w: %w", errNotInstalled, err)
+		return notInstalled(program, requested, root)
 	}
 
 	if err != nil {
@@ -287,6 +289,10 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 		if !errors.Is(err, errNotInstalled) {
 			break
 		}
+	}
+
+	if errors.Is(err, errNotInstalled) {
+		return notInstalled(program, requested, root)
 	}
 
 	if err != nil {
@@ -353,6 +359,35 @@ func getAllTtVersionFormats(program binary.Program, ttVersion string) ([]string,
 }
 
 // getVersions lists only installation directories belonging to the selected product.
+// notInstalled is the error of a version of program not installed in root:
+// it names the version as it was asked for and lists the installed ones as
+// uninstall takes them, those of the Enterprise Edition of tarantool and tt
+// included.
+func notInstalled(program binary.Program, requested, root string) error {
+	installed, _ := binary.InstalledVersions(root, program)
+
+	if enterprise := program.EnterpriseProgram(); enterprise != binary.ProgramUnknown {
+		others, _ := binary.InstalledVersions(root, enterprise)
+		for _, other := range others {
+			installed = append(installed, binary.VersionArgument(enterprise, other))
+		}
+	}
+
+	name := program.String()
+	if requested != "" {
+		name += " " + requested
+	}
+
+	if len(installed) == 0 {
+		return fmt.Errorf("%s is %w in the selected scope; no %s versions are installed there",
+			name, errNotInstalled, program)
+	}
+
+	return fmt.Errorf("%s is %w in the selected scope; installed: %s; "+
+		"give X.Y.Z or a full installed version", name, errNotInstalled,
+		strings.Join(installed, ", "))
+}
+
 func getVersions(program binary.Program, root string) ([]string, error) {
 	dir := filepath.Join(root, binary.VersionsDirName, program.String())
 
