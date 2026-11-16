@@ -17,40 +17,6 @@ var (
 	errAConfigurationFileMustBeSet = errors.New("a configuration file must be set")
 )
 
-// fillOnlyMerge copies leaf values from src into dst only when the key is not
-// already present in dst (fill-only semantics: never overwrite existing keys).
-func fillOnlyMerge(ctx context.Context, dst *goconfig.MutableConfig, src goconfig.Config) error {
-	entries, err := src.Walk(ctx, nil, -1)
-	if err != nil {
-		if errors.Is(err, goconfig.ErrPathNotFound) {
-			return nil
-		}
-
-		return fmt.Errorf("fillOnlyMerge walk: %w", err)
-	}
-
-	for entry := range entries {
-		key := entry.Meta().Key
-		if _, ok := dst.Lookup(key); ok {
-			continue
-		}
-
-		var value any
-
-		err = entry.Get(&value)
-		if err != nil {
-			return fmt.Errorf("fillOnlyMerge get %s: %w", key, err)
-		}
-
-		err = dst.Set(key, value)
-		if err != nil {
-			return fmt.Errorf("fillOnlyMerge set %s: %w", key, err)
-		}
-	}
-
-	return nil
-}
-
 // GetClusterConfig returns a cluster configuration loaded from a path to
 // a config file. It uses a config file, etcd and default environment
 // variables as sources. The function returns a cluster config as is, without

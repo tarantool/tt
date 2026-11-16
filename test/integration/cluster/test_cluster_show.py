@@ -761,3 +761,53 @@ def test_cluster_show_file(tt_cmd, tmp_path):
     assert rc == 1
     assert "missing.yaml" in out
     assert "no such file or directory" in out
+
+
+def make_etcd_app(tmp_path, etcd, app_name="etcd_app"):
+    """Make the project app_name in tmp_path whose config.yaml points to
+    etcd, with the cluster config valid_cluster_cfg published there, and
+    return the path of the project."""
+    app_path = tmp_path / app_name
+    template = app_path / ".templates" / "default"
+    template.mkdir(parents=True)
+    (template / "instances.yaml").write_text("master:\n")
+    (template / "config.yaml").write_text(
+        f"config:\n  etcd:\n    endpoints:\n      - {etcd.endpoint}\n    prefix: /prefix\n"
+        "labels:\n  zone: file\n",
+    )
+    etcd.conn().put("/prefix/config/all", valid_cluster_cfg)
+    return app_path
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("etcd_app", id="app"),
+        pytest.param("./.templates/default/config.yaml", id="file"),
+    ],
+)
+def test_cluster_show_etcd_arrays(tt_cmd, tmp_path, etcd, target):
+    # The arrays of a config in etcd come out as arrays, not as maps keyed
+    # by "0", "1", in the cluster config and in that of an instance, and
+    # --validate takes them for arrays.
+    app_path = make_etcd_app(tmp_path, etcd)
+    listen = "listen:\n                - uri: 127.0.0.1:3301\n"
+
+    for args in [[], ["--validate"]]:
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "show", *args, target],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert listen in out
+        assert '"0"' not in out
+        assert "zone: file" in out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "show", *args, target + ":master"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert "iproto:\n  listen:\n    - uri: 127.0.0.1:3301\n" in out
+        assert "database:\n  mode: rw\n" in out
+        assert '"0"' not in out

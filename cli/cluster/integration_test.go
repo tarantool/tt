@@ -207,6 +207,10 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	etcdPut(t, etcd, "/test/config/all", `wal:
   dir: etcddir
   mode: etcdmode
+iproto:
+  listen:
+    - uri: 127.0.0.1:3301
+    - uri: 127.0.0.1:3302
 `)
 	t.Setenv("TT_WAL_MODE_DEFAULT", "envmode")
 	t.Setenv("TT_WAL_MAX_SIZE_DEFAULT", "envsize")
@@ -237,6 +241,11 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	assert.Equal(t, "etcdmode", cfgGet[string](t, snap, "wal/mode"))
 	// wal/max_size from TT_WAL_MAX_SIZE_DEFAULT env (lowest priority, fills in missing).
 	assert.Equal(t, "envsize", cfgGet[string](t, snap, "wal/max_size"))
+	// An array from etcd stays an array.
+	assert.Equal(t, []any{
+		map[string]any{"uri": "127.0.0.1:3301"},
+		map[string]any{"uri": "127.0.0.1:3302"},
+	}, cfgGet[any](t, snap, "iproto/listen"))
 
 	// Groups from file.
 	assert.Equal(t, 2, cfgGet[int](t, snap, "groups/a/foo"))

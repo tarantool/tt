@@ -961,6 +961,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt emmylua` finds the stubs beside the executable there. A tt release
   keeps the `LICENSE` of its archive too. A version installed before has
   none of them until it is installed again with `--reinstall`.
+- `tt cluster show <APP>` and `<APP>:<INSTANCE>` print the arrays of a
+  cluster config in etcd or a Tarantool config storage as arrays:
+  `listen: {"0": {uri: ...}}` is `listen: [{uri: ...}]` again, and
+  `--validate` no longer fails it with `Value is object but should be
+  array`. An array of the config file is taken whole over one of the
+  storage, as Tarantool takes it, rather than merged with it item by item,
+  and so is an array of an earlier key of a storage prefix over one of a
+  later key. `tt cluster topology` and the instance commands read the
+  config the same way.
 - `tt cluster show` takes a path to a cluster config file again, as
   `<FILE>` or `<FILE>:<INSTANCE>`, and shows it as the config of an
   application: with the `TT_*` environment and the config storage the file
