@@ -570,3 +570,89 @@ func TestStatusDetailsTarantool(t *testing.T) {
 		assert.NotContains(t, out, exe)
 	}
 }
+
+// versionDir lays an installed version of myapp holding its VERSION.
+func versionDir(t *testing.T, root, version string) string {
+	t.Helper()
+
+	dir := filepath.Join(root, "versions", "myapp", "myapp_"+version)
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "VERSION"), []byte(version+"\n"), 0o600))
+
+	return dir
+}
+
+// TestStatusVersion pins that a running instance of an application of the
+// user or system scope shows the version its watchdog recorded it runs, and
+// a restart pending once another version is active; an instance with no
+// record, or of a project, shows none.
+func TestStatusVersion(t *testing.T) {
+	root := t.TempDir()
+	old := versionDir(t, root, "1.0.0")
+	active := versionDir(t, root, "1.1.0")
+
+	// An instance of the user scope, running from active, whose watchdog
+	// recorded it runs from recorded, if it is not empty.
+	instance := func(name, recorded string) running.InstanceCtx {
+		inst := runningInstance(t, name, instances.KindExternal)
+
+		inst.Scope = "user"
+		inst.AppDir = active
+		inst.RunDir = filepath.Dir(inst.PIDFile)
+
+		if recorded != "" {
+			require.NoError(t, os.WriteFile(filepath.Join(inst.RunDir, "app.dir"),
+				[]byte(recorded+"\n"), 0o600))
+		}
+
+		return inst
+	}
+
+	current := instance("current", active)
+
+	current.Scope = "system"
+
+	project := instance("project", old)
+
+	project.Scope = "project"
+
+	all := running.RunningCtx{Instances: []running.InstanceCtx{
+		instance("behind", old), current, instance("unknown", ""), project,
+	}}
+
+	printer := &recordingPrinter{}
+	require.NoError(t, Status(all, printer, DefaultInstanceTimeout))
+
+	assert.Equal(t, "1.0.0", printer.printed["myapp:behind"].Version)
+	assert.True(t, printer.printed["myapp:behind"].RestartPending)
+	assert.Equal(t, "1.1.0", printer.printed["myapp:current"].Version)
+	assert.False(t, printer.printed["myapp:current"].RestartPending)
+	assert.Empty(t, printer.printed["myapp:unknown"].Version)
+	assert.Empty(t, printer.printed["myapp:project"].Version)
+
+	out := captureStdout(t, func() error {
+		return Status(all, NewJSONPrinter(), DefaultInstanceTimeout)
+	})
+
+	var decoded map[string]map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(out), &decoded))
+	assert.Equal(t, "1.0.0", decoded["myapp:behind"]["version"])
+	assert.Equal(t, true, decoded["myapp:behind"]["restart_pending"])
+	assert.NotContains(t, decoded["myapp:current"], "restart_pending")
+	assert.NotContains(t, decoded["myapp:unknown"], "version")
+
+	table := captureStdout(t, func() error {
+		return Status(all, NewTablePrinter(WithDetails(true)), DefaultInstanceTimeout)
+	})
+	assert.Contains(t, table, "Version of myapp:behind: 1.0.0, restart pending: 1.1.0 is active\n")
+	assert.Contains(t, table, "Version of myapp:current: 1.1.0, the active version\n")
+	assert.NotContains(t, table, "Version of myapp:unknown")
+	assert.NotContains(t, table, "Version of myapp:project")
+
+	table = captureStdout(t, func() error {
+		return Status(all, NewTablePrinter(), DefaultInstanceTimeout)
+	})
+	assert.Contains(t, table, "Some instances do not run the active version")
+	assert.NotContains(t, table, "Version of")
+}

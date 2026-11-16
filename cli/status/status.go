@@ -104,12 +104,21 @@ type instanceStatus struct {
 	Alerts             []instanceAlert            `json:"alerts"         yaml:"alerts"`
 	rawReplicationInfo []rawReplicationInfo       `json:"-"              yaml:"-"`
 	procStatus         process_utils.ProcessState `json:"-"              yaml:"-"`
+	// Version is the version of the application of the user or system
+	// scope a running instance runs, left out when it is not known
+	// (setVersion), and RestartPending tells that another version is
+	// active: the instance runs that one once it is restarted.
+	Version        string `json:"version,omitempty"         yaml:"version,omitempty"`
+	RestartPending bool   `json:"restart_pending,omitempty" yaml:"restart_pending,omitempty"`
 	// tarantool names the tarantool a Tarantool instance starts on and where
 	// it comes from, or why none can be chosen, and tarantoolWarnings are the
 	// warnings of the choice. They are for a printer that shows the details
 	// (detailsPrinter), and empty for an external process.
 	tarantool         string   `json:"-" yaml:"-"`
 	tarantoolWarnings []string `json:"-" yaml:"-"`
+	// activeVersion is the version active now, for the details to tell
+	// what a restart pending moves the instance to.
+	activeVersion string `json:"-" yaml:"-"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -124,6 +133,8 @@ func newInstanceStatus() instanceStatus {
 		Status:             "",
 		PID:                nil,
 		Unit:               "",
+		Version:            "",
+		RestartPending:     false,
 		Mode:               "",
 		Config:             defaultModuleStatus,
 		Box:                defaultModuleStatus,
@@ -133,7 +144,23 @@ func newInstanceStatus() instanceStatus {
 		procStatus:         process_utils.ProcessState{Code: 0, Status: "", PID: 0},
 		tarantool:          "",
 		tarantoolWarnings:  nil,
+		activeVersion:      "",
 	}
+}
+
+// setVersion sets the version of the application the running instance run
+// runs, and whether a restart is pending, in instStatus, for an application of
+// the user or system scope: the version the watchdog recorded the instance
+// was started from, against the version active now (running.RunningVersion).
+func setVersion(instStatus *instanceStatus, run *running.InstanceCtx) {
+	runs, active, ok := running.RunningVersion(run)
+	if !ok {
+		return
+	}
+
+	instStatus.Version = runs
+	instStatus.activeVersion = active
+	instStatus.RestartPending = active != "" && runs != active
 }
 
 // detailsPrinter is a printer that shows the details of the instances, the
@@ -321,6 +348,8 @@ func processStatusForInstance(instance running.InstanceCtx,
 
 	if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
 		instStatus.PID = &instStatus.procStatus.PID
+
+		setVersion(&instStatus, &instance)
 	}
 
 	name := running.GetAppInstanceName(instance)

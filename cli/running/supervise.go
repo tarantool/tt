@@ -211,9 +211,17 @@ func outputOr(out, log io.Writer) io.Writer {
 	return log
 }
 
-// started records that tarantool runs with the context of the last Spec.
+// started records that tarantool runs with the context of the last Spec, and
+// records the application directory it runs from in the run directory, for
+// tt instance status and tt package to tell the version it runs
+// (RunningAppDir).
 func (src *instanceSource) started() {
 	src.ran = src.next
+
+	err := recordAppDir(&src.ran)
+	if err != nil {
+		src.log.logger.Printf("(WARN): %v.", err)
+	}
 }
 
 // exited removes the pid file tarantool pid wrote where tt tells it to,
@@ -297,6 +305,11 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 		Check:        nil,
 		Cleanup: func() {
 			removeSockets(&src.ran)
+
+			err := removeAppDir(&src.ran)
+			if err != nil {
+				src.log.logger.Printf("(WARN): %v.", err)
+			}
 		},
 		OnEvent: func(event supervisor.Event) {
 			switch event := event.(type) {

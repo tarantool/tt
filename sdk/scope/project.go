@@ -46,6 +46,14 @@ const (
 	// runs, and removes when it stops. Unlike the directory, it tells that
 	// the instance runs under the root, or has crashed and left it behind.
 	PidFileName = "tt.pid"
+	// AppDirFileName is the file the watchdog of an instance writes into its
+	// run directory, next to PidFileName, every time it starts the instance:
+	// the application directory the instance runs from, with the links on
+	// the way resolved, such as <root>/versions/<app>/<app>_<ver> for the
+	// active version <root>/apps/<app> selected at the start. It tells which
+	// version a running instance runs after another one has been made
+	// active, and counts only while the pid file is held.
+	AppDirFileName = "app.dir"
 )
 
 // ErrInstalledTree reports a directory inside the versions/ or apps/ tree of

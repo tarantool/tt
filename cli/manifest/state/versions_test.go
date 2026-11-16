@@ -267,6 +267,31 @@ func TestRunningInstances(t *testing.T) {
 	require.NoError(t, state.CheckNotRunning(root, "other"))
 }
 
+// TestRunningInstancesVersion reads the version a running instance runs from
+// the version directory its watchdog recorded next to its pid file.
+func TestRunningInstancesVersion(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	dir := state.VersionDir(root, "my-app", "1.0.0")
+	writeFile(t, filepath.Join(dir, state.PrimaryVersionFile), []byte("1.0.0\n"))
+
+	runDir := filepath.Join(root, "var", "run", "my-app")
+	holdPidFile(t, filepath.Join(runDir, "router-1", "tt.pid"), os.Getpid())
+	writeFile(t, filepath.Join(runDir, "router-1", "app.dir"), []byte(dir+"\n"))
+	holdPidFile(t, filepath.Join(runDir, "router-2", "tt.pid"), os.Getpid())
+
+	running, err := state.RunningInstances(root, "my-app")
+	require.NoError(t, err)
+	assert.Equal(t, []state.RunningInstance{
+		{Name: "router-1", Pid: os.Getpid(), Dir: dir, Version: "1.0.0"},
+		{Name: "router-2", Pid: os.Getpid(), Dir: "", Version: ""},
+	}, running)
+
+	assert.Empty(t, state.DirVersion(""))
+	assert.Equal(t, "1.0.0", state.DirVersion(dir))
+}
+
 // TestProjectLayout fixes the layout of a project-shaped install root, which
 // a project and an installed version share.
 func TestProjectLayout(t *testing.T) {

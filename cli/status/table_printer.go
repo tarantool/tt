@@ -177,7 +177,25 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		_, _ = fmt.Fprintln(os.Stdout, msg)
 	}
 
+	if !t.details && restartPending(instances) {
+		_, _ = fmt.Fprintln(os.Stdout, "\nSome instances do not run the active version "+
+			"of their application yet: tt instance restart moves them to it.\n"+
+			"Rerun the command with the --details flag to see their versions")
+	}
+
 	return nil
+}
+
+// restartPending reports whether any instance runs another version of its
+// application than the active one.
+func restartPending(instances map[string]*instanceStatus) bool {
+	for _, instStatus := range instances {
+		if instStatus.RestartPending {
+			return true
+		}
+	}
+
+	return false
 }
 
 // withDetails reports whether the table shows the details of the instances
@@ -186,15 +204,22 @@ func (t TablePrinter) withDetails() bool {
 	return t.details
 }
 
-// printDetails prints the details of the instances, by name: the tarantool
-// every Tarantool instance starts on, with the warnings of the choice, and
-// then the alerts of every instance.
+// printDetails prints the details of the instances, by name: the version of
+// the application of the user or system scope every running instance runs,
+// with a restart pending when another one is active, the tarantool every
+// Tarantool instance starts on, with the warnings of the choice, and then the
+// alerts of every instance.
 func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 	names := slices.Sorted(maps.Keys(instances))
 	printed := false
 
 	for _, name := range names {
 		instStatus := instances[name]
+		if instStatus.Version != "" {
+			_, _ = fmt.Fprintf(os.Stdout, "Version of %s: %s\n", name, describeVersion(instStatus))
+			printed = true
+		}
+
 		if instStatus.tarantool == "" {
 			continue
 		}
@@ -214,6 +239,18 @@ func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 	for _, name := range names {
 		t.printInstanceAlerts(name, instances[name])
 	}
+}
+
+// describeVersion tells the version of the application a running instance
+// runs, and the version it moves to once it is restarted, if another one is
+// active.
+func describeVersion(instStatus *instanceStatus) string {
+	if !instStatus.RestartPending {
+		return instStatus.Version + ", the active version"
+	}
+
+	return fmt.Sprintf("%s, restart pending: %s is active", instStatus.Version,
+		printYellow(instStatus.activeVersion))
 }
 
 // printInstanceAlerts prints alerts for a specific instance.

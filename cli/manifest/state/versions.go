@@ -292,6 +292,13 @@ type RunningInstance struct {
 	Name string
 	// Pid is the watchdog, the process the pid file names.
 	Pid int
+	// Dir is the version directory the instance runs from, as its watchdog
+	// recorded it (ttscope.AppDirFileName); empty when there is no record,
+	// as for an instance a tt that kept none started.
+	Dir string
+	// Version is the version of the application in Dir, read from its
+	// VERSION file; empty when Dir is, or holds none.
+	Version string
 }
 
 // RunningInstances lists the instances of the application name that run from
@@ -299,9 +306,11 @@ type RunningInstance struct {
 //
 // An instance leaves its pid file at <root>/var/run/<app>/<inst>/tt.pid, under
 // the root rather than in the version it runs, so that its runtime files
-// outlive a version switch. Which version a running instance was started
-// from is not recorded there, so a running instance counts against every
-// version of its application.
+// outlive a version switch. Next to it the watchdog records the version
+// directory it started the instance from, which tells the version the
+// instance runs. A removal or a replacement still counts a running instance
+// against every version of its application: a record may be missing, and
+// a version's runtime may be shared.
 //
 // An instance runs while its watchdog holds the pid file, which it does for
 // its whole life (pidfile.Owner). A file nobody holds is stale, left by a
@@ -331,12 +340,29 @@ func RunningInstances(root, name string) ([]RunningInstance, error) {
 			return nil, fmt.Errorf("checking instance %s of %s: %w", entry.Name(), name, err)
 		}
 
-		if owned {
-			running = append(running, RunningInstance{Name: entry.Name(), Pid: pid})
+		if !owned {
+			continue
 		}
+
+		dir := readVersionFile(filepath.Join(runDir, entry.Name(), ttscope.AppDirFileName))
+
+		running = append(running, RunningInstance{
+			Name: entry.Name(), Pid: pid, Dir: dir, Version: DirVersion(dir),
+		})
 	}
 
 	return running, nil
+}
+
+// DirVersion returns the version of the application installed in dir, an
+// installed version or a project, as its VERSION file records it; empty when
+// dir is empty or the file is absent.
+func DirVersion(dir string) string {
+	if dir == "" {
+		return ""
+	}
+
+	return readVersionFile(filepath.Join(dir, PrimaryVersionFile))
 }
 
 // CheckNotRunning refuses to go on while instances of the application name
