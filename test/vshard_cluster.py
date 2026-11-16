@@ -94,14 +94,17 @@ class VshardCluster:
         for inst in ["storage-001-b", "storage-002-b"]:
             wait_string_in_file(log(inst), "subscribed replica")
 
-    def stop(self, inst=None):
+    def stop(self, inst=None, check=True):
+        """Stop inst, or every instance; check=False leaves the outcome
+        unchecked, for a cleanup after a test that may have stopped them."""
         stop_arg = f"{self.app_name}:*"
         if inst is not None:
             stop_arg = f"{self.app_name}:{inst}"
 
         cmd = [self.tt_cmd, "instance", "stop", "-y", stop_arg]
         rc, _ = run_command_and_get_output(cmd, cwd=self.app_dir)
-        assert rc == 0
+        if check:
+            assert rc == 0
 
     def eval(self, instance, lua):
         process = subprocess.Popen(

@@ -32,6 +32,25 @@ def sigterm_handler():
     signal.signal(signal.SIGTERM, original)
 
 
+@pytest.fixture(autouse=True)
+def stop_leftover_instances(tt_cmd, tmp_path):
+    """Stop the instances the test left running under its tmp_path, also
+    when it failed before it stopped them, so that their ports are free for
+    the tests after it. It is torn down after the fixtures of the test."""
+    yield
+    targets = utils.stop_leftover_instances(tt_cmd, tmp_path)
+    if targets:
+        print(f"stopped the instances the test left running: {', '.join(targets)}")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def stop_leftover_session_instances(tt_cmd, tmp_path_factory):
+    """Stop the instances that the fixtures of a module or the session left
+    running under the base temporary directory."""
+    yield
+    utils.stop_leftover_instances(tt_cmd, tmp_path_factory.getbasetemp())
+
+
 def pytest_addoption(parser) -> None:
     parser.addoption(
         "--tt-cmd",
@@ -239,7 +258,10 @@ def vshard_app(tt_cmd, tmp_path, vshard_app_session) -> VshardCluster:
         symlinks=True,
         dirs_exist_ok=True,
     )
-    return VshardCluster(tt_cmd, copied_env, vshard_app_session.app_name)
+    app = VshardCluster(tt_cmd, copied_env, vshard_app_session.app_name)
+    yield app
+    # Stop the cluster also when the test failed before it stopped it.
+    app.stop(check=False)
 
 
 @pytest.fixture(scope="function")

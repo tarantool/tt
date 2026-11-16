@@ -1,4 +1,5 @@
 import datetime
+import fcntl
 import glob
 import hashlib
 import ipaddress
@@ -8,6 +9,7 @@ import os
 import pty
 import re
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -441,6 +443,98 @@ def kill_procs(procs):
         proc.kill()
 
     return len(procs)
+
+
+# The directories a search for the pid files of running instances does not
+# go into: none of them is a <root>/var/run/ of a scope, and some are large.
+_no_pid_files_under = {".git", ".rocks", "node_modules", "distfiles"}
+
+
+def _pid_file_locked(path):
+    """Tell whether a watchdog holds the pid file at path: tt locks the file
+    with flock for as long as its watchdog runs."""
+    try:
+        with open(path, "rb") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except OSError:
+                return True
+            fcntl.flock(f, fcntl.LOCK_UN)
+    except OSError:
+        pass
+    return False
+
+
+def held_pid_files(root):
+    """The pid files of the watchdogs that run under root:
+    <scope root>/var/run/<app>/<inst>/tt.pid, held by their watchdog."""
+    held = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _no_pid_files_under]
+        if pid_file in filenames:
+            path = Path(dirpath) / pid_file
+            if _pid_file_locked(path):
+                held.append(path)
+    return held
+
+
+def _project_of_pid_file(path):
+    """The directory to run tt in for the instance of the pid file at path,
+    and the target of the instance: <project>/.tarantool/var/run/<app>/<inst>/
+    tt.pid gives <project> and <app>:<inst>."""
+    inst_dir = path.parent
+    app_dir = inst_dir.parent
+    root = app_dir.parent.parent.parent
+    project = root.parent if root.name == project_root else root
+    return project, f"{app_dir.name}:{inst_dir.name}"
+
+
+def _kill_watchdog(path, root):
+    """Kill the process group of the watchdog that holds the pid file at path
+    when the watchdog is one of root: its command line names a file under
+    root. The watchdog leads the group of its instance."""
+    try:
+        pid = int(Path(path).read_text().strip())
+        cmdline = " ".join(psutil.Process(pid).cmdline())
+    except (OSError, ValueError, psutil.Error):
+        return
+    if str(root) not in cmdline:
+        return
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
+def stop_leftover_instances(tt_cmd, root):
+    """Stop the instances a test left running under root, with tt instance
+    stop in their projects, and kill the watchdogs that do not stop. Return
+    the targets that were left running.
+
+    A test that fails before it stops its instances keeps their ports, and
+    every test after it that listens on them fails too."""
+    leftovers = held_pid_files(root)
+    targets = []
+    by_project = {}
+    for path in leftovers:
+        project, target = _project_of_pid_file(path)
+        by_project.setdefault(project, []).append(target)
+        targets.append(target)
+    for project, project_targets in by_project.items():
+        try:
+            subprocess.run(
+                [tt_cmd, "instance", "stop", "--yes", *project_targets],
+                cwd=project if project.is_dir() else root,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    for path in leftovers:
+        if _pid_file_locked(path):
+            _kill_watchdog(path, root)
+    return targets
 
 
 def wait_instance_stop(pid_path, timeout_sec=5):
