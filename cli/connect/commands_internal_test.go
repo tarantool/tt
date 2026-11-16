@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/go-prompt"
 )
 
 // historyConsole makes a console whose history holds count commands,
@@ -79,6 +80,59 @@ func TestConsoleHistoryOutput(t *testing.T) {
 		_, err := getHistoryFunc(historyConsole(t, 2), "", []string{"1", "2"})
 		require.ErrorIs(t, err, errTheCommandExpectsZeroOrSingleArgument)
 	})
+}
+
+func TestCmdExecutorComplete(t *testing.T) {
+	executor := newCmdExecutor()
+
+	texts := func(text string) []string {
+		t.Helper()
+
+		buf := prompt.NewBuffer()
+		buf.InsertText(text, false, true)
+
+		doc := buf.Document()
+
+		suggests, ok := executor.Complete(doc.TextBeforeCursor(),
+			doc.GetWordBeforeCursorUntilSeparator(tarantoolWordSeparators))
+		require.True(t, ok, text)
+
+		result := make([]string, 0, len(suggests))
+		for _, suggest := range suggests {
+			result = append(result, suggest.Text)
+		}
+
+		return result
+	}
+
+	assert.Equal(t, []string{
+		"set delimiter", "set graphics", "set language", "set output",
+		"set table_column_width", "set table_format",
+	}, texts(`\se`))
+	assert.Equal(t, []string{"output"}, texts(`\set o`))
+	assert.Equal(t, []string{"output"}, texts(`  \set o`))
+	assert.Equal(t, []string{"lua", "table", "ttable", "yaml"}, texts(`\set output `))
+	assert.Equal(t, []string{"table", "ttable"}, texts(`\set output t`))
+	assert.Equal(t, []string{"ttable"}, texts(`\set output tt`))
+	assert.Empty(t, texts(`\set output yaml`))
+	assert.Equal(t, []string{"false", "true"}, texts(`\set graphics `))
+	assert.Equal(t, []string{"lua", "sql"}, texts(`\set language `))
+	assert.Equal(t, []string{"xG", "xT", "xg", "xl", "xt", "xw", "xy"}, texts(`\x`))
+	assert.Subset(t, texts(`\`), []string{"help", "q", "quit", "set output", "shortcuts"})
+	assert.Equal(t, []string{"quit"}, texts(`\q`))
+	assert.Empty(t, texts(`\quit`))
+
+	suggests, _ := executor.Complete(`\hi`, "hi")
+	require.Len(t, suggests, 1)
+	assert.Equal(t, prompt.Suggest{
+		Text:        "history",
+		Description: "show the last <count> executed commands (default 10)",
+	}, suggests[0])
+
+	for _, text := range []string{"", "se", "box.info", "x = '\\se"} {
+		_, ok := executor.Complete(text, "")
+		assert.False(t, ok, text)
+	}
 }
 
 func TestHelpText(t *testing.T) {

@@ -183,6 +183,34 @@ func TestConsoleExecutesEveryPastedLine(t *testing.T) {
 	out.waitFor(t, "executed: function f()     return 5 end")
 }
 
+// TestConsoleCompletesBackslashCommands types the start of a backslash
+// command and Tab, and checks that the console offers its commands.
+func TestConsoleCompletesBackslashCommands(t *testing.T) {
+	tty, out := startPtyConsole(t)
+
+	_, err := tty.WriteString("\\se")
+	require.NoError(t, err)
+	out.waitFor(t, "set language", "set output")
+
+	// Tab selects the first one, \set delimiter, which is drawn again.
+	shown := strings.Count(out.String(), "set delimiter")
+
+	_, err = tty.WriteString("\t")
+	require.NoError(t, err)
+
+	deadline := time.Now().Add(10 * time.Second)
+	for strings.Count(out.String(), "set delimiter") == shown && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	_, err = tty.WriteString(" ;\r")
+	require.NoError(t, err)
+
+	_, err = tty.WriteString("return 1;\r")
+	require.NoError(t, err)
+	out.waitFor(t, "executed: return 1\r")
+}
+
 // TestConsoleBracketedPaste checks that the console asks the terminal to
 // mark pastes and executes every line of a marked paste.
 func TestConsoleBracketedPaste(t *testing.T) {

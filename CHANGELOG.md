@@ -1380,6 +1380,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `\help` in the console of `tt connect` no longer ends its introduction with
   the broken sentence "because tt connect is using": it says that tt connect
   runs the backslash commands itself and adds some of its own.
+- Tab in the console of `tt connect` completes backslash commands and their
+  arguments: `\se` offers `\set language`, `\set output` and the other
+  `\set` commands with their descriptions, and `\set output ` offers `lua`,
+  `table`, `ttable` and `yaml`. It used to offer the Lua globals of the
+  instance that start with the letters after the backslash, along with those
+  letters themselves; the bare word the instance gives back as the common
+  start of its completions is no longer offered for Lua either.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version
