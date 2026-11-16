@@ -1073,6 +1073,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   with `--no-wait` exited with 0. The errors of the layout name the
   instance, and `--foreground` exits with the code of such an error, 2,
   rather than 1.
+- A `config.yaml` that is no YAML is told by its file, line and column, as
+  an editor tells it: `unable to load config: …/config.yaml:6:15: did not
+  find expected ',' or '}'`. The message named an internal key of the
+  config loader, `config file: failed to parse data with format: key
+  "file": failed to unmarshall: yaml: line 5: …`, and the line was often
+  the one before the problem.
 - A rock server that cannot be reached or read is one line: what was being
   done, the server, where it is configured and why, `resolving "checks":
   cannot reach rock server http://no-such-host.invalid/ (from

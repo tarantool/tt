@@ -32,7 +32,7 @@ func LocalInstances(ctx context.Context, path string) ([]string, error) {
 		WithConfigFile(path).
 		BuildMutable(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load config from %q: %w", path, err)
+		return nil, loadError(path, err)
 	}
 
 	return Instances(mut.Snapshot())
@@ -71,7 +71,7 @@ func GetClusterConfig(
 		WithConfigFile(path).
 		Build(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load config from %q: %w", path, err)
+		return nil, loadError(path, err)
 	}
 
 	// Read storage tt-side (etcd or TCS).
@@ -110,7 +110,7 @@ func buildClusterConfig(
 
 	mut, err := builder.BuildMutable(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load config from %q: %w", path, err)
+		return nil, loadError(path, err)
 	}
 
 	return mut, nil

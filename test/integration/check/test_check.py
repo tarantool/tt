@@ -115,6 +115,22 @@ def test_check_validates_config(tt_cmd, tmp_path):
         run_command_and_get_output([tt_cmd, "instance", "stop", "-y"], cwd=app_dir)
 
 
+def test_config_syntax_error(tt_cmd, tmp_path):
+    # A config.yaml that is no YAML is told by its file, line and column,
+    # by check, start and cluster show alike.
+    app_dir = prepare_project(tmp_path, "broken", "correct_syntax.lua")
+    config = app_dir / cluster_config_file
+    config.write_text(config.read_text() + "x: 'open\n")
+    line = len(config.read_text().splitlines())
+
+    for cmd in [["instance", "check"], ["instance", "start"], ["cluster", "show", "broken"]]:
+        rc, output = run_command_and_get_output([tt_cmd, *cmd], cwd=app_dir)
+        assert rc == 1, output
+        assert f"{config}:{line}:4: found unexpected end of stream" in output
+        assert 'key "file"' not in output
+        assert "failed to unmarshall" not in output
+
+
 def test_check_built_in_templates(tt_cmd, tmp_path):
     # The config of every built-in template is valid.
     for template in ["single_instance", "cluster", "vshard_cluster", "config_storage"]:

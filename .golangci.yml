@@ -545,6 +545,9 @@ linters:
             - "**/cli/cluster/**"
           allow:
             - $gostd
+            # The column of a syntax error of a cluster config file, which
+            # the yaml.v3 of go-config does not tell.
+            - "github.com/goccy/go-yaml"
             - "github.com/google/uuid"
             - "github.com/manifoldco/promptui"
             - "github.com/stretchr/testify"
