@@ -4,6 +4,7 @@ go 1.27.4
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/creack/pty v1.1.24
 	github.com/fatih/color v1.18.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/goccy/go-yaml v1.19.2
