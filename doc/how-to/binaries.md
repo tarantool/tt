@@ -55,9 +55,15 @@ installed. Tarantool Community and Enterprise share the
 active `tarantool` link, and tt and tt Enterprise share `tt`.
 
 To use the active binaries, put `<root>/bin` on `PATH` for the user and the
-system scopes, and `source .env/activate.sh` in a project. The first
-`tt binary install` of a project writes `.env/activate.sh` and
-`.env/deactivate.sh`; existing scripts are kept. The instance commands of a
+system scopes, and `source .env/activate.sh` in a project, or
+`source .env/activate.fish` in fish. The first `tt binary install` of a
+project writes `.env/activate.sh`, `.env/deactivate.sh` and their fish
+twins `activate.fish` and `deactivate.fish`; existing scripts are kept.
+The links of `<root>/bin` and `<root>/include` are relative,
+`../versions/...`, and the scripts find the project from their own path in
+bash, zsh and fish, so a project can be moved or copied and keeps working.
+A shell that does not tell a sourced script its path, such as dash, gets the
+directory the project had when the script was written. The instance commands of a
 project do not need them: they run the project's Tarantool by themselves.
 Nor do the builds of its components: a build backend and a hook find the
 programs of `.tarantool/bin` ahead of `PATH`.

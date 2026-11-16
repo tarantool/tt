@@ -2,6 +2,7 @@ import os
 import platform
 import re
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -115,9 +116,9 @@ def test_install_tarantool_scope(
     assert os.access(binary, os.X_OK)
     assert not (version / "bin").exists()
     assert (headers / "module.h").read_bytes() == built_header.read_bytes()
-    assert (root / "bin" / "tarantool").readlink() == binary
+    assert (root / "bin" / "tarantool").readlink() == Path("..") / binary.relative_to(root)
     assert (root / "bin" / "tarantool").resolve() == binary
-    assert (root / "include" / "tarantool").readlink() == headers
+    assert (root / "include" / "tarantool").readlink() == Path("..") / headers.relative_to(root)
     assert (root / "include" / "tarantool").resolve() == headers
     assert build_log.read_text() == "build\n"
     assert not (tmp_path / "tt.yaml").exists()
@@ -355,7 +356,7 @@ def test_install_tarantool_remote_revision(tt_cmd, tmp_path, monkeypatch, revisi
     assert "Downloading tarantool..." in output
     root = tmp_path / ".tarantool"
     binary = root / "versions" / "tarantool" / f"tarantool_{name}" / "tarantool"
-    assert (root / "bin" / "tarantool").readlink() == binary
+    assert (root / "bin" / "tarantool").readlink() == Path("..") / binary.relative_to(root)
     assert binary.read_text() == expected
     assert (root / "include" / "tarantool" / "module.h").is_file()
 

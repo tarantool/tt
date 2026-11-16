@@ -4,6 +4,7 @@ import platform
 import re
 import subprocess
 import tarfile
+from pathlib import Path
 
 import pytest
 
@@ -137,9 +138,13 @@ def assert_active(root, program, version):
     binary = destination / executable
     assert os.access(binary, os.X_OK)
     assert not (destination / "bin").exists()
-    assert (root / "bin" / executable).readlink() == binary
+    # The active links are relative, so the scope can be moved.
+    assert (root / "bin" / executable).readlink() == Path("..") / binary.relative_to(root)
     if program == "tarantool-ee":
-        assert (root / "include" / "tarantool").readlink() == destination / "include" / "tarantool"
+        headers = destination / "include" / "tarantool"
+        assert (root / "include" / "tarantool").readlink() == Path("..") / headers.relative_to(
+            root,
+        )
         assert (root / "include" / "tarantool" / "module.h").read_text()
     return destination
 
@@ -718,8 +723,8 @@ def test_ee_switches_both_ce_active_links(tt_cmd, tmp_path):
         cwd=tmp_path,
     )
     assert rc == 0, output
-    assert (root / "bin" / "tarantool").readlink() == binary
-    assert (root / "include" / "tarantool").readlink() == headers
+    assert (root / "bin" / "tarantool").readlink() == Path("..") / binary.relative_to(root)
+    assert (root / "include" / "tarantool").readlink() == Path("..") / headers.relative_to(root)
 
 
 def test_tcm_reinstall_replaces_only_selected_version(tt_cmd, tmp_path):

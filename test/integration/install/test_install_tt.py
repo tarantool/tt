@@ -105,7 +105,7 @@ def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):
     binary = root / "versions" / "tt" / "tt_3.1.2" / "tt"
     assert binary.read_bytes() == built_binary.read_bytes()
     assert os.access(binary, os.X_OK)
-    assert (root / "bin" / "tt").readlink() == binary
+    assert (root / "bin" / "tt").readlink() == Path("..") / binary.relative_to(root)
     assert not (binary.parent / "bin").exists()
     assert (root / "bin" / "tt").resolve() == binary
     assert build_log.read_text() == "build\n"

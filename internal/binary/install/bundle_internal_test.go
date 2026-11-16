@@ -78,15 +78,19 @@ func TestBundleScopeArtifacts(t *testing.T) {
 
 			require.NoError(t, updateSymlinks(params))
 
+			// The links are relative, so the scope can be moved.
+			relative, err := filepath.Rel(params.artifactRoot, directory)
+			require.NoError(t, err)
+
 			target, err := os.Readlink(filepath.Join(params.artifactRoot, "bin", program.Exec()))
 			require.NoError(t, err)
-			require.Equal(t, filepath.Join(directory, program.Exec()), target)
+			require.Equal(t, filepath.Join("..", relative, program.Exec()), target)
 
 			if program.IsTarantool() {
 				target, err := os.Readlink(
 					filepath.Join(params.artifactRoot, "include", program.Exec()))
 				require.NoError(t, err)
-				require.Equal(t, filepath.Join(directory, "include", program.Exec()), target)
+				require.Equal(t, filepath.Join("..", relative, "include", program.Exec()), target)
 			} else {
 				require.NoDirExists(t, filepath.Join(params.artifactRoot, "include"))
 			}
@@ -158,7 +162,9 @@ func TestStandaloneBundleExecutableNames(t *testing.T) {
 			target, err := os.Readlink(
 				filepath.Join(params.artifactRoot, "bin", testCase.program.Exec()))
 			require.NoError(t, err)
-			require.Equal(t, installed, target)
+			require.False(t, filepath.IsAbs(target), target)
+			require.Equal(t, installed,
+				filepath.Join(params.artifactRoot, binary.BinDirName, target))
 
 			data, err := os.ReadFile(installed)
 			require.NoError(t, err)

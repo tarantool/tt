@@ -1633,6 +1633,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   (`git`, `cmake`, `make`, `mage`), removes the temporary directories, the
   logs and a version half-copied into the scope, and then ends by the
   signal; `--no-clean` keeps the files and names them.
+- A project keeps working after it is moved or copied. The active links of
+  `.tarantool/bin` and `.tarantool/include` pointed at absolute paths, so
+  after `mv` the project's tarantool was dangling, and `tt binary list`
+  showed the link text as a version; `.env/activate.sh` exported the old
+  directory. The links tt makes into the versions of a scope are now
+  relative, `../versions/tarantool/tarantool_3.9.0/tarantool`, in every
+  scope and for the runtime `tt package install` lays into a project;
+  `activate.sh` finds the project from its own path when bash or zsh
+  sources it, and keeps the directory it was written in for a shell that
+  does not tell, such as dash. The first install also writes
+  `activate.fish` and `deactivate.fish` for fish, adding them to a
+  project that has the sh scripts already, and prints `source
+  .env/activate.fish` when `SHELL` is fish. Links and scripts written by
+  an earlier tt stay as they are: `tt binary switch` rewrites the links.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const activeDirectoryMode = 0o755
@@ -68,6 +69,29 @@ func ReplaceLink(path, target string) error {
 	return replaceActiveLink(activeLink{path: path, target: target})
 }
 
+// linkTarget returns target as the link at path stores it. A target inside
+// the directory above the one of the link - the root of the scope, for
+// <root>/bin/tarantool -> <root>/versions/... - is stored relative to the
+// link, ../versions/..., so the links still resolve after the project or
+// the scope is moved or copied. Any other target is stored as it is.
+func linkTarget(path, target string) string {
+	if filepath.IsAbs(path) != filepath.IsAbs(target) {
+		return target
+	}
+
+	inside, err := filepath.Rel(filepath.Dir(filepath.Dir(path)), target)
+	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
+		return target
+	}
+
+	relative, err := filepath.Rel(filepath.Dir(path), target)
+	if err != nil {
+		return target
+	}
+
+	return relative
+}
+
 // replaceActiveLink prepares the new link before replacing the old selection.
 func replaceActiveLink(link activeLink) error {
 	if link.target == "" {
@@ -99,7 +123,7 @@ func replaceActiveLink(link activeLink) error {
 		return fmt.Errorf("failed to remove temporary file: %w", err)
 	}
 
-	err = os.Symlink(link.target, name)
+	err = os.Symlink(linkTarget(link.path, link.target), name)
 	if err != nil {
 		return fmt.Errorf("failed to prepare symbolic link: %w", err)
 	}

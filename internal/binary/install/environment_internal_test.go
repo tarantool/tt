@@ -54,10 +54,45 @@ func TestProjectEnvironmentFromSubdirectory(t *testing.T) {
 
 	activate, err := os.ReadFile(filepath.Join(project, ".env", "activate.sh"))
 	require.NoError(t, err)
-	require.Contains(t, string(activate), "export TT_PROJECT_DIR='"+project+"'\n")
+	require.Contains(t, string(activate), "    _tt_project_dir='"+project+"'\n")
+	require.FileExists(t, filepath.Join(project, ".env", "activate.fish"))
+	require.FileExists(t, filepath.Join(project, ".env", "deactivate.fish"))
+}
+
+// TestProjectEnvironmentAddsFishScripts: a project with the sh scripts of
+// an older tt gets the fish ones, and its own scripts are kept.
+func TestProjectEnvironmentAddsFishScripts(t *testing.T) {
+	project := t.TempDir()
+	directory := filepath.Join(project, ".env")
+	require.NoError(t, os.Mkdir(directory, 0o755))
+
+	original := []byte("# The activate.sh of an older tt.\n")
+	for _, name := range []string{"activate.sh", "deactivate.sh"} {
+		require.NoError(t, os.WriteFile(filepath.Join(directory, name), original, 0o644))
+	}
+
+	require.NoError(t, PrepareProjectEnvironmentIn(project))
+
+	for _, name := range []string{"activate.sh", "deactivate.sh"} {
+		data, err := os.ReadFile(filepath.Join(directory, name))
+		require.NoError(t, err)
+		require.Equal(t, original, data)
+	}
+
+	fish, err := os.ReadFile(filepath.Join(directory, "activate.fish"))
+	require.NoError(t, err)
+	require.Contains(t, string(fish), "status --current-filename")
+}
+
+func TestProjectActivateCommandFish(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	t.Chdir(t.TempDir())
+	require.Equal(t, "source .env/activate.fish", projectActivateCommand())
 }
 
 func TestProjectActivateCommand(t *testing.T) {
+	t.Setenv("SHELL", "/bin/bash")
+
 	project := filepath.Join(t.TempDir(), "project with spaces and 'quotes'")
 	require.NoError(t, os.MkdirAll(filepath.Join(project, "src", "lib"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(project, "app.manifest.toml"), nil, 0o644))

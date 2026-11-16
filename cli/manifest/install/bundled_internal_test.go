@@ -256,13 +256,17 @@ func TestInstallProjectLaysRuntimeIntoDotTarantool(t *testing.T) {
 	assert.FileExists(t, filepath.Join(root, "versions", "tt", "tt_3.2.0", "tt"))
 	assert.NoDirExists(t, filepath.Join(project, "_runtime"))
 
+	// The links are relative to .tarantool, so the project can be moved.
 	target, err := os.Readlink(filepath.Join(root, "bin", "tarantool"))
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(installation, "tarantool"), target)
+	assert.False(t, filepath.IsAbs(target), target)
+	assert.Equal(t, filepath.Join(installation, "tarantool"),
+		filepath.Join(root, "bin", target))
 
 	target, err = os.Readlink(filepath.Join(root, "include", "tarantool"))
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(installation, "include", "tarantool"), target)
+	assert.Equal(t, filepath.Join(installation, "include", "tarantool"),
+		filepath.Join(root, "include", target))
 
 	assert.NoFileExists(t, filepath.Join(root, "bin", "tt"), "only tarantool is selected")
 
@@ -334,6 +338,7 @@ func TestInstallProjectRuntimeWithoutHeaders(t *testing.T) {
 
 	target, err := os.Readlink(filepath.Join(root, "bin", "tarantool"))
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(tarantoolInstallation(root), "tarantool"), target)
+	assert.Equal(t, filepath.Join(tarantoolInstallation(root), "tarantool"),
+		filepath.Join(root, "bin", target))
 	assert.NoDirExists(t, filepath.Join(root, "include"))
 }

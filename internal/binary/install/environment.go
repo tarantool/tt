@@ -23,6 +23,12 @@ var projectActivateScript string
 //go:embed templates/deactivate.sh
 var projectDeactivateScript string
 
+//go:embed templates/activate.fish
+var projectActivateFishScript string
+
+//go:embed templates/deactivate.fish
+var projectDeactivateFishScript string
+
 // prepareProjectEnvironment creates missing shell scripts before activation.
 // Existing scripts belong to the user and are preserved.
 //
@@ -43,17 +49,36 @@ func prepareProjectEnvironment(scope binary.Scope) error {
 }
 
 // PrepareProjectEnvironmentIn writes .env/activate.sh and deactivate.sh of
-// the project in projectDir when they are missing, as the first tt binary
-// install in project scope does in the project it finds: for a command that
-// knows its project and puts programs into its .tarantool/bin by other
-// means. Scripts that are there are the user's, and are kept.
+// the project in projectDir, and activate.fish and deactivate.fish for fish,
+// when they are missing, as the first tt binary install in project scope
+// does in the project it finds: for a command that knows its project and
+// puts programs into its .tarantool/bin by other means. Scripts that are
+// there are the user's, and are kept.
+//
+// The scripts find the project from their own path when they are sourced,
+// so a moved or copied project activates its own binaries; activate.sh
+// keeps projectDir for a shell that does not tell a sourced script its
+// path.
 func PrepareProjectEnvironmentIn(projectDir string) error {
 	directory := filepath.Join(projectDir, projectEnvDirName)
 
-	activatePath := filepath.Join(directory, projectActivateName)
-	deactivatePath := filepath.Join(directory, "deactivate.sh")
+	// Single quotes keep shell expansions and special characters in paths literal.
+	quotedProjectDir := "'" + strings.ReplaceAll(projectDir, "'", "'\"'\"'") + "'"
 
-	if binary.IsRegularFile(activatePath) && binary.IsRegularFile(deactivatePath) {
+	scripts := []struct{ name, text string }{
+		{projectActivateName, fmt.Sprintf(projectActivateScript, quotedProjectDir)},
+		{"deactivate.sh", projectDeactivateScript},
+		{"activate.fish", projectActivateFishScript},
+		{"deactivate.fish", projectDeactivateFishScript},
+	}
+
+	missing := false
+
+	for _, script := range scripts {
+		missing = missing || !binary.IsRegularFile(filepath.Join(directory, script.name))
+	}
+
+	if !missing {
 		return nil
 	}
 
@@ -62,17 +87,11 @@ func PrepareProjectEnvironmentIn(projectDir string) error {
 		return fmt.Errorf("failed to create project environment directory: %w", err)
 	}
 
-	// Single quotes keep shell expansions and special characters in paths literal.
-	quotedProjectDir := "'" + strings.ReplaceAll(projectDir, "'", "'\"'\"'") + "'"
-
-	err = writeProjectScript(activatePath, fmt.Sprintf(projectActivateScript, quotedProjectDir))
-	if err != nil {
-		return err
-	}
-
-	err = writeProjectScript(deactivatePath, projectDeactivateScript)
-	if err != nil {
-		return err
+	for _, script := range scripts {
+		err = writeProjectScript(filepath.Join(directory, script.name), script.text)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -82,13 +101,19 @@ func PrepareProjectEnvironmentIn(projectDir string) error {
 // binaries, as typed in the working directory: "source .env/activate.sh" in
 // the project directory and "source ../.env/activate.sh" one level below.
 // The path climbs with ".." instead of naming the project directory, so it
-// needs no quoting whatever that directory is called.
+// needs no quoting whatever that directory is called. With SHELL naming
+// fish, it is activate.fish.
 //
 // It is printed after a successful installation, when the project directory
 // has just been resolved. Should it fail now, the command is spelled as from
 // the project directory: a hint is not worth failing the installation for.
 func projectActivateCommand() string {
 	activatePath := filepath.Join(projectEnvDirName, projectActivateName)
+
+	// fish sources a script of its own.
+	if filepath.Base(os.Getenv("SHELL")) == "fish" {
+		activatePath = filepath.Join(projectEnvDirName, "activate.fish")
+	}
 
 	workingDir, err := os.Getwd()
 	if err != nil {
