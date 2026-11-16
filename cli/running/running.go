@@ -475,7 +475,7 @@ func stopAll(runs []InstanceCtx, say bool) []error {
 			continue
 		}
 
-		log.Infof("The Instance %s (PID = %v) has been terminated.", proc.name, proc.pid)
+		log.Infof("The instance %s (PID = %v) has been terminated.", proc.name, proc.pid)
 	}
 
 	return stopErrors

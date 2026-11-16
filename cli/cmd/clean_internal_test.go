@@ -163,4 +163,15 @@ func TestCleanStale(t *testing.T) {
 	reaped, err := syscall.Wait4(other.Process.Pid, &status, syscall.WNOHANG, nil)
 	require.NoError(t, err)
 	assert.Zero(t, reaped, "the unrelated process got a signal")
+
+	// A running instance alone is refused before anything is previewed or
+	// asked, naming it as every other message does.
+	instanceYes = false
+
+	out, err = captureStdout(t, func() error {
+		return internalCleanModule(cmdCtx, []string{"myapp:storage-2"})
+	})
+	require.ErrorIs(t, err, errInstanceRunning)
+	require.EqualError(t, err, "instance myapp:storage-2 is running: stop it first")
+	assert.Empty(t, out)
 }

@@ -130,7 +130,7 @@ Replicasets state: bootstrapped
 
    • Expel instance: instance-003
    • Stopping the instance instance-003
-   • The Instance test_ccluster_app:instance-003 \\(PID = \\d+\\) has been terminated.
+   • The instance test_ccluster_app:instance-003 \\(PID = \\d+\\) has been terminated.
    • The instance instance-003 is removed from the config and from _cluster.*
    • Done.*
 """,

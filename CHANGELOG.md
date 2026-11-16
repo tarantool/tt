@@ -1048,6 +1048,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   with 0. `stop` said nothing, and `logrotate` failed with `the instance is
   not running, it must be started`, exit code 1. The stop of `tt instance
   restart` says nothing of an instance it is about to start.
+- `tt instance clean` tells of the running instances it leaves alone first,
+  as errors that name them as every other message does: `instance
+  demo:instance001 is running: stop it first`. The files it lists and the
+  question it asks are about the other instances, and with none left it
+  lists and asks nothing. It printed `Total files to remove: 0` and then
+  ``instance `instance001` must be stopped`` as an info line. `tt instance
+  stop` says `The instance … has been terminated.`, no more `The Instance`.
 - A rock server that cannot be reached or read is one line: what was being
   done, the server, where it is configured and why, `resolving "checks":
   cannot reach rock server http://no-such-host.invalid/ (from

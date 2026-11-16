@@ -18,7 +18,7 @@ import (
 
 // errInstanceRunning is wrapped by the error for an instance
 // tt instance clean leaves alone because it runs.
-var errInstanceRunning = errors.New("must be stopped")
+var errInstanceRunning = errors.New("is running: stop it first")
 
 var verboseList bool
 
@@ -34,7 +34,8 @@ func NewCleanCmd() *cobra.Command {
 		Long: "Remove the data and the logs of the instances: the files of " +
 			"<root>/var/lib/<app>/<instance>/ and <root>/var/log/<app>/<instance>/, " +
 			"and of the data directories their config moves elsewhere. A running " +
-			"instance is left alone, which counts as a failure for it.",
+			"instance is left alone, which counts as a failure for it: it is told of " +
+			"first, and what is listed and asked about is the files of the others.",
 		RunE: internalRunE(internalCleanModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -246,19 +247,43 @@ func confirmClean(instances []running.InstanceCtx, args []string) (bool, error) 
 	return confirm("Confirm clean of " + describeTargets(args))
 }
 
-// internalCleanModule is a default clean module. It asks once whether to
-// clean what the targets select. A running instance is left alone and
-// counts as failed: what the targets asked for is not done for it
-// (actOnInstances). An instance whose watchdog died without cleaning up is
-// not running: the pid file it left, which nobody holds, is removed along
-// with the files (running.SettleStopped).
+// runningError is the error for the instance run that clean leaves alone
+// because it runs.
+func runningError(run *running.InstanceCtx) error {
+	return fmt.Errorf("instance %s %w", running.GetAppInstanceName(*run), errInstanceRunning)
+}
+
+// internalCleanModule is a default clean module. A running instance is left
+// alone and counts as failed: what the targets asked for is not done for it.
+// The running ones are told of first, as errors, and the preview and the
+// question are about the others alone; with none left, nothing is asked. An
+// instance whose watchdog died without cleaning up is not running: the pid
+// file it left, which nobody holds, is removed along with the files
+// (running.SettleStopped).
 func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
 
-	confirmed, err := confirmClean(instances, args)
+	result := newInstancesResult("clean", len(instances))
+	stopped := make([]running.InstanceCtx, 0, len(instances))
+
+	for _, inst := range instances {
+		if running.IsStopped(&inst) {
+			stopped = append(stopped, inst)
+
+			continue
+		}
+
+		result.fail(running.GetAppInstanceName(inst), runningError(&inst))
+	}
+
+	if len(stopped) == 0 {
+		return result.err()
+	}
+
+	confirmed, err := confirmClean(stopped, args)
 	if err != nil {
 		return err
 	}
@@ -269,29 +294,38 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
-	return actOnInstances("clean", instances, func(run *running.InstanceCtx) error {
-		stopped, err := running.SettleStopped(run)
-
-		switch {
-		case err != nil:
-		case !stopped:
-			log.Infof("instance `%s` must be stopped", run.InstName)
-
-			return exitcode.Silent(fmt.Errorf("instance %s %w",
-				running.GetAppInstanceName(*run), errInstanceRunning))
-		default:
-			err = clean(run)
-		}
-
+	for i := range stopped {
+		err := cleanStopped(&stopped[i])
 		if err != nil {
-			log.Infof("%s%c%s...\t[ERR] %s", run.AppName, running.InstanceDelimiter,
-				run.InstName, err)
-
-			return exitcode.Silent(err)
+			result.fail(running.GetAppInstanceName(stopped[i]), err)
 		}
+	}
 
-		log.Infof("%s%c%s...\t[OK]", run.AppName, running.InstanceDelimiter, run.InstName)
+	return result.err()
+}
 
-		return nil
-	})
+// cleanStopped cleans run, which was not running when clean looked, unless
+// it has been started since.
+func cleanStopped(run *running.InstanceCtx) error {
+	name := running.GetAppInstanceName(*run)
+
+	stopped, err := running.SettleStopped(run)
+
+	switch {
+	case err != nil:
+	case !stopped:
+		return runningError(run)
+	default:
+		err = clean(run)
+	}
+
+	if err != nil {
+		log.Infof("%s...\t[ERR] %s", name, err)
+
+		return exitcode.Silent(err)
+	}
+
+	log.Infof("%s...\t[OK]", name)
+
+	return nil
 }

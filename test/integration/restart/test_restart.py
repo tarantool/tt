@@ -86,7 +86,7 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
             if was_running:
                 orig_pid = orig_status[inst]["PID"]
                 assert status[inst]["PID"] != orig_pid
-                assert f"The Instance {inst} (PID = {orig_pid}) has been terminated." in out
+                assert f"The instance {inst} (PID = {orig_pid}) has been terminated." in out
         else:
             assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]
             if was_running:

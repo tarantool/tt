@@ -622,7 +622,7 @@ def test_status_and_stop_without_config(tt_cmd, tmp_path, spoil):
         )
         assert rc == 0, out
         for inst in instances:
-            assert f"The Instance {app_name}:{inst} (PID = " in out
+            assert f"The instance {app_name}:{inst} (PID = " in out
 
         rc, out = run_command_and_get_output([tt_cmd, "instance", "status"], cwd=app_path)
         assert rc == 0, out

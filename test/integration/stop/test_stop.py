@@ -87,7 +87,7 @@ def check_stop(tt, tt_app, target, input, is_confirm, *args):
             assert status[inst]["STATUS"] == "NOT RUNNING"
             if was_running:
                 orig_pid = orig_status[inst]["PID"]
-                assert f"The Instance {inst} (PID = {orig_pid}) has been terminated." in out
+                assert f"The instance {inst} (PID = {orig_pid}) has been terminated." in out
             else:
                 # As tt instance kill and logrotate say it.
                 assert f"The instance {inst} is not running." in out
@@ -427,7 +427,7 @@ def test_stop_wildcard_broken_config(tt, tt_app):
         rc, out = tt.exec("instance", "stop", "-y")
         assert rc == 0
         for inst in ran:
-            assert f"The Instance {inst} (PID = " in out
+            assert f"The instance {inst} (PID = " in out
             assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
 
         # The run directories outlive the instances: they are still there to
@@ -483,7 +483,7 @@ def test_stop_wildcard_dropped_instance(tt, tt_app, tmp_path):
     assert os.path.exists(pid_file)
     rc, out = tt.exec("instance", "stop", "-y", "app:b-master")
     assert rc == 0, out
-    assert "The Instance app:b-master (PID = " in out
+    assert "The instance app:b-master (PID = " in out
     assert not os.path.exists(pid_file)
     assert os.path.isdir(tt_app.run_path("app:b-master"))
 

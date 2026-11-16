@@ -141,7 +141,7 @@ def test_stop_and_restart_partial_success(tt_cmd, tmp_path):
         )
         assert rc == 3, out
         assert "app:master: can't get pid of running process" in out
-        assert f"The Instance app:worker (PID = {started}) has been terminated." in out
+        assert f"The instance app:worker (PID = {started}) has been terminated." in out
         assert "Starting an instance [app:worker]..." in out
         assert "Starting an instance [app:master]" not in out
         assert "restart failed for 1 of 2 instances: app:master" in out
@@ -153,7 +153,7 @@ def test_stop_and_restart_partial_success(tt_cmd, tmp_path):
         )
         assert rc == 3, out
         assert "app:master: can't get pid of running process" in out
-        assert "The Instance app:worker (PID = " in out
+        assert "The instance app:worker (PID = " in out
         assert "stop failed for 1 of 2 instances: app:master" in out
 
         rc, out = utils.run_command_and_get_output(
@@ -310,7 +310,7 @@ def test_stale_pid_file_reused_pid(tt_cmd, tmp_path):
             cwd=app_path,
         )
         assert rc == 0, out
-        assert f"The Instance {master} (PID = " in out
+        assert f"The instance {master} (PID = " in out
         assert stranger.poll() is None, "the stranger got a signal"
     finally:
         utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", master], cwd=app_path)

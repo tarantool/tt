@@ -765,7 +765,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_path)
     assert stop_rc == 0
     for inst in instances:
-        assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.", stop_out)
+        assert re.search(rf"The instance app1:{inst} \(PID = \d+\) has been terminated.", stop_out)
 
 
 def check_vshard_cluster_works(tt_cmd, app_path, instances):

@@ -230,7 +230,7 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     body = {"command_name": "instance", "params": ["stop", "-y", "test_app:test_app"]}
     response = requests.post(default_url, json=body)
     assert re.search(
-        r"The Instance test_app:test_app \(PID = \d+\) has been terminated.",
+        r"The instance test_app:test_app \(PID = \d+\) has been terminated.",
         command_output(response),
     )
 
@@ -305,7 +305,7 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     body = {"command_name": "instance", "params": ["stop", "-y", "test_app:test_app"]}
     response = requests.post(url, json=body)
     assert re.search(
-        r"The Instance test_app:test_app \(PID = \d+\) has been terminated.",
+        r"The instance test_app:test_app \(PID = \d+\) has been terminated.",
         command_output(response),
     )
 

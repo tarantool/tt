@@ -74,7 +74,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     stop_cmd = [tt_cmd, "instance", "stop", "-y", "test_app:test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_dir)
     assert stop_rc == 0
-    assert re.search(r"The Instance test_app:test_app \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The instance test_app:test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
@@ -119,7 +119,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     )
     restart_output = instance_process_2.stdout.readline()
     assert re.search(
-        r"The Instance test_app:test_app \(PID = \d+\) has been terminated.",
+        r"The instance test_app:test_app \(PID = \d+\) has been terminated.",
         restart_output,
     )
     restart_output = instance_process_2.stdout.readline()
@@ -144,7 +144,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     stop_cmd = [tt_cmd, "instance", "stop", "-y", "test_app:test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_dir)
     assert stop_rc == 0
-    assert re.search(r"The Instance test_app:test_app \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The instance test_app:test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process of new Instance was terminated correctly.
     instance_process_2_rc = instance_process_2.wait(1)
@@ -197,7 +197,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_dir)
     assert stop_rc == 0
     assert re.search(
-        r"The Instance test_env_app:test_env_app \(PID = \d+\) has been terminated.",
+        r"The instance test_env_app:test_env_app \(PID = \d+\) has been terminated.",
         stop_out,
     )
 
@@ -254,14 +254,14 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     clean_cmd = [tt_cmd, "instance", "clean", f"{app_name}:*", "--yes"]
     clean_rc, clean_out = run_command_and_get_output(clean_cmd, cwd=app_dir)
     assert clean_rc == 1
-    assert re.search(r"instance `test_data_app` must be stopped", clean_out)
+    assert "instance test_data_app:test_data_app is running: stop it first" in clean_out
 
     # Stop the Instance.
     stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:*"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_dir)
     assert stop_rc == 0
     assert re.search(
-        r"The Instance test_data_app:test_data_app \(PID = \d+\) has been terminated\.",
+        r"The instance test_data_app:test_data_app \(PID = \d+\) has been terminated\.",
         stop_out,
     )
 
@@ -324,7 +324,7 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
         stop_cmd = [tt_cmd, "instance", "stop", "-y", "app:router"]
         stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
         assert stop_rc == 0
-        assert re.search(r"The Instance app:router \(PID = \d+\) has been terminated.", stop_out)
+        assert re.search(r"The instance app:router \(PID = \d+\) has been terminated.", stop_out)
 
         # Check that the process was terminated correctly.
         instance_process_rc = instance_process.wait(1)
@@ -507,7 +507,7 @@ def test_no_args_usage(tt_cmd):
         assert stop_rc == 0
         for inst_name in instances:
             assert re.search(
-                rf"The Instance app:{inst_name} \(PID = \d+\) has been terminated.",
+                rf"The instance app:{inst_name} \(PID = \d+\) has been terminated.",
                 stop_out,
             )
 
@@ -559,7 +559,7 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
         stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_dir)
         assert stop_rc == 0
         assert re.search(
-            r"The Instance test_env_app:test_env_app \(PID = \d+\) has been terminated.",
+            r"The instance test_env_app:test_env_app \(PID = \d+\) has been terminated.",
             stop_out,
         )
 
@@ -615,7 +615,7 @@ def test_running_start(tt_cmd):
             status_rc, stop_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
             assert re.search(
-                r"The Instance app:router \(PID = \d+\) "
+                r"The instance app:router \(PID = \d+\) "
                 r"has been terminated.",
                 stop_out,
             )
@@ -659,7 +659,7 @@ def test_running_start(tt_cmd):
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
             assert status_rc == 0
             assert re.search(
-                r"The Instance app:(router|master|replica) \(PID = \d+\) "
+                r"The instance app:(router|master|replica) \(PID = \d+\) "
                 r"has been terminated.",
                 stop_out,
             )

@@ -63,8 +63,7 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
         if was_running and inst not in stop_instances:
             assert status[inst]["PID"] == orig_status[inst]["PID"]
         if inst in target_instances:
-            inst_name = inst.partition(":")[2]
-            msg = f"instance `{inst_name}` must be stopped"
+            msg = f"instance {inst} is running: stop it first"
             if was_running:
                 if inst in stop_instances:
                     assert msg not in out
@@ -102,15 +101,19 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
                 # Nothing to remove for an instance that never ran.
                 assert f"{inst}...\t[OK]" in out
     # With --yes nothing is shown and nothing asked; otherwise the files are
-    # shown, and the question asked when there is any to remove.
+    # shown, and the question asked when there is any to remove. The running
+    # instances are told of first, and with only running ones nothing is
+    # shown at all.
     totals = re.findall(r"Total files to remove: (\d+)\r?\n", out)
     confirmations = re.findall(r"Confirm clean of .*\[y/n\]:", out)
-    if force_mode:
+    if force_mode or len(running) == len(target_instances):
         assert totals == []
         assert confirmations == []
     else:
         assert len(totals) == 1
         assert len(confirmations) == (1 if int(totals[0]) > 0 else 0)
+        for inst in running:
+            assert out.index(f"instance {inst} is running") < out.index("Total files to remove")
 
 
 def post_start_clean_decorator(func):
@@ -338,7 +341,8 @@ def test_clean_external(tt_cmd, tmp_path):
             cwd=app_path,
         )
         assert rc == 1
-        assert "instance `worker` must be stopped" in out
+        assert f"⨯ instance {worker} is running: stop it first" in out
+        assert "Total files to remove" not in out
         assert os.path.exists(state_file)
     finally:
         rc, _ = utils.run_command_and_get_output(

@@ -97,7 +97,7 @@ def stop_application(tt_cmd, app_name, workdir, instances, force=False):
     if not force:
         for inst in instances:
             assert re.search(
-                rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
+                rf"The instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
                 stop_out,
             )
             assert not os.path.exists(

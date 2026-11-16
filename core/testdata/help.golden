@@ -3633,7 +3633,8 @@ FLAGS
 Remove the data and the logs of the instances: the files of
 <root>/var/lib/<app>/<instance>/ and <root>/var/log/<app>/<instance>/, and of
 the data directories their config moves elsewhere. A running instance is left
-alone, which counts as a failure for it.
+alone, which counts as a failure for it: it is told of first, and what is listed
+and asked about is the files of the others.
 
 USAGE
   tt instance clean [<APP>:<INSTANCE> | <APP>:*][,...] [flags]

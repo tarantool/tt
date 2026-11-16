@@ -462,7 +462,7 @@ Flag without argument:
 curl --header "Content-Type: application/json" --request POST \
 --data '{"command_name":"instance", "params":["stop", "--yes", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"   • The Instance test_app:instance001 (PID = 568979) has been terminated.\n"}
+{"res":"   • The instance test_app:instance001 (PID = 568979) has been terminated.\n"}
 ```
 
 The daemon runs the command without a terminal, so a command that asks for a
