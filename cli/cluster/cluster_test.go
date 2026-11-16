@@ -173,10 +173,6 @@ func TestGetInstanceConfig_environment(t *testing.T) {
 // TestGetClusterConfig_env_empty_map checks that an empty map from the
 // environment leaves the map of the file as it is, as Tarantool merges it:
 // TT_LABELS='{}' adds no label and drops none.
-//
-// NEEDS THE GO-CONFIG BUMP: it fails with go-config 4c7c90ea0ec7, which gives
-// labels: null; fixed by "merge: let an empty map leave a map alone" in
-// go-config.
 func TestGetClusterConfig_env_empty_map(t *testing.T) {
 	for _, name := range []string{"TT_LABELS", "TT_LABELS_DEFAULT"} {
 		t.Run(name, func(t *testing.T) {

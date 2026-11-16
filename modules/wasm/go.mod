@@ -36,7 +36,7 @@ require (
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7 // indirect
+	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect
 	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c // indirect
 	github.com/tarantool/tt/sdk/connect v0.0.0-0 // indirect

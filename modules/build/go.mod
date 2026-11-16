@@ -18,7 +18,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7 // indirect
+	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4 // indirect
 	github.com/tarantool/tt/sdk/connect v0.0.0-0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/sys v0.48.0 // indirect

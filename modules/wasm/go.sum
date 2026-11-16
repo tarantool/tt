@@ -138,8 +138,8 @@ github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXf
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7 h1:QmA68u5R0xJz5FXIBzvlKYC3OyCsE4q74ocj0RMNYQc=
-github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7/go.mod h1:dbOf1sxV2csrNP+UxSFqDN7dqMNyUkMB8L+n5BAHYL4=
+github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4 h1:NOFzpCo15YGtSHeTtyunu8a7x9tu8jkETyFQoM4we8I=
+github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4/go.mod h1:dbOf1sxV2csrNP+UxSFqDN7dqMNyUkMB8L+n5BAHYL4=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
 github.com/tarantool/go-luarocks v0.1.1-0.20261116155841-7d7909b11b0f h1:dwv1s6COeJ67HfJD+LDPnna52mW0trRhOM77EFU0Ou0=

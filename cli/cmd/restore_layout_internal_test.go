@@ -589,9 +589,10 @@ groups:
 		{
 			name:     "every key comes from an outer scope",
 			instance: "storage-001-a",
+			// go-config resolves the templates of an instance's config.
 			want: restore.ConfigDirs{
-				Snapshot:       "var/lib/{{ instance_name }}",
-				WAL:            "wal/{{ instance_name }}",
+				Snapshot:       "var/lib/storage-001-a",
+				WAL:            "wal/storage-001-a",
 				Vinyl:          "/srv/vinyl",
 				ProcessWorkDir: "base",
 			},
@@ -600,7 +601,7 @@ groups:
 			name:     "the instance's own key wins over the group's",
 			instance: "storage-001-b",
 			want: restore.ConfigDirs{
-				Snapshot:       "var/lib/{{ instance_name }}",
+				Snapshot:       "var/lib/storage-001-b",
 				WAL:            "/ssd/wal-b",
 				Vinyl:          "/srv/vinyl",
 				ProcessWorkDir: "base",

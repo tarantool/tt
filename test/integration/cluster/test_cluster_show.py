@@ -817,10 +817,6 @@ def test_cluster_show_etcd_arrays(tt_cmd, tmp_path, etcd, target):
 def test_cluster_show_file_env_empty_map(tt_cmd, tmp_path):
     # An empty map from the environment leaves the map of the file as it is,
     # as Tarantool merges it: TT_LABELS='{}' drops no label.
-    #
-    # NEEDS THE GO-CONFIG BUMP: fails with go-config 4c7c90ea0ec7, which gives
-    # labels: null; fixed by "merge: let an empty map leave a map alone" in
-    # go-config.
     (tmp_path / "config.yaml").write_text("labels:\n  a: x\n" + test_simple_app_cfg)
 
     for name in ["TT_LABELS", "TT_LABELS_DEFAULT"]:
@@ -935,10 +931,6 @@ groups:
 def test_cluster_show_null_is_unset(tt_cmd, tmp_path, etcd):
     # Null is no value, as Tarantool 3.9 reads it: the scopes and the
     # sources under it fill it in.
-    #
-    # NEEDS THE GO-CONFIG BUMP: fails with go-config 4c7c90ea0ec7, where null
-    # replaces the value under it; fixed by "merge: read null as no value" in
-    # go-config.
     app_path = make_precedence_app(
         tmp_path,
         etcd,

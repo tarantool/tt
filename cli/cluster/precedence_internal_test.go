@@ -165,10 +165,6 @@ func TestBuildClusterConfigWhole(t *testing.T) {
 
 // TestBuildClusterConfigNullIsUnset checks that null is no value, as
 // Tarantool 3.9 reads it: the scopes and the sources under it fill it in.
-//
-// NEEDS THE GO-CONFIG BUMP: it fails with go-config 4c7c90ea0ec7, where null
-// replaces the value under it; fixed by "merge: read null as no value" in
-// go-config.
 func TestBuildClusterConfigNullIsUnset(t *testing.T) {
 	clearTTEnv(t)
 	t.Setenv("TT_MEMTX_MEMORY_DEFAULT", "268435456")

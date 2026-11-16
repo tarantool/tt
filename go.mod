@@ -25,7 +25,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7
+	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4
 	github.com/tarantool/go-iproto v1.1.0
 	github.com/tarantool/go-luarocks v0.1.1-0.20261116155841-7d7909b11b0f
 	github.com/tarantool/go-prompt v1.0.1
