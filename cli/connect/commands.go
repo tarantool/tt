@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tarantool/go-prompt"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
 )
@@ -185,6 +186,11 @@ func (command argSetCmdDecorator) Run(console *Console,
 	return command.base.Run(console, cmd, args)
 }
 
+// Args returns the arguments the command takes, sorted.
+func (command argSetCmdDecorator) Args() []string {
+	return command.sorted
+}
+
 // argUnsignedDecorator is a decorator for a command that checks that a
 // first and only argument is a positive integer.
 type argUnsignedCmdDecorator struct {
@@ -255,6 +261,18 @@ func (command argBooleanCmdDecorator) Run(console *Console,
 	return command.base.Run(console, cmd, args)
 }
 
+// Args returns the arguments the command is completed with.
+func (command argBooleanCmdDecorator) Args() []string {
+	return []string{"false", "true"}
+}
+
+// argsLister is a command that takes one of a set of arguments, which the
+// console completes.
+type argsLister interface {
+	// Args returns the arguments, sorted.
+	Args() []string
+}
+
 // cmdInfo describes an additional information about a command.
 type cmdInfo struct {
 	// Short is a short help description for the command.
@@ -264,6 +282,9 @@ type cmdInfo struct {
 	// Cmd is the described command itself.
 	Cmd cmd
 }
+
+// helpDescription describes the help command.
+const helpDescription = "show this screen"
 
 // helpCmd is a special type of a console command that shows the help for
 // other commands.
@@ -280,7 +301,7 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 
 	longs := make([]string, 0, 1+len(infos))
 
-	longs = append(longs, "show this screen")
+	longs = append(longs, helpDescription)
 
 	var msg strings.Builder
 
@@ -646,6 +667,10 @@ var cmdInfos = []cmdInfo{
 // cmdExecutor executes console commands.
 type cmdExecutor struct {
 	cmds map[string]cmd
+	// aliases are the names of the commands, sorted.
+	aliases []string
+	// descriptions describe the commands by their names, as the help does.
+	descriptions map[string]string
 }
 
 // newCmdExecutor creates a new command executor object.
@@ -669,9 +694,77 @@ func newCmdExecutor() cmdExecutor {
 		}
 	}
 
-	return cmdExecutor{
-		cmds: cmdsMap,
+	descriptions := make(map[string]string)
+	for _, alias := range helpCmd.Aliases() {
+		descriptions[alias] = helpDescription
 	}
+
+	for _, info := range cmdInfos {
+		for _, alias := range info.Cmd.Aliases() {
+			descriptions[alias] = info.Long
+		}
+	}
+
+	aliases := make([]string, 0, len(cmdsMap))
+	for alias := range cmdsMap {
+		aliases = append(aliases, alias)
+	}
+
+	sort.Strings(aliases)
+
+	return cmdExecutor{
+		cmds:         cmdsMap,
+		aliases:      aliases,
+		descriptions: descriptions,
+	}
+}
+
+// Complete returns the completions of text, the input before the cursor,
+// and true if text is a backslash command: the commands it is the start of,
+// or the arguments of the command it names. A completion replaces word, the
+// end of text after the last separator of words, which the completion keeps
+// in front of the cursor.
+func (executor cmdExecutor) Complete(text, word string) ([]prompt.Suggest, bool) {
+	text = strings.TrimLeft(text, " \t")
+	if !strings.HasPrefix(text, "\\") || !strings.HasSuffix(text, word) {
+		return nil, false
+	}
+
+	// The part of text no completion replaces.
+	kept := len(text) - len(word)
+
+	var suggests []prompt.Suggest
+
+	for _, alias := range executor.aliases {
+		if len(alias) > len(text) && strings.HasPrefix(alias, text) {
+			suggests = append(suggests, prompt.Suggest{
+				Text:        alias[kept:],
+				Description: executor.descriptions[alias],
+			})
+		}
+
+		lister, ok := executor.cmds[alias].(argsLister)
+		if !ok || !strings.HasPrefix(text, alias+" ") {
+			continue
+		}
+
+		// The argument being typed: the command takes one.
+		arg := strings.TrimLeft(text[len(alias):], " ")
+		if strings.Contains(arg, " ") || len(arg) < len(word) {
+			continue
+		}
+
+		for _, value := range lister.Args() {
+			if len(value) > len(arg) && strings.HasPrefix(value, strings.ToLower(arg)) {
+				suggests = append(suggests, prompt.Suggest{
+					Text:        value[len(arg)-len(word):],
+					Description: "",
+				})
+			}
+		}
+	}
+
+	return suggests, true
 }
 
 // Execute attempts to interpret the input string as a command and execute it.

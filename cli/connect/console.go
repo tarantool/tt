@@ -364,9 +364,22 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		}
 	}
 
+	commandsExecutor := newCmdExecutor()
+
 	completer := func(doc prompt.Document) []prompt.Suggest {
 		if len(doc.Text) == 0 {
 			return nil
+		}
+
+		// A backslash command is the console's, whatever the language, as
+		// long as it starts a statement (getExecutor).
+		if console.input == "" {
+			word := doc.GetWordBeforeCursorUntilSeparator(tarantoolWordSeparators)
+
+			suggestions, ok := commandsExecutor.Complete(doc.TextBeforeCursor(), word)
+			if ok {
+				return suggestions
+			}
 		}
 
 		if console.language == SQLLanguage {
@@ -395,6 +408,12 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		if err != nil {
 			return nil
 		}
+
+		// The instance gives the common start of its completions too, which
+		// is the word itself when they share no more than it.
+		suggestionsTexts = slices.DeleteFunc(suggestionsTexts, func(text string) bool {
+			return text == lastWord
+		})
 
 		slices.Sort(suggestionsTexts)
 
