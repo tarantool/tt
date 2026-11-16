@@ -12,6 +12,7 @@ AKIAs
 anykey
 autoexpel
 AUUID
+Bstatic
 bootstrapper
 Bsymbolic
 callrw
@@ -58,15 +59,20 @@ iproto
 ispytest
 itest
 lauxlib
-loadlib
+lbar
 LDLIBS
 leaderuuid
+lfnv
+lfoo
+libnp
 linecomment
+loadlib
 lsns
 luabody
 luajit
 luakit
 luarocks
+Lvendor
 madd
 magefile
 MAKEFLAGS
@@ -92,6 +98,8 @@ nogc
 nolint
 nontarantool
 normalised
+nosuch
+nosuchlib
 notarantool
 oldfd
 outputformat
@@ -116,6 +124,7 @@ rescan
 RTLD
 rmdirs
 rockspec*
+rodata
 rpmdeb
 rundir
 sbnd
@@ -123,6 +132,8 @@ sdkcluster
 sdkconnect
 sdkdial
 socketpath
+soname
+SONAME
 sourcedir
 specialchars
 sslcafile
@@ -170,4 +181,6 @@ Wextra
 xcall
 xdir
 xlog*
+zcrc
 zstandard
+zver

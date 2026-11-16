@@ -220,11 +220,14 @@ components tarawasm builds; see
 | `incremental` | `make`, `shell`, `zig` | `true` skips the build when its inputs are those of the last one and what it left is still there |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
-| `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `rpath`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
+| `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `rpath`, `defines` | `c`, `lua-c` | `module` and `sources` are required; an entry of `libraries` with a `/` or ending in `.a` is a library file |
+| `pkg_config` | `c`, `lua-c` | packages whose flags pkg-config gives, `["openssl", "libsasl2 >= 2.1"]`; see below |
+| `link` | `c`, `lua-c` | components of the package whose libraries the module links, what their `output` sends `to = "link"`; see below |
+| `bundle` | `lua-c` | libraries the module links whose shared libraries tt copies beside it; see below |
 | `cflags` | `c`, `lua-c` | flags of the compiles of the C and assembler sources, one per entry, after tt's own and before `CFLAGS` of the environment; see below |
 | `cxxflags` | `c`, `lua-c` | flags of the compiles of the C++ sources, one per entry, after tt's own and before `CXXFLAGS` of the environment |
 | `module` | `cargo` | builds the library of the package as the module of this name; a block with neither `module` nor `bin` builds the library under its own name |
-| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `rpath`, `defines`, `cflags`, `cxxflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
+| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `rpath`, `pkg_config`, `defines`, `cflags`, `cxxflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
 | `static` | all | `true`: what the build makes needs nothing of the machine it is installed on, and the build checks it; see below |
 | `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the objects; see below |
@@ -463,9 +466,11 @@ once, as many as the machine has CPUs:
 ```console
 $CC -O2 -g -fPIC -ffile-prefix-map=<project>=. -gno-record-gcc-switches <cflags> <$CFLAGS> \
     -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
+    -I<include/ of each of link> <pkg-config --cflags> \
     -MD -MF <object>.d -MQ <object> -c <source> -o <object>
 $CXX -O2 -g -fPIC -ffile-prefix-map=<project>=. -gno-record-gcc-switches <cxxflags> <$CXXFLAGS> \
     -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
+    -I<include/ of each of link> <pkg-config --cflags> \
     -MD -MF <object>.d -MQ <object> -c <source> -o <object>
 ```
 
@@ -474,7 +479,8 @@ otherwise:
 
 ```console
 $CXX -shared -Wl,-Bsymbolic-functions <ldflags> -o <module>.so <objects> \
-    -L<library_dirs> -l<libraries> -Wl,-rpath,<rpath> <$LDFLAGS>
+    -L<library_dirs> -L<each of link> -l<libraries> -l<the libraries of link> \
+    <pkg-config --libs> -Wl,-rpath,<rpath> <$LDFLAGS>
 ```
 
 The flags of a compile are tt's, then the project's, then the user's:
@@ -550,7 +556,83 @@ loader looks where `rpath` says, each entry `-Wl,-rpath,<entry>`:
 the module is installed on. An empty entry, a relative one - which the
 loader would resolve against the working directory of the process - and
 one with a comma are errors. `zig cc` building for the host adds an rpath
-of each directory of a shared library it links, as zig does.
+of each directory of a shared library it links, as zig does. Tarantool
+loads a module of `c`, a module of `box.schema.func`, from a copy in a
+temporary directory, so `$ORIGIN` of such a module is that directory.
+
+An entry of `libraries` is the name of a library, `-l<name>`, or, with a
+`/` or ending in `.a`, a library file, relative to `cwd`, which the link
+takes as it is, in its place among the `-l`: `libraries =
+["vendor/libfoo.a"]`. A name of GNU ld's `:<file>` form, `:libfoo.a`,
+stays a name.
+
+`pkg_config` lists packages pkg-config knows, each as pkg-config takes
+it, `"openssl"` or `"libsasl2 >= 2.1"`. The build runs `pkg-config --cflags`
+and `pkg-config --libs` for them, with `--static` for a build with
+`static = true`, splits what they print into words as a shell splits
+them, and puts the flags of the compiler after `defines` and
+`include_dirs` of every compile, C and C++, and those of the libraries
+after `libraries`. pkg-config is `PKG_CONFIG` of the environment tt runs
+in, split as `CC` is, `pkg-config` by default; it runs with the
+environment of the build, so `PKG_CONFIG_PATH` of `env` reaches it, while
+`PKG_CONFIG` in `env` is an error. A pkg-config that is not in `PATH`, or
+a package it does not know, fails the build before anything is built:
+
+```text
+⨯ building component "zcrc": pkg_config[0]: "zlib-ng": pkg-config --exists --print-errors zlib-ng: exit status 1: Package zlib-ng was not found in the pkg-config search path.
+  Perhaps you should add the directory containing `zlib-ng.pc'
+  to the PKG_CONFIG_PATH environment variable
+  Package 'zlib-ng' not found
+```
+
+`link` lists components of the package whose libraries the module links:
+what the `output` of their builds sends `to = "link"` (`make`, `shell`,
+`cmake`), which tt copies into `_build/link/<product>/<component>/`, a
+header into `include/` of it. The compiles get `-I` of that `include/`,
+and the link `-L` of the directory and `-l<name>` of each
+`lib<name>.a`, `.so` or `.dylib` there, after `libraries`; a library
+`libraries` names keeps its place there. Every product of the component
+builds the components of `link` before it, in the order of its
+`components`, or the manifest is invalid:
+
+```text
+⨯ invalid manifest: products.default.components: component "hashes" links the libraries of component "fnv", and the product builds it after "hashes": list "fnv" before "hashes"
+```
+
+A manifest without `[products]` builds its components in the order of
+their names. `tt package build hashes`, which builds one component, needs
+the libraries of `fnv` from an earlier build: `link[0]: component "fnv"
+has not been built: build it first, as a build of the whole product does
+before "hashes"`. A component of `link` whose output sends no library
+there is an error too. See
+[Link C libraries into a module](../how-to/c-libraries.md).
+
+`bundle` of `lua-c` lists libraries the module links whose shared
+libraries go with it: a name of `libraries`, of a shared library file of
+`libraries`, of the libraries of `link` or of the `-l` of `pkg_config`.
+The build finds the shared library the link takes for it - the file, or
+`lib<name>.so` (`.dylib` on macOS) in `library_dirs`, the directories of
+`link` and the `-L` of pkg-config, or where the compiler finds it,
+`$CC -print-file-name=lib<name>.so` - follows its links, and copies it
+beside the module under the name the module asks the loader for, its
+SONAME: `bundle = ["z"]` copies `/usr/lib/x86_64-linux-gnu/libz.so.1.3.1`
+as `libz.so.1`. The module gets `-Wl,-rpath,$ORIGIN`, unless `rpath` has
+`$ORIGIN`, so it loads the copy wherever it is installed: tt installs it
+beside the module, into `.rocks/lib/tarantool/<namespace>/`, and packs it.
+The copy is there before the module is linked, so the load of the module
+into the `tarantool` of the build, once it is linked, finds it as well.
+A library of `bundle` is linked shared, with `static = true` as well. A
+library the bundled one needs is not bundled with it: tt warns of it,
+`.../libfoo.so.1, which bundle copies beside the module, needs libbar.so.1,
+which is not bundled`, and a build with `static = true` fails on it. A
+name the module does not link, a shared library that is not found, and a
+module that does not need the library in the end - its static library
+was linked, or `-Wl,--as-needed` dropped it - fail the build. On macOS the
+copy gets the install name `@rpath/<name>` and an ad hoc signature before
+the module is linked against it, with `-Wl,-rpath,@loader_path`. `bundle`
+of `c` is an error: Tarantool loads a module of `box.schema.func` from a
+copy in a temporary directory, where the libraries beside the module are
+not.
 
 `CC` and `CXX` are split into words as a shell splits a command, with
 `'...'`, `"..."` and `\` and without expansions, so a compiler may be run
@@ -564,7 +646,8 @@ nothing, and the flags of the project go into `cflags`, `cxxflags` and
 compiler reads: `defines`, `include_dirs`, `cflags` and `cxxflags` take
 what `CPPFLAGS` would carry, `libraries` and `library_dirs` what `LIBS`
 would. `tt -V package build` shows each command before it runs it; a
-compile that fails shows its command and what it printed in the error.
+compile or a link that fails shows its command and what it printed in the
+error.
 
 What the compiler printed for a compile that succeeded, its warnings, is a
 warning of the build, once an object, after a line naming the source, the
@@ -580,6 +663,43 @@ datapath.c:12:9: warning: unused variable 'len' [-Wunused-variable]
    12 |     int len;
       |         ^~~
 ```
+
+A build with `static = true` links each library of `libraries`, of `link`
+and of the `-l` of pkg-config from its static library: `lib<name>.a` in
+`library_dirs`, the directories of `link` and the `-L` of pkg-config, or
+the one the compiler finds, `$CC -print-file-name=lib<name>.a`, the path
+of which takes the place of `-l<name>`. This works with every linker -
+GNU ld, lld, ld64, `zig cc` - where `-Wl,-Bstatic` is GNU ld's alone; a
+linker takes the shared library of `-l<name>` when both are there. The
+libraries of the C library and of the GCC runtime, `c`, `m`, `dl`,
+`pthread`, `rt`, `gcc_s`, and `System` on macOS, which `static = true`
+allows, are linked as they are, and so are the libraries of `bundle` and
+a library with no static library found, which the check of `static = true`
+then names. What a static library brings into the module the module
+exports, and `-Wl,-Bsymbolic-functions` binds the calls of the module to
+it: the warning of the symbols Tarantool exports too names those of the
+library as well, which `-Wl,--exclude-libs,ALL` in `ldflags` hides (not of
+`zig cc`, which refuses it). A module is a shared object, which takes position-independent
+code only, so the static library is to be built with `-fPIC`; one that is
+not - `libz.a` of Debian and Ubuntu is not - fails the link, and the error
+says so:
+
+```text
+⨯ building component "zcrc": linking: exit status 1
+  cc -shared -Wl,-Bsymbolic-functions -o .../zcrc/_build/rock/default/lib/zcrc/crc.so .../zcrc/_build/component/zcrc/obj/crc.c.de186406.o /usr/lib/x86_64-linux-gnu/libz.a
+  /usr/bin/x86_64-linux-gnu-ld.bfd: /usr/lib/x86_64-linux-gnu/libz.a(zutil.o): warning: relocation against `z_errmsg' in read-only section `.text'
+  /usr/bin/x86_64-linux-gnu-ld.bfd: /usr/lib/x86_64-linux-gnu/libz.a(zutil.o): relocation R_X86_64_PC32 against symbol `z_errmsg' can not be used when making a shared object; recompile with -fPIC
+  /usr/bin/x86_64-linux-gnu-ld.bfd: final link failed: bad value
+  collect2: error: ld returned 1 exit status
+  hint: the static library /usr/lib/x86_64-linux-gnu/libz.a was not built with -fPIC: a module is a shared object, which takes position-independent code only: build the library with -fPIC (CFLAGS=-fPIC, or -DCMAKE_POSITION_INDEPENDENT_CODE=ON of cmake), or link its shared library
+```
+
+The module is linked again when a file it links changed: a file of
+`libraries`, a static library a build with `static = true` took, a
+library of `link` or of `bundle`, or one of the libraries of `libraries`
+in `library_dirs`; and when what pkg-config gives or `PKG_CONFIG_PATH`,
+`PKG_CONFIG_LIBDIR` and `PKG_CONFIG_SYSROOT_DIR` changed, which an object
+is compiled again for too.
 
 A module of C++ needs the C++ library. On Linux a build with
 `static = true` links `libstdc++` into the module, with
@@ -791,13 +911,20 @@ needs.
   `libgcc_s.so.1`, the GCC runtime every build of Tarantool needs; on macOS
   `/usr/lib/libSystem.B.dylib` and `/usr/lib/libc++.1.dylib`, the C++
   library of the system, which Tarantool needs too, and every slice of a
-  universal file. Its native files are those the build writes into
-  `TT_OUTPUT_DIR` and those of the component the layout takes. The backend
-  is asked for nothing but by `c` and `lua-c`, which link `libstdc++` into
-  a module of C++ on Linux: a library a module needs, such as
-  `libsasl2.so.2`, is linked in statically, from its `.a`, or loaded at run
-  time with `dlopen`, and a C++ module of another backend links `libstdc++`
-  in with `-static-libstdc++`. A module that needs a newer glibc than the
+  universal file - and the libraries it finds beside itself among the
+  native files of the build, by an rpath of `$ORIGIN` or, on macOS,
+  `@loader_path/<file>` or `@rpath/<file>` with an rpath of `@loader_path`:
+  those are installed and packed with it. Its native files are those the
+  build writes into `TT_OUTPUT_DIR` and those of the component the layout
+  takes, and a library beside it is one of them, checked by the same rules:
+  what it needs itself is reported by name. The backend is asked for
+  nothing but by `c` and `lua-c`, which link `libstdc++` into a module of
+  C++ on Linux and every library from its static library where they find
+  one (above): a library a module needs, such as `libsasl2.so.2`, is
+  linked in statically, from its `.a`, bundled beside the module
+  (`bundle` of `lua-c`), or loaded at run time with `dlopen`, and a C++
+  module of another backend links `libstdc++` in with
+  `-static-libstdc++`. A module that needs a newer glibc than the
   Tarantool it is built for builds with a warning: it does not load where
   that Tarantool runs on an older glibc.
 
