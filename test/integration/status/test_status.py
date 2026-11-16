@@ -471,6 +471,71 @@ def test_status_details_last_exit(tt_cmd, tmp_path):
         stop_application(tt_cmd, app_name, app_path)
 
 
+def install_by_hand(root, name, description):
+    """Lay out the application name, whose instances.yaml is description,
+    as tt package install lays it out in the scope root root."""
+    version = root / "versions" / name / f"{name}_1.0.0"
+    template = version / ".templates" / "default"
+    template.mkdir(parents=True)
+    (template / "instances.yaml").write_text(description)
+    (root / "apps").mkdir(exist_ok=True)
+    (root / "apps" / name).symlink_to(os.path.join("..", "versions", name, f"{name}_1.0.0"))
+
+
+def test_status_of_a_scope(tt_cmd, tmp_path):
+    # tt instance status --scope user with no target shows every instance of
+    # every application of the scope; one that cannot be read is warned of.
+    user_root = tmp_path / "user"
+    system_root = tmp_path / "system"
+    env = dict(os.environ, TT_USER_ROOT=str(user_root), TT_SYSTEM_ROOT=str(system_root))
+    env.pop("TT_SYSTEMD_UNIT", None)
+
+    def tt(*args):
+        p = subprocess.run(
+            [tt_cmd, *args],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        return p.returncode, p.stdout, p.stderr
+
+    # Nothing installed: nothing to show, and no error.
+    for scope in ["user", "system"]:
+        rc, out, err = tt("instance", "status", "--scope", scope)
+        assert rc == 0, err
+        assert f"No applications are installed in the {scope} scope." in err
+
+    sleeper = '  binary: sh\n  args: [-c, "sleep 100"]\n'
+    install_by_hand(user_root, "one", "worker:\n" + sleeper)
+    install_by_hand(user_root, "two", "job:\n" + sleeper)
+    install_by_hand(user_root, "bad", "job: [\n")
+
+    try:
+        rc, out, err = tt("instance", "start", "--scope", "user", "one:*")
+        assert rc == 0, err
+
+        rc, out, err = tt("instance", "status", "--scope", "user")
+        assert rc == 0, err
+        status = extract_status(out)
+        assert sorted(status) == ["one:worker", "two:job"]
+        assert status["one:worker"]["STATUS"] == "RUNNING"
+        assert status["two:job"]["STATUS"] == "NOT RUNNING"
+        assert 'application "bad": invalid instance description' in err
+
+        # An application alone that cannot be read is the error.
+        shutil.rmtree(user_root / "versions" / "two")
+        (user_root / "apps" / "two").unlink()
+        tt("instance", "stop", "--scope", "user", "one:*", "--yes")
+        shutil.rmtree(user_root / "versions" / "one")
+        (user_root / "apps" / "one").unlink()
+        rc, out, err = tt("instance", "status", "--scope", "user")
+        assert rc == 1, out + err
+        assert 'application "bad": invalid instance description' in err
+    finally:
+        tt("instance", "stop", "--scope", "user", "one:*", "--yes")
+
+
 def closed_address():
     """Return an address on the loopback nobody listens on."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt instance status --scope user` and `--scope system` with no target show
+  every instance of every application installed in the scope, the answer to
+  "what runs for me, or on this host", warning of an application whose
+  description cannot be read; with nothing installed they say so and exit
+  with 0. They failed with `--scope user needs a target`.
 - `tt instance status --details` of an instance that does not run tells how
   its last process ended and when: `it exited with code 1, at 2026-11-17
   00:39:27`, `stopped, it exited with code 0`, `it was killed by tt

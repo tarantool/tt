@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -45,6 +47,10 @@ func NewStatusCmd() *cobra.Command {
 		Use:   "status " + instanceTargetsUsage,
 		Short: "Show the status of instances",
 		Long: `The 'status' command provides information about the status of the instances.
+
+With no target it shows the instances of the project the command runs in;
+with --scope user or --scope system, every instance of every application
+installed in that scope, warning of one that cannot be read.
 
 Columns:
 - INSTANCE: The name of the instance, <APP>:<INSTANCE>.
@@ -103,6 +109,61 @@ incomplete.`,
 	return statusCmd
 }
 
+// resolveStatusTargets resolves the targets of tt instance status, as
+// resolveProcesses does. With no target and --scope user or system, which
+// name no project, they are every instance of every application installed
+// in that scope: what runs for me, or on this host. An application that
+// cannot be resolved there is warned of and left out, unless it is the only
+// one; with none installed, it says so and returns no instances, nil.
+func resolveStatusTargets(cmdCtx *cmdcontext.CmdCtx,
+	args []string,
+) ([]running.InstanceCtx, error) {
+	opts, err := instanceTargetOptions(cmdCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(args) != 0 || (opts.Scope != app.ScopeUser && opts.Scope != app.ScopeSystem) {
+		return resolveProcesses(cmdCtx, args)
+	}
+
+	names := app.Names(opts)
+	if len(names) == 0 {
+		log.Infof("No applications are installed in the %s scope.", opts.Scope)
+
+		return nil, nil
+	}
+
+	var (
+		instances []running.InstanceCtx
+		failures  []error
+	)
+
+	for _, name := range names {
+		target := name + string(running.InstanceDelimiter) + app.AllInstances
+
+		found, err := resolveProcesses(cmdCtx, []string{target})
+		if err != nil {
+			// The error names the application.
+			failures = append(failures, err)
+
+			continue
+		}
+
+		instances = append(instances, found...)
+	}
+
+	if len(failures) == len(names) {
+		return nil, errors.Join(failures...)
+	}
+
+	for _, failure := range failures {
+		log.Warn(failure.Error())
+	}
+
+	return instances, nil
+}
+
 // internalStatusModule is a default status module.
 func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if opts.instanceTimeout < 0 {
@@ -121,9 +182,13 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			errInvalidFormatValidFormatsAreJSONYAMLTablePrettyTable, opts.format)
 	}
 
-	instances, err := resolveProcesses(cmdCtx, args)
+	instances, err := resolveStatusTargets(cmdCtx, args)
 	if err != nil {
 		return err
+	}
+
+	if instances == nil {
+		return nil
 	}
 
 	var printer status.InstanceStatusPrinter

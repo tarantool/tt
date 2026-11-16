@@ -36,6 +36,10 @@ $ tt connect kv-api:kv-1 --scope user
 The instances run from the default template of the version, and keep their
 data in `var/lib/kv-api/` of the scope.
 
+`tt instance status --scope user` with no target shows every instance of
+every application installed in the scope; an application whose description
+cannot be read is warned of and left out.
+
 ## Describe this host
 
 The templates of a version are part of the package; an upgrade replaces

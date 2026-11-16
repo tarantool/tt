@@ -3854,6 +3854,10 @@ FLAGS
 === tt instance status --help
 The 'status' command provides information about the status of the instances.
 
+With no target it shows the instances of the project the command runs in;
+with --scope user or --scope system, every instance of every application
+installed in that scope, warning of one that cannot be read.
+
 Columns:
 - INSTANCE: The name of the instance, <APP>:<INSTANCE>.
 - STATUS: The current status of the instance:
