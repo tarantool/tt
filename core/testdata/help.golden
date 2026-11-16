@@ -2645,8 +2645,14 @@ EXAMPLES
   https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1
 
 === tt completion --help
-Generate autocomplete for a specified shell. Supported shell type: bash | zsh |
-fish
+Generate the completion script of tt for a shell: bash, zsh or fish.
+
+Bash completion needs the bash-completion package, which an interactive bash
+of most distributions loads once it is installed. In a shell that has not
+loaded it, such as a minimal container or bash --norc, load it before the
+script of tt, with . /usr/share/bash-completion/bash_completion: otherwise
+Tab says the package is missing and completes nothing. In zsh, run compinit
+before loading the script.
 
 USAGE
   tt completion <SHELL_TYPE> [flags]
@@ -6017,6 +6023,14 @@ __tt_debug()
 __tt_init_completion()
 {
     COMPREPLY=()
+    if ! declare -F _get_comp_words_by_ref >/dev/null 2>&1; then
+        if [[ -z ${__tt_no_bash_completion-} ]]; then
+            __tt_no_bash_completion=1
+            printf '\n%s\n%s\n' "tt: completion needs the bash-completion package:" \
+                "install it and load /usr/share/bash-completion/bash_completion" >&2
+        fi
+        return 1
+    fi
     _get_comp_words_by_ref "$@" cur prev words cword
 }
 

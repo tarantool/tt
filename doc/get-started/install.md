@@ -110,6 +110,26 @@ $ . <(tt completion bash)
 modules, and the targets of `tt instance` commands: applications before the
 `:` and their instances after it.
 
+Bash completion needs the `bash-completion` package, loaded before the script
+of tt. An interactive bash of most distributions loads it, once the package is
+installed:
+
+```console
+$ sudo apt-get install bash-completion   # Debian, Ubuntu
+$ sudo dnf install bash-completion       # Fedora, RHEL
+```
+
+In a shell that has not loaded it, such as a minimal container image or
+`bash --norc`, load it first:
+
+```console
+$ . /usr/share/bash-completion/bash_completion
+$ . <(tt completion bash)
+```
+
+Without it, Tab says `tt: completion needs the bash-completion package` and
+completes nothing. In zsh, run `compinit` before loading the script.
+
 ## Tarantool
 
 tt does not need Tarantool to be installed: `tt binary install tarantool`

@@ -888,6 +888,11 @@ You can generate autocompletion for `bash`, `zsh` and `fish` shell:
 Enter `tt`, press tab and you will see a list of available commands with
 descriptions. Also, autocomplete supports external modules.
 
+Bash completion needs the `bash-completion` package, loaded before the script
+of tt (`. /usr/share/bash-completion/bash_completion` in a shell that has not
+loaded it, such as `bash --norc`); without it, Tab says so and completes
+nothing.
+
 For the target of the `tt instance` commands, autocompletion offers the
 current project and the applications installed in the system scope, or in the
 scope `--scope` names, before the `:` delimiter, and the instances of the pair

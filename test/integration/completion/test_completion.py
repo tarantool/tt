@@ -248,3 +248,37 @@ def test_completion_loaded(completion: Completion) -> None:
         [completion.shell, "-c", f"source {completion.file}"],
     )
     assert rc == 0, f"Failed to apply '{completion.shell}' completion script."
+
+
+def test_bash_completion_without_bash_completion_package(
+    tt_cmd: Path,
+    completion: Completion,
+    tmp_path: Path,
+) -> None:
+    """
+    In a bash that has not loaded bash-completion, Tab says the package is
+    needed, once, rather than "_get_comp_words_by_ref: command not found" on
+    every press.
+    """
+    if completion.shell != "bash":
+        pytest.skip("bash only")
+
+    script = f"""
+source {completion.file}
+COMP_WORDS=(tt ins); COMP_CWORD=1; COMP_LINE="tt ins"; COMP_POINT=6
+__start_tt; echo "rc=$? reply=${{COMPREPLY[*]}}"
+__start_tt; echo "rc=$? reply=${{COMPREPLY[*]}}"
+"""
+    process = run(
+        ["bash", "--norc", "--noprofile", "-c", script],
+        text=True,
+        capture_output=True,
+        cwd=tmp_path,
+        env=dict(os.environ, PATH=f"{Path(tt_cmd).resolve().parent}:{os.environ['PATH']}"),
+    )
+
+    assert process.returncode == 0, process.stderr
+    assert process.stdout == "rc=1 reply=\nrc=1 reply=\n"
+    assert "command not found" not in process.stderr
+    assert process.stderr.count("completion needs the bash-completion package") == 1
+    assert "/usr/share/bash-completion/bash_completion" in process.stderr

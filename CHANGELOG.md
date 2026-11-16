@@ -1031,6 +1031,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   included, and the group alone still prints its help.
 - The example of `tt --help` that enables completion is `. <(tt completion
   bash)`: it was `tt completion`, which fails without the name of a shell.
+- Bash completion in a shell that has not loaded the bash-completion
+  package, such as a minimal container or `bash --norc`, says on the first
+  Tab that it needs the package and how to load it, and completes nothing,
+  where every Tab printed `_get_comp_words_by_ref: command not found`, the
+  `.env/activate.sh` of a project included. `tt completion --help` and the
+  installation page say that bash completion needs the package.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version
