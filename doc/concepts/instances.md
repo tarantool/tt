@@ -39,7 +39,7 @@ legacy:
   script: init.lua
 ```
 
-A record is one of three kinds:
+A record is one of four kinds:
 
 - **A Tarantool instance configured by the cluster config**: a record with
   neither `binary` nor `script`, such as `storage-001`. It must be in the
@@ -51,6 +51,9 @@ A record is one of three kinds:
 - **An external process**, a record with `binary`: a program that is not
   Tarantool, started, stopped and shown next to the Tarantool instances. See
   [Run an external process](../how-to/external-processes.md).
+- **TCM**, a record with `kind: tcm`: the Tarantool Cluster Manager of the
+  application, at most one, whose binary and config tt provides. See
+  [Run TCM](../how-to/tcm.md).
 
 The record `"*"`, quoted, stands for every instance of the topology of
 `config.yaml` that no other record names, each a Tarantool instance with the
@@ -146,7 +149,8 @@ seconds by default):
   box runs and its config is applied, what `tt instance status` shows as
   `BOX running` and `CONFIG ready`; an instance that runs its script needs
   only the box;
-- an external process is up once it has run for a second.
+- an external process is up once it has run for a second;
+- TCM is up once its HTTP address answers.
 
 An instance that exits before that has failed, also when its `restart`
 policy has the watchdog start it again, and so has one that is not up in

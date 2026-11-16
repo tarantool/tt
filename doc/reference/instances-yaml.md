@@ -18,6 +18,9 @@ gateway:
   logrotate_signal: SIGHUP
 legacy:
   script: init.lua
+tcm:
+  kind: tcm
+  http: 127.0.0.1:8080
 ```
 
 The document maps instance names to records. A name with no record,
@@ -36,14 +39,17 @@ keys are not supported.
 | neither `binary` nor `script` | a Tarantool instance configured by the cluster config; it must be in the topology of `config.yaml` |
 | `script` | a Tarantool instance configured by its script; see [Run a box.cfg application](../how-to/script-instances.md) |
 | `binary` | an external process; see [Run an external process](../how-to/external-processes.md) |
+| `kind: tcm` | TCM, the Tarantool Cluster Manager of the application; see [Run TCM](../how-to/tcm.md) |
 
 `binary` and `script` are mutually exclusive. Neither the name of a script
-instance nor of an external process can be an instance of the topology.
+instance, nor of an external process, nor of TCM can be an instance of the
+topology. A description has one record of TCM at most.
 
 The record `"*"` - quoted, as `*` alone is a YAML alias - stands for every
-instance of the topology no other record names. It cannot have `binary` or
-`script`. A record of an instance of the topology replaces `"*"` for it
-whole, taking none of its fields.
+instance of the topology no other record names. It cannot have `binary`,
+`script`, `kind` or the fields of TCM, so TCM is never one of the instances
+of `"*"`: it is named. A record of an instance of the topology replaces
+`"*"` for it whole, taking none of its fields.
 
 ## Fields
 
@@ -58,6 +64,15 @@ whole, taking none of its fields.
 | `args` | external | | the arguments of the program, a list of strings |
 | `workdir` | external | the data directory | the working directory, relative to the application directory |
 | `logrotate_signal` | external | none | the signal `tt instance logrotate` sends the process |
+| `kind` | TCM | | `tcm`, its only value |
+| `http` | TCM | `127.0.0.1:8080` | the address TCM listens on, `host:port`; `0.0.0.0:8080` listens on every interface |
+| `config` | TCM | | settings of TCM of your own, a YAML file merged over the config tt writes; relative to the directory of `instances.yaml` |
+| `password_file` | TCM | `admin.secret` in the data directory, generated | the file with the password of the first login of `admin`; relative to the directory of `instances.yaml` |
+
+TCM takes `restart`, `stop_signal`, `stop_timeout` and `env` as an external
+process does, and cannot have `binary`, `script`, `args`, `workdir` or
+`logrotate_signal`: tt finds its binary and writes its config. `env` reaches
+TCM, which ranks its `TCM_*` variables above its config file.
 
 Under systemd, `restart` becomes `Restart=` of the unit and `stop_timeout`
 its `TimeoutStopSec=`; see [Run instances under systemd](../how-to/systemd.md).

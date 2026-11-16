@@ -555,6 +555,38 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `[package].include` lists it. The warning says to load the code as
   `app.module: <package>`, from `.rocks/`, or to include the file, and the
   page on packages says the same.
+- TCM, the Tarantool Cluster Manager, runs as an instance of its
+  application: a record with `kind: tcm` in `instances.yaml`, which
+  `tt instance start`, `stop`, `restart`, `status`, `logs` and `check` manage
+  and `tt service systemd` makes a unit for, as for any instance. Each
+  application has its own TCM; `"*"` does not stand for it, but a bare
+  `tt instance start` starts it with the other instances of the pair. tt runs
+  the TCM the package bundles, as `tt package install` put it, or else the
+  `bin/tcm` of the scope, and says to `tt binary install tcm` when there is
+  none. At every start it writes the config of TCM into
+  `var/run/<app>/<tcm>/tcm.yaml`: the address of `http` of the record, the
+  config storage of the application (etcd or a Tarantool config storage)
+  under the prefix `/tcm/<app>`, or else the embedded etcd of TCM with its
+  data in `var/lib/<app>/<tcm>/etcd`, the cluster of the application in
+  `initial-settings.clusters`, and the settings of the file `config` of the
+  record names merged on top. On the first start tt generates the password
+  of the `admin` user into `var/lib/<app>/<tcm>/admin.secret`, mode 0600,
+  and gives it to TCM as `TCM_SECURITY_BOOTSTRAP_PASSWORD`; a password set in
+  the environment, in the config, or in the file `password_file` names wins.
+  The start waits for TCM to answer on its HTTP address and prints
+  `TCM: <URL> (user admin, password in <file>)`; `tt instance status
+  --details` tells the same, the storage of TCM, and, for an application
+  whose cluster config is a file, that TCM reads one from a config storage
+  only. TCM is Tarantool Enterprise only: `kind: tcm` in a project whose
+  `[platform].tarantool` is Community Edition fails `tt instance start`,
+  `tt instance check` and `tt package pack` with how to switch to `[ee]`. See
+  the new page "Run TCM".
+- `tt tcm init [--version V] [--http ADDR] [--template NAME]` declares TCM in
+  a project: it adds the record of TCM to the `instances.yaml` of the
+  template and requires the version in `[platform].tcm` of the manifest,
+  `>=V` for `--version V`, or the newest TCM installed without it. A project
+  that has TCM is left as it is, and one of Tarantool Community Edition is
+  refused.
 
 ### Changed
 
@@ -957,6 +989,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   old behaviour. An application file that never returns keeps the config of
   its instance from being applied, so such an instance is never up; its
   endless work belongs in a fiber of its own.
+- `tt package pack` refuses an `include` or `license_files` entry in
+  `.tarantool/`, the scope root of the project: it holds the binaries, the
+  data, the logs and the secrets of the instances on this host, such as the
+  password tt generates for TCM, and none of it goes into a package. It
+  refuses as well a `password_file` of TCM inside a template, which would go
+  into the package with the template.
+
+### Removed
+
+- `tt tcm start`, `tt tcm stop`, `tt tcm status` and `tt tcm log`: TCM is an
+  instance of its application now, a `kind: tcm` record that
+  `tt tcm init` adds. `tt instance start <app>:tcm` replaces `tt tcm start`
+  and `tt tcm start --watchdog`, always under a watchdog; `tt instance stop
+  <app>:tcm` replaces `tt tcm stop`; `tt instance status <app>:tcm
+  [--details]` replaces `tt tcm status`; `tt instance logs <app>:tcm
+  [--follow]` replaces `tt tcm log`. The TCM of the package or of the scope
+  replaces `--path`, and the `config` field of the record a `tcm.yaml` of the
+  working directory.
 
 ### Fixed
 

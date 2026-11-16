@@ -42,8 +42,21 @@ the system scope.
 | `run/.../tarantool.pid` | the pid file Tarantool writes |
 | `run/.../tarantool.control` | the console socket `tt connect <app>:<instance>` uses |
 | `run/.../tarantool.sock` | the binary port, unless the cluster config or the script listens elsewhere |
-| `run/.../process.pid` | the pid of an external process |
+| `run/.../process.pid` | the pid of an external process, and of TCM |
 | `log/.../tt.log` | everything the instance writes and the messages of its watchdog |
+
+TCM, the record with `kind: tcm` (see [Run TCM](../how-to/tcm.md)), has a
+few files of its own:
+
+| File | |
+| --- | --- |
+| `run/<app>/<tcm>/tcm.yaml` | the config of TCM, written anew by every `tt instance start`, mode 0600 |
+| `lib/<app>/<tcm>/admin.secret` | the password of the first login of `admin`, generated on the first start, mode 0600 |
+| `lib/<app>/<tcm>/etcd/` | the data of the embedded etcd of TCM, for an application without a config storage |
+| `lib/<app>/<tcm>/embedded-etcd.json` | the ports tt chose for that etcd |
+
+Nothing of `var/`, or of the rest of `.tarantool/`, goes into a package:
+`tt package pack` refuses an `include` entry in `.tarantool/`.
 
 `tt wasm prepare` adds to the root of a project what WebAssembly components
 are built with: under `versions/`, tarawasm and the tools tt installs, each
@@ -142,6 +155,7 @@ VERSION
 .rocks/...
 _runtime/tarantool/bin/tarantool
 _runtime/tt/bin/tt
+_runtime/tcm/bin/tcm           # with [platform].tcm set
 ```
 
 A signed archive also has `hashes.json`, `env_hashes.json` and their `.sig`

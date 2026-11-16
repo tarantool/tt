@@ -59,6 +59,7 @@ nav = [
     "how-to/docker.md",
     "how-to/script-instances.md",
     "how-to/external-processes.md",
+    "how-to/tcm.md",
     "how-to/sign-packages.md",
     "how-to/external-modules.md",
     "how-to/rocks.md",
