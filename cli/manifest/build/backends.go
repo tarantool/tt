@@ -437,6 +437,10 @@ func (b builder) runComponent(
 		recorded = recorded.join(state.last.made())
 	}
 
+	if run.compiles() {
+		b.opts.warnHeaders()
+	}
+
 	made, err := runWritingBackend(ctx, run, recorded.only(run.backend.Produces))
 	if err == nil {
 		err = checkMade(run, b.stage, made)

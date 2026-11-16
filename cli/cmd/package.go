@@ -449,7 +449,7 @@ func runPackageDeps(format *output.FormatFlag) error {
 		ProjectDir: projectDir,
 		TtVersion:  "",
 		Tarantool: manifestrocks.TarantoolInfo{
-			Executable: "", Prefix: "", Version: "", MissingHeaders: "",
+			Executable: "", Prefix: "", Version: "", MissingHeaders: "", HeadersWarning: "",
 		},
 		Registries: manifestrocks.Sources{
 			Flag:       nil,
@@ -1878,11 +1878,15 @@ func tarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 		return manifestrocks.TarantoolInfo{}, err
 	}
 
+	// The warning that the headers are of another version is the build's to
+	// show, when it compiles against them: a command that builds nothing,
+	// tt package resolve or pack --format rock-src say, does not show it.
 	return manifestrocks.TarantoolInfo{
 		Executable:     cmdCtx.Cli.TarantoolCli.Executable,
 		Prefix:         prefix.Dir,
 		Version:        ver.Str,
 		MissingHeaders: prefix.MissingHeaders(),
+		HeadersWarning: strings.Join(prefix.Warnings, "; "),
 	}, nil
 }
 
@@ -1901,7 +1905,7 @@ func buildTarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 		log.Debugf("Building without a Tarantool: %s", err)
 
 		return manifestrocks.TarantoolInfo{
-			Executable: "", Prefix: "", Version: "", MissingHeaders: "",
+			Executable: "", Prefix: "", Version: "", MissingHeaders: "", HeadersWarning: "",
 		}, nil
 	}
 

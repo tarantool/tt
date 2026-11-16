@@ -34,6 +34,10 @@ type TarantoolInfo struct {
 	// that needs them to report; empty when they are there, or when there is
 	// no Tarantool.
 	MissingHeaders string
+	// HeadersWarning says that the headers under Prefix are of another
+	// version than Executable, for a build that compiles against them to
+	// show before it does; empty when they agree, or are not there.
+	HeadersWarning string
 }
 
 // IncludeDir returns the Tarantool C-header directory under the prefix

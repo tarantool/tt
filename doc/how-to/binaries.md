@@ -205,7 +205,12 @@ of:
 
 Headers of another version than the `tarantool` taken from 1 or 2 are a
 warning, naming both versions and the directory of the headers: a module
-built against them may not load.
+built against them may not load. It is shown once, by a command that
+compiles against them: a build of a component whose backend makes native
+modules, a rock that an install compiled (a build or fetch shows it once
+the rock is in `.rocks/`), and `tt rocks install`, `build` and `make`. A
+command that compiles nothing - `tt package resolve`, `pack --format
+rock-src`, a build of a package of Lua alone - shows none.
 
 With no headers found, what has no C part builds all the same, and a `c`
 or `lua-c` component fails before anything is built, listing the

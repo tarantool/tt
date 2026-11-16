@@ -346,6 +346,34 @@ def test_resolve_satisfies_a_locked_build(tree, run_tt, rock_server):
     assert locked_versions(root) == {"stat": "0.3.2-1"}
 
 
+def test_no_headers_warning_when_nothing_is_compiled(tree, run_tt, rock_server, tmp_path):
+    """Headers of another version are warned of only by a build that compiles.
+
+    TT_CLI_TARANTOOL_PREFIX names headers of a Tarantool that no tarantool
+    is. A resolve, a build of a package of Lua and its pure-Lua rock, and a
+    pack of the source rock compile nothing, so none of them warns.
+    """
+    prefix = tmp_path / "prefix"
+    include = prefix / "include" / "tarantool"
+    include.mkdir(parents=True)
+    (include / "module.h").write_text('#define PACKAGE_VERSION "2.10.99-0-g0000000"\n')
+    (include / "lua.h").write_text("#define LUA_VERSION_NUM 501\n")
+    env = {**os.environ, "TT_CLI_TARANTOOL_PREFIX": str(prefix)}
+
+    root = tree.root
+    write_manifest(root, local_dependency(rock_server, ">=0.3.1"))
+    (root / "init.lua").write_text("return {}\n")
+
+    for args in (
+        ("package", "resolve"),
+        ("package", "build"),
+        ("package", "pack", "--format", "rock-src"),
+    ):
+        result = run_tt(*args, env=env)
+        assert result.returncode == 0, result.stderr
+        assert "headers of Tarantool" not in result.stderr, args
+
+
 def test_resolve_without_a_manifest_fails(run_tt):
     """A directory holding no package is an error, not an empty success."""
     result = run_tt("package", "resolve")

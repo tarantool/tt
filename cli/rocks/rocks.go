@@ -73,15 +73,27 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx) (string, error) {
 	return prefix.Dir, nil
 }
 
-// warnedPrefixes are the warnings of ResolveTarantoolPrefix already shown: a
-// command that resolves the prefix more than once shows each once.
+// warnedPrefixes are the warnings of a prefix WarnHeaders already showed: a
+// command that compiles more than once shows each once.
 var warnedPrefixes sync.Map
+
+// WarnHeaders shows the warnings of prefix - its headers are of another
+// version than the tarantool - once per command. A command shows them when it
+// is about to compile against the headers, and only then: one that builds
+// nothing has nothing a mismatch could break.
+func WarnHeaders(prefix tarantool.Prefix) {
+	for _, warning := range prefix.Warnings {
+		if _, shown := warnedPrefixes.LoadOrStore(warning, true); !shown {
+			log.Warn(warning)
+		}
+	}
+}
 
 // ResolveTarantoolPrefix resolves the install prefix of the tarantool of cli
 // by the one rule of tarantool.ResolvePrefix: the prefix of the project
 // scope, TT_CLI_TARANTOOL_PREFIX, the directories of the executable, then its
-// CMAKE_INSTALL_PREFIX. Its warnings - headers of another version - are shown
-// once per command.
+// CMAKE_INSTALL_PREFIX. Its warnings - headers of another version - are not
+// shown: WarnHeaders shows them for a command that compiles.
 func ResolveTarantoolPrefix(cli *cmdcontext.CliCtx) (tarantool.Prefix, error) {
 	prefix, err := tarantool.ResolvePrefix(tarantool.PrefixQuery{
 		Project:    cli.TarantoolPrefix,
@@ -95,12 +107,6 @@ func ResolveTarantoolPrefix(cli *cmdcontext.CliCtx) (tarantool.Prefix, error) {
 
 	log.Debugf("Tarantool prefix path: %q (headers: %q, looked in %q)",
 		prefix.Dir, prefix.IncludeDir, prefix.Tried)
-
-	for _, warning := range prefix.Warnings {
-		if _, shown := warnedPrefixes.LoadOrStore(warning, true); !shown {
-			log.Warn(warning)
-		}
-	}
 
 	return prefix, nil
 }
@@ -156,6 +162,10 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	prefix, err := ResolveTarantoolPrefix(&cmdCtx.Cli)
 	if err != nil {
 		return err
+	}
+
+	if buildingCommands[luarocksCommand(args)] {
+		WarnHeaders(prefix)
 	}
 
 	tarantoolPrefixDir := prefix.Dir

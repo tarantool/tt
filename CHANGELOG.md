@@ -954,6 +954,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- The warning that the headers of Tarantool are of another version than the
+  `tarantool` is shown once, by a command that compiles against them: a
+  build of a component whose backend makes native modules, a rock an install
+  compiled, and `tt rocks install`, `build` and `make`. It was shown by every
+  command that looked for a Tarantool, `tt package resolve`, `tt package
+  build --locked` before it failed on a stale lock, `tt package pack
+  --format rock-src`, `tt emmylua prepare` and builds of packages of Lua
+  alone among them.
 - `tt package build`, `fetch`, `pack`, `clean`, `add`, `remove`, `update`,
   `resolve` and `deps` outside every project say `not inside a project: no
   app.manifest.toml found from <dir> up; tt new creates one`, and in a

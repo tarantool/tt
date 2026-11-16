@@ -487,11 +487,19 @@ func materializeLock(
 		return err
 	}
 
+	var before rockSet
+
+	if opts.Tarantool.HeadersWarning != "" {
+		before = installedRocks(ctx, adapter.Config().Tree)
+	}
+
 	err = materialize(ctx, srcInstaller{installer: registryClient, srcs: srcs}, pathClient,
 		manifests, opts.ProjectDir, prod, lock.DevDependencies, servers)
 	if err != nil {
 		return err
 	}
+
+	opts.warnHeadersOfBuiltRocks(ctx, adapter.Config().Tree, before)
 
 	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil,
 		pruneReport{removed: opts.Removed}.report)
