@@ -21,7 +21,14 @@ local replicaset = {
     instancerw = box.cfg.read_only == false,
 }
 
-for _, instance in ipairs(box_info.replication) do
+local replica_ids = {}
+for id in pairs(box_info.replication) do
+    table.insert(replica_ids, id)
+end
+table.sort(replica_ids)
+
+for _, id in ipairs(replica_ids) do
+    local instance = box_info.replication[id]
     local uri = nil
     if instance.upstream ~= nil then
         uri = instance.upstream.peer

@@ -1140,6 +1140,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   replicaset with manual failover is refused with a hint to promote another
   instance first. `tt cluster replicaset expel` deletes the entry from the
   config too.
+- `tt replicaset status` and the other `tt replicaset` commands see every
+  member of a replicaset after one of them was expelled. An expelled member
+  leaves a hole in the replica ids of the others, and the members whose ids
+  come after it were left out of the topology: the status showed a running
+  replica as gone, and a command that targets it could not find it.
 - `tt data play <APP>:<INSTANCE>` reaches an instance whose config has it
   listen for iproto on TCP only, as every built-in template does, at the
   first address of its `iproto.listen`, with TLS when that entry has
