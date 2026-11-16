@@ -233,16 +233,18 @@ func TestStatusByOwner(t *testing.T) {
 func TestClearForWatchdog(t *testing.T) {
 	run := killRun(t)
 
-	pid, err := clearForWatchdog(run)
+	pid, running, err := clearForWatchdog(run)
 	require.NoError(t, err)
 	assert.Zero(t, pid)
+	assert.False(t, running)
 
 	other := sleeper(t, false).Process.Pid
 	require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(other)), 0o600))
 
-	pid, err = clearForWatchdog(run)
+	pid, running, err = clearForWatchdog(run)
 	require.NoError(t, err)
 	assert.Zero(t, pid)
+	assert.False(t, running)
 	assert.NoFileExists(t, run.PIDFile)
 	assert.NoFileExists(t, run.ConsoleSocket)
 	assert.True(t, stillRuns(other))
@@ -250,10 +252,25 @@ func TestClearForWatchdog(t *testing.T) {
 	owned, err := pidfile.Acquire(run.PIDFile, os.Getpid())
 	require.NoError(t, err, "the watchdog cannot take the pid file")
 
-	pid, err = clearForWatchdog(run)
+	pid, running, err = clearForWatchdog(run)
 	require.NoError(t, err)
-	assert.Equal(t, os.Getpid(), pid, "a watchdog holds the pid file")
+	assert.True(t, running, "a watchdog holds the pid file")
+	assert.Equal(t, os.Getpid(), pid)
 	require.NoError(t, owned.Release())
+
+	// A watchdog that holds the file without its pid yet is starting: the
+	// instance runs already, and no second watchdog is started next to it.
+	reserved, err := pidfile.Reserve(run.PIDFile)
+	require.NoError(t, err)
+
+	pid, running, err = clearForWatchdog(run)
+	require.NoError(t, err)
+	assert.True(t, running, "a starting watchdog is taken for none")
+	assert.Zero(t, pid)
+
+	_, err = interruptWatchdog(run)
+	require.ErrorIs(t, err, errWatchdogStarting, "a starting watchdog is signalled")
+	require.NoError(t, reserved.Release())
 }
 
 type stopTestProcess struct {

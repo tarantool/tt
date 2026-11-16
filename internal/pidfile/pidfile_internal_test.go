@@ -652,6 +652,192 @@ func TestOwnerRacesAcquire(t *testing.T) {
 	assert.Zero(t, staleSeen.Load(), "a file being released was seen as stale")
 }
 
+// TestNeverEmpty has readers look at the path of a pid file while acquirers
+// take it over and release it, from missing and from stale: a file at the
+// path always holds a pid, and one a reader finds owned names its owner.
+// Before the file was put there whole, a reader could find it created and
+// not yet written, or truncated and not yet written, and take it for a file
+// nobody owns or for one owned by pid 0.
+func TestNeverEmpty(t *testing.T) {
+	const (
+		acquirers = 4
+		readers   = 4
+		attempts  = 300
+	)
+
+	path := filepath.Join(t.TempDir(), "x.pid")
+
+	var (
+		racers     sync.WaitGroup
+		stop       atomic.Bool
+		empty      atomic.Int32
+		ownedNoPid atomic.Int32
+		unexpected = make(chan error, (acquirers+readers)*attempts)
+	)
+
+	for range acquirers {
+		racers.Go(func() {
+			for attempt := range attempts {
+				file, err := acquire(path, os.Getpid(), 0)
+				if err != nil {
+					if !errors.Is(err, ErrBusy) {
+						unexpected <- err
+					}
+
+					continue
+				}
+
+				if attempt%2 == 0 {
+					// Released, the file is gone.
+					err = file.Release()
+				} else {
+					// Left as an owner that dies leaves it, the file is
+					// stale, and the next owner takes it over: it names this
+					// process, which every acquirer here is.
+					err = file.file.Close()
+				}
+
+				if err != nil {
+					unexpected <- err
+				}
+			}
+		})
+	}
+
+	var reading sync.WaitGroup
+
+	for range readers {
+		reading.Go(func() {
+			for !stop.Load() {
+				data, err := os.ReadFile(path)
+				if err == nil && len(data) == 0 {
+					empty.Add(1)
+				}
+
+				pid, owned, err := Owner(path)
+				if err == nil && owned && pid == 0 {
+					ownedNoPid.Add(1)
+				}
+			}
+		})
+	}
+
+	racers.Wait()
+	stop.Store(true)
+	reading.Wait()
+	close(unexpected)
+
+	for err := range unexpected {
+		require.NoError(t, err)
+	}
+
+	assert.Zero(t, empty.Load(), "a reader found the pid file empty")
+	assert.Zero(t, ownedNoPid.Load(), "a reader found the pid file owned without a pid")
+
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".x.pid.*"))
+	require.NoError(t, err)
+	assert.Empty(t, matches, "pending files are left behind")
+}
+
+// TestReserve pins how a pid file is handed to a child: reserved, it is
+// owned without a pid; SetPid writes the pid of the child, which inherits
+// the lock and holds the file after its parent has let it go, until it
+// exits.
+func TestReserve(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "child.pid")
+
+	reserved, err := Reserve(path)
+	require.NoError(t, err)
+
+	pid, owned, err := Owner(path)
+	require.NoError(t, err)
+	assert.True(t, owned)
+	assert.Zero(t, pid, "a reserved file names no process to signal")
+
+	_, err = Acquire(path, os.Getpid())
+	require.ErrorIs(t, err, ErrBusy, "a reserved file is owned")
+
+	cmd := exec.CommandContext(t.Context(), "sleep", "60")
+
+	cmd.ExtraFiles = []*os.File{reserved.Lock()}
+
+	require.NoError(t, cmd.Start())
+
+	done := make(chan struct{})
+
+	go func() {
+		_ = cmd.Wait()
+
+		close(done)
+	}()
+
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+
+		<-done
+	})
+
+	require.NoError(t, reserved.SetPid(cmd.Process.Pid))
+	require.NoError(t, reserved.Keep())
+	assert.Equal(t, cmd.Process.Pid, pidIn(t, path))
+
+	pid, owned, err = Owner(path)
+	require.NoError(t, err)
+	assert.True(t, owned, "the child holds the lock it inherited")
+	assert.Equal(t, cmd.Process.Pid, pid)
+
+	require.NoError(t, cmd.Process.Kill())
+	<-done
+
+	pid, owned, err = Owner(path)
+	require.NoError(t, err)
+	assert.False(t, owned, "the lock goes with the child")
+	assert.Equal(t, cmd.Process.Pid, pid)
+}
+
+// TestSetPidShorter pins that SetPid leaves no trace of a longer pid it
+// replaces.
+func TestSetPidShorter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.pid")
+
+	owned, err := Acquire(path, 1234567)
+	require.NoError(t, err)
+	require.NoError(t, owned.SetPid(42))
+	assert.Equal(t, 42, pidIn(t, path))
+	require.NoError(t, owned.Release())
+}
+
+// TestAcquireLinkless pins the way a pid file is taken on a file system
+// without links: in place, under the lock, from missing and from stale.
+func TestAcquireLinkless(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.pid")
+
+	for _, before := range []string{"", strconv.Itoa(deadPid(t))} {
+		if before != "" {
+			require.NoError(t, os.WriteFile(path, []byte(before), 0o600))
+		}
+
+		next, err := newPending(path, os.Getpid())
+		require.NoError(t, err)
+
+		next.linkless = true
+
+		owned, err := next.place(time.Now())
+		require.NoError(t, err)
+		require.NotNil(t, owned)
+		assert.Equal(t, os.Getpid(), pidIn(t, path))
+
+		pid, isOwned, err := Owner(path)
+		require.NoError(t, err)
+		assert.True(t, isOwned)
+		assert.Equal(t, os.Getpid(), pid)
+
+		require.NoError(t, owned.Release())
+		assert.NoFileExists(t, path)
+		assert.NoFileExists(t, next.name, "the pending file is left behind")
+	}
+}
+
 // TestBusyWait pins that Acquire and RemoveFor wait out a lock held for a
 // moment, as Owner holds it to probe a file, and still refuse a file whose
 // lock stays held, once busyWait is over.

@@ -1368,6 +1368,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `LICENSE` and `share/tarantool/` the installation keeps beside the
   executable: they were looked for beside the link and in `.tarantool/`,
   and the pack warned that it bundled Tarantool without a license.
+- A pid file is no longer seen empty while its owner takes it: the watchdog
+  of an instance, `tt daemon` and `tt tcm` created the file, then locked it
+  and wrote the pid, so a `tt instance stop` or `status` run at that moment
+  could take the instance for stopped, or find it owned by pid 0. The file
+  is now written and locked under a name of its own and only then put at its
+  path, by a link or by a rename over a stale file under that file's lock.
+  `tt daemon status`, `stop` and `start` and `tt tcm status` and `stop` tell
+  whether the daemon, the watchdog of TCM and TCM run by the lock of their
+  pid files, as `tt instance` does, rather than by whether the pid in the
+  file names a live process, which may be an unrelated one by then. TCM
+  started without `--watchdog` inherits the lock of `tcm.pid` from
+  `tt tcm start` and holds it for as long as it runs; a `tcm.pid` written by
+  an earlier tt, which nobody holds, is taken for a TCM that has exited.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

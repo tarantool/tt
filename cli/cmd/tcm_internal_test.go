@@ -123,8 +123,23 @@ func TestTcmWatchdogCheckPeriodDefault(t *testing.T) {
 	assert.Equal(t, 24*time.Hour, time.Duration(integrityCheckPeriod)*time.Second)
 }
 
+// pidFileState is how TestTcmStatus leaves a pid file.
+type pidFileState int
+
+const (
+	// noPidFile leaves none.
+	noPidFile pidFileState = iota
+	// heldPidFile writes the pid and holds the lock, as its owner does.
+	heldPidFile
+	// stalePidFile writes the pid and holds no lock, as an owner that died
+	// leaves the file.
+	stalePidFile
+)
+
 // TestTcmStatus pins where tt tcm status finds TCM: through a running
 // watchdog first, also while it has no TCM running, then through tcm.pid.
+// Whether a process runs is told by the lock of its pid file: a file nobody
+// holds names a process that is gone, even when its pid names a live one.
 func TestTcmStatus(t *testing.T) {
 	live := exec.CommandContext(t.Context(), "sleep", "60")
 	require.NoError(t, live.Start())
@@ -143,42 +158,73 @@ func TestTcmStatus(t *testing.T) {
 	gone := exec.CommandContext(t.Context(), "true")
 	require.NoError(t, gone.Run())
 
+	type pidFile struct {
+		state pidFileState
+		pid   int
+	}
+
 	cases := []struct {
 		name     string
-		watchdog int
-		tcm      int
+		watchdog pidFile
+		tcm      pidFile
 		code     int
 		pid      int
 	}{
 		{name: "no pid files", code: process_utils.ProcessStoppedCode},
 		{
-			name: "watchdog and TCM", watchdog: live.Process.Pid, tcm: other.Process.Pid,
+			name:     "watchdog and TCM",
+			watchdog: pidFile{heldPidFile, live.Process.Pid},
+			tcm:      pidFile{heldPidFile, other.Process.Pid},
+			code:     process_utils.ProcessRunningCode, pid: other.Process.Pid,
+		},
+		{
+			name:     "watchdog waiting to restart",
+			watchdog: pidFile{heldPidFile, live.Process.Pid},
+			code:     process_utils.ProcessRunningCode, pid: live.Process.Pid,
+		},
+		{
+			name: "interactive TCM",
+			tcm:  pidFile{heldPidFile, other.Process.Pid},
 			code: process_utils.ProcessRunningCode, pid: other.Process.Pid,
 		},
 		{
-			name: "watchdog waiting to restart", watchdog: live.Process.Pid,
-			code: process_utils.ProcessRunningCode, pid: live.Process.Pid,
+			name:     "dead watchdog, interactive TCM",
+			watchdog: pidFile{stalePidFile, gone.Process.Pid},
+			tcm:      pidFile{heldPidFile, other.Process.Pid},
+			code:     process_utils.ProcessRunningCode, pid: other.Process.Pid,
 		},
 		{
-			name: "interactive TCM", tcm: other.Process.Pid,
-			code: process_utils.ProcessRunningCode, pid: other.Process.Pid,
+			name: "dead TCM",
+			tcm:  pidFile{stalePidFile, gone.Process.Pid},
+			code: process_utils.ProcessDeadCode, pid: gone.Process.Pid,
 		},
 		{
-			name: "dead watchdog, interactive TCM", watchdog: gone.Process.Pid,
-			tcm: other.Process.Pid, code: process_utils.ProcessRunningCode, pid: other.Process.Pid,
+			name: "dead TCM, its pid reused",
+			tcm:  pidFile{stalePidFile, other.Process.Pid},
+			code: process_utils.ProcessDeadCode, pid: other.Process.Pid,
 		},
-		{name: "dead TCM", tcm: gone.Process.Pid, code: process_utils.ProcessDeadCode},
+		{
+			name:     "dead watchdog, its pid reused",
+			watchdog: pidFile{stalePidFile, live.Process.Pid},
+			code:     process_utils.ProcessStoppedCode,
+		},
 	}
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
-			files := map[string]int{watchdogPidFile: test.watchdog, tcmPidFile: test.tcm}
+			files := map[string]pidFile{watchdogPidFile: test.watchdog, tcmPidFile: test.tcm}
 
-			for path, pid := range files {
-				if pid != 0 {
-					require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(pid)), 0o600))
+			for path, file := range files {
+				if file.state == noPidFile {
+					continue
+				}
+
+				require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(file.pid)), 0o600))
+
+				if file.state == heldPidFile {
+					holdLock(t, path)
 				}
 			}
 
@@ -188,6 +234,60 @@ func TestTcmStatus(t *testing.T) {
 			require.NoError(t, internalTcmStatus(&cmdcontext.CmdCtx{}, nil))
 		})
 	}
+}
+
+// holdLock holds the lock of the file at path, as its owner does, until the
+// test ends.
+func holdLock(t *testing.T, path string) {
+	t.Helper()
+
+	file, err := os.Open(path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = file.Close() })
+	require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX))
+}
+
+// TestTcmStartInteractiveHoldsLock pins that TCM started without a watchdog
+// owns tcm.pid for as long as it runs: it inherits the lock of the file from
+// tt tcm start, which exits, so tt tcm status tells it running by the lock,
+// and dead once it is gone.
+func TestTcmStartInteractiveHoldsLock(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	shim := filepath.Join(dir, "tcm")
+	require.NoError(t, os.WriteFile(shim, []byte(tcmShim), 0o700))
+
+	saved := tcmCtx.Executable
+
+	tcmCtx.Executable = shim
+
+	t.Cleanup(func() { tcmCtx.Executable = saved })
+
+	require.NoError(t, startTcmInteractive("INFO"))
+
+	data, err := os.ReadFile(tcmPidFile)
+	require.NoError(t, err)
+
+	pid, err := strconv.Atoi(string(data))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+
+	status := tcmStatus()
+	assert.Equal(t, process_utils.ProcessRunningCode, status.Code, status.Status)
+	assert.Equal(t, pid, status.PID)
+
+	err = startTcmInteractive("INFO")
+	require.ErrorContains(t, err, "the pid file belongs to a running process",
+		"a second TCM starts next to the first one")
+
+	require.NoError(t, syscall.Kill(pid, syscall.SIGKILL))
+
+	// The killed TCM is a child of this process, which does not reap it: the
+	// lock goes as it exits all the same.
+	require.Eventually(t, func() bool {
+		return tcmStatus().Code == process_utils.ProcessDeadCode
+	}, 5*time.Second, 10*time.Millisecond, "the lock outlived TCM")
 }
 
 // Environment of TestHelperTcmWatchdog.

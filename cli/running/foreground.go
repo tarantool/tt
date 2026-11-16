@@ -258,7 +258,7 @@ func StartForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 		return nil, err
 	}
 
-	_, err = clearForWatchdog(&instance)
+	_, _, err = clearForWatchdog(&instance)
 	if err != nil {
 		return nil, fmt.Errorf("cannot start the watchdog for %s: %w",
 			GetAppInstanceName(instance), err)

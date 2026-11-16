@@ -105,7 +105,8 @@ func internalDaemonStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error 
 	}
 
 	daemonCtx := daemon.NewDaemonCtx(opts)
-	log.Info(process_utils.ProcessStatus(daemonCtx.PIDFile).String())
+	// The daemon holds the lock of its pid file for its whole life.
+	log.Info(process_utils.OwnerStatus(daemonCtx.PIDFile).String())
 
 	return nil
 }

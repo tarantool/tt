@@ -139,27 +139,36 @@ func startTcmInteractive(logLevel string) error {
 		"--log.default.file.name="+logFileName,
 	)
 
-	err := tcmApp.Start()
+	// The pid file is taken before TCM starts, and TCM inherits its lock:
+	// it owns the file for its whole life, as a watchdog owns its own, and
+	// tt tcm status and stop tell whether it runs by the lock, not by the
+	// pid, which may name another process once TCM is gone. A pid file a
+	// running TCM owns keeps a second one from starting.
+	owned, err := process_utils.ReservePIDFile(tcmPidFile)
 	if err != nil {
-		return fmt.Errorf("failed to start tcm: %w", err)
-	}
-
-	if tcmApp == nil || tcmApp.Process == nil {
-		return errProcessIsNotRunning
-	}
-
-	owned, err := process_utils.CreatePIDFile(tcmPidFile, tcmApp.Process.Pid)
-	if err != nil {
-		// The pid file belongs to a TCM already running: the one just
-		// started would run with no pid file to stop it by.
-		_ = tcmApp.Process.Kill()
-		_ = tcmApp.Wait()
-
 		return err
 	}
 
-	// tt exits and TCM goes on: the file is left to the pid it names, which
-	// keeps another start from taking it over while TCM runs.
+	tcmApp.ExtraFiles = []*os.File{owned.Lock()}
+
+	err = tcmApp.Start()
+	if err == nil && tcmApp.Process == nil {
+		err = errProcessIsNotRunning
+	}
+
+	if err == nil {
+		err = owned.SetPid(tcmApp.Process.Pid)
+		if err != nil {
+			_ = tcmApp.Process.Kill()
+			_ = tcmApp.Wait()
+		}
+	}
+
+	if err != nil {
+		return errors.Join(fmt.Errorf("failed to start tcm: %w", err), owned.Release())
+	}
+
+	// tt exits and TCM goes on, holding the lock of the file.
 	err = owned.Keep()
 	if err != nil {
 		return err
@@ -211,13 +220,18 @@ func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 // running watchdog first, which runs TCM or waits to restart it, and through
 // the pid file of TCM started without a watchdog otherwise. The PID is the
 // one of TCM, or of the watchdog while it has no TCM running.
+//
+// Both are told by the lock of the pid file (process_utils.OwnerStatus): the
+// watchdog holds its own for its whole life and that of TCM while TCM runs,
+// and TCM started without a watchdog holds its own, which it inherits from
+// tt tcm start (startTcmInteractive).
 func tcmStatus() process_utils.ProcessState {
-	watchdog := process_utils.ProcessStatus(watchdogPidFile)
+	watchdog := process_utils.OwnerStatus(watchdogPidFile)
 	if watchdog.Code != process_utils.ProcessRunningCode {
-		return process_utils.ProcessStatus(tcmPidFile)
+		return process_utils.OwnerStatus(tcmPidFile)
 	}
 
-	tcm := process_utils.ProcessStatus(tcmPidFile)
+	tcm := process_utils.OwnerStatus(tcmPidFile)
 	if tcm.Code == process_utils.ProcessRunningCode {
 		return tcm
 	}
@@ -258,6 +272,8 @@ func internalTcmStop(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return stopTcm(process_utils.TerminationTimeout)
 }
 
+// stopTcm stops the watchdog of TCM, when one holds its pid file, and TCM
+// started without a watchdog otherwise, as tcmStatus finds them.
 func stopTcm(wait time.Duration) error {
 	if isExists, _ := process_utils.ExistsAndRecord(watchdogPidFile); isExists {
 		_, err := process_utils.StopProcessWithin(watchdogPidFile, wait)

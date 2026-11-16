@@ -3,10 +3,7 @@ package process_utils
 import (
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"strconv"
-	"strings"
+	"io/fs"
 	"syscall"
 	"time"
 
@@ -22,6 +19,12 @@ var (
 	// errNoPid is wrapped by the error for a pid that names no single
 	// process: 0 and -1 would signal a whole group or every process.
 	errNoPid = errors.New("not the pid of a process")
+	// errProcessStarting is wrapped by the error for a pid file whose owner
+	// holds it without a pid yet: it is starting.
+	errProcessStarting = errors.New("the process is starting and has not written its pid yet")
+	// errNoRunningProcess is wrapped by the error for a pid file that is
+	// not there.
+	errNoRunningProcess = errors.New("no running process: ")
 )
 
 // TerminationTimeout is how long StopProcess and QuitProcess wait for the
@@ -79,81 +82,66 @@ func (procState ProcessState) String() string {
 	return procState.Status
 }
 
-// GetPIDFromFile returns PID from the PIDFile.
-func GetPIDFromFile(pidFileName string) (int, error) {
-	_, err := os.Stat(pidFileName)
-	if err != nil {
-		return 0, fmt.Errorf(`can't "stat" the PID file. Error: %w`, err)
-	}
-
-	pidFile, err := os.Open(pidFileName)
-	if err != nil {
-		return 0, fmt.Errorf(`can't open the PID file. Error: "%w"`, err)
-	}
-
-	defer func() {
-		_ = pidFile.Close()
-	}()
-
-	pidBytes, err := io.ReadAll(pidFile)
-	if err != nil {
-		return 0, fmt.Errorf(`can't read the PID file. Error: "%w"`, err)
-	}
-
-	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
-	if err != nil {
-		return 0,
-			fmt.Errorf(`pID file exists with unknown format. Error: "%w"`, err)
-	}
-
-	return pid, nil
-}
-
-// CheckPIDFile reports an error for a PID file that names a live process, or
-// that cannot be read; a missing file, or one naming a dead process, is no
-// error. It never removes a stale file: CreatePIDFile takes one over under
-// the lock.
+// CheckPIDFile reports an error for a PID file that a running process owns,
+// holding its lock (pidfile.Owner), or that cannot be read; a missing file,
+// or a stale one nobody holds, is no error, whatever process the pid in it
+// names by now. It never removes a stale file: CreatePIDFile takes one over
+// under the lock.
 func CheckPIDFile(pidFileName string) error {
-	_, err := os.Stat(pidFileName)
-	if err == nil {
-		// The PID file already exists. We have to check if the process is alive.
-		pid, err := GetPIDFromFile(pidFileName)
-		if err != nil {
-			return fmt.Errorf(`pID file exists, but PID can't be read. Error: "%w"`, err)
-		}
+	pid, owned, err := pidfile.Owner(pidFileName)
 
-		if res, _ := IsProcessAlive(pid); res {
-			return fmt.Errorf("%w%d", errTheProcessAlreadyExistsPID, pid)
-		}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%w"`,
-			err)
+	switch {
+	case err != nil:
+		return fmt.Errorf("cannot check the PID file: %w", err)
+	case owned && pid == 0:
+		return fmt.Errorf("%w: %s", errProcessStarting, pidFileName)
+	case owned:
+		return fmt.Errorf("%w%d", errTheProcessAlreadyExistsPID, pid)
 	}
 
 	return nil
 }
 
-// ExistsAndRecord checks if the process with the given pidFileName exists and is alive.
-// If it does, returns true, otherwise returns false.
-// If something went wrong while trying to read the PID file, returns an error.
-func ExistsAndRecord(pidFileName string) (bool, error) {
-	_, err := os.Stat(pidFileName)
-	if err == nil {
-		// The PID file already exists. We have to check if the process is alive.
-		pid, err := GetPIDFromFile(pidFileName)
-		if err != nil {
-			return false, fmt.Errorf(`PID file exists, but PID can't be read. Error: "%w"`, err)
-		}
+// OwnerStatus returns the state of the process that owns the pid file at
+// path, judged by the lock of the file alone (pidfile.Owner): RUNNING, with
+// the pid in the file, while a process holds the lock, which the owner of a
+// pid file does for its whole life; NOT RUNNING without a file, or with one
+// that holds no pid; and the dead state, with the pid in it, for a file
+// nobody holds, whose owner died without removing it. The pid in such a
+// file is not asked about, since it may name an unrelated process by now.
+// A file that cannot be read counts as none.
+func OwnerStatus(path string) ProcessState {
+	pid, owned, err := pidfile.Owner(path)
 
-		if res, _ := IsProcessAlive(pid); res {
-			return true, nil
-		}
-	} else if !os.IsNotExist(err) {
-		return false, fmt.Errorf(`something went wrong while trying to read the`+
-			`PID file. Error: "%w"`, err)
+	switch {
+	case err != nil, !owned && pid == 0:
+		return ProcStateStopped
+	case !owned:
+		state := ProcStateDead
+
+		state.PID = pid
+
+		return state
 	}
 
-	return false, nil
+	state := ProcStateRunning
+
+	state.PID = pid
+
+	return state
+}
+
+// ExistsAndRecord reports whether a running process owns the pid file
+// pidFileName, holding its lock (pidfile.Owner): a stale file names no
+// running process, whatever process its pid names by now. If something went
+// wrong while trying to read the PID file, returns an error.
+func ExistsAndRecord(pidFileName string) (bool, error) {
+	_, owned, err := pidfile.Owner(pidFileName)
+	if err != nil {
+		return false, fmt.Errorf("cannot check the PID file: %w", err)
+	}
+
+	return owned, nil
 }
 
 // CreatePIDFile takes the PID file over for pid and writes pid into it, as
@@ -163,26 +151,35 @@ func CreatePIDFile(pidFileName string, pid int) (*pidfile.File, error) {
 	return pidfile.Acquire(pidFileName, pid)
 }
 
-// getRunningPid returns PID from pidfile and check the process is running.
+// ReservePIDFile takes the PID file over before the pid it is to hold is
+// known, as pidfile.Reserve does, for a process about to be started that
+// inherits its lock.
+func ReservePIDFile(pidFileName string) (*pidfile.File, error) {
+	return pidfile.Reserve(pidFileName)
+}
+
+// getRunningPid returns the pid of the process that owns pidFile, holding
+// its lock (pidfile.Owner). A file nobody holds names no running process,
+// whatever process its pid names by now: its owner is gone.
 func getRunningPid(pidFile string) (int, error) {
-	pid, err := GetPIDFromFile(pidFile)
-	if err != nil {
-		return 0, err
-	}
+	pid, owned, err := pidfile.Owner(pidFile)
 
-	alive, err := IsProcessAlive(pid)
-	if err != nil {
-		return 0, fmt.Errorf("failed to check if the process %v is running: %w", pid, err)
-	}
-
-	if !alive {
+	switch {
+	case err != nil:
+		return 0, fmt.Errorf("cannot check the PID file: %w", err)
+	case !owned && pid == 0:
+		return 0, fmt.Errorf("%w%s: %w", errNoRunningProcess, pidFile, fs.ErrNotExist)
+	case !owned:
 		return 0, fmt.Errorf("%w%v is not running", errTheProcessIsNotRunning, pid)
+	case pid == 0:
+		return 0, fmt.Errorf("%w: %s", errProcessStarting, pidFile)
 	}
 
 	return pid, nil
 }
 
-// InterruptProcess sends SIGINT to the process by pidFile without waiting for it to exit.
+// InterruptProcess sends SIGINT to the process that owns pidFile, holding its
+// lock, without waiting for it to exit.
 func InterruptProcess(pidFile string) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
@@ -294,25 +291,6 @@ func KillProcessGroup(pid int) error {
 	}
 
 	return nil
-}
-
-// ProcessStatus returns the status of the process.
-func ProcessStatus(pidFile string) ProcessState {
-	pid, err := GetPIDFromFile(pidFile)
-	if err != nil {
-		return ProcStateStopped
-	}
-
-	alive, _ := IsProcessAlive(pid)
-	if !alive {
-		return ProcStateDead
-	}
-
-	procState := ProcStateRunning
-
-	procState.PID = pid
-
-	return procState
 }
 
 // IsProcessAlive checks if the process is alive.

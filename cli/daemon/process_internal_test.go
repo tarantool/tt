@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 )
 
 func TestProcessBase(t *testing.T) {
@@ -46,6 +47,14 @@ func TestProcessBase(t *testing.T) {
 	require.NoErrorf(t, err, `Daemon is not alive. Error: "%v".`, err)
 	require.True(t, alive, "Can't start daemon.")
 
+	// The daemon holds the lock of its pid file, which tells that it runs,
+	// and keeps a second one from starting.
+	state := process_utils.OwnerStatus(TestProcessPidFile)
+	require.Equal(t, process_utils.ProcessRunningCode, state.Code, state.Status)
+	require.Equal(t, pid, state.PID)
+	require.ErrorContains(t, process_utils.CheckPIDFile(TestProcessPidFile),
+		"the process already exists")
+
 	// Stop daemon.
 	_ = syscall.Kill(pid, syscall.SIGINT)
 
@@ -54,6 +63,8 @@ func TestProcessBase(t *testing.T) {
 
 	alive, _ = isDaemonAlive(pid)
 	require.False(t, alive, "Can't stop daemon.")
+	require.Equal(t, process_utils.ProcessStoppedCode,
+		process_utils.OwnerStatus(TestProcessPidFile).Code)
 
 	_, err = os.Stat(TestProcessPidFile)
 	require.Error(t, err, `Pid file still exists.`)

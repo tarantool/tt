@@ -41,6 +41,10 @@ var (
 	errTheInstanceIsNotRunningItMustBeStarted = errors.New(
 		": the instance is not running, it must be started",
 	)
+	// errWatchdogStarting is the error for a pid file that a watchdog holds
+	// without its pid yet (pidfile.Owner): it is starting, and is not to be
+	// signalled by a pid it has not written.
+	errWatchdogStarting = errors.New("the watchdog of the instance is starting; try again")
 )
 
 const (
@@ -470,10 +474,14 @@ func interruptWatchdog(run *InstanceCtx) (int, error) {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
-	if !owned {
+	switch {
+	case !owned:
 		_, err = removeStale(run, pid)
 
 		return 0, err
+	case pid == 0:
+		// A watchdog holds the file and has not written its pid yet.
+		return 0, errWatchdogStarting
 	}
 
 	err = process_utils.Interrupt(pid)
@@ -571,6 +579,10 @@ func Kill(run InstanceCtx) error {
 		return nil
 	}
 
+	if pid == 0 {
+		return fmt.Errorf("failed to kill the processes: %w", errWatchdogStarting)
+	}
+
 	err = process_utils.KillProcessGroup(pid)
 	if err != nil {
 		return fmt.Errorf("failed to kill the processes: %w", err)
@@ -647,9 +659,12 @@ func Quit(run InstanceCtx) error {
 	}
 
 	// The pid in a file nobody holds may name an unrelated process by now.
-	if !owned {
+	switch {
+	case !owned:
 		return fmt.Errorf("cannot quit with a dump: %s%w", GetAppInstanceName(run),
 			errTheInstanceIsNotRunningItMustBeStarted)
+	case pid == 0:
+		return fmt.Errorf("cannot quit with a dump: %w", errWatchdogStarting)
 	}
 
 	err = process_utils.QuitProcess(pid)
@@ -685,20 +700,7 @@ func Status(run *InstanceCtx) process_utils.ProcessState {
 // The pid in such a file is not asked about, since it may name an unrelated
 // process by now. A file that cannot be read counts as none.
 func PIDFileStatus(path string) process_utils.ProcessState {
-	pid, owned, err := pidfile.Owner(path)
-
-	switch {
-	case err != nil, !owned && pid == 0:
-		return process_utils.ProcStateStopped
-	case !owned:
-		state := process_utils.ProcStateDead
-
-		state.PID = pid
-
-		return state
-	}
-
-	return process_utils.ProcessStatus(path)
+	return process_utils.OwnerStatus(path)
 }
 
 // Logrotate rotates logs of a started instance: its watchdog reopens tt.log
@@ -924,23 +926,24 @@ func watchdogCommandLine(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 }
 
 // clearForWatchdog readies the pid file of instance for a watchdog about to
-// start: it returns the pid of the watchdog that holds the file, the
-// instance running already, or removes a file nobody holds (removeStale),
-// which Acquire in the new watchdog would refuse while the pid in it names
-// an unrelated live process, and returns zero.
-func clearForWatchdog(instance *InstanceCtx) (int, error) {
+// start: it reports whether a watchdog holds the file, the instance running
+// already, with its pid, zero for one that is starting and has not written
+// it yet; or removes a file nobody holds (removeStale), which Acquire in the
+// new watchdog would refuse while the pid in it names an unrelated live
+// process.
+func clearForWatchdog(instance *InstanceCtx) (int, bool, error) {
 	pid, owned, err := pidfile.Owner(instance.PIDFile)
 	if err != nil {
-		return 0, fmt.Errorf("cannot check the pid file: %w", err)
+		return 0, false, fmt.Errorf("cannot check the pid file: %w", err)
 	}
 
 	if owned {
-		return pid, nil
+		return pid, true, nil
 	}
 
 	_, err = removeStale(instance, pid)
 
-	return 0, err
+	return 0, false, err
 }
 
 // StartWatchdog starts the watchdog of instance in the background, a
@@ -956,12 +959,12 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	appName := GetAppInstanceName(instance)
 	// If an instance is already running don't try to start it again.
 	// To restart an instance use tt instance restart command.
-	pid, err := clearForWatchdog(&instance)
+	pid, running, err := clearForWatchdog(&instance)
 	if err != nil {
 		return fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
 	}
 
-	if pid != 0 {
+	if running {
 		log.Infof("The instance %s (PID = %d) is already running.", appName, pid)
 
 		return nil
