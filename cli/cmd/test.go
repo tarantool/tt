@@ -159,10 +159,13 @@ func runTest(subPaths, luatestArgs []string) error {
 	// lead and what follows '--' is appended as it was typed.
 	argv := slices.Concat([]string{script}, testPaths, luatestArgs)
 
-	// luatest gets the signals: tt is replaced by it.
+	// luatest gets the signals: tt is replaced by it. It runs in the root,
+	// where the test paths, which are the project's, are relative to, and
+	// where luatest looks for its .luatest config and the helpers of the
+	// suite.
 	stop()
 
-	return run.Exec(root, tarantool, argv)
+	return run.ExecInRoot(root, tarantool, argv)
 }
 
 // ensureLuatest puts a runner in the project tree when the build did not.

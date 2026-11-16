@@ -535,6 +535,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Breaking: `tt run` runs Tarantool in the current directory, as
+  `tarantool` started there would run, where it moved to the project root
+  first, so `tt run ../script.lua` in a subdirectory of the project failed
+  with `Can't open script`. A script path, and any other path Tarantool
+  is given, is relative to the current directory now. Tarantool finds the
+  project's `.rocks/`, its Lua and C modules alike, searching upward from
+  there; below the root, tt puts the root at the head of `LUA_PATH` and
+  `LUA_CPATH`, so the sources of the root, such as `require('kv.foo')` of
+  `kv/foo.lua`, resolve as in the root. `tt test` still runs luatest in the
+  project root.
+- `tt run` reads its own `-h` and `--help` only among the options before
+  the script name, and drops a `--` there, which ends them. From the script
+  name on, every argument is the script's: `tt run script.lua -h` and
+  `tt run script.lua -- -h` hand `-h` to the script, where they printed the
+  help of `tt run` (#1213), and `tt run -- -h` asks Tarantool for its own
+  help.
 - A `c` or `lua-c` build compiles with `-O2 -g` when `CFLAGS` (`CXXFLAGS`
   for C++) is unset, where it had `-O2` alone, as the `cmake` backend builds
   `RelWithDebInfo`: a module that crashes Tarantool has a backtrace with

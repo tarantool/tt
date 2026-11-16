@@ -63,7 +63,8 @@ tt test
     program at once.
 - The package version comes from `VERSION` or the nearest git tag. Read it in
   code with `require('<name>.version').version`.
-- `tt run` runs the project's Tarantool and passes arguments through unchanged.
+- `tt run` runs the project's Tarantool in the current directory and passes
+  the arguments from the script name on through unchanged.
 - `tt test` builds the package and runs its tests with luatest. If the manifest
   does not declare luatest, tt installs it automatically.
 

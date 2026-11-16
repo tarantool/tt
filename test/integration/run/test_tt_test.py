@@ -62,6 +62,24 @@ def test_test_runs_the_test_directory(run_tt, project: Path, fake_luatest):
     assert "arg:test/" in result.stdout
 
 
+def test_test_runs_in_the_root_from_a_subdirectory(run_tt, project: Path, fake_luatest):
+    """Unlike tt run, tt test runs luatest in the project root.
+
+    Its paths are the project's, test/ by default, and luatest reads its
+    .luatest and the helpers of the suite from the directory it runs in.
+    """
+    fake_luatest()
+    (project / "test").mkdir()
+    (project / "test" / "sample_test.lua").write_text(PASSING_TEST)
+
+    result = run_tt("test", cwd=project / "test")
+
+    assert result.returncode == 0, result.stderr
+    assert "arg:test/" in result.stdout
+    cwd = next(line for line in result.stdout.splitlines() if line.startswith("cwd:"))
+    assert Path(cwd.removeprefix("cwd:")).resolve() == project.resolve()
+
+
 def test_test_falls_back_to_the_tests_directory(run_tt, project: Path, fake_luatest):
     fake_luatest()
     (project / "tests").mkdir()

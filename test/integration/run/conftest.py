@@ -115,6 +115,7 @@ def fake_luatest(project: Path):
         script = (
             "#!/usr/bin/env tarantool\n"
             "print('FAKE-LUATEST')\n"
+            "print('cwd:' .. require('fio').cwd())\n"
             "for _, value in ipairs(arg) do print('arg:' .. value) end\n"
             "for _, value in ipairs(arg) do\n"
             "    if value == '--fail' then os.exit(3) end\n"

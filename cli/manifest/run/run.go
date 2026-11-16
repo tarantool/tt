@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -157,31 +159,125 @@ func isExecutableFile(path string) bool {
 }
 
 // Exec replaces the tt process with the tarantool at executable, running in
-// root with argv appended verbatim.
+// the caller's working directory with argv appended verbatim: tt run is
+// running tarantool there, so a relative script path, `../script.lua`
+// included, means what it means to the shell.
 //
 // The host environment is inherited unfiltered, but for the CMake policy
-// version tt has set for the rocks it built (cmakepolicy.Strip), and no
-// LUA_PATH or LUA_CPATH is composed: Tarantool finds .rocks/ from its own
-// working directory, so moving there is the whole of what tt has to arrange.
-// It returns only when the replacement itself fails.
+// version tt has set for the rocks it built (cmakepolicy.Strip) and the
+// search path of the project's own sources (SearchPathEnv). Tarantool finds
+// .rocks/ by itself, searching upward from its working directory, so the
+// dependencies, the package as built into .rocks/ and its C modules resolve
+// from any subdirectory of root. It returns only when the replacement itself
+// fails.
 func Exec(root, executable string, argv []string) error {
-	chdirErr := os.Chdir(root)
-	if chdirErr != nil {
-		return fmt.Errorf("entering %s: %w", root, chdirErr)
+	dir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("finding the working directory: %w", err)
 	}
 
+	env := SearchPathEnv(cmakepolicy.Strip(os.Environ()), root, dir)
+
+	return execTarantool(executable, argv, env)
+}
+
+// ExecInRoot is Exec in root: it moves to root first, so paths in argv are
+// relative to the project rather than to the caller. It is what tt test
+// runs luatest with, whose paths are the project's own (TestPaths). Nothing
+// is composed into the environment: in root, Tarantool finds the sources of
+// the project from its working directory.
+func ExecInRoot(root, executable string, argv []string) error {
+	err := os.Chdir(root)
+	if err != nil {
+		return fmt.Errorf("entering %s: %w", root, err)
+	}
+
+	return execTarantool(executable, argv, cmakepolicy.Strip(os.Environ()))
+}
+
+// execTarantool replaces the process with executable, argv and env.
+func execTarantool(executable string, argv, env []string) error {
 	// argv[0] is the interpreter itself, as an exec'd process expects.
 	args := append([]string{executable}, argv...)
 
 	// The interpreter comes from the project's own tree or the host's PATH, and
 	// becoming it is the whole operation rather than a side effect of one.
-	execErr := syscall.Exec(executable, args, cmakepolicy.Strip(os.Environ()))
-	if execErr != nil {
-		return fmt.Errorf("running %s: %w", executable, execErr)
+	err := syscall.Exec(executable, args, env)
+	if err != nil {
+		return fmt.Errorf("running %s: %w", executable, err)
 	}
 
 	// Unreachable: a successful exec never returns to this process.
 	return nil
+}
+
+// Names of the variables LuaJIT takes the search paths of require from.
+const (
+	luaPathVar  = "LUA_PATH"
+	luaCPathVar = "LUA_CPATH"
+)
+
+// SearchPathEnv returns environ with the project root at the head of
+// LUA_PATH and LUA_CPATH when dir, the directory Tarantool runs in, is not
+// root itself.
+//
+// Tarantool resolves require from its working directory: `?.lua` there
+// first, then .rocks/ there and in every directory above it. The second
+// finds the project's tree from any subdirectory; the first does not find
+// the project's own sources, init.lua or kv/foo.lua of the root, which a
+// run in the root does. So for a run below the root the root's `?.lua`,
+// `?/init.lua` and `?.so` (`?.dylib` on darwin) lead the paths, which keeps
+// them ahead of the system's modules, as in the root, though behind
+// .rocks/, which Tarantool searches before the paths. A value already set
+// is kept after them, and an unset one becomes ";;", the default paths. In
+// root, or with a root no path entry can name (one holding ';' or '?'),
+// environ is returned as it is.
+func SearchPathEnv(environ []string, root, dir string) []string {
+	if sameDir(root, dir) || strings.ContainsAny(root, ";?") {
+		return environ
+	}
+
+	ext := ".so"
+	if runtime.GOOS == "darwin" {
+		ext = ".dylib"
+	}
+
+	luaPath := filepath.Join(root, "?.lua") + ";" + filepath.Join(root, "?", "init.lua")
+	cPath := filepath.Join(root, "?"+ext)
+
+	env := prependPath(slices.Clone(environ), luaPathVar, luaPath)
+
+	return prependPath(env, luaCPathVar, cPath)
+}
+
+// prependPath puts entries at the head of the search path name holds in env.
+func prependPath(env []string, name, entries string) []string {
+	prefix := name + "="
+
+	for i, entry := range env {
+		value, found := strings.CutPrefix(entry, prefix)
+		if found {
+			env[i] = prefix + entries + ";" + value
+
+			return env
+		}
+	}
+
+	// ";;" is where LuaJIT puts the default paths.
+	return append(env, prefix+entries+";;")
+}
+
+// sameDir reports whether one and other name one directory, through
+// symlinks too.
+func sameDir(one, other string) bool {
+	if filepath.Clean(one) == filepath.Clean(other) {
+		return true
+	}
+
+	infoA, errA := os.Stat(one)
+	infoB, errB := os.Stat(other)
+
+	return errA == nil && errB == nil && os.SameFile(infoA, infoB)
 }
 
 // TestPaths resolves what a test run is pointed at, as paths relative to root.

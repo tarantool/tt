@@ -286,10 +286,14 @@ The archive includes `.rocks/`, `.templates/`, runtimes and the files listed in
 > `app.file`, add it to that list or load a component's code with `app.module`
 > instead.
 
-`tt run` runs Tarantool for the package in the current directory, which must
-contain `app.manifest.toml`. It previously read `tt.yaml`. Arguments, including
-`--`, still pass through unchanged: `tt run script.lua a -- -b` passes `a -- -b`
-to the script, even though the tt 2.x help described `--` differently.
+`tt run` runs the Tarantool of the project the current directory is in, the
+nearest directory above it with `app.manifest.toml`. It previously read
+`tt.yaml`. Tarantool runs in the current directory, so `tt run ../script.lua`
+from a subdirectory runs the script of the parent directory. Only `-h` and
+`--help` before the script name are tt's own, and a `--` there ends them and is
+dropped. Everything from the script name on passes through unchanged:
+`tt run script.lua a -- -h` passes `a -- -h` to the script, even though the
+tt 2.x help described `--` differently.
 
 ### box.cfg applications are script records
 

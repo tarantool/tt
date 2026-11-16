@@ -70,7 +70,13 @@ Hello, tt!
 files of the components under `.rocks/share/tarantool/hello/`, with a
 `version.lua`, so the code is `require('hello')`. `tt run` runs the
 Tarantool of the project with the arguments as given; without a script it
-starts an interactive console.
+starts an interactive console. It runs in the current directory, as
+`tarantool` started there would, so a script path is relative to it, and
+works from any subdirectory of the project: Tarantool finds `.rocks/` by
+searching upward, and below the root tt puts the root at the head of
+`LUA_PATH` and `LUA_CPATH` for the sources there. `-h` and `--help` before
+the script name print the help of `tt run`; everything from the script name
+on is the script's, `-h` included.
 
 ## Test
 

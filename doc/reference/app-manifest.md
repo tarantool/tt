@@ -375,7 +375,8 @@ takes `*.lua` and `*.so`. `debug.sourcedir()` is the directory of the Lua
 file that calls it, so the module finds the file wherever the package is
 installed. Code that is not in the package reads it by its path from the
 directory of the application, which is the working directory of its
-instances and of `tt run`: `.rocks/share/tarantool/shop/rates.json`.
+instances and of `tt run` started in the project root:
+`.rocks/share/tarantool/shop/rates.json`.
 
 A `to` of another value is an error, `components.rates.build.output[0].to:
 "etc" is not lib, share, bin or link`, and so is a table without `path`; a value

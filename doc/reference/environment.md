@@ -112,6 +112,16 @@ variables.
 | `TT_DIST_CORE` | `tt binary build tt`: the core to build on instead of `[core]`; `--core` wins over it |
 | `TT_CLI_BUILD_SSL` | `mage build` and `tt binary build tt`: the TLS backend, `default`, `openssl` or `openssl_static` |
 
+## What tt sets for tt run
+
+`tt run` started below the project root puts the root at the head of
+`LUA_PATH` (`<root>/?.lua;<root>/?/init.lua`) and `LUA_CPATH`
+(`<root>/?.so`, `<root>/?.dylib` on macOS), so `require` finds the sources of
+the root as it does there. A value already set follows them; an unset one
+becomes `;;`, the default paths. In the root, the environment is passed
+unchanged. `.rocks/` needs nothing: Tarantool searches it upward from the
+directory it runs in. `tt test` runs luatest in the root and sets neither.
+
 ## What tt sets for an instance
 
 A Tarantool instance gets the paths of its [layout](layout.md) as

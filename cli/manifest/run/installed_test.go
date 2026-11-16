@@ -73,7 +73,7 @@ func hostTarantool(t *testing.T) (string, string) {
 // by the real pack, the archive is installed into a project by the real
 // install, and the interpreter tt run chooses there is the bundled one — with
 // no tarantool left on PATH — and runs the package from the project's .rocks/
-// once started in the project root, as run.Exec starts it.
+// once started in the project root, as tt run starts it there.
 //
 // Not parallel: PATH is process-wide.
 func TestRunInstalledProjectUsesBundledTarantool(t *testing.T) {
