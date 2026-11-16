@@ -86,6 +86,17 @@ class BackendSkipsTest(unittest.TestCase):
         self.assertEqual(self.run_main("macOS", path)[0], 0)
         self.assertEqual(self.run_main("Linux", path)[0], 1)
 
+    def test_a_macos_skip_passes_on_linux_alone(self):
+        path = self.write(
+            (
+                "TestBundleDarwin",
+                "the test is of the link of macOS: otool reads Mach-O files, and linux builds none",
+            ),
+        )
+
+        self.assertEqual(self.run_main("Linux", path)[0], 0)
+        self.assertEqual(self.run_main("macOS", path)[0], 1)
+
     def test_no_skip_passes(self):
         path = self.write()
 
