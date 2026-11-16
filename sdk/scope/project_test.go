@@ -25,6 +25,34 @@ func writeTree(t *testing.T, root string, files map[string]string) {
 
 const validManifest = "[package]\nname = \"app\"\nversion = \"1.0.0\"\n"
 
+// HasProjectMarker looks at the directory itself only, and takes the markers
+// FindProject takes.
+func TestHasProjectMarker(t *testing.T) {
+	for name, want := range map[string]bool{
+		"app.manifest.toml":                 true,
+		".templates/default/instances.yaml": true,
+		".templates/prod/config.yaml":       true,
+		"instances.yaml":                    false,
+		"config.yaml":                       false,
+		"sub/app.manifest.toml":             false,
+		".templates/default/init.lua":       false,
+		"init.lua":                          false,
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeTree(t, dir, map[string]string{name: ""})
+
+			found, err := scope.HasProjectMarker(dir)
+			require.NoError(t, err)
+			assert.Equal(t, want, found)
+		})
+	}
+
+	found, err := scope.HasProjectMarker(filepath.Join(t.TempDir(), "missing"))
+	require.NoError(t, err)
+	assert.False(t, found)
+}
+
 func TestFindProject(t *testing.T) {
 	cases := []struct {
 		name  string

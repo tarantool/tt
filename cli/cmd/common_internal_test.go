@@ -50,6 +50,9 @@ func TestCreateWithoutConfig(t *testing.T) {
 	require.NoError(t, os.MkdirAll(template, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(template, "init.lua"), []byte("return\n"),
 		0o644))
+	// A template that makes no project is refused: the pair makes one.
+	require.NoError(t, os.WriteFile(filepath.Join(template, "instances.yaml"),
+		[]byte("\"*\": {}\n"), 0o644))
 
 	previousName, previousSilent, previousVars := appName, nonInteractiveMode, varsFromCli
 
@@ -61,6 +64,7 @@ func TestCreateWithoutConfig(t *testing.T) {
 
 	require.NoError(t, internalCreateModule(&cmdcontext.CmdCtx{}, []string{"./templates/basic"}))
 	assert.FileExists(t, filepath.Join(dir, "app1", "init.lua"))
+	assert.FileExists(t, filepath.Join(dir, "app1", ".templates", "default", "instances.yaml"))
 }
 
 // TestInstanceCommandsOutsideProject checks that the instance commands do

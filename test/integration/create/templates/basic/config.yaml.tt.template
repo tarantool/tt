@@ -1,0 +1,9 @@
+groups:
+  group001:
+    replicasets:
+      replicaset001:
+        instances:
+          {{.name}}:
+            iproto:
+              listen:
+              - uri: '127.0.0.1:3301'

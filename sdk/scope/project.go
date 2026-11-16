@@ -237,6 +237,13 @@ func within(path, base string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
+// HasProjectMarker reports whether dir itself holds a project marker, the
+// ones FindProject looks for: whether tt takes dir for a project root. No
+// directory above dir is looked into, and dir need not exist.
+func HasProjectMarker(dir string) (bool, error) {
+	return hasProjectMarker(dir)
+}
+
 // hasProjectMarker reports whether dir holds a project marker.
 func hasProjectMarker(dir string) (bool, error) {
 	found, err := exists(filepath.Join(dir, ManifestFileName))

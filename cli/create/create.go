@@ -59,7 +59,9 @@ func Run(createCtx *create_ctx.CreateCtx) error {
 		steps.RenderTemplate{},
 		steps.RunHook{HookType: "post"},
 		steps.Cleanup{},
+		steps.LayOutPair{},
 		steps.CheckPackageName{},
+		steps.CheckProject{},
 		steps.MoveAppDirectory{},
 		steps.PrintFollowUpMessage{Writer: os.Stdout},
 	}

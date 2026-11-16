@@ -23,5 +23,7 @@ include:
   - '{{.user_name}}.txt'
   - '{{.name}}.cfg'
   - config.lua
+  - instances.yaml
+  - config.yaml
   - pre-script-invoked
   - post-script-invoked

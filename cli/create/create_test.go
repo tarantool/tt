@@ -133,6 +133,106 @@ func TestBuiltinTemplatePackageName(t *testing.T) {
 	})
 }
 
+// writeTemplate writes a template of the user's own from files, by their
+// paths relative to it, and returns the path it is given by.
+func writeTemplate(t *testing.T, files map[string]string) string {
+	t.Helper()
+
+	dir := filepath.Join(t.TempDir(), "tpl")
+
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	}
+
+	return dir
+}
+
+const (
+	templateConfig = "app:\n  file: 'init.lua'\n" +
+		"groups:\n  g:\n    replicasets:\n      r:\n        instances:\n" +
+		"          i1:\n            iproto:\n              listen:\n" +
+		"              - uri: '127.0.0.1:3301'\n"
+	templateInstances = "\"*\": {}\n"
+)
+
+// TestUserTemplatePairAtTheRoot checks that a template of the user's own
+// with its pair at the root, or in a subdirectory, creates a project as the
+// built-in templates do: the pair in .templates/default/, the code at the
+// root, and the instance commands load it.
+func TestUserTemplatePairAtTheRoot(t *testing.T) {
+	for name, files := range map[string]map[string]string{
+		"root": {
+			"instances.yaml": templateInstances,
+			"config.yaml":    templateConfig,
+			"init.lua":       "return 1\n",
+		},
+		"rendered at the root": {
+			"instances.yaml":             templateInstances,
+			"config.yaml.tt.template":    templateConfig,
+			"init.lua.tt.template":       "return '{{.name}}'\n",
+			"lib/helper.lua.tt.template": "return 2\n",
+		},
+		"subdirectory": {
+			"conf/instances.yaml": templateInstances,
+			"conf/config.yaml":    templateConfig,
+			"init.lua":            "return 1\n",
+		},
+		"config alone": {
+			"config.yaml": templateConfig,
+			"init.lua":    "return 1\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dst := t.TempDir()
+			createCtx := create_ctx.CreateCtx{
+				AppName:        "myapp",
+				WorkDir:        dst,
+				DestinationDir: dst,
+				TemplateName:   writeTemplate(t, files),
+				SilentMode:     true,
+			}
+			require.NoError(t, create.Run(&createCtx))
+
+			project := filepath.Join(dst, "myapp")
+			pair := filepath.Join(project, ".templates", "default")
+			assert.FileExists(t, filepath.Join(pair, "config.yaml"))
+			assert.NoFileExists(t, filepath.Join(project, "config.yaml"))
+			assert.NoFileExists(t, filepath.Join(project, "instances.yaml"))
+			assert.NoDirExists(t, filepath.Join(project, "conf"))
+			assert.FileExists(t, filepath.Join(project, "init.lua"))
+
+			loaded, err := app.Load(t.Context(), "", app.Options{Start: project})
+			require.NoError(t, err)
+			assert.Equal(t, "myapp", loaded.Name)
+			assert.Equal(t, project, loaded.Dir)
+			assert.Equal(t, pair, loaded.Pair.Dir)
+			require.Len(t, loaded.Instances, 1)
+			assert.Equal(t, "i1", loaded.Instances[0].Name)
+		})
+	}
+}
+
+// TestUserTemplateThatMakesNoProject checks that a template that writes
+// neither a manifest nor a pair is refused, and leaves nothing behind.
+func TestUserTemplateThatMakesNoProject(t *testing.T) {
+	dst := t.TempDir()
+	createCtx := create_ctx.CreateCtx{
+		AppName:        "myapp",
+		WorkDir:        dst,
+		DestinationDir: dst,
+		TemplateName:   writeTemplate(t, map[string]string{"init.lua": "return 1\n"}),
+		SilentMode:     true,
+	}
+
+	err := create.Run(&createCtx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "makes no project")
+	assert.Contains(t, err.Error(), "app.manifest.toml")
+	assert.NoDirExists(t, filepath.Join(dst, "myapp"))
+}
+
 // renderTree renders the regular files under dir, hidden ones included, in
 // lexical order, each as "==> <path relative to dir> <==" and its content.
 func renderTree(t *testing.T, dir string) string {

@@ -47,9 +47,36 @@ dashes, starting with a letter - and creates nothing: `--name my_app` gives
 
 ## Templates of your own
 
-A template of your own lays a project out the same way when it carries
-`.templates/<name>/instances.yaml` and `config.yaml`; the files under
-`.templates/` are instantiated like any other.
+A template of your own creates a project laid out as the built-in ones do.
+It carries the pair in `.templates/<name>/`, where its files are
+instantiated like any other, or anywhere else: `tt create` moves the
+`instances.yaml` of the template's root, or of the one directory of it that
+holds one, and the `config.yaml` beside it, into `.templates/default/`. A
+`config.yaml` alone at the root is the pair of a template of the config
+alone and is moved too. The paths of the pair are relative to the project
+directory wherever the pair lies, so the move changes nothing of what it
+says. Everything else stays where the template has it.
+
+```text
+tpl/                        $ tt create ./tpl --name myapp
+├── config.yaml             myapp/
+├── init.lua                ├── .templates
+└── instances.yaml          │   └── default
+                            │       ├── config.yaml
+                            │       └── instances.yaml
+                            └── init.lua
+```
+
+A template that keeps a pair in `.templates/` already is left as it is,
+with a `config.yaml` of its root, which is then a file of the application.
+An `instances.yaml` in more than one directory, or a file the move would put
+over one in `.templates/default/`, is an error.
+
+The result must be a project: `tt create` refuses a template that writes
+neither `app.manifest.toml` nor a pair, and creates nothing. With an
+`include` list in `MANIFEST.yaml`, list the pair there too, by its place in
+the template: the files the list does not name are removed before the pair
+is moved.
 
 Application template may contain:
 

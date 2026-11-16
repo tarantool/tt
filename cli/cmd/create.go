@@ -59,7 +59,14 @@ in .templates/default/.
 A template of your own is given by its path: a directory, or a .tgz or
 .tar.gz archive, which may be named without its extension. A path is told
 from the name of a built-in template by a slash in it, so a template in the
-current directory is given as ./<name>.`,
+current directory is given as ./<name>.
+
+A template of your own creates a project laid out the same way: an
+instances.yaml and the config.yaml beside it, or a config.yaml alone, that
+the template keeps at its root or in a directory of its own are moved into
+.templates/default/, unless the template has a pair in .templates/ already.
+A template that writes neither app.manifest.toml nor a pair makes no project,
+and is refused.`,
 		Example: `# Create an application app1 from a template.
   $ tt create <template name> --name app1
 

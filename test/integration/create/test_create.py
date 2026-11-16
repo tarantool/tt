@@ -1220,3 +1220,92 @@ def test_create_name_not_a_package_name(tt_cmd, tmp_path):
     )
     assert rc == 0
     check_project_files(other / "My_App", [cluster_config_file, instances_file, "app.lua"])
+
+
+ROOT_PAIR_CONFIG = """groups:
+  group001:
+    replicasets:
+      replicaset001:
+        instances:
+          instance001: {}
+"""
+
+
+@pytest.mark.parametrize("pair_dir", ["", "conf"])
+def test_create_lays_out_the_pair_of_a_template(tt_cmd, tmp_path, pair_dir):
+    """A template with its pair at its root, or in a directory of its own,
+    creates a project laid out as the built-in templates lay theirs out: the
+    pair in .templates/default/ and the code in the root, which the instance
+    commands work on."""
+    template = tmp_path / "tpl"
+    (template / pair_dir).mkdir(parents=True, exist_ok=True)
+    (template / pair_dir / "instances.yaml").write_text('"*": {}\n')
+    (template / pair_dir / "config.yaml").write_text(ROOT_PAIR_CONFIG)
+    (template / "init.lua").write_text("return 1\n")
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "create", "./tpl", "--name", "myapp", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 0, out
+
+    app_dir = tmp_path / "myapp"
+    check_project_files(app_dir, [cluster_config_file, instances_file, "init.lua"])
+    assert not (app_dir / "conf").exists()
+
+    rc, out = run_command_and_get_output([tt_cmd, "instance", "status"], cwd=app_dir)
+    assert rc == 0, out
+    assert "myapp:instance001" in out
+    assert "not inside a project" not in out
+
+
+def test_create_basic_lays_out_the_pair(tt_cmd, tmp_path):
+    """The pair of the test template, at its root and in the include list of
+    its MANIFEST.yaml, ends up in .templates/default/, rendered."""
+    copy_templates(tmp_path)
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "create", BASIC, "--name", "app1", "--var", "password=pwd", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 0, out
+
+    app_dir = tmp_path / "app1"
+    check_project_files(app_dir, [cluster_config_file, instances_file, "config.lua"])
+    check_file_contains(app_dir / cluster_config_file, "app1:")
+
+
+def test_create_refuses_a_template_that_makes_no_project(tt_cmd, tmp_path):
+    """A template that writes no manifest and no pair would make a directory
+    tt does not take for a project: it is refused, and nothing is created."""
+    template = tmp_path / "tpl"
+    template.mkdir()
+    (template / "init.lua").write_text("return 1\n")
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "create", "./tpl", "--name", "myapp", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 1
+    assert (
+        "template ./tpl makes no project: it writes neither app.manifest.toml "
+        "nor an instances.yaml or a config.yaml"
+    ) in out
+    assert not (tmp_path / "myapp").exists()
+
+
+def test_create_keeps_the_pair_a_template_lays_out(tt_cmd, tmp_path):
+    """A template that keeps its pair in .templates/ lays it out itself, and
+    the files of its root are left as they are."""
+    template = tmp_path / "tpl"
+    (template / ".templates" / "default").mkdir(parents=True)
+    (template / ".templates" / "default" / "instances.yaml").write_text('"*": {}\n')
+    (template / "instances.yaml").write_text('"*": {}\n')
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "create", "./tpl", "--name", "myapp", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 0, out
+    assert (tmp_path / "myapp" / ".templates" / "default" / "instances.yaml").exists()
+    assert (tmp_path / "myapp" / "instances.yaml").exists()

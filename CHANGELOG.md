@@ -551,6 +551,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt run script.lua -- -h` hand `-h` to the script, where they printed the
   help of `tt run` (#1213), and `tt run -- -h` asks Tarantool for its own
   help.
+- Breaking: `tt create` refuses a template that makes no project, one that
+  writes neither `app.manifest.toml` nor an `instances.yaml` or a
+  `config.yaml`, and creates nothing: the directory it made was one no
+  other command of tt worked on (`not inside a project`).
 - A `c` or `lua-c` build compiles with `-O2 -g` when `CFLAGS` (`CXXFLAGS`
   for C++) is unset, where it had `-O2` alone, as the `cmake` backend builds
   `RelWithDebInfo`: a module that crashes Tarantool has a backtrace with
@@ -993,6 +997,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   slash or ends in `.yaml` or `.yml`: `tt cluster show ./config.yaml`,
   `tt cluster show config.yaml:instance-001`.
 
+- `tt create ./tpl` with `instances.yaml` and `config.yaml` at the root of
+  the template, or in a directory of it, creates a project: the pair goes
+  into `.templates/default/` and the rest stays at the root, as the
+  built-in templates lay a project out. It made `myapp/instances.yaml` and
+  `myapp/config.yaml`, which tt did not take for a project.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in
