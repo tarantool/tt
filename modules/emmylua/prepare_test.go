@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -108,6 +109,20 @@ func TestPrepareDeclared(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, sdk.ManifestDependency{Version: "0.25.1", Registry: ".tarantool/registry"},
 		man.DevDependencies["emmylua"])
+
+	// The last line names the declaration kept, not the release asked for.
+	assert.True(t, strings.HasSuffix(got.Stdout,
+		"EmmyLua 0.25.1 from .tarantool/registry\nnext: tt emmylua check\n"), got.Stdout)
+
+	// Nor the rock server asked for.
+	got = sdktest.New(t, sdktest.WithProject(testProject(t)),
+		sdktest.WithDeclared(sdk.Dependency{
+			Name: "emmylua", Constraint: "0.25.1", Registry: "", Dev: true, Registries: nil,
+		})).Run(emmylua.New, "emmylua", "prepare", "--rock-server", "https://rocks.example/",
+		"--no-install")
+	require.NoError(t, got.Err)
+	assert.True(t, strings.HasSuffix(got.Stdout, "EmmyLua 0.25.1 from the rock servers of "+
+		"the project\nnext: tt package build\n"), got.Stdout)
 }
 
 // TestPrepareRockServer checks that tt emmylua prepare --rock-server packs

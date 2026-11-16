@@ -1697,6 +1697,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   module of the rock, with the fields `luatest/init.lua` sets, so the
   assertions are those of the luatest installed and a misspelled one is
   still reported. luatest ships no EmmyLua annotations of its own.
+- `tt emmylua prepare` in a project that already declares EmmyLua, which it
+  leaves as it is, ends with the version the lock pins and the rock server
+  of the declaration, `EmmyLua 0.30.0pre1-1 from <server>`. It named the
+  release and the server it was asked for, the default ones without flags,
+  as if it had declared them.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

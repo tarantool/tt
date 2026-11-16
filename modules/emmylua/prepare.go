@@ -170,8 +170,12 @@ func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(streams.Out, "EmmyLua %s from %s\n", report.Release.Version,
-		report.Registry)
+	version, registry := report.Release.Version, report.Registry
+	if !report.Declared {
+		version, registry = declaredRock(project, version, registry)
+	}
+
+	_, _ = fmt.Fprintf(streams.Out, "EmmyLua %s from %s\n", version, registry)
 
 	if !report.Installed {
 		_, _ = fmt.Fprintln(streams.Out, "next: tt package build")
@@ -195,6 +199,37 @@ func declaredForDevelopment(project sdk.Project, name string) bool {
 	_, ok := man.DevDependencies[name]
 
 	return ok
+}
+
+// declaredRock returns the version and the rock server of the declaration
+// of EmmyLua that prepare left as it was: the version the lock pins, else
+// the constraint of the manifest, and the registry of the manifest, or the
+// rock servers of the project when it names none. What cannot be read is
+// version and registry, those prepare was given.
+func declaredRock(project sdk.Project, version, registry string) (string, string) {
+	man, err := project.Manifest()
+	if err != nil {
+		return version, registry
+	}
+
+	dep, ok := man.DevDependencies[analyzer.RockName]
+	if !ok {
+		return version, registry
+	}
+
+	version, registry = dep.Version, dep.Registry
+	if registry == "" {
+		registry = "the rock servers of the project"
+	}
+
+	lock, err := project.ReadLock()
+	if err == nil {
+		if rock, ok := lock.DevDependencies[analyzer.RockName]; ok && rock.Version != "" {
+			version = rock.Version
+		}
+	}
+
+	return version, registry
 }
 
 // printMoves reports the changes of the lock to out one per line, as
