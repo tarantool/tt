@@ -85,6 +85,27 @@ func genConsoleTitle(connOpts connector.ConnectOpts, connCtx ConnectCtx) string 
 func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title string) (*Console,
 	error,
 ) {
+	// Connect to specified address.
+	conn, err := connector.Connect(connOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect: %w", err)
+	}
+
+	console, err := newConsole(conn, connectCtx, title, genConsoleTitle(connOpts, connectCtx))
+	if err != nil {
+		_ = conn.Close()
+
+		return nil, err
+	}
+
+	return console, nil
+}
+
+// newConsole creates a new console of the connection conn, titled title or,
+// with no title, defaultTitle.
+func newConsole(conn connector.Connector, connectCtx ConnectCtx, title, defaultTitle string) (
+	*Console, error,
+) {
 	console := &Console{
 		input:    "",
 		title:    title,
@@ -101,7 +122,7 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 		livePrefixEnabled: false,
 		livePrefix:        "",
 		livePrefixFunc:    nil,
-		conn:              nil,
+		conn:              conn,
 		executor:          nil,
 		completer:         nil,
 		validators:        nil,
@@ -121,12 +142,6 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 		}
 	} else {
 		log.Debugf("Failed to initialize console history: %s", err)
-	}
-
-	// Connect to specified address.
-	console.conn, err = connector.Connect(connOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
 
 	// Change a language.
@@ -156,7 +171,7 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	console.validators[SQLLanguage] = sqlValidator
 
 	// Set title and prompt prefix.
-	setTitle(console, genConsoleTitle(connOpts, connectCtx))
+	setTitle(console, defaultTitle)
 	setPrefix(console)
 
 	return console, nil
@@ -458,6 +473,11 @@ func getPromptOptions(console *Console) []prompt.Option {
 
 		prompt.OptionDisableAutoHistory(),
 		prompt.OptionReverseSearch(),
+
+		// A pasted line runs as a typed one does, a multi-line paste line by
+		// line, the way the console of Tarantool takes it.
+		prompt.OptionExecutePastedLines(),
+		prompt.OptionBracketedPaste(),
 	}
 
 	if console.history != nil {

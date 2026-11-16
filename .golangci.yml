@@ -673,6 +673,8 @@ linters:
             - "**/cli/connect/**"
           allow:
             - $gostd
+            # The terminal of the console tests.
+            - "github.com/creack/pty"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-prompt"
             - "github.com/tarantool/tt/sdk"

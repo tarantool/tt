@@ -1,12 +1,18 @@
+import fcntl
 import itertools
 import os
 import platform
+import pty
 import re
+import select
 import shutil
 import signal
 import socket
+import struct
 import subprocess
 import tempfile
+import termios
+import time
 from pathlib import Path
 
 import pytest
@@ -3446,3 +3452,78 @@ def test_connect_binary_advertise_client_with_login(tt_cmd, tmp_path):
     assert "has a login" in out
     assert "--username and --password" in out
     assert "topsecret" not in out
+
+
+def read_pty_until(fd, wants, timeout=10):
+    """Read what is written to the terminal fd until it holds each of wants,
+    or the timeout passes, and return it. With no wants, it reads until the
+    other side of the terminal is closed."""
+    out = b""
+    deadline = time.monotonic() + timeout
+    while not wants or not all(want in out for want in wants):
+        left = deadline - time.monotonic()
+        if left <= 0:
+            break
+        ready, _, _ = select.select([fd], [], [], left)
+        if not ready:
+            break
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        out += chunk
+    return out
+
+
+@pytest.mark.tt_app(app_path="test_single_app", app_name="test_app", instances=["test_app"])
+def test_connect_executes_pasted_lines(tt_cmd, tt, tt_app):
+    """Lines that reach the console with their line breaks in one read, as a
+    paste does, run one by one, as if they were typed, and so do the lines of
+    a bracketed paste."""
+    tt.exec("instance", "start", "test_app:test_app")
+    assert wait_files(5, [tt_app.path("configured")])
+
+    # The console reads its controlling terminal.
+    pid, fd = pty.fork()
+    if pid == 0:
+        # The console draws nothing on a terminal of no size.
+        fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
+        os.chdir(tt.work_dir)
+        os.execv(str(tt_cmd), [str(tt_cmd), "connect", "test_app:test_app"])
+
+    try:
+        out = read_pty_until(fd, [b"test_app:test_app> "])
+        assert b"test_app:test_app> " in out, out
+        # The console asks the terminal to mark pastes.
+        bracketed = b"\x1b[?2004h" in out
+
+        os.write(fd, b"return 11 * 11\rreturn 12 * 12\n")
+        out = read_pty_until(fd, [b"- 121", b"- 144"])
+        assert b"- 121" in out and b"- 144" in out, out
+        assert bracketed
+
+        os.write(fd, b"\x1b[200~x = 13\rreturn x *\r\tx\r\\help\r\x1b[201~")
+        out = read_pty_until(fd, [b"- 169", b"Available backslash commands"])
+        assert b"- 169" in out and b"Available backslash commands" in out, out
+
+        os.write(fd, b"\\q\r")
+        # A process on macOS exits only once what it wrote to its terminal is
+        # read: the console is read to its end before its exit is waited for,
+        # and that for a while only, so that a console that does not exit
+        # fails the test rather than hangs it.
+        read_pty_until(fd, [])
+        deadline = time.monotonic() + 10
+        done, status = os.waitpid(pid, os.WNOHANG)
+        while done == 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
+            done, status = os.waitpid(pid, os.WNOHANG)
+        assert done != 0, "tt connect did not exit on \\q"
+        pid = 0
+        assert os.waitstatus_to_exitcode(status) == 0
+    finally:
+        if pid != 0:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+        os.close(fd)
