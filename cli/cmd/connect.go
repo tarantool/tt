@@ -127,7 +127,7 @@ func newConnectCmd(path string) *cobra.Command {
 			"  Available commands:\n" +
 			"  * \\shortcuts - get the full list of available shortcuts\n" +
 			"  * \\set language <language> - set language (lua or sql)\n" +
-			"  * \\set output <format> - set output format (lua[,line|block] or yaml)\n" +
+			"  * \\set output <format> - output format: " + connect.FormatsText(true) + "\n" +
 			"  * \\set delimiter <delimiter> - set expression delimiter\n" +
 			"  * \\help - show available backslash commands\n" +
 			"  * \\quit - quit interactive console",
@@ -175,7 +175,7 @@ func newConnectCmd(path string) *cobra.Command {
 	connectCmd.Flags().StringVarP(&connectLanguage, "language", "l",
 		connect.DefaultLanguage.String(), `language: lua or sql`)
 	connectCmd.Flags().StringVarP(&connectFormat, "outputformat", "x",
-		formatter.DefaultFormat.String(), `output format: yaml, lua, table or ttable`)
+		formatter.DefaultFormat.String(), "output format: "+connect.FormatsText(false))
 	connectCmd.Flags().StringVar(&connectSslKeyFile, "sslkeyfile", "",
 		`path to a private SSL key file`)
 	connectCmd.Flags().StringVar(&connectSslCertFile, "sslcertfile", "",
@@ -183,7 +183,7 @@ func newConnectCmd(path string) *cobra.Command {
 	connectCmd.Flags().StringVar(&connectSslCaFile, "sslcafile", "",
 		`path to a trusted certificate authorities (CA) file`)
 	connectCmd.Flags().StringVar(&connectSslCiphers, "sslciphers", "",
-		`colon-separated (:) list of SSL cipher suites the connection`)
+		`colon-separated (:) list of SSL cipher suites the connection can use`)
 	connectCmd.Flags().StringVar(&connectSslPassword, "sslpassword", "",
 		`password for decrypting the private SSL key file`)
 	connectCmd.Flags().StringVar(&connectSslPasswordFile, "sslpasswordfile", "",

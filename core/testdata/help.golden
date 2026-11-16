@@ -2772,7 +2772,7 @@ USAGE
   Available commands:
   * \shortcuts - get the full list of available shortcuts
   * \set language <language> - set language (lua or sql)
-  * \set output <format> - set output format (lua[,line|block] or yaml)
+  * \set output <format> - output format: yaml (default), lua, table or ttable
   * \set delimiter <delimiter> - set expression delimiter
   * \help - show available backslash commands
   * \quit - quit interactive console
@@ -2798,7 +2798,7 @@ FLAGS
                                    (CA) file
       --sslcertfile string         path to an SSL certificate file
       --sslciphers string          colon-separated (:) list of SSL cipher suites
-                                   the connection
+                                   the connection can use
       --sslkeyfile string          path to a private SSL key file
       --sslpassword string         password for decrypting the private SSL key
                                    file
@@ -3759,7 +3759,7 @@ USAGE
   Available commands:
   * \shortcuts - get the full list of available shortcuts
   * \set language <language> - set language (lua or sql)
-  * \set output <format> - set output format (lua[,line|block] or yaml)
+  * \set output <format> - output format: yaml (default), lua, table or ttable
   * \set delimiter <delimiter> - set expression delimiter
   * \help - show available backslash commands
   * \quit - quit interactive console
@@ -3785,7 +3785,7 @@ FLAGS
                                    (CA) file
       --sslcertfile string         path to an SSL certificate file
       --sslciphers string          colon-separated (:) list of SSL cipher suites
-                                   the connection
+                                   the connection can use
       --sslkeyfile string          path to a private SSL key file
       --sslpassword string         password for decrypting the private SSL key
                                    file

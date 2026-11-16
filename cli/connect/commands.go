@@ -522,15 +522,10 @@ var cmdInfos = []cmdInfo{
 	},
 	{
 		Short: setFormatLong + " <format>",
-		Long:  "set format lua, table, ttable or yaml (default)",
+		Long:  "set output format " + FormatsText(true),
 		Cmd: newArgSetCmdDecorator(
 			newBaseCmd([]string{setFormatLong}, setFormatFunc),
-			[]string{
-				formatter.LuaFormat.String(),
-				formatter.TableFormat.String(),
-				formatter.TTableFormat.String(),
-				formatter.YamlFormat.String(),
-			},
+			formatNames(),
 		),
 	},
 	{
@@ -594,34 +589,9 @@ var cmdInfos = []cmdInfo{
 		),
 	},
 	{
-		Short: "\\x[l,t,T,y]",
-		Long:  "set output format lua, table, ttable or yaml",
-		Cmd: newCombinedCmd([]cmd{
-			newNoArgsCmdDecorator(
-				newBaseCmd(
-					[]string{setFormatLua},
-					getSetFormatFunc(formatter.LuaFormat),
-				),
-			),
-			newNoArgsCmdDecorator(
-				newBaseCmd(
-					[]string{setFormatTable},
-					getSetFormatFunc(formatter.TableFormat),
-				),
-			),
-			newNoArgsCmdDecorator(
-				newBaseCmd(
-					[]string{setFormatTTable},
-					getSetFormatFunc(formatter.TTableFormat),
-				),
-			),
-			newNoArgsCmdDecorator(
-				newBaseCmd(
-					[]string{setFormatYaml},
-					getSetFormatFunc(formatter.YamlFormat),
-				),
-			),
-		}),
+		Short: formatShortcutsText(),
+		Long:  "set output format " + FormatsText(false),
+		Cmd:   newCombinedCmd(formatShortcutCmds()),
 	},
 	{
 		Short: "\\x[g,G]",
