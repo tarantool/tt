@@ -155,9 +155,12 @@ func newPackageAddCmd() *cobra.Command {
 			"file, is left exactly as it was. Every version the lock already " +
 			"holds is kept: only the new dependency and whatever it requires can " +
 			"move, because an edit to one dependency is not a request to upgrade " +
-			"the others — that is what tt package update is for. Nothing is " +
-			"fetched into .rocks/; the next tt package build picks the new lock " +
-			"up.",
+			"the others — that is what tt package update is for. The manifest " +
+			"and the lock are written only once the resolution succeeded: when " +
+			"it fails — an unknown rock, a constraint no version satisfies, a " +
+			"rock server that does not answer — both are left exactly as they " +
+			"were. Nothing is fetched into .rocks/; the next tt package build " +
+			"picks the new lock up.",
 		Args: cobra.RangeArgs(1, packageAddMaxArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			constraint := ""
@@ -224,8 +227,10 @@ func newPackageRemoveCmd() *cobra.Command {
 			"version is held. A name the manifest does not declare is an error " +
 			"rather than a silent success — it is almost always a typo — and so " +
 			"is a name only a component declares, since which component owns a " +
-			"dependency is not this command's decision to unmake. Nothing is " +
-			"deleted from .rocks/; tt package uninstall is what removes files.",
+			"dependency is not this command's decision to unmake. As with tt " +
+			"package add, a resolution that fails leaves the manifest and the " +
+			"lock exactly as they were. Nothing is deleted from .rocks/; tt " +
+			"package uninstall is what removes files.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackageRemove(args[0]))

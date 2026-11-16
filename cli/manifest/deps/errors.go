@@ -18,12 +18,20 @@ var (
 	// deliberately an error rather than a no-op: a user who mistypes a rock name
 	// wants to hear about it, and "nothing to do" reads as success.
 	ErrNotDeclared = errors.New("dependency is not declared in the manifest")
-	// ErrManifestEdited reports a run whose manifest edit reached disk but whose
-	// resolution then failed, so the lock was left as it was. It is wrapped
-	// around the resolution failure rather than replacing it: the user needs
-	// both why the resolve failed and the fact that the two files no longer
-	// agree, because every following command will re-resolve and fail the same
-	// way until the manifest is fixed or the edit undone.
+	// ErrManifestUnchanged reports a run that edits the manifest and failed
+	// before the edit reached disk: the edited manifest did not parse or
+	// validate, its resolution failed - an unknown rock, a constraint no
+	// version satisfies, a server that did not answer, an interrupt - or
+	// writing the files failed and they were put back. Both files are byte for
+	// byte what they were before the command. It is wrapped around the failure
+	// rather than replacing it: the user needs both why the command failed and
+	// that there is nothing to undo.
+	ErrManifestUnchanged = errors.New("the manifest was left unchanged")
+	// ErrManifestEdited reports the one failure that leaves the two files
+	// disagreeing: the edited manifest was written, writing the lock then
+	// failed, and putting the manifest back failed too. Every following
+	// command will re-resolve against the edited manifest until it is fixed by
+	// hand, so the error says so.
 	ErrManifestEdited = errors.New(
 		"the manifest was edited but the lock was not updated")
 )

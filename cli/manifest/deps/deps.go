@@ -36,25 +36,30 @@
 // is nothing to hold, so the resolution runs unpinned and writes the first
 // lock.
 //
-// # The manifest is written before the lock is resolved
+// # The manifest is written only once the lock is resolved
 //
-// The edit the user asked for reaches disk first, the way cargo does it, and
-// only then is the closure resolved. The alternative — hold both in memory and
-// write them together — would make a failed resolution leave no trace, which
-// reads as "the command did nothing" when what actually happened is "your
-// dependency is unsatisfiable". Writing first keeps the request visible and
-// editable: the user fixes the constraint in place and runs the command again.
+// A command is all or nothing: the edited manifest is parsed, validated and
+// resolved in memory, and only a resolution that succeeded writes the two
+// files, the manifest and then the lock. Any failure before that - an unknown
+// rock, a constraint no version satisfies, a server that did not answer, an
+// interrupt - leaves both byte for byte as they were, and the error says the
+// manifest was left unchanged (ErrManifestUnchanged). Writing the manifest
+// first would leave a declaration nothing can resolve on disk, and every
+// later command, a build included, would fail on it until the manifest was
+// fixed by hand.
 //
-// The cost is that a failed resolution leaves the two files disagreeing, and
-// every later command will re-resolve and fail identically until the manifest
-// is fixed. So that failure says so in as many words — see ErrManifestEdited;
-// a user who does not know the manifest changed cannot make sense of the next
-// command's error.
+// A write that fails puts back what was written (restore), so a failed write
+// leaves the files as they were too; only when putting them back fails as
+// well do the two files disagree, and the error says that instead
+// (ErrManifestEdited).
 package deps
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -340,20 +345,26 @@ func manifestPerm(path string) os.FileMode {
 	return info.Mode().Perm()
 }
 
-// apply is the second half of every command: persist the edited manifest when
-// there is one, re-resolve under pins, write the lock and report the moves.
+// apply is the second half of every command: parse the edited manifest when
+// there is one, re-resolve under pins, write the manifest and the lock, and
+// report the moves.
 //
 // edited is nil for a run that changes no declaration (tt package update); then
 // the manifest on disk is already the one to resolve.
 //
-// The re-parse in the middle is load-bearing and is the one thing in this
-// package that is easy to get wrong. manifest_hash is computed from the
+// Nothing is written until the resolution succeeded, so a run that fails
+// before leaves both files as they were (see the package comment); a write
+// that fails is undone by restore.
+//
+// The re-parse of the edited bytes is load-bearing and is the one thing in
+// this package that is easy to get wrong. manifest_hash is computed from the
 // document a Manifest was parsed from, as it is parsed, and held in an
 // unexported field, and it is what the lock records. An edit changes a
 // declaration and so the hash: resolving the pre-edit *Manifest would stamp
 // the lock with the pre-edit hash, and resolve.IsStale would report the
-// freshly written lock as stale on the very next command. Re-parsing the edited
-// bytes is the only way to get a Manifest whose Hash is the one now on disk.
+// freshly written lock as stale on the very next command. Parsing the edited
+// bytes is the only way to get a Manifest whose Hash is the one of the file
+// written.
 func apply(
 	ctx context.Context, opts Options, res resolver,
 	proj *project, edited []byte, pins resolve.Pins, change manifest.Change,
@@ -363,7 +374,7 @@ func apply(
 	if edited != nil {
 		var err error
 
-		man, err = writeAndReparse(opts, proj, edited)
+		man, err = parseEdited(opts, edited)
 		if err != nil {
 			return nil, err
 		}
@@ -372,7 +383,7 @@ func apply(
 	lock, warnings, err := res.ResolvePinned(ctx, man, pins)
 	if err != nil {
 		if edited != nil {
-			return nil, stateErrorf("resolving dependencies: %w; %w", err, ErrManifestEdited)
+			return nil, stateErrorf("resolving dependencies: %w; %w", err, ErrManifestUnchanged)
 		}
 
 		return nil, stateErrorf("resolving dependencies: %w", err)
@@ -380,7 +391,7 @@ func apply(
 
 	opts.emit(warnings)
 
-	written, err := writeLock(opts.ProjectDir, lock)
+	written, err := writeFiles(opts, proj, edited, lock)
 	if err != nil {
 		return nil, err
 	}
@@ -396,33 +407,26 @@ func apply(
 	}, nil
 }
 
-// writeAndReparse persists the edited manifest source and parses the bytes back
-// into the Manifest the resolution runs against. See apply for why the re-parse
-// cannot be skipped.
+// parseEdited parses the edited manifest source into the Manifest the
+// resolution runs against, writing nothing. See apply for why the parse cannot
+// be skipped.
 //
 // Validation runs against the result, so an edit that produces a manifest the
-// validator refuses is reported as such — with ErrManifestEdited, because by
-// then the file on disk is the invalid one.
-func writeAndReparse(opts Options, proj *project, edited []byte) (*manifest.Manifest, error) {
-	path := filepath.Join(opts.ProjectDir, manifestFileName)
-
-	//nolint:gosec // Rewrites the caller's own manifest, at the path it was read from.
-	err := os.WriteFile(path, edited, proj.perm)
-	if err != nil {
-		return nil, stateErrorf("writing %s: %w", manifestFileName, err)
-	}
-
+// validator refuses is reported as such, with ErrManifestUnchanged: the file
+// on disk is still the one the command read.
+func parseEdited(opts Options, edited []byte) (*manifest.Manifest, error) {
 	man, warnings, err := manifest.ParseManifest(edited)
 	if err != nil {
 		return nil, stateErrorf("parsing the edited %s: %w; %w",
-			manifestFileName, err, ErrManifestEdited)
+			manifestFileName, err, ErrManifestUnchanged)
 	}
 
 	opts.emit(warnings)
 
 	validationWarnings, err := man.Validate(opts.backends())
 	if err != nil {
-		return nil, stateErrorf("the edited manifest is invalid: %w; %w", err, ErrManifestEdited)
+		return nil, stateErrorf("the edited manifest is invalid: %w; %w",
+			err, ErrManifestUnchanged)
 	}
 
 	opts.emit(validationWarnings)
@@ -430,20 +434,102 @@ func writeAndReparse(opts Options, proj *project, edited []byte) (*manifest.Mani
 	return man, nil
 }
 
-// writeLock marshals lock and writes it next to the manifest, returning the
-// bytes it wrote.
-func writeLock(projectDir string, lock *manifest.Lock) ([]byte, error) {
+// writeFiles writes the edited manifest, when there is one, and then lock,
+// returning the bytes of the lock. A write that fails is undone (restore).
+func writeFiles(
+	opts Options, proj *project, edited []byte, lock *manifest.Lock,
+) ([]byte, error) {
 	data, err := lock.Marshal()
 	if err != nil {
-		return nil, stateErrorf("marshaling %s: %w", lockFileName, err)
+		return nil, unchanged(edited, stateErrorf("marshaling %s: %w", lockFileName, err))
 	}
 
-	err = os.WriteFile(filepath.Join(projectDir, lockFileName), data, defaultFilePerm)
+	if edited != nil {
+		//nolint:gosec // Rewrites the caller's own manifest, at the path it was read from.
+		err = os.WriteFile(filepath.Join(opts.ProjectDir, manifestFileName), edited, proj.perm)
+		if err != nil {
+			return nil, restore(opts, proj, edited, false,
+				stateErrorf("writing %s: %w", manifestFileName, err))
+		}
+	}
+
+	err = os.WriteFile(filepath.Join(opts.ProjectDir, lockFileName), data, defaultFilePerm)
 	if err != nil {
-		return nil, stateErrorf("writing %s: %w", lockFileName, err)
+		return nil, restore(opts, proj, edited, true,
+			stateErrorf("writing %s: %w", lockFileName, err))
 	}
 
 	return data, nil
+}
+
+// unchanged adds ErrManifestUnchanged to err of a run that edits the manifest
+// (edited is not nil) and failed with the manifest as it was.
+func unchanged(edited []byte, err error) error {
+	if edited == nil {
+		return err
+	}
+
+	return stateErrorf("%w; %w", err, ErrManifestUnchanged)
+}
+
+// restore puts back, as load read them, the files a write that failed with
+// err may have changed: the manifest of a run that edits it (edited is not
+// nil), which is written first, and the lock when lockWritten, removed when
+// there was none. It returns err with what became of them: the manifest left
+// unchanged (ErrManifestUnchanged), or, when putting it back failed too, that
+// the two files now disagree (ErrManifestEdited).
+func restore(opts Options, proj *project, edited []byte, lockWritten bool, err error) error {
+	if edited != nil {
+		path := filepath.Join(opts.ProjectDir, manifestFileName)
+
+		restoreErr := putBack(path, proj.source, proj.perm)
+		if restoreErr != nil {
+			return stateErrorf("%w; putting %s back: %w; %w",
+				err, manifestFileName, restoreErr, ErrManifestEdited)
+		}
+	}
+
+	if lockWritten {
+		path := filepath.Join(opts.ProjectDir, lockFileName)
+
+		restoreErr := putBack(path, proj.lockSource, defaultFilePerm)
+		if restoreErr != nil {
+			err = stateErrorf("%w; putting %s back: %w", err, lockFileName, restoreErr)
+		}
+	}
+
+	return unchanged(edited, err)
+}
+
+// putBack makes the file at path source again, removing it when source is
+// nil: it was not there. A file that is source already is not written: a
+// write refused before it changed anything, to a file the user may not
+// write say, leaves nothing to put back, and trying would fail the same.
+func putBack(path string, source []byte, perm os.FileMode) error {
+	data, err := os.ReadFile(path) //nolint:gosec // The caller's own manifest or lock.
+	if source == nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+
+		err = os.Remove(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("removing it: %w", err)
+		}
+
+		return nil
+	}
+
+	if err == nil && bytes.Equal(data, source) {
+		return nil
+	}
+
+	err = os.WriteFile(path, source, perm) //nolint:gosec // As load read it.
+	if err != nil {
+		return fmt.Errorf("writing it: %w", err)
+	}
+
+	return nil
 }
 
 // movesBetween diffs two locked closures into the moves the CLI reports.

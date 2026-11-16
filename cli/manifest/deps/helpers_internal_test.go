@@ -2,6 +2,8 @@ package deps
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -147,6 +149,20 @@ func manifestOnDisk(t *testing.T, dir string) string {
 	require.NoError(t, err)
 
 	return string(data)
+}
+
+// lockBytes reads back the lock as it is on disk, nil when there is none.
+func lockBytes(t *testing.T, dir string) []byte {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(dir, lockFileName))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	require.NoError(t, err)
+
+	return data
 }
 
 // lockOnDisk reads back and parses the lock.

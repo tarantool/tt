@@ -324,14 +324,18 @@ func TestProjectAddDependency(t *testing.T) {
 		man.Dependencies["lib"])
 
 	// Without servers of its own the resolution asks TT_REGISTRIES, the
-	// empty server, which has none of the short-form rocks. The declaration
-	// is on disk already, and the error says so.
+	// empty server, which has none of the short-form rocks. Neither file is
+	// written, and the error says so.
+	before, _, lockBefore := readProject(t, dir)
+
 	_, err = project.AddDependency(t.Context(), sdk.Dependency{Name: "other"})
-	require.ErrorIs(t, err, deps.ErrManifestEdited)
+	require.ErrorIs(t, err, deps.ErrManifestUnchanged)
 	require.ErrorContains(t, err, "rock not found on any server")
 
-	_, man, _ = readProject(t, dir)
-	assert.Contains(t, man.Dependencies, "other")
+	after, man, lockAfter := readProject(t, dir)
+	assert.Equal(t, string(before), string(after))
+	assert.NotContains(t, man.Dependencies, "other")
+	assert.Equal(t, lockBefore, lockAfter)
 }
 
 // TestProjectInstall checks that a module installs the locked rocks into

@@ -3,6 +3,9 @@ package deps
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -155,27 +158,198 @@ func TestAdd_devWritesTheDevTable(t *testing.T) {
 	assert.Contains(t, edited.Dependencies, "checks")
 }
 
-// TestAdd_resolveFailureLeavesTheManifestEdited covers the documented order: the
-// requested edit reaches disk first, so a failed resolution leaves the two files
-// disagreeing — and the error has to say so, because every later command will
-// fail the same way until the manifest is fixed.
-func TestAdd_resolveFailureLeavesTheManifestEdited(t *testing.T) {
+// TestAdd_resolveFailureLeavesBothFilesUnchanged covers the all-or-nothing
+// rule: a resolution that fails, whatever for, writes neither file, and the
+// error says the manifest was left unchanged, so the next command, a build
+// say, works on the project as it was.
+func TestAdd_resolveFailureLeavesBothFilesUnchanged(t *testing.T) {
 	t.Parallel()
 
-	before := lockOf(map[string]string{"checks": "3.1.0-1"})
-	dir := writeProject(t, baseManifest, before)
-	boom := errors.New("no server has it")
-	res := &fakeResolver{err: boom}
+	locks := []*manifest.Lock{nil, lockOf(map[string]string{"checks": "3.1.0-1"})}
 
-	_, err := addWith(context.Background(), optsFor(dir), res, "metrics", ">=1.0.0", false)
-	require.Error(t, err)
+	for _, failure := range []struct {
+		name string
+		err  error
+	}{
+		{"unknown rock", errors.New(`"metrics": rock not found on any server`)},
+		{"no version satisfies", errors.New(`no version of "metrics" satisfies >=9.0.0`)},
+		{"network", errors.New("dial tcp 127.0.0.1:1: connection refused")},
+		{"interrupted", context.Canceled},
+	} {
+		t.Run(failure.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, before := range locks {
+				dir := writeProject(t, baseManifest, before)
+				lockBefore := lockBytes(t, dir)
+				res := &fakeResolver{err: failure.err}
+
+				_, err := addWith(context.Background(), optsFor(dir), res,
+					"metrics", ">=1.0.0", false)
+				require.ErrorIs(t, err, failure.err)
+				require.ErrorIs(t, err, ErrManifestUnchanged)
+				require.NotErrorIs(t, err, ErrManifestEdited)
+				assert.Contains(t, err.Error(), "the manifest was left unchanged")
+				assert.Equal(t, 1, exitcode.Code(err))
+
+				assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+				assert.Equal(t, lockBefore, lockBytes(t, dir))
+			}
+		})
+	}
+}
+
+// TestAddFromRegistry_resolveFailureLeavesBothFilesUnchanged is the same rule
+// for the long form an SDK module's AddDependency writes.
+func TestAddFromRegistry_resolveFailureLeavesBothFilesUnchanged(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, lockOf(map[string]string{"checks": "3.1.0-1"}))
+	lockBefore := lockBytes(t, dir)
+	boom := errors.New("rock not found on any server")
+
+	_, err := addFromRegistryWith(context.Background(), optsFor(dir), &fakeResolver{err: boom},
+		"metrics", ">=1.0.0", "https://rocks.example.org", false)
 	require.ErrorIs(t, err, boom)
-	require.ErrorIs(t, err, ErrManifestEdited)
+	require.ErrorIs(t, err, ErrManifestUnchanged)
+
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+	assert.Equal(t, lockBefore, lockBytes(t, dir))
+}
+
+// TestRemove_resolveFailureLeavesBothFilesUnchanged: remove edits the
+// manifest before it resolves as add does, and a failed resolution - a server
+// that did not answer for what remains, say - keeps the declaration.
+func TestRemove_resolveFailureLeavesBothFilesUnchanged(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, lockOf(map[string]string{"checks": "3.1.0-1"}))
+	lockBefore := lockBytes(t, dir)
+	boom := errors.New("connection refused")
+
+	_, err := removeWith(context.Background(), optsFor(dir), &fakeResolver{err: boom}, "checks")
+	require.ErrorIs(t, err, boom)
+	require.ErrorIs(t, err, ErrManifestUnchanged)
 	assert.Equal(t, 1, exitcode.Code(err))
 
-	assert.Contains(t, manifestOnDisk(t, dir), "metrics")
-	// The lock is exactly the one that was there: nothing rewrote it.
-	assert.Equal(t, staleHash, lockOnDisk(t, dir).ManifestHash)
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+	assert.Equal(t, lockBefore, lockBytes(t, dir))
+}
+
+// TestUpdate_resolveFailureSaysNothingOfTheManifest: update edits no
+// declaration, so its failure is the resolution's alone, the lock untouched.
+func TestUpdate_resolveFailureSaysNothingOfTheManifest(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, lockOf(map[string]string{"checks": "3.1.0-1"}))
+	lockBefore := lockBytes(t, dir)
+	boom := errors.New("connection refused")
+
+	_, err := updateWith(context.Background(), optsFor(dir), &fakeResolver{err: boom}, "")
+	require.ErrorIs(t, err, boom)
+	require.NotErrorIs(t, err, ErrManifestUnchanged)
+	require.NotErrorIs(t, err, ErrManifestEdited)
+
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+	assert.Equal(t, lockBefore, lockBytes(t, dir))
+}
+
+// TestAdd_lockWriteFailurePutsTheManifestBack covers the one write that comes
+// after another: the manifest is written, then the lock, and a lock that
+// cannot be written - here its path is a link into a directory that is not
+// there - has the manifest put back as it was, and no lock left behind.
+func TestAdd_lockWriteFailurePutsTheManifestBack(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, nil)
+	require.NoError(t, os.Symlink(filepath.Join(dir, "missing", lockFileName),
+		filepath.Join(dir, lockFileName)))
+
+	_, err := addWith(context.Background(), optsFor(dir), &fakeResolver{},
+		"metrics", ">=1.0.0", false)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	require.ErrorIs(t, err, ErrManifestUnchanged)
+	require.NotErrorIs(t, err, ErrManifestEdited)
+	assert.Contains(t, err.Error(), "writing "+lockFileName)
+
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+
+	_, err = os.Stat(filepath.Join(dir, lockFileName))
+	require.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+// TestAdd_readOnlyLockIsLeftAsItWas: a lock the user may not write refuses
+// the write before changing it, so there is nothing of it to put back, and
+// the manifest written before it is put back.
+func TestAdd_readOnlyLockIsLeftAsItWas(t *testing.T) {
+	t.Parallel()
+
+	if os.Geteuid() == 0 {
+		t.Skip("root writes a read-only file")
+	}
+
+	dir := writeProject(t, baseManifest, lockOf(map[string]string{"checks": "3.1.0-1"}))
+	lockBefore := lockBytes(t, dir)
+	require.NoError(t, os.Chmod(filepath.Join(dir, lockFileName), 0o400))
+
+	_, err := addWith(context.Background(), optsFor(dir), &fakeResolver{},
+		"metrics", ">=1.0.0", false)
+	require.ErrorIs(t, err, fs.ErrPermission)
+	require.ErrorIs(t, err, ErrManifestUnchanged)
+	assert.NotContains(t, err.Error(), "putting")
+
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+	assert.Equal(t, lockBefore, lockBytes(t, dir))
+}
+
+// TestRestore_reportsAManifestItCouldNotPutBack: when the manifest cannot be
+// put back either, the files disagree and the error says so.
+func TestRestore_reportsAManifestItCouldNotPutBack(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// A directory where the manifest was: nothing can be written over it.
+	require.NoError(t, os.Mkdir(filepath.Join(dir, manifestFileName), 0o700))
+
+	proj := &project{source: []byte(baseManifest), perm: 0o600}
+	boom := errors.New("disk full")
+
+	err := restore(optsFor(dir), proj, []byte("edited"), true, boom)
+	require.ErrorIs(t, err, boom)
+	require.ErrorIs(t, err, ErrManifestEdited)
+	require.NotErrorIs(t, err, ErrManifestUnchanged)
+}
+
+// TestPutBack covers the three states a file is put back from: written over,
+// created where there was none, and refused before it changed.
+func TestPutBack(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file")
+
+	// Written over: the bytes it had are written back.
+	require.NoError(t, os.WriteFile(path, []byte("new"), 0o600))
+	require.NoError(t, putBack(path, []byte("old"), 0o600))
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "old", string(data))
+
+	// Created where there was none: it is removed, and putting back a file
+	// that is not there is not an error.
+	require.NoError(t, putBack(path, nil, 0o600))
+
+	_, err = os.Stat(path)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	require.NoError(t, putBack(path, nil, 0o600))
+
+	// Refused before it changed: a file that is the source already is not
+	// written, so a read-only one is no error.
+	if os.Geteuid() != 0 {
+		require.NoError(t, os.WriteFile(path, []byte("old"), 0o400))
+		require.NoError(t, putBack(path, []byte("old"), 0o600))
+	}
 }
 
 // TestAdd_reportsMoves checks the closure diff the CLI prints: a rock that

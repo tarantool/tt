@@ -47,7 +47,10 @@ The lock changes only when asked to:
 
 - `tt package add`, `tt package remove` and `tt package resolve` resolve the
   lock again for what the manifest declares, keeping every version the lock
-  holds. Only what was added, and what it requires, can move.
+  holds. Only what was added, and what it requires, can move. `add` and
+  `remove` write the manifest only once the lock resolved: when the
+  resolution fails, for a rock no server has say, both files are left as
+  they were.
 - `tt package update [NAME]` takes the newest versions the constraints
   allow, for every dependency or for NAME only.
 - `tt package build` and `tt package pack` resolve a lock that no longer

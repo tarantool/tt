@@ -95,6 +95,14 @@ func AddFromRegistry(
 		return nil, err
 	}
 
+	return addFromRegistryWith(ctx, opts, engine, name, constraint, registry, dev)
+}
+
+// addFromRegistryWith is AddFromRegistry against an injected resolver.
+func addFromRegistryWith(
+	ctx context.Context, opts Options, res resolver,
+	name, constraint, registry string, dev bool,
+) (*Result, error) {
 	ctx, release, err := lockProject(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -130,7 +138,7 @@ func AddFromRegistry(
 		edited = editor.Bytes()
 	}
 
-	return apply(ctx, opts, engine, proj, edited, resolve.PinsFromLock(proj.lock), change)
+	return apply(ctx, opts, res, proj, edited, resolve.PinsFromLock(proj.lock), change)
 }
 
 // warnOtherTable reports a name that is also declared in the table the add is

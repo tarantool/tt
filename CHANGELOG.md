@@ -864,6 +864,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- A `tt package add` or `tt package remove` whose resolution fails leaves
+  `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
+  whatever the failure: a rock no server has, a constraint no version
+  satisfies, a rock server that does not answer, an interrupt. The error ends
+  with `the manifest was left unchanged`. The edited manifest used to be
+  written before the resolution, so that only a constraint the resolver could
+  not parse was refused in time: a failed add left its declaration behind, and
+  every following command, `tt package build` included, failed on it until the
+  manifest was fixed by hand. The manifest is now written only once the lock
+  is resolved, and a write of the lock that fails puts the manifest back. The
+  same holds for `AddDependency()` and `RemoveDependency()` of the SDK.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in

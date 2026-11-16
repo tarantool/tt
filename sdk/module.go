@@ -257,8 +257,8 @@ type Project interface {
 	// A name declared in the other table as well stays there, with a
 	// warning. A path dependency, which has no version, is refused. The
 	// manifest is rewritten in place, every other line and comment kept, and
-	// before the resolution: when the resolution fails the declaration stays
-	// and the error says so.
+	// only once the resolution succeeded: when it fails, for any reason, the
+	// manifest and the lock are left as they were and the error says so.
 	//
 	// The warnings of the manifest and of the resolution are logged. A
 	// project without a manifest, an invalid manifest or constraint, and a

@@ -7,9 +7,12 @@ two commands that need no server at all — removing the last dependency, and an
 run that is refused before it resolves — are exercised directly.
 """
 
+import os
 import re
 import tomllib
 from pathlib import Path
+
+import pytest
 
 from utils import manifest_hash as manifest_hash_of
 
@@ -122,43 +125,134 @@ def test_add_dev_lands_in_dev_dependencies(tree, run_tt, rock_server):
     assert "dependencies" not in parsed
 
 
-def test_add_of_a_new_name_declares_it_in_the_chosen_table(tree, run_tt):
+def test_add_of_a_new_name_declares_it_in_the_chosen_table(tree, run_tt, rock_server):
     """A brand-new entry is spliced into the table the flag names.
 
-    The rock does not exist on any server, so this also pins the documented
-    order: the edit the user asked for reaches disk first, and a resolution that
-    then fails leaves the lock alone and says so. That second half is what makes
-    this a runtime dependency rather than a `--dev` one: only [dependencies]
-    reaches the resolver here, so only a name declared there can fail the
-    resolution. The `--dev` splice itself is covered by the test above.
+    The short form resolves from the servers configured, here the loopback one
+    through TT_REGISTRIES. The `--dev` splice is covered by the test above.
     """
     root = tree.root
     write_manifest(root, "")
 
-    result = run_tt("package", "add", "tt-9958-no-such-rock", ">=1.0.0")
-    assert result.returncode == 1
-    assert "the manifest was edited but the lock was not updated" in result.stderr
+    result = run_tt(
+        "package",
+        "add",
+        "stat",
+        ">=0.3.1",
+        env={**os.environ, "TT_REGISTRIES": rock_server},
+    )
+    assert result.returncode == 0, result.stderr
 
     source = (root / "app.manifest.toml").read_text()
-    assert re.search(r"\[dependencies\]\s*\ntt-9958-no-such-rock = \">=1.0.0\"", source)
+    assert re.search(r"\[dependencies\]\s*\nstat = \">=0.3.1\"", source)
 
     with (root / "app.manifest.toml").open("rb") as handle:
         parsed = tomllib.load(handle)
 
-    assert "tt-9958-no-such-rock" in parsed["dependencies"]
+    assert "stat" in parsed["dependencies"]
     assert "dev_dependencies" not in parsed
-    assert not (root / "app.manifest.lock").exists()
+    assert locked_versions(root) == {"stat": "0.3.2-1"}
 
 
-def test_add_failure_does_not_touch_an_existing_lock(tree, run_tt):
-    """A failed resolution leaves the lock exactly as it was."""
+def empty_registry(root: Path) -> dict[str, str]:
+    """The environment of a run whose only rock server is an empty directory.
+
+    A short-form rock is looked up there, so a name no server has fails the
+    resolution without a network.
+    """
+    root.mkdir(parents=True)
+    (root / "manifest").write_text("commands = {}\nmodules = {}\nrepository = {}\n")
+    return {**os.environ, "TT_REGISTRIES": str(root)}
+
+
+@pytest.mark.parametrize("locked", [False, True], ids=["no-lock", "lock"])
+def test_add_of_an_unknown_rock_changes_nothing(tree, run_tt, rock_server, tmp_path, locked):
+    """A failed `add` leaves the manifest and the lock byte for byte as they were.
+
+    The project depends on stat from the loopback server; the rock added is on
+    no server. The run fails saying the manifest was left unchanged, nothing
+    is written - no lock where there was none, the lock as it was where there
+    was one - and the next build works, which it did not while the failed add
+    left its declaration behind.
+    """
     root = tree.root
-    write_manifest(root, "")
+    write_manifest(root, local_dependency("dependencies", rock_server, ">=0.3.1"))
+    env = empty_registry(tmp_path / "empty")
+
+    if locked:
+        resolved = run_tt("package", "resolve", env=env)
+        assert resolved.returncode == 0, resolved.stderr
+
+    manifest_before = (root / "app.manifest.toml").read_bytes()
+    lock_path = root / "app.manifest.lock"
+    lock_before = lock_path.read_bytes() if locked else None
+
+    result = run_tt("package", "add", "nonexistent-rock-xyz", env=env)
+    assert result.returncode != 0
+    assert "nonexistent-rock-xyz" in result.stderr
+    assert "the manifest was left unchanged" in result.stderr
+    assert "the manifest was edited" not in result.stderr
+
+    assert (root / "app.manifest.toml").read_bytes() == manifest_before
+    if locked:
+        assert lock_path.read_bytes() == lock_before
+    else:
+        assert not lock_path.exists()
+
+    build = run_tt("package", "build", env=env)
+    assert build.returncode == 0, build.stderr
+    assert locked_versions(root) == {"stat": "0.3.2-1"}
+
+
+def test_add_of_an_unsatisfiable_constraint_changes_nothing(tree, run_tt, rock_server):
+    """A constraint no version meets is a failed resolution like any other."""
+    root = tree.root
+    text = write_manifest(root, local_dependency("dependencies", rock_server, "==0.3.1"))
     before = LOCK_TEMPLATE.format(hash="0" * 64, version="0.3.1-1")
     (root / "app.manifest.lock").write_text(before)
 
-    result = run_tt("package", "add", "tt-9958-no-such-rock")
+    result = run_tt("package", "add", "stat", ">=9.0.0")
     assert result.returncode == 1
+    assert "the manifest was left unchanged" in result.stderr
+    assert (root / "app.manifest.toml").read_text() == text
+    assert (root / "app.manifest.lock").read_text() == before
+
+
+def test_add_while_the_server_is_down_changes_nothing(tree, run_tt, rock_server, stop_rock_server):
+    """A server that does not answer fails the resolution, and nothing is written."""
+    root = tree.root
+    text = write_manifest(root, "")
+    stop_rock_server()
+
+    result = run_tt(
+        "package",
+        "add",
+        "stat",
+        env={**os.environ, "TT_REGISTRIES": rock_server},
+    )
+    assert result.returncode != 0
+    assert "the manifest was left unchanged" in result.stderr
+    assert (root / "app.manifest.toml").read_text() == text
+    assert not (root / "app.manifest.lock").exists()
+
+
+def test_remove_whose_resolution_fails_changes_nothing(tree, run_tt, rock_server):
+    """`remove` follows the same rule as `add`.
+
+    What remains after the removal is stat at a version the server does not
+    serve, so the resolution fails, and the declaration removed is kept.
+    """
+    root = tree.root
+    stat = local_dependency("dependencies", rock_server, ">=9.0.0")
+    body = "\n[dependencies]\nother = '*'\n" + stat
+    text = write_manifest(root, body)
+    before = LOCK_TEMPLATE.format(hash="0" * 64, version="0.3.1-1")
+    (root / "app.manifest.lock").write_text(before)
+
+    result = run_tt("package", "remove", "other")
+    assert result.returncode == 1
+    assert "the manifest was left unchanged" in result.stderr
+    assert (root / "app.manifest.toml").read_text() == text
     assert (root / "app.manifest.lock").read_text() == before
 
 
