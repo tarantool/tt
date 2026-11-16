@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -436,6 +438,40 @@ func TestHarnessEnvironment(t *testing.T) {
 	assert.Equal(t, "/opt/t", harness.Context.Env["TT_TARANTOOL_PREFIX"])
 	assert.NotContains(t, harness.Context.Env, "TT_TARANTOOL_INCLUDE_DIR")
 	assert.Equal(t, "/opt/t", harness.Context.Tarantool.Prefix)
+}
+
+// TestHarnessJobs: TT_BUILD_JOBS of a harness is the number of CPUs while
+// Jobs is 0, as the core sets it, and SetJobs sets both, for a build and a
+// hook alike.
+func TestHarnessJobs(t *testing.T) {
+	t.Parallel()
+
+	hook := touch()
+
+	hook.Hook = true
+
+	cpus := strconv.Itoa(runtime.NumCPU())
+
+	for _, harness := range []*buildtest.Harness{
+		buildtest.New(t, touch(), component()), buildtest.NewHook(t, hook),
+	} {
+		assert.Zero(t, harness.Context.Jobs)
+		assert.Equal(t, cpus, harness.Context.Env["TT_BUILD_JOBS"])
+
+		harness.SetJobs(3)
+
+		assert.Equal(t, 3, harness.Context.Jobs)
+
+		out, err := harness.Context.Output(harness.Context.Command(t.Context(), "sh", "-c",
+			`printf %s "$TT_BUILD_JOBS"`))
+		require.NoError(t, err)
+		assert.Equal(t, "3", string(out))
+
+		harness.SetJobs(0)
+
+		assert.Zero(t, harness.Context.Jobs)
+		assert.Equal(t, cpus, harness.Context.Env["TT_BUILD_JOBS"])
+	}
 }
 
 // dataBuild makes a data file.

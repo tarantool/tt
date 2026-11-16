@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -177,6 +178,7 @@ const (
 	versionKey    = "TT_VERSION"
 	prefixKey     = "TT_TARANTOOL_PREFIX"
 	includeDirKey = "TT_TARANTOOL_INCLUDE_DIR"
+	jobsKey       = "TT_BUILD_JOBS"
 )
 
 // errNoHook reports a harness of hooks of a backend that runs none.
@@ -212,9 +214,10 @@ type Harness struct {
 // ([Harness.SetTarantool] tells one).
 // The Env has the TT_* variables the core sets for the build of a
 // component: TT_OUTPUT_DIR, TT_PROJECT_ROOT, TT_PACKAGE, TT_COMPONENT_NAME,
-// TT_VERSION ([Version]), TT_PLATFORM_OS, TT_PLATFORM_ARCH and
-// TT_BUILD_DIR. A backend the core would refuse ([build.Backend.Validate])
-// fails the test.
+// TT_VERSION ([Version]), TT_PLATFORM_OS, TT_PLATFORM_ARCH, TT_BUILD_DIR
+// and TT_BUILD_JOBS, the number of CPUs, as Jobs is 0
+// ([Harness.SetJobs] sets another). A backend the core would refuse
+// ([build.Backend.Validate]) fails the test.
 func New(tb testing.TB, backend build.Backend, component build.Component) *Harness {
 	tb.Helper()
 
@@ -273,11 +276,13 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 			"TT_PLATFORM_ARCH":  target.Arch,
 			"TT_BUILD_DIR":      dirs.Work,
 			versionKey:          Version,
+			jobsKey:             strconv.Itoa(runtime.NumCPU()),
 		},
 		Fresh:  false,
 		Locked: false,
 		Static: false,
 		Args:   nil,
+		Jobs:   0,
 		Hook:   false,
 		Log:    nil,
 		Warn:   nil,
@@ -342,11 +347,13 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 			"TT_PLATFORM_OS":   target.OS,
 			"TT_PLATFORM_ARCH": target.Arch,
 			versionKey:         Version,
+			jobsKey:            strconv.Itoa(runtime.NumCPU()),
 		},
 		Fresh:  false,
 		Locked: false,
 		Static: false,
 		Args:   nil,
+		Jobs:   0,
 		Hook:   true,
 		Log:    nil,
 		Warn:   nil,
@@ -389,6 +396,14 @@ func (h *Harness) SetTarantool(tarantool build.Tarantool) {
 			facts.Env[key] = value
 		}
 	}
+}
+
+// SetJobs sets the number of jobs of the build, as tt package build --jobs
+// sets it: the Jobs of the Context, and TT_BUILD_JOBS of the Env, jobs, or
+// the number of CPUs when it is 0 ([build.Context.JobsOrCPUs]).
+func (h *Harness) SetJobs(jobs int) {
+	h.Context.Jobs = jobs
+	h.Context.Env[jobsKey] = strconv.Itoa(h.Context.JobsOrCPUs())
 }
 
 // Run runs bld, a build of the backend of the harness, as the core runs a

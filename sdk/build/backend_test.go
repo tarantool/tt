@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -183,4 +184,17 @@ func TestContext(t *testing.T) {
 
 	//nolint:exhaustruct // A Context made by hand.
 	assert.Panics(t, func() { _ = (&build.Context{}).Run(cmd) })
+}
+
+// TestContextJobsOrCPUs: the number of jobs of a build is its Jobs, and one
+// a CPU when it is 0; a Context made by hand, with no host, has it too.
+func TestContextJobsOrCPUs(t *testing.T) {
+	t.Parallel()
+
+	for jobs, want := range map[int]int{0: runtime.NumCPU(), 1: 1, 3: 3, 64: 64} {
+		//nolint:exhaustruct // The jobs alone matter here.
+		facts := build.Context{Jobs: jobs}
+
+		assert.Equal(t, want, facts.JobsOrCPUs(), "jobs %d", jobs)
+	}
 }
