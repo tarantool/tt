@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"net"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -41,13 +42,54 @@ const (
 	// fieldLogrotateSignal is the signal that makes an external process
 	// reopen its logs.
 	fieldLogrotateSignal = "logrotate_signal"
+	// fieldKind names a kind of instance tt knows more of than of an
+	// external process: tcm alone.
+	fieldKind = "kind"
+	// fieldHTTP, fieldConfig and fieldPasswordFile are the fields of the
+	// record of TCM.
+	fieldHTTP         = "http"
+	fieldConfig       = "config"
+	fieldPasswordFile = "password_file"
 )
 
 // wildcardRefused names, for each field the record "*" cannot have, the kind
 // of instance the field makes, as a clause of the message refusing it.
 var wildcardRefused = map[string]string{
-	fieldBinary: "is an external process",
-	fieldScript: "runs its script",
+	fieldBinary:       "is an external process",
+	fieldScript:       "runs its script",
+	fieldKind:         isTCM,
+	fieldHTTP:         isTCM,
+	fieldConfig:       isTCM,
+	fieldPasswordFile: isTCM,
+}
+
+// isTCM is the clause of wildcardRefused for the fields of TCM.
+const isTCM = "is TCM"
+
+// tcmOnlyFields are the fields only the record of TCM has, in the order a
+// message lists them.
+var tcmOnlyFields = []string{fieldHTTP, fieldConfig, fieldPasswordFile}
+
+// tcmRefusedFields are the fields the record of TCM cannot have, and why: tt
+// runs the binary of TCM with the config it writes, in the data directory
+// of the instance, and TCM logs to its standard output, which goes to
+// tt.log.
+var tcmRefusedFields = []struct{ field, why string }{
+	{fieldBinary, "tt runs the binary of TCM it finds"},
+	{fieldScript, "TCM is not a Tarantool instance"},
+	{fieldArgs, "tt runs TCM with the config it writes; settings go to the file config names"},
+	{fieldWorkdir, "TCM runs in its data directory"},
+	{fieldLogrotateSignal, "TCM logs to tt.log, which tt instance logrotate reopens"},
+}
+
+// recordFields are what a record holds besides the fields of Instance: the
+// fields of TCM, which mean something only together with kind, written in
+// any order, and the lines of the fields, for the checks made once the whole
+// record is read.
+type recordFields struct {
+	kind  string
+	tcm   TCM
+	lines map[string]int
 }
 
 // The reasons a node holds no string. Each one completes a sentence about
@@ -201,6 +243,9 @@ func (dec *decoder) description(root *yaml.Node) Description {
 	// firstLine is where each name was declared, for the message about a
 	// name declared again: the node tree keeps duplicate keys.
 	firstLine := make(map[string]int, entryCount(root))
+	// tcmName and tcmLine are the first record of TCM, as each application
+	// has one TCM.
+	tcmName, tcmLine := "", 0
 
 	for key, value := range entries(root) {
 		name, ok := dec.name(key)
@@ -226,6 +271,13 @@ func (dec *decoder) description(root *yaml.Node) Description {
 
 		switch {
 		case !ok:
+		case inst.TCM != nil && tcmName != "":
+			dec.failf(key.Line, name, fieldKind, "a second record of TCM, after %q at line %d; "+
+				"an application has one TCM", tcmName, tcmLine)
+		case inst.TCM != nil:
+			tcmName, tcmLine = name, key.Line
+
+			desc.Instances = append(desc.Instances, inst)
 		case name == WildcardName:
 			desc.Wildcard = &Wildcard{At: len(desc.Instances), Fields: inst}
 		default:
@@ -283,6 +335,7 @@ func (dec *decoder) record(name string, line int, node *yaml.Node) (Instance, bo
 		StopTimeout:     0,
 		Restart:         RestartNo,
 		LogrotateSignal: 0,
+		TCM:             nil,
 	}
 
 	switch {
@@ -302,6 +355,8 @@ func (dec *decoder) record(name string, line int, node *yaml.Node) (Instance, bo
 
 	failed := len(dec.errs)
 	firstLine := make(map[string]int, entryCount(node))
+	extra := recordFields{kind: "", tcm: TCM{HTTP: "", Config: "", PasswordFile: ""},
+		lines: firstLine}
 
 	for key, value := range entries(node) {
 		field, err := scalarText(key)
@@ -320,19 +375,54 @@ func (dec *decoder) record(name string, line int, node *yaml.Node) (Instance, bo
 
 		firstLine[field] = key.Line
 
-		dec.field(&inst, field, key, value)
+		dec.field(&inst, &extra, field, key, value)
 	}
 
 	if inst.Binary != "" && inst.Script != "" {
 		dec.failf(line, name, "", "binary and script are mutually exclusive")
 	}
 
+	dec.tcmRecord(&inst, &extra)
+
 	return inst, len(dec.errs) == failed
 }
 
-// field decodes the value of one field into the instance.
-func (dec *decoder) field(inst *Instance, field string, key, value *yaml.Node) {
-	if inst.Name == WildcardName && (field == fieldBinary || field == fieldScript) {
+// tcmRecord makes inst the record of TCM when its kind is tcm, refusing the
+// fields that record cannot have, and refuses the fields of TCM in any other
+// record.
+func (dec *decoder) tcmRecord(inst *Instance, extra *recordFields) {
+	if extra.kind != KindTCMName {
+		// A kind that is not one has been reported already.
+		_, kindSet := extra.lines[fieldKind]
+
+		for _, field := range tcmOnlyFields {
+			if line, set := extra.lines[field]; set && !kindSet {
+				dec.failf(line, inst.Name, field, "field %q is only for TCM, a record with "+
+					"%s: %s", field, fieldKind, KindTCMName)
+			}
+		}
+
+		return
+	}
+
+	for _, refused := range tcmRefusedFields {
+		if line, set := extra.lines[refused.field]; set {
+			dec.failf(line, inst.Name, refused.field, "field %q is not allowed in the "+
+				"record of TCM: %s", refused.field, refused.why)
+		}
+	}
+
+	tcm := extra.tcm
+
+	inst.TCM = &tcm
+}
+
+// field decodes the value of one field into the instance, or into extra for
+// the fields that mean something only with the others of the record.
+func (dec *decoder) field(inst *Instance, extra *recordFields, field string,
+	key, value *yaml.Node,
+) {
+	if _, refused := wildcardRefused[field]; refused && inst.Name == WildcardName {
 		dec.failf(key.Line, inst.Name, field, "field %q is not allowed: %q stands for "+
 			"Tarantool instances configured by the cluster config; an instance that %s "+
 			"is declared by its name", field, WildcardName, wildcardRefused[field])
@@ -359,6 +449,14 @@ func (dec *decoder) field(inst *Instance, field string, key, value *yaml.Node) {
 		inst.StopTimeout = dec.stopTimeout(inst.Name, value)
 	case fieldRestart:
 		inst.Restart = dec.restart(inst.Name, value)
+	case fieldKind:
+		extra.kind = dec.kind(inst.Name, value)
+	case fieldHTTP:
+		extra.tcm.HTTP = dec.http(inst.Name, value)
+	case fieldConfig:
+		extra.tcm.Config, _ = dec.pathText(inst.Name, field, value)
+	case fieldPasswordFile:
+		extra.tcm.PasswordFile, _ = dec.pathText(inst.Name, field, value)
 	default:
 		dec.failf(key.Line, inst.Name, field, "unknown field %q", field)
 	}
@@ -588,6 +686,67 @@ func (dec *decoder) restart(instance string, node *yaml.Node) RestartPolicy {
 		fieldRestart, text, RestartNo, RestartOnFailure, RestartAlways)
 
 	return RestartNo
+}
+
+// kind returns the kind the kind field names: tcm, the one kind tt knows
+// more of than of an external process.
+func (dec *decoder) kind(instance string, node *yaml.Node) string {
+	text, ok := dec.str(instance, fieldKind, node)
+	if !ok {
+		return ""
+	}
+
+	if text != KindTCMName {
+		dec.failf(node.Line, instance, fieldKind, "field %q: %q is not a kind of instance; "+
+			"the one kind is %s, for TCM, and a record without kind is a Tarantool "+
+			"instance, or an external process with binary", fieldKind, text, KindTCMName)
+
+		return ""
+	}
+
+	return text
+}
+
+// maxPort is the highest TCP port.
+const maxPort = 65535
+
+// http returns the address the http field holds, host:port, with a host and
+// a port number.
+func (dec *decoder) http(instance string, node *yaml.Node) string {
+	text, ok := dec.str(instance, fieldHTTP, node)
+	if !ok {
+		return ""
+	}
+
+	problem := httpProblem(text)
+	if problem != "" {
+		dec.failf(node.Line, instance, fieldHTTP, "field %q: %q is not an address such as "+
+			"127.0.0.1:8080: %s", fieldHTTP, text, problem)
+
+		return ""
+	}
+
+	return text
+}
+
+// httpProblem says what keeps text from being an address host:port, with a
+// host and a port number; empty when nothing does.
+func httpProblem(text string) string {
+	host, port, err := net.SplitHostPort(text)
+	if err != nil {
+		return err.Error()
+	}
+
+	number, err := strconv.Atoi(port)
+	if err != nil || number < 1 || number > maxPort {
+		return fmt.Sprintf("port %q is not a number from 1 to %d", port, maxPort)
+	}
+
+	if host == "" {
+		return "it names no host; 0.0.0.0 listens on every interface"
+	}
+
+	return ""
 }
 
 // expect reports whether a field holds a node of the kind and reports what

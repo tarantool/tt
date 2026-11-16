@@ -32,6 +32,24 @@
 // script (box.cfg), with binary an external process. binary and script are
 // mutually exclusive.
 //
+// # The record of TCM
+//
+// A record with kind: tcm is the Tarantool Cluster Manager of the
+// application (KindTCM), at most one per description:
+//
+//	tcm:
+//	  kind: tcm
+//	  http: 127.0.0.1:8080
+//	  config: tcm.yaml
+//	  password_file: tcm-admin.secret
+//
+// http, config and password_file are its own fields, refused elsewhere, and
+// it cannot have binary, script, args, workdir and logrotate_signal: tt
+// finds the binary of TCM and writes its config. config and password_file
+// are kept as written, relative to the directory of the pair the
+// description is in, which the parser does not know (TCM). kind has no other
+// value: a record without it is what its other fields make it.
+//
 // Parse returns the records in the order of the description: the order the
 // instances start in and the order status lists them in follow it, so
 // neither may depend on the iteration order of a map.

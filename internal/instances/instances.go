@@ -38,7 +38,29 @@ const (
 	KindScript
 	// KindExternal is an external process: a record with binary.
 	KindExternal
+	// KindTCM is the Tarantool Cluster Manager of the application: a record
+	// with kind: tcm. tt finds its binary, writes its config and runs it as
+	// it runs an external process.
+	KindTCM
 )
+
+// KindTCMName is the value of the kind field of the record of TCM.
+const KindTCMName = "tcm"
+
+// TCM holds the fields only the record of TCM has (KindTCM). The paths are
+// kept as they are written: they are relative to the directory of the pair
+// the description belongs to, which the parser does not know.
+type TCM struct {
+	// HTTP is the address TCM listens for HTTP on, host:port; empty for the
+	// default of TCM.
+	HTTP string
+	// Config is the config of TCM of the user, merged over the one tt
+	// writes; empty for none.
+	Config string
+	// PasswordFile is a file holding the password of the admin user of TCM
+	// for its first start; empty lets tt generate one.
+	PasswordFile string
+}
 
 // RestartPolicy tells whether the supervisor starts an instance again after
 // it exits on its own. The values are those of systemd's Restart=, so that a
@@ -86,6 +108,9 @@ type Instance struct {
 	// LogrotateSignal is the signal that makes an external process reopen
 	// its logs; zero when the record sets none.
 	LogrotateSignal syscall.Signal
+	// TCM holds the fields of the record of TCM, kind: tcm; nil for any
+	// other record.
+	TCM *TCM
 }
 
 // Description is what Parse reads from a description.
@@ -131,6 +156,8 @@ func (wildcard *Wildcard) Instance(name string) Instance {
 // Kind tells how the instance runs.
 func (inst *Instance) Kind() Kind {
 	switch {
+	case inst.TCM != nil:
+		return KindTCM
 	case inst.Binary != "":
 		return KindExternal
 	case inst.Script != "":
