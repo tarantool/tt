@@ -188,6 +188,8 @@ func startWatchdogs(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx,
 			result.fail(names[idx], err)
 		case watchdog.Waits():
 			started = append(started, watchdog)
+		default:
+			reportTCM(&watchdog.Instance)
 		}
 	}
 
@@ -204,7 +206,31 @@ func startWatchdogs(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx,
 		}
 
 		log.Infof("The instance %s is up.", name)
+		reportTCM(&started[i].Instance)
 	}
+}
+
+// reportTCM says how to log into inst, when it is TCM that has started or
+// runs already: its URL, its user and where its password is, never the
+// password itself.
+func reportTCM(inst *running.InstanceCtx) {
+	if !running.IsTCM(inst) {
+		return
+	}
+
+	access := inst.TCM.Access
+	if access.URL == "" {
+		var err error
+
+		access, err = running.DescribeTCM(inst)
+		if err != nil {
+			log.Warnf("%s", err)
+
+			return
+		}
+	}
+
+	log.Infof("TCM: %s", access.Line())
 }
 
 // watchdogStartArgs are the arguments of tt that go before those that run

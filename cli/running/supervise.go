@@ -127,7 +127,7 @@ func (src *instanceSource) Next(context.Context) (supervisor.Spec, error) {
 	}
 
 	return src.launch.Spec.supervisorSpec(outputOr(src.stdout, src.log.logger),
-		outputOr(src.stderr, src.log.logger)), nil
+		outputOr(src.stderr, src.log.logger))
 }
 
 // prepareLaunch readies the start of inst from spec, its launch: the

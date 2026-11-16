@@ -247,7 +247,8 @@ func TestLaunchSpec(t *testing.T) {
 		"the launch file keeps the environment of the user")
 	assert.NotEmpty(t, launch.Tarantool)
 
-	rebuilt := launch.Spec.supervisorSpec(nil, nil)
+	rebuilt, err := launch.Spec.supervisorSpec(nil, nil)
+	require.NoError(t, err)
 	assert.Equal(t, spec.Path, rebuilt.Path)
 	assert.Equal(t, spec.Args, rebuilt.Args)
 	assert.Equal(t, spec.Env, rebuilt.Env, "the process gets the environment the start gave it")

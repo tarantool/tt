@@ -119,6 +119,9 @@ type instanceStatus struct {
 	// activeVersion is the version active now, for the details to tell
 	// what a restart pending moves the instance to.
 	activeVersion string `json:"-" yaml:"-"`
+	// TCM is how TCM is reached and what it works with, for TCM alone
+	// (running.DescribeTCM): where its password is, never the password.
+	TCM *running.TCMAccess `json:"tcm,omitempty" yaml:"tcm,omitempty"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -145,7 +148,21 @@ func newInstanceStatus() instanceStatus {
 		tarantool:          "",
 		tarantoolWarnings:  nil,
 		activeVersion:      "",
+		TCM:                nil,
 	}
+}
+
+// setTCM sets how TCM run is reached in instStatus, or an alert that says
+// why it cannot be told.
+func setTCM(instStatus *instanceStatus, run *running.InstanceCtx) {
+	access, err := running.DescribeTCM(run)
+	if err != nil {
+		instStatus.addAlert(err.Error(), severityError)
+
+		return
+	}
+
+	instStatus.TCM = &access
 }
 
 // setVersion sets the version of the application the running instance run
@@ -372,6 +389,10 @@ func processStatusForInstance(instance running.InstanceCtx,
 		orphan := running.Orphan(&instance)
 		if orphan != 0 {
 			instStatus.addAlert(orphanAlert(&instance, name, orphan), severityError)
+		}
+
+		if running.IsTCM(&instance) {
+			setTCM(&instStatus, &instance)
 		}
 
 		return result

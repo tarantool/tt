@@ -23,6 +23,8 @@ import (
 //   - a Tarantool instance is up once it says so on its console socket, as a
 //     Prober asks it: that its box runs and its config is applied, what
 //     tt instance status shows as BOX and CONFIG;
+//   - TCM is up once its HTTP address answers with any HTTP response
+//     (tcmAnswers): its documentation names no health URL;
 //   - an external process is up once it has run for externalGrace, and so is
 //     a Tarantool instance with no console socket to ask;
 //   - an instance whose process exits, or whose watchdog ends, before that
@@ -366,6 +368,16 @@ func readReport(path string) startReport {
 // isUp reports whether the instance inst, whose process runs since
 // startedAt, is up, and otherwise what state it is in, as far as it tells.
 func isUp(inst *InstanceCtx, startedAt, deadline time.Time, probe Prober) (bool, string) {
+	if IsTCM(inst) && inst.TCM.Access.URL != "" {
+		timeout := min(probeTimeout, time.Until(deadline))
+		if timeout <= 0 {
+			return false, ""
+		}
+
+		return tcmAnswers(inst.TCM.Access.URL, timeout),
+			"not answering on " + inst.TCM.Access.URL + " yet"
+	}
+
 	if IsExternal(inst) {
 		return time.Since(startedAt) >= externalGrace, "for less than " + externalGrace.String()
 	}

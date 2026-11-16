@@ -55,6 +55,21 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	checked := map[string]error{}
 
 	return actOnInstances("check", instances, func(inst *running.InstanceCtx) error {
+		if running.IsTCM(inst) {
+			path, warnings, err := running.CheckTCM(inst)
+			if err != nil {
+				return err
+			}
+
+			for _, warning := range warnings {
+				log.Warnf("%s", warning)
+			}
+
+			log.Infof("%s: TCM, its binary %s is found", running.GetAppInstanceName(*inst), path)
+
+			return nil
+		}
+
 		if running.IsExternal(inst) {
 			path, err := running.ResolveBinary(inst)
 			if err != nil {

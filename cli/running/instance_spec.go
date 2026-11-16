@@ -69,6 +69,8 @@ func instanceSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 	build := appClusterSpec
 
 	switch {
+	case IsTCM(inst):
+		build = tcmSpec
 	case IsExternal(inst):
 		build = externalSpec
 	case IsScript(inst):

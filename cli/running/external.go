@@ -53,20 +53,24 @@ var (
 // whether the process of an external process without its watchdog is gone.
 const orphanPollInterval = 50 * time.Millisecond
 
-// IsExternal reports whether inst is an external process, a record with
-// binary, rather than a Tarantool instance.
+// IsExternal reports whether inst is a process that is not a Tarantool
+// instance: an external process, a record with binary, or TCM (IsTCM), which
+// runs the way an external process does.
 func IsExternal(inst *InstanceCtx) bool {
-	return inst.Kind == instances.KindExternal
+	return inst.Kind == instances.KindExternal || inst.Kind == instances.KindTCM
 }
 
 // RequireTarantool returns an error wrapping ErrNotTarantool when inst is an
 // external process.
 func RequireTarantool(inst *InstanceCtx) error {
-	if !IsExternal(inst) {
+	switch {
+	case IsTCM(inst):
+		return notTarantoolTCMError(inst.AppName, inst.InstName)
+	case IsExternal(inst):
+		return notTarantoolError(inst.AppName, inst.InstName, inst.Binary)
+	default:
 		return nil
 	}
-
-	return notTarantoolError(inst.AppName, inst.InstName, inst.Binary)
 }
 
 // RequireTarantoolRecord returns an error wrapping ErrNotTarantool when the
@@ -76,8 +80,16 @@ func RequireTarantool(inst *InstanceCtx) error {
 // such a command may name an instance that runs on another host.
 func RequireTarantoolRecord(application *app.App, name string) error {
 	for _, record := range application.Instances {
-		if record.Name == name && record.Kind() == instances.KindExternal {
+		if record.Name != name {
+			continue
+		}
+
+		switch record.Kind() {
+		case instances.KindTCM:
+			return notTarantoolTCMError(application.Name, name)
+		case instances.KindExternal:
 			return notTarantoolError(application.Name, name, record.Binary)
+		case instances.KindCluster, instances.KindScript:
 		}
 	}
 
@@ -87,6 +99,11 @@ func RequireTarantoolRecord(application *app.App, name string) error {
 func notTarantoolError(appName, instName, binary string) error {
 	return fmt.Errorf("%s%c%s is an external process (binary: %s): %w",
 		appName, InstanceDelimiter, instName, binary, ErrNotTarantool)
+}
+
+func notTarantoolTCMError(appName, instName string) error {
+	return fmt.Errorf("%s%c%s is TCM (kind: %s): %w",
+		appName, InstanceDelimiter, instName, instances.KindTCMName, ErrNotTarantool)
 }
 
 // setExternalCtx makes instCtx, built for the record inst with the paths of
@@ -146,6 +163,10 @@ var rocksBinDir = filepath.Join(".rocks", "bin")
 // instance runs only what its package and its runtimes sign, and the binary
 // found is checked against the signature before it runs.
 func ResolveBinary(inst *InstanceCtx) (string, error) {
+	if IsTCM(inst) {
+		return resolveTCMBinary(inst)
+	}
+
 	path, err := resolveBinary(inst)
 	if err != nil {
 		return "", fmt.Errorf("instance %q of %q: %w: %w", inst.InstName, inst.AppName,

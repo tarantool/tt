@@ -854,6 +854,8 @@ linters:
             # The context of an instance names the systemd unit that manages
             # it, as the mark of the units says.
             - "github.com/tarantool/tt/v3/internal/systemd"
+            # tt writes the config of TCM, and reads the one of the user.
+            - "gopkg.in/yaml.v3"
         dir-cli-status:
           files:
             - "**/cli/status/**"

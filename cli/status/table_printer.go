@@ -9,6 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 const (
@@ -220,6 +221,12 @@ func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 			printed = true
 		}
 
+		if instStatus.TCM != nil {
+			printTCM(name, instStatus.TCM)
+
+			printed = true
+		}
+
 		if instStatus.tarantool == "" {
 			continue
 		}
@@ -238,6 +245,17 @@ func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 
 	for _, name := range names {
 		t.printInstanceAlerts(name, instances[name])
+	}
+}
+
+// printTCM prints how TCM, the instance name, is reached, and what it works
+// with: the storage of its data, and what it does not see, in yellow.
+func printTCM(name string, access *running.TCMAccess) {
+	_, _ = fmt.Fprintf(os.Stdout, "TCM %s: %s\n", name, access.Line())
+	_, _ = fmt.Fprintf(os.Stdout, "  • storage: %s\n", access.Storage)
+
+	if access.Note != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "  • %s\n", printYellow(access.Note))
 	}
 }
 

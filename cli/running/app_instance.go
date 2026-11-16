@@ -156,12 +156,17 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Env:               maps.Clone(inst.Env),
 		Unit:              "",
 		Integrity:         application.Integrity,
+		TCM:               NoTCM(),
 		configVars:        nil,
 	}
 
 	switch inst.Kind() {
 	case instances.KindExternal:
 		setExternalCtx(&instCtx, inst, scopeLayout)
+
+		return instCtx, nil
+	case instances.KindTCM:
+		setTCMCtx(&instCtx, inst, scopeLayout, &application.Pair)
 
 		return instCtx, nil
 	case instances.KindScript:
@@ -398,6 +403,12 @@ func envName(key string) string {
 // integrity checks on, a Tarantool instance gets no env from its record and
 // runs on the links of its version (checkIntegrityStart).
 func checkStart(inst *InstanceCtx) error {
+	if IsTCM(inst) {
+		_, err := checkTCM(inst)
+
+		return err
+	}
+
 	if IsExternal(inst) {
 		return checkExternal(inst)
 	}

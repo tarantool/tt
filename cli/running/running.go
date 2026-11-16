@@ -174,6 +174,9 @@ type InstanceCtx struct {
 	// tarantool, its script, its binary, the tt of its watchdog. The
 	// watchdog finds them anew from the launch (LoadLaunch).
 	Integrity *integrity.IntegrityCtx `json:"-"`
+	// TCM is what the record of TCM says and what tt makes of it as TCM
+	// starts (IsTCM); zero for any other instance.
+	TCM TCMCtx
 
 	// configVars are the variables tarantool substitutes into the config of
 	// a Tarantool instance the cluster config configures, such as
@@ -800,6 +803,13 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 			err = checkOrphan(inst)
 			if err != nil {
 				return false, err
+			}
+
+			if IsTCM(inst) {
+				warning, _ := CheckTCMEdition(inst)
+				if warning != "" {
+					log.Warnf("%s", warning)
+				}
 			}
 
 			continue

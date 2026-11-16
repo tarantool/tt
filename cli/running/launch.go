@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -82,7 +83,12 @@ type LaunchSpec struct {
 	// not the whole environment of the user.
 	Env        []string `json:"env"`
 	InheritEnv bool     `json:"inherit_env"`
-	Dir        string   `json:"dir"`
+	// EnvFiles name, for a variable of the environment, the file its value
+	// is read from at every start of the process, rather than kept in the
+	// launch: the password of the admin user of TCM (tcmSpec), which no
+	// file but its own holds.
+	EnvFiles map[string]string `json:"env_files,omitempty"`
+	Dir      string            `json:"dir"`
 	// Stdin is what the process reads on its standard input: the launcher
 	// of an instance that runs its script.
 	Stdin               []byte         `json:"stdin,omitempty"`
@@ -116,6 +122,10 @@ func ResolveLaunch(inst *InstanceCtx) (Launch, error) {
 		Watchdog:          0,
 	}
 
+	if IsTCM(inst) {
+		launch.Spec.EnvFiles = tcmEnvFiles(inst)
+	}
+
 	if !IsExternal(inst) {
 		described, warnings, err := DescribeTarantool(inst)
 		if err == nil {
@@ -142,6 +152,7 @@ func newLaunchSpec(spec *supervisor.Spec, base []string) LaunchSpec {
 		Args:                spec.Args,
 		Env:                 slices.Clone(env),
 		InheritEnv:          inherit,
+		EnvFiles:            nil,
 		Dir:                 spec.Dir,
 		Stdin:               spec.Stdin,
 		StopSignal:          spec.StopSignal,
@@ -154,11 +165,22 @@ func newLaunchSpec(spec *supervisor.Spec, base []string) LaunchSpec {
 }
 
 // supervisorSpec returns the supervisor.Spec of the launch, whose output
-// goes to stdout and stderr.
-func (spec *LaunchSpec) supervisorSpec(stdout, stderr io.Writer) supervisor.Spec {
+// goes to stdout and stderr. The variables of EnvFiles are read from their
+// files now, on top of the rest of the environment; a file that cannot be
+// read is an error.
+func (spec *LaunchSpec) supervisorSpec(stdout, stderr io.Writer) (supervisor.Spec, error) {
 	env := slices.Clone(spec.Env)
 	if spec.InheritEnv {
 		env = append(os.Environ(), env...)
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(spec.EnvFiles)) {
+		value, err := readSecretFile(spec.EnvFiles[name])
+		if err != nil {
+			return supervisor.Spec{}, fmt.Errorf("the value of %s: %w", name, err)
+		}
+
+		env = append(env, name+"="+value)
 	}
 
 	return supervisor.Spec{
@@ -175,7 +197,7 @@ func (spec *LaunchSpec) supervisorSpec(stdout, stderr io.Writer) supervisor.Spec
 		ReloadSignal:        spec.ReloadSignal,
 		ForwardReloadSignal: spec.ForwardReloadSignal,
 		ProcessGroup:        spec.ProcessGroup,
-	}
+	}, nil
 }
 
 // writeLaunchFile writes launch into a file of its own in the run directory
