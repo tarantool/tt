@@ -875,6 +875,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   manifest was fixed by hand. The manifest is now written only once the lock
   is resolved, and a write of the lock that fails puts the manifest back. The
   same holds for `AddDependency()` and `RemoveDependency()` of the SDK.
+- `tt package uninstall` of a guest package an older tt installed into a
+  project removes the programs of its executable components from
+  `.rocks/bin/`. That tt laid out the files of a guest by hand and recorded
+  none of its programs, and uninstall removed its modules alone. The
+  programs are now told by the manifest of the guest, recorded under
+  `.rocks/manifests/`: a file of `.rocks/bin/` that no rock owns and that a
+  component of the guest makes goes with it, and nothing else of
+  `.rocks/bin/` does; a reinstall over such a guest removes them the same
+  way. Uninstall also repairs the manifest of the tree first, as a build and
+  an install do, so a dependency an older tt extracted over the tree is
+  removed by its `rock_manifest`, its programs in `.rocks/bin/` among its
+  files. A guest that tt installs today is a rock of the tree, and its
+  programs were already removed with it.
 - `tt package build` and `tt package fetch` remove from `.rocks/` the rocks
   the lock no longer holds: a dependency `tt package remove` dropped, or a
   rock that another one no longer pulls in once `tt package update` moved it

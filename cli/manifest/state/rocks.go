@@ -2,13 +2,17 @@ package state
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/go-luarocks/tree"
+
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // rocksManifestDir is the tree subdirectory LuaRocks keeps per-rock manifests
@@ -117,9 +121,22 @@ func RockRoot(lay Layout, dep string) string {
 }
 
 // RemoveUntracked deletes RockPaths of a version of the rock dep the tree
-// manifest does not list, and RockRoot when nothing is left in it.
-func RemoveUntracked(lay Layout, dep, version string) error {
-	for _, path := range RockPaths(lay, dep, version) {
+// manifest does not list, the programs of bin/ of the tree named by programs
+// (LegacyPrograms), and RockRoot when nothing is left in it.
+func RemoveUntracked(lay Layout, dep, version string, programs []string) error {
+	paths := RockPaths(lay, dep, version)
+
+	for _, program := range programs {
+		// A name is one file of bin/: anything else is not a program there,
+		// and must never reach RemoveAll.
+		if program == "" || filepath.Base(program) != program || program == ".." {
+			return fmt.Errorf("removing %s %s: %w: %q", dep, version, errNotAProgram, program)
+		}
+
+		paths = append(paths, filepath.Join(BinDir(lay), program))
+	}
+
+	for _, path := range paths {
 		err := os.RemoveAll(path)
 		if err != nil {
 			return fmt.Errorf("removing %s %s: %w", dep, version, err)
@@ -133,6 +150,68 @@ func RemoveUntracked(lay Layout, dep, version string) error {
 	_ = os.Remove(RockRoot(lay, dep))
 
 	return nil
+}
+
+// binDirName is the directory of a tree the programs and the command wrappers
+// of its rocks are in.
+const binDirName = "bin"
+
+// errNotAProgram reports a program name that is no file of bin/.
+var errNotAProgram = errors.New("not a program of bin/")
+
+// BinDir is the directory of the tree of lay the programs of its rocks are
+// in, <tree>/bin.
+func BinDir(lay Layout) string {
+	return filepath.Join(lay.Tree, binDirName)
+}
+
+// LegacyPrograms returns, in name order, the programs an older tt put into
+// bin/ of the tree of lay for the package man, which is no rock of view: the
+// files of bin/ no rock of view owns that man says a component of its
+// builds (manifest.ProgramComponent, by checker).
+//
+// Such a tt laid out the files of a guest by hand - its modules under
+// share/ and lib/, the programs of its executable components in bin/ - and
+// recorded none of them: the programs are told apart from the other files of
+// bin/ by the manifest of the guest alone. A package that is a rock of view
+// has its programs in its rock_manifest, and none here; so has a nil man.
+func LegacyPrograms(
+	lay Layout, view *tree.View, man *manifest.Manifest, checker manifest.BuildChecker,
+) ([]string, error) {
+	if man == nil || (view != nil && len(view.Versions(man.Package.Name)) > 0) {
+		return nil, nil
+	}
+
+	entries, err := os.ReadDir(BinDir(lay))
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("reading %s: %w", BinDir(lay), err)
+	}
+
+	var programs []string
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		if view != nil {
+			if _, _, owned := view.Owner(binDirName + "/" + name); owned {
+				continue
+			}
+		}
+
+		if _, ours := man.ProgramComponent(checker, name, nil); ours {
+			programs = append(programs, name)
+		}
+	}
+
+	return programs, nil
 }
 
 // SameVersion reports whether two version strings denote the same version,

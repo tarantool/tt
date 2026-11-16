@@ -69,6 +69,7 @@ func TestPruneRemovesWhatTheLockDropped(t *testing.T) {
 			"lua/metrics/version.lua": "return '1.0.0'\n",
 			"lua/metrics.lua":         "return require('metrics.init')\n",
 			"lib/metrics/metrics.so":  "binary\n",
+			"bin/metrics-cli":         "binary\n",
 		}},
 		treetest.Rock{Name: "luatest", Version: "1.0.1-1"})
 
@@ -91,6 +92,8 @@ func TestPruneRemovesWhatTheLockDropped(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(lay.Share, "metrics"))
 	assert.NoDirExists(t, filepath.Join(lay.Lib, "metrics"))
 	assert.NoDirExists(t, state.RockRoot(lay, "metrics"))
+	assert.NoFileExists(t, filepath.Join(state.BinDir(lay), "metrics-cli"),
+		"a program of the rock goes with it")
 
 	manifestText, err := os.ReadFile(filepath.Join(lay.Share, "rocks", "manifest"))
 	require.NoError(t, err)

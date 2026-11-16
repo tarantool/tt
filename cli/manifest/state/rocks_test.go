@@ -9,6 +9,9 @@ import (
 
 	"github.com/tarantool/go-luarocks/tree"
 
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
@@ -86,11 +89,110 @@ func TestRemoveUntrackedCoversEveryTree(t *testing.T) {
 	writeFile(t, filepath.Join(lay.Share, "rocks", "metrics", "1.0.0-1", "rock_manifest"),
 		[]byte("rock_manifest = {}\n"))
 
-	require.NoError(t, state.RemoveUntracked(lay, "metrics", "1.0.0-1"))
+	writeFile(t, filepath.Join(state.BinDir(lay), "metrics-cli"), []byte("binary\n"))
+	writeFile(t, filepath.Join(state.BinDir(lay), "other"), []byte("binary\n"))
+
+	require.NoError(t, state.RemoveUntracked(lay, "metrics", "1.0.0-1", []string{"metrics-cli"}))
 
 	assert.NoDirExists(t, filepath.Join(lay.Share, "metrics"))
 	assert.NoDirExists(t, filepath.Join(lay.Lib, "metrics"))
 	assert.NoDirExists(t, state.RockRoot(lay, "metrics"))
+	assert.NoFileExists(t, filepath.Join(state.BinDir(lay), "metrics-cli"))
+	assert.FileExists(t, filepath.Join(state.BinDir(lay), "other"),
+		"a program of bin/ the caller does not name stays")
+}
+
+// TestRemoveUntrackedRefusesAPathForAProgram pins that a program is one file
+// of bin/: a name that leaves it removes nothing.
+func TestRemoveUntrackedRefusesAPathForAProgram(t *testing.T) {
+	t.Parallel()
+
+	lay := projectLayout(t)
+	outside := filepath.Join(lay.Root, "keep")
+
+	writeFile(t, outside, []byte("keep\n"))
+
+	for _, program := range []string{"", "..", "../../keep", "sub/tool"} {
+		require.Error(t, state.RemoveUntracked(lay, "metrics", "1.0.0-1", []string{program}),
+			program)
+	}
+
+	assert.FileExists(t, outside)
+}
+
+// legacyGuestManifest is the manifest of the guest monitoring, whose
+// components make the programs mon-tool, by the output of a shell build,
+// and agent, of kind = "executable".
+const legacyGuestManifest = `manifest_version = '0.1'
+
+[package]
+name = 'monitoring'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[components.tool]
+path = 'tool'
+
+[components.tool.build]
+backend = 'shell'
+command = 'sh'
+output = [{ path = 'build/mon-tool', to = 'bin' }]
+
+[components.agent]
+path = 'agent'
+kind = 'executable'
+
+[components.agent.build]
+backend = 'exe'
+`
+
+// TestLegacyProgramsAreTheGuestsUnownedPrograms covers a guest an older tt
+// installed: of the files of bin/, its programs are those its manifest makes
+// that no rock owns; a program of another rock, and a file nothing makes,
+// are not its.
+func TestLegacyProgramsAreTheGuestsUnownedPrograms(t *testing.T) {
+	t.Parallel()
+
+	lay := projectLayout(t)
+
+	treetest.Install(t, lay.Tree, treetest.Rock{Name: "luatest", Version: "1.0.1-1",
+		Files: map[string]string{
+			"lua/luatest/init.lua": "-- luatest\n",
+			"bin/mon-tool":         "#!/bin/sh\n",
+		}})
+
+	view := inspect(t, lay)
+	_, _, owned := view.Owner("bin/mon-tool")
+	require.True(t, owned, "the fixture has a rock own a program of the guest's name")
+
+	man, _, err := manifest.ParseManifest([]byte(legacyGuestManifest))
+	require.NoError(t, err)
+
+	programs, err := state.LegacyPrograms(lay, view, man, buildregtest.Registry())
+	require.NoError(t, err)
+	assert.Empty(t, programs, "a program a rock owns is the rock's")
+
+	treetest.Remove(t, lay.Tree, "luatest", "1.0.1-1")
+
+	for _, name := range []string{"mon-tool", "agent", "stranger"} {
+		writeFile(t, filepath.Join(state.BinDir(lay), name), []byte("binary\n"))
+	}
+
+	programs, err = state.LegacyPrograms(lay, inspect(t, lay), man, buildregtest.Registry())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"agent", "mon-tool"}, programs)
+
+	treetest.Install(t, lay.Tree, treetest.Rock{Name: "monitoring", Version: "1.0.0-1"})
+
+	programs, err = state.LegacyPrograms(lay, inspect(t, lay), man, buildregtest.Registry())
+	require.NoError(t, err)
+	assert.Empty(t, programs, "a guest that is a rock has its programs in its rock_manifest")
+
+	programs, err = state.LegacyPrograms(lay, inspect(t, lay), nil, buildregtest.Registry())
+	require.NoError(t, err)
+	assert.Empty(t, programs)
 }
 
 // TestSameVersion covers the tolerance the reconciler and uninstall both need:

@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/tree"
 
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -125,15 +126,21 @@ func (g guestGraft) run(change *tree.Tx, root string) error {
 }
 
 // removeLegacyGuest removes the files of the guest name an older tt
-// installed, which are no rock of the tree, as that tt removed them: its
-// share/ and lib/ subtrees.
+// installed, which are no rock of the tree: its share/ and lib/ subtrees, as
+// that tt removed them, and the programs it put into bin/, which that tt
+// left behind (state.LegacyPrograms).
 func (g guestGraft) removeLegacyGuest(change *tree.Tx, name string) error {
 	guest, ok := state.Find(g.installed, name)
 	if !ok || len(change.View().Versions(name)) > 0 {
 		return nil
 	}
 
-	err := state.RemoveUntracked(g.lay, name, guest.Version)
+	programs, err := state.LegacyPrograms(g.lay, change.View(), guest.Manifest,
+		buildreg.Process())
+	if err == nil {
+		err = state.RemoveUntracked(g.lay, name, guest.Version, programs)
+	}
+
 	if err != nil {
 		return stateErrorf("%w", err)
 	}

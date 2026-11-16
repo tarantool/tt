@@ -144,6 +144,40 @@ func TestInstallReplacesAGuestAnOlderTtInstalled(t *testing.T) {
 	checkTree(t, lay.Tree)
 }
 
+// TestInstallReplacesTheProgramsOfAGuestAnOlderTtInstalled: the programs a
+// guest an older tt laid out put into bin/, recorded nowhere, are told by
+// its manifest and go with its other files; a file of bin/ no component of
+// it makes stays.
+func TestInstallReplacesTheProgramsOfAGuestAnOlderTtInstalled(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	lay := state.ProjectLayout(dir)
+
+	old := archiveSpec{name: "router", version: "1.0.0"}
+	oldManifest := old.manifestTOML() +
+		"\n[components.gateway]\npath = 'gateway'\nkind = 'executable'\n"
+	require.NoError(t, state.WriteMetadata(lay, "router", []byte(oldManifest),
+		old.lockBytes(t), "1.0.0"))
+
+	for _, path := range []string{
+		filepath.Join(lay.Share, "router", "init.lua"),
+		filepath.Join(state.BinDir(lay), "gateway"),
+		filepath.Join(state.BinDir(lay), "stranger"),
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+		require.NoError(t, os.WriteFile(path, []byte("old\n"), 0o600))
+	}
+
+	_, err := installInto(t, dir, Options{Scope: ScopeProject, Force: true},
+		appSpec("router", "1.1.0").build(t))
+	require.NoError(t, err)
+
+	assert.NoFileExists(t, filepath.Join(state.BinDir(lay), "gateway"))
+	assert.FileExists(t, filepath.Join(state.BinDir(lay), "stranger"))
+	assert.Equal(t, []string{"1.1.0-1"}, treetest.Versions(t, lay.Tree, "router"))
+}
+
 // TestInstallVersionRewrapsCommands: the commands of an installed version
 // run the tarantool the archive bundles, from the version's tree, whatever
 // the archive's tree named.

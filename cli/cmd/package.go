@@ -616,6 +616,7 @@ func runPackageUninstall(name string) error {
 
 			return askErr == nil && ok
 		},
+		Backends: buildreg.Process(),
 	})
 	if err != nil {
 		return err

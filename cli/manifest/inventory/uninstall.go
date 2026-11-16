@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"sort"
 	"strings"
 
@@ -11,7 +13,9 @@ import (
 	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
+	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
@@ -34,6 +38,19 @@ type UninstallOptions struct {
 	Confirm func(prompt string) bool
 	// Warn receives non-fatal diagnostics; nil drops them.
 	Warn func(string)
+	// Backends tell the programs of the components of a guest an older tt
+	// installed, which it recorded nowhere (state.LegacyPrograms); nil is the
+	// backends of the process (buildreg.Process).
+	Backends manifest.BuildChecker
+}
+
+// backends returns the build backends of the run.
+func (o UninstallOptions) backends() manifest.BuildChecker {
+	if o.Backends == nil {
+		return buildreg.Process()
+	}
+
+	return o.Backends
 }
 
 func (o UninstallOptions) warn(msg string) {
@@ -141,12 +158,25 @@ func Uninstall(ctx context.Context, opts UninstallOptions) (*UninstallResult, er
 			ErrPrimaryPackage, target.Name, state.PrimaryManifestFile, lay.Root)
 	}
 
+	err = repairTree(ctx, opts, lay)
+	if err != nil {
+		return nil, err
+	}
+
 	view, err := state.InspectTree(ctx, lay)
 	if err != nil {
 		return nil, stateErrorf("%w", err)
 	}
 
 	plan := planUninstall(view, packages, target)
+
+	// A guest an older tt installed is no rock of the tree, and the programs
+	// it put into bin/ are no rock's either: its manifest tells them.
+	plan.target.programs, err = state.LegacyPrograms(lay, view, target.Manifest,
+		opts.backends())
+	if err != nil {
+		return nil, stateErrorf("%w", err)
+	}
 
 	// Removing a package another one locks is the user's call — the argument was
 	// explicit — but it leaves that package's dependency unsatisfied, so say so
@@ -174,6 +204,9 @@ func Uninstall(ctx context.Context, opts UninstallOptions) (*UninstallResult, er
 type removal struct {
 	name    string
 	version string
+	// programs are the programs in bin/ of a package an older tt installed,
+	// which is no rock of the tree (state.LegacyPrograms).
+	programs []string
 }
 
 // uninstallPlan is everything one uninstall will do, decided before anything is
@@ -208,8 +241,9 @@ func planUninstall(
 		// it is one, carries the LuaRocks form of it, and every version of
 		// the rock goes (removeFiles).
 		target: removal{
-			name:    target.Name,
-			version: packageVersion(view, target),
+			name:     target.Name,
+			version:  packageVersion(view, target),
+			programs: nil,
 		},
 		dead: nil,
 		kept: nil,
@@ -239,7 +273,7 @@ func planUninstall(
 		}
 
 		plan.dead = append(plan.dead, removal{
-			name: dep, version: onDiskVersion(view, dep, brought[dep]),
+			name: dep, version: onDiskVersion(view, dep, brought[dep]), programs: nil,
 		})
 	}
 
@@ -360,9 +394,11 @@ func removeRocks(
 
 // removeFiles removes every installed version of one rock from the tree: the
 // version the plan names and any other the tree holds, as tt keeps one
-// version of a rock in a project. A package installed by a tt that laid its
+// version of a rock in a project, with every file its rock_manifest lists, its
+// programs in bin/ among them. A package installed by a tt that laid its
 // files out by hand, or a rock it extracted from an archive, is no rock of the
-// tree manifest; its files are removed as that tt removed them.
+// tree manifest; its files are removed as that tt removed them, and the
+// programs it put into bin/ with them.
 func removeFiles(change *tree.Tx, lay state.Layout, target removal) error {
 	versions := change.View().Versions(target.name)
 
@@ -377,9 +413,34 @@ func removeFiles(change *tree.Tx, lay state.Layout, target removal) error {
 		return nil
 	}
 
-	err := state.RemoveUntracked(lay, target.name, target.version)
+	err := state.RemoveUntracked(lay, target.name, target.version, target.programs)
 	if err != nil {
 		return stateErrorf("%w", err)
+	}
+
+	return nil
+}
+
+// repairTree rebuilds the manifest of the project's rocks tree from the rocks
+// on disk when it is out of step with them (rocktree.Repair), before the
+// uninstall plans against it, as a build and an install do: a tt that
+// extracted the rocks of an archive over the tree left rocks the manifest does
+// not list, and the manifest is what tells the files of a rock, its programs
+// in bin/ among them, by its rock_manifest.
+func repairTree(ctx context.Context, opts UninstallOptions, lay state.Layout) error {
+	_, err := os.Stat(lay.Tree)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	rocksTree, err := tree.Open(luarocks.Config{Tree: lay.Tree})
+	if err != nil {
+		return stateErrorf("opening the rocks tree %s: %w", lay.Tree, err)
+	}
+
+	err = rocktree.Repair(ctx, rocksTree, opts.Warn)
+	if err != nil {
+		return stateErrorf("repairing the rocks tree: %w", err)
 	}
 
 	return nil

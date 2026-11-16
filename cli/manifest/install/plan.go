@@ -291,7 +291,7 @@ func removeStale(change *tree.Tx, lay state.Layout, plan installPlan) error {
 
 		err := change.Remove(tree.RockRef{Name: decision.name, Version: decision.removeVersion})
 		if errors.Is(err, tree.ErrNotInstalled) {
-			err = state.RemoveUntracked(lay, decision.name, decision.removeVersion)
+			err = state.RemoveUntracked(lay, decision.name, decision.removeVersion, nil)
 		}
 
 		if err != nil {
