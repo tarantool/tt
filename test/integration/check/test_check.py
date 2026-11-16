@@ -74,3 +74,57 @@ def test_check_no_app_file(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(cmd, cwd=app_dir)
     assert rc == 0
     assert "no_file:storage: the config names no application file (app.file)" in output
+
+
+def test_check_validates_config(tt_cmd, tmp_path):
+    # tt instance check validates the cluster config against the schema of
+    # Tarantool, as tt instance start does: a typo fails both.
+    app_dir = prepare_project(tmp_path, "typo", "correct_syntax.lua")
+    config = app_dir / cluster_config_file
+
+    rc, output = run_command_and_get_output([tt_cmd, "instance", "check"], cwd=app_dir)
+    assert rc == 0, output
+    assert f"Result of check: the cluster config {config} is valid" in output
+
+    good = config.read_text()
+    config.write_text(good + "memtx:\n  memroy: 100\n")
+
+    rc, output = run_command_and_get_output([tt_cmd, "instance", "check"], cwd=app_dir)
+    assert rc == 1, output
+    assert f'application "typo": the cluster config {config} is invalid:' in output
+    assert "unknown option memtx.memroy" in output
+    assert "is OK" not in output
+
+    # start refuses the config before it starts anything; --no-validate
+    # starts the instance all the same, which Tarantool refuses then.
+    rc, output = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_dir)
+    assert rc == 1, output
+    assert "unknown option memtx.memroy" in output
+    assert "pass --no-validate to start all the same" in output
+    assert "Starting an instance" not in output
+
+    try:
+        rc, output = run_command_and_get_output(
+            [tt_cmd, "instance", "start", "--no-validate"],
+            cwd=app_dir,
+        )
+        assert rc == 1, output
+        assert "Starting an instance [typo:storage]..." in output
+        assert 'Unexpected field "memroy"' in output
+    finally:
+        run_command_and_get_output([tt_cmd, "instance", "stop", "-y"], cwd=app_dir)
+
+
+def test_check_built_in_templates(tt_cmd, tmp_path):
+    # The config of every built-in template is valid.
+    for template in ["single_instance", "cluster", "vshard_cluster", "config_storage"]:
+        name = template.replace("_", "-")
+        rc, output = run_command_and_get_output(
+            [tt_cmd, "create", template, "--name", name, "-s"],
+            cwd=tmp_path,
+        )
+        assert rc == 0, output
+
+        rc, output = run_command_and_get_output([tt_cmd, "instance", "check"], cwd=tmp_path / name)
+        assert rc == 0, output
+        assert "the cluster config" in output and "is valid" in output

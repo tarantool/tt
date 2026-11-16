@@ -16,7 +16,8 @@ func NewRestartCmd() *cobra.Command {
 		Long: "Stop the instances the targets select and start them again in the " +
 			"background, resolved anew: an installed application restarts on its active " +
 			"version, with its pair as it is now. Every target is checked as " +
-			"tt instance start checks it before any instance stops.\n\n" + waitHelp,
+			"tt instance start checks it before any instance stops, its cluster config " +
+			"validated among the rest.\n\n" + validateHelp + "\n\n" + waitHelp,
 		RunE: internalRunE(internalRestartModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -30,6 +31,7 @@ func NewRestartCmd() *cobra.Command {
 	addInstanceFlags(restartCmd)
 	addYesFlag(restartCmd)
 	addWaitFlags(restartCmd)
+	addValidateFlag(restartCmd)
 
 	return restartCmd
 }
@@ -77,6 +79,13 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	canStart, err := running.IsAbleToStartInstances(instances)
 	if !canStart {
+		return err
+	}
+
+	// A config Tarantool would refuse must not take the running instances
+	// down.
+	err = validateConfigs(instances)
+	if err != nil {
 		return err
 	}
 

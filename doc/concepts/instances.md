@@ -148,6 +148,22 @@ The instances start in the order of the description, and none waits for
 another to be ready. An instance that runs already is an error before
 anything starts.
 
+Before anything starts, `tt instance start` and `tt instance restart`
+validate the cluster config of the instances against the schema of the
+Tarantool config, as `tt cluster show --validate` does, and so does
+`tt instance check`. A config Tarantool would refuse starts nothing and
+stops nothing, and the error names every problem:
+
+```console
+$ tt instance start
+   ⨯ application "demo": the cluster config /…/demo/.templates/default/config.yaml is invalid:
+       unknown option memtx.memroy
+     fix it, or pass --no-validate to start all the same
+```
+
+`--no-validate` skips the validation, for an option of a Tarantool newer
+than the schemas tt knows.
+
 In the background, `tt instance start` and `tt instance restart` then wait
 for all the instances they started at once, for `--timeout` at most (60
 seconds by default):

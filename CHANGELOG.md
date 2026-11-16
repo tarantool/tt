@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt instance check`, `tt instance start` and `tt instance restart`
+  validate the cluster config of the instances against the schema of the
+  Tarantool config that `tt cluster show --validate` uses. `check` fails
+  with exit code 1 and `start` and `restart` start nothing and stop
+  nothing, and the error names the config file and every problem on a line
+  of its own, a key the schema does not know as `unknown option
+  memtx.memroy`. A typo in `config.yaml` passed `check` with exit code 0 and
+  showed only in the log of the instance once it failed to start.
+  `--no-validate` of `start` and `restart` starts the instances all the
+  same. The configs of the built-in templates pass.
 - `tt instance status --scope user` and `--scope system` with no target show
   every instance of every application installed in the scope, the answer to
   "what runs for me, or on this host", warning of an application whose

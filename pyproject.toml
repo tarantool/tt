@@ -4,9 +4,12 @@ skip = 'go.sum, **/go.sum, **/third_party, tarantool-*, mage, **/zones_gen.go, .
 # fixture, the accepted spelling "unparseable" and the time zone abbreviations
 # ECT and IST. zones_gen.go is the list of abbreviations of Tarantool.
 # UpToDate, commandIn and goIn are Go names; "templat" is the misspelt field
-# the build backend how-to shows the error of.
-ignore-words-list = ["atleast", "commandin", "crasher", "ect", "fo", "goin", "gost", "ist", "templat",
-  "unparseable", "uptodate", "wit"]
+# the build backend how-to shows the error of, and "memroy" the misspelt
+# option of memtx that the validation of a cluster config is shown and tested
+# with, in the output of a console block of the docs too, which can hold no
+# inline codespell:ignore comment.
+ignore-words-list = ["atleast", "commandin", "crasher", "ect", "fo", "goin", "gost", "ist", "memroy",
+  "templat", "unparseable", "uptodate", "wit"]
 count = false
 quiet-level = 3
 

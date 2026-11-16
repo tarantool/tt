@@ -61,6 +61,12 @@ Start the instances the targets select. By default every instance runs in the
 background under a watchdog of tt, which restarts it as the restart field of its
 record says.
 
+The cluster config of the instances is validated against the schema of the
+Tarantool config first, as tt cluster show --validate and tt instance check
+validate it: a config Tarantool would refuse, such as one with an unknown
+option, starts nothing, and the error names every problem. --no-validate starts
+the instances all the same.
+
 In the background tt waits until every instance it starts is up, all of them at
 once, for --timeout at most: a Tarantool instance once its box runs and its
 config is applied, as tt instance status shows them in BOX and CONFIG, an
@@ -96,6 +102,8 @@ FLAGS
   -h, --help                         help for start
       --integrity-check-period int   how often the watchdog re-checks integrity,
                                      in seconds
+      --no-validate                  start without validating the cluster config
+                                     against the schema of Tarantool
       --no-wait                      do not wait for the instances started in
                                      the background to come up
       --scope string                 scope the application is looked for in:

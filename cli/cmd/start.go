@@ -59,7 +59,7 @@ func NewStartCmd() *cobra.Command {
 		Short: "Start instances",
 		Long: "Start the instances the targets select. By default every instance runs " +
 			"in the background under a watchdog of tt, which restarts it as the restart " +
-			"field of its record says.\n\n" + waitHelp + "\n\n" +
+			"field of its record says.\n\n" + validateHelp + "\n\n" + waitHelp + "\n\n" +
 			"What an instance runs - its binary or tarantool, its script or cluster " +
 			"config, its arguments, environment, restart policy and paths - is resolved " +
 			"here, before its watchdog starts, and the watchdog runs that for its whole " +
@@ -92,6 +92,7 @@ func NewStartCmd() *cobra.Command {
 	startCmd.Flags().BoolVar(&startForeground, running.ForegroundFlag, false,
 		"stay in the foreground while the instances run, without restarting them")
 	addWaitFlags(startCmd)
+	addValidateFlag(startCmd)
 	startCmd.Flags().BoolVar(&watchdog, running.WatchdogFlag, false, "")
 	startCmd.Flags().StringVar(&watchdogLaunch, running.LaunchFlag, "", "")
 	startCmd.Flags().StringVar(&watchdogReport, running.ReportFlag, "", "")
@@ -136,6 +137,39 @@ func addWaitFlags(cmd *cobra.Command) {
 		"how long to wait for the instances started in the background to come up")
 	cmd.Flags().BoolVar(&startWait.noWait, "no-wait", false,
 		"do not wait for the instances started in the background to come up")
+}
+
+// noValidate is --no-validate of tt instance start and restart: start the
+// instances without validating their cluster config first.
+var noValidate bool
+
+// addValidateFlag declares --no-validate on cmd.
+func addValidateFlag(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&noValidate, "no-validate", false,
+		"start without validating the cluster config against the schema of Tarantool")
+}
+
+// validateHelp is what the help of tt instance start and restart says of the
+// validation of the cluster config.
+const validateHelp = "The cluster config of the instances is validated against the " +
+	"schema of the Tarantool config first, as tt cluster show --validate and tt instance " +
+	"check validate it: a config Tarantool would refuse, such as one with an unknown " +
+	"option, starts nothing, and the error names every problem. --no-validate starts " +
+	"the instances all the same."
+
+// validateConfigs validates the cluster config of instances before they
+// start (running.ValidateConfigs), unless --no-validate says not to.
+func validateConfigs(instances []running.InstanceCtx) error {
+	if noValidate {
+		return nil
+	}
+
+	err := running.ValidateConfigs(instances)
+	if err != nil {
+		return fmt.Errorf("%w\nfix it, or pass --no-validate to start all the same", err)
+	}
+
+	return nil
 }
 
 // check refuses a timeout the wait cannot keep.
@@ -285,6 +319,11 @@ func startResolved(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) e
 
 	canStart, err := running.IsAbleToStartInstances(instances)
 	if !canStart {
+		return err
+	}
+
+	err = validateConfigs(instances)
+	if err != nil {
 		return err
 	}
 

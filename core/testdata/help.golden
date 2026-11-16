@@ -3595,7 +3595,7 @@ USAGE
   tt instance [flags] <command> [command flags]
 
 COMMANDS
-  check       Check an application file for syntax errors
+  check       Check the cluster config and the application file of instances
   clean       Remove the data and the logs of stopped instances
   connect     Connect to the tarantool instance
   kill        Kill instances at once, without a graceful stop
@@ -3612,7 +3612,10 @@ FLAGS
 Use "tt instance <command> --help" for more information about a command.
 
 === tt instance check --help
-Check the Lua file each instance runs, its script or app.file of its
+Validate the cluster config of the instances against the schema of the
+Tarantool config, as tt instance start and tt cluster show --validate
+validate it: an unknown option or a value of a wrong type fails the
+check. Check the Lua file each instance runs, its script or app.file of its
 config, for syntax errors, with the tarantool the instance runs on, and
 that the binary of each external process is found. TCM, a record with
 kind: tcm, is checked as its start checks it: its binary is found, its
@@ -3777,7 +3780,13 @@ FLAGS
 Stop the instances the targets select and start them again in the background,
 resolved anew: an installed application restarts on its active version, with its
 pair as it is now. Every target is checked as tt instance start checks it before
-any instance stops.
+any instance stops, its cluster config validated among the rest.
+
+The cluster config of the instances is validated against the schema of the
+Tarantool config first, as tt cluster show --validate and tt instance check
+validate it: a config Tarantool would refuse, such as one with an unknown
+option, starts nothing, and the error names every problem. --no-validate starts
+the instances all the same.
 
 In the background tt waits until every instance it starts is up, all of them at
 once, for --timeout at most: a Tarantool instance once its box runs and its
@@ -3794,6 +3803,8 @@ USAGE
 
 FLAGS
   -h, --help               help for restart
+      --no-validate        start without validating the cluster config against
+                           the schema of Tarantool
       --no-wait            do not wait for the instances started in the
                            background to come up
       --scope string       scope the application is looked for in: project, user
@@ -3809,6 +3820,12 @@ FLAGS
 Start the instances the targets select. By default every instance runs in the
 background under a watchdog of tt, which restarts it as the restart field of its
 record says.
+
+The cluster config of the instances is validated against the schema of the
+Tarantool config first, as tt cluster show --validate and tt instance check
+validate it: a config Tarantool would refuse, such as one with an unknown
+option, starts nothing, and the error names every problem. --no-validate starts
+the instances all the same.
 
 In the background tt waits until every instance it starts is up, all of them at
 once, for --timeout at most: a Tarantool instance once its box runs and its
@@ -3843,6 +3860,8 @@ FLAGS
       --foreground         stay in the foreground while the instances run,
                            without restarting them
   -h, --help               help for start
+      --no-validate        start without validating the cluster config against
+                           the schema of Tarantool
       --no-wait            do not wait for the instances started in the
                            background to come up
       --scope string       scope the application is looked for in: project, user

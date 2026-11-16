@@ -158,6 +158,7 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Integrity:         application.Integrity,
 		TCM:               NoTCM(),
 		configVars:        nil,
+		clusterConfig:     nil,
 	}
 
 	switch inst.Kind() {
@@ -180,6 +181,7 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 			switch {
 			case err == nil:
 				instCtx.Configuration = &cfg
+				instCtx.clusterConfig = application.Config
 			case application.BestEffortConfig:
 				log.Debugf("%s; the cluster config is left out for it", wrap(err))
 			default:

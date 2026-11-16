@@ -182,6 +182,11 @@ type InstanceCtx struct {
 	// a Tarantool instance the cluster config configures, such as
 	// {{ instance_name }} (configVars); nil for any other instance.
 	configVars map[string]string
+	// clusterConfig is the cluster config of the application of a Tarantool
+	// instance the cluster config configures, as the application read it,
+	// for ValidateConfigs; nil for any other instance and when it was not
+	// read.
+	clusterConfig *goconfig.MutableConfig
 }
 
 // removeSockets removes the console socket and the binary port socket of an
