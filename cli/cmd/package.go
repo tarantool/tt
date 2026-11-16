@@ -891,6 +891,23 @@ func newPackageUninstallCmd() *cobra.Command {
 	return uninstallCmd
 }
 
+// packageConfirm is the Confirm of tt package install and uninstall: it asks
+// prompt and reads the answer from the standard input. Under --no-prompt it
+// asks nothing and the answer is no, the default of a confirmation, which
+// cancels the operation: it says so, pointing at --yes.
+func packageConfirm(prompt string) bool {
+	if cmdCtx.Cli.NoPrompt {
+		log.Warnf("%s: not asked, as --no-prompt asks no questions; "+
+			"pass --yes to confirm without a prompt", strings.TrimSuffix(prompt, "?"))
+
+		return false
+	}
+
+	ok, err := util.AskConfirm(os.Stdin, prompt)
+
+	return err == nil && ok
+}
+
 // runPackageUninstall removes one package and reports what went with it.
 func runPackageUninstall(name string) error {
 	ctx, stop := packageContext()
@@ -907,12 +924,8 @@ func runPackageUninstall(name string) error {
 		Package:    name,
 		Yes:        packageYes,
 		Warn:       func(msg string) { log.Warn(msg) },
-		Confirm: func(prompt string) bool {
-			ok, askErr := util.AskConfirm(os.Stdin, prompt)
-
-			return askErr == nil && ok
-		},
-		Backends: buildreg.Process(),
+		Confirm:    packageConfirm,
+		Backends:   buildreg.Process(),
 	})
 	if err != nil {
 		return err
@@ -1051,12 +1064,8 @@ func runPackageInstall(archives []string) error {
 		Servers:    manifestrocks.URLs(registries),
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
-		Confirm: func(prompt string) bool {
-			ok, askErr := util.AskConfirm(os.Stdin, prompt)
-
-			return askErr == nil && ok
-		},
-		Integrity: installIntegrity(cmdCtx.Cli.IntegrityCheck),
+		Confirm:    packageConfirm,
+		Integrity:  installIntegrity(cmdCtx.Cli.IntegrityCheck),
 	})
 	if err != nil {
 		return err

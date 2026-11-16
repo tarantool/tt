@@ -33,6 +33,9 @@ var (
 	// errNotTerminal is wrapped by the error of a confirmation asked with
 	// no terminal on the standard input.
 	errNotTerminal = errors.New("the standard input is not a terminal")
+	// errNoPrompt is wrapped by the error of a confirmation under
+	// --no-prompt.
+	errNoPrompt = errors.New("--no-prompt asks no questions")
 )
 
 // stdinIsTerminal reports whether the standard input is a terminal, where a
@@ -141,9 +144,19 @@ func lookupOptions(cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup) (app.Options
 // standard input there is no one to answer, and an answer piped in is not
 // the user's: the command fails at once, pointing at --yes, and does not read
 // the standard input. A confirmation the terminal closes fails the same way.
+//
+// --no-prompt, "skip cli interaction using default behavior", asks nothing
+// on a terminal either, and the default of a confirmation is not to do what
+// it asks about: the command fails as it does off a terminal, pointing at
+// --yes, rather than seem to succeed having done nothing.
 func confirm(question string) (bool, error) {
 	if instanceYes {
 		return true, nil
+	}
+
+	if cmdCtx.Cli.NoPrompt {
+		return false, fmt.Errorf("%w: %w; pass --yes to confirm without a prompt",
+			errNoAnswer, errNoPrompt)
 	}
 
 	if !stdinIsTerminal() {

@@ -1,6 +1,7 @@
 package replicaset
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,9 @@ import (
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 )
+
+// errNotConfirmed is wrapped by the error of a rebootstrap nobody confirmed.
+var errNotConfirmed = errors.New("not confirmed")
 
 // RebootstrapCtx contains rebootstrap operations arguments.
 type RebootstrapCtx struct {
@@ -64,6 +68,14 @@ func cleanDataFiles(instCtx running.InstanceCtx) error {
 // and starting it again.
 func Rebootstrap(cmdCtx cmdcontext.CmdCtx, rbCtx RebootstrapCtx) error {
 	instCtx := rbCtx.Instance
+
+	// --no-prompt asks nothing, and the default of a confirmation is not to
+	// do what it asks about, as for the confirmations of tt instance.
+	if !rbCtx.Confirmed && cmdCtx.Cli.NoPrompt {
+		return fmt.Errorf("%w: rebootstrap of %s needs a confirmation, which --no-prompt "+
+			"does not ask; pass --yes to confirm without a prompt", errNotConfirmed,
+			instCtx.InstName)
+	}
 
 	if !rbCtx.Confirmed {
 		yes, err := util.AskConfirm(os.Stdin, fmt.Sprintf(

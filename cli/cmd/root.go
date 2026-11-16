@@ -80,7 +80,8 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().Var(&logFormat, "log-format",
 		"Format of the log written to stderr: text or json")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.NoPrompt, "no-prompt", "",
-		false, "Skip cli interaction using default behavior")
+		false, "Ask no questions and take the default answer: a confirmation is "+
+			"not given, so a command that needs one fails unless --yes gives it")
 
 	integrityprovider.Get().RegisterIntegrityCheckFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheck)
 	integrityprovider.Get().RegisterIntegrityCheckPeriodFlag(rootCmd.Flags(),

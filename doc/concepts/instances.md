@@ -238,7 +238,10 @@ not running.
 `stop`, `restart`, `kill` and `clean` ask for a confirmation, which
 `--yes` (`-y`) skips. The confirmation is asked on a terminal only: in a
 script or a pipe, a command that needs one fails with code 1 unless it is
-given `--yes`.
+given `--yes`. Under the global `tt --no-prompt` it is not asked on a
+terminal either, and the command fails the same way; so do the
+confirmations of `tt cluster publish`, `tt replicaset rebootstrap`, and
+`tt package install` and `uninstall`.
 
 An instance that is not running is no failure of `stop`, `kill` or
 `logrotate`: each says `The instance <app>:<instance> is not running.` and

@@ -615,6 +615,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- The global `--no-prompt` covers the confirmations of tt itself, as its
+  help says, "ask no questions and take the default answer": `tt instance
+  stop`, `restart`, `kill` and `clean`, `tt cluster publish` and `tt
+  replicaset rebootstrap` ask nothing on a terminal either and fail with
+  exit code 1, `--no-prompt asks no questions; pass --yes to confirm without
+  a prompt`, as they fail off a terminal; `tt package install` and
+  `uninstall` take the answer no and say so. These still asked on a
+  terminal under `--no-prompt`, which only the modules and the update of a
+  `master` build of `tt binary install` heeded.
 - An unknown top-level command is one error, such as `unknown command
   "instnace" for "tt"`, with the commands of a close name (`instance`) and <!-- codespell:ignore instnace -->
   `Run 'tt --help' for usage.`, where tt printed the whole usage after it.

@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 // withConfirmation makes the standard input a pipe holding input, a
@@ -88,11 +89,64 @@ func TestConfirm(t *testing.T) {
 		require.ErrorIs(t, err, errNoAnswer)
 		require.ErrorContains(t, err, "pass --yes")
 	})
+
+	// --no-prompt asks nothing, on a terminal either: the confirmation is not
+	// given, and the command fails as it does off a terminal; --yes gives it.
+	for _, yes := range []bool{false, true} {
+		t.Run("--no-prompt, --yes "+strconv.FormatBool(yes), func(t *testing.T) {
+			stdin := withConfirmation(t, "y\n", true, yes)
+			withNoPrompt(t)
+
+			confirmed, err := confirm("Confirm stop of all instances")
+			assert.Equal(t, yes, confirmed)
+
+			if yes {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, errNoPrompt)
+			require.ErrorIs(t, err, errNoAnswer)
+			require.ErrorContains(t, err, "pass --yes")
+			assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+
+			left, err := io.ReadAll(stdin)
+			require.NoError(t, err)
+			assert.Equal(t, "y\n", string(left), "the standard input was read")
+		})
+	}
+}
+
+// withNoPrompt sets --no-prompt, the global flag, for the test.
+func withNoPrompt(t *testing.T) {
+	t.Helper()
+
+	previous := cmdCtx.Cli.NoPrompt
+
+	t.Cleanup(func() { cmdCtx.Cli.NoPrompt = previous })
+
+	cmdCtx.Cli.NoPrompt = true
+}
+
+// TestPackageConfirmNoPrompt pins that the confirmations of tt package
+// install and uninstall are not asked under --no-prompt, and are not given.
+//
+//nolint:paralleltest // Replaces the standard input and --no-prompt.
+func TestPackageConfirmNoPrompt(t *testing.T) {
+	stdin := withConfirmation(t, "y\n", true, false)
+	withNoPrompt(t)
+
+	assert.False(t, packageConfirm("remove monitoring?"))
+
+	left, err := io.ReadAll(stdin)
+	require.NoError(t, err)
+	assert.Equal(t, "y\n", string(left), "the standard input was read")
 }
 
 // TestConfirmingCommands pins that every command of tt instance that asks
 // for a confirmation fails without a terminal and --yes, before it acts on
-// anything; and that --no-prompt confirms nothing, not even for stop.
+// anything; and that --no-prompt confirms nothing, not even on a terminal.
 //
 //nolint:paralleltest // Replaces the standard input and --yes.
 func TestConfirmingCommands(t *testing.T) {
@@ -100,26 +154,42 @@ func TestConfirmingCommands(t *testing.T) {
 
 	cmdCtx := &cmdcontext.CmdCtx{}
 
-	cmdCtx.Cli.NoPrompt = true
+	// The wait restart checks first, as its flags set it.
+	previousWait := startWait
 
-	for name, module := range map[string]internalFunc{
-		"stop":    internalStopWithConfirmationModule,
-		"restart": internalRestartModule,
-		"kill":    internalKillModule,
-		"clean":   internalCleanModule,
-	} {
-		t.Run(name, func(t *testing.T) {
-			withConfirmation(t, "y\n", false, false)
+	t.Cleanup(func() { startWait = previousWait })
 
-			if name == "clean" {
-				// clean asks only when there is something to remove.
-				fillLogDir(t, cmdCtx, "myapp:storage-1")
-			}
+	startWait = waitOptions{timeout: running.DefaultStartTimeout, noWait: false}
 
-			err := module(cmdCtx, []string{"myapp:*"})
-			require.ErrorIs(t, err, errNotTerminal)
-			assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
-		})
+	for _, noPrompt := range []bool{false, true} {
+		for name, module := range map[string]internalFunc{
+			"stop":    internalStopWithConfirmationModule,
+			"restart": internalRestartModule,
+			"kill":    internalKillModule,
+			"clean":   internalCleanModule,
+		} {
+			t.Run(name+" --no-prompt "+strconv.FormatBool(noPrompt), func(t *testing.T) {
+				// On a terminal under --no-prompt, off one without it.
+				withConfirmation(t, "y\n", noPrompt, false)
+
+				want := errNotTerminal
+
+				if noPrompt {
+					withNoPrompt(t)
+
+					want = errNoPrompt
+				}
+
+				if name == "clean" {
+					// clean asks only when there is something to remove.
+					fillLogDir(t, cmdCtx, "myapp:storage-1")
+				}
+
+				err := module(cmdCtx, []string{"myapp:*"})
+				require.ErrorIs(t, err, want)
+				assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+			})
+		}
 	}
 }
 

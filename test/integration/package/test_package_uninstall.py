@@ -78,6 +78,20 @@ def test_uninstall_declined_removes_nothing(run_tt, shared_tree):
     assert shared_tree.rock_exists("metrics")
 
 
+def test_uninstall_no_prompt_removes_nothing(run_tt, shared_tree):
+    """--no-prompt asks nothing: the answer is no, and the uninstall says so."""
+    result = run_tt("--no-prompt", "package", "uninstall", "monitoring", stdin="y\n")
+    assert result.returncode == 1
+    assert "[y/n]" not in result.stdout
+    assert "--no-prompt asks no questions; pass --yes" in result.stderr
+
+    assert shared_tree.metadata_exists("monitoring")
+
+    result = run_tt("--no-prompt", "package", "uninstall", "monitoring", "--yes")
+    assert result.returncode == 0, result.stderr
+    assert not shared_tree.metadata_exists("monitoring")
+
+
 def test_uninstall_accepted_at_prompt(run_tt, shared_tree):
     """Accepting removes the package, and the prompt named what goes with it."""
     result = run_tt("package", "uninstall", "monitoring", stdin="y\n")

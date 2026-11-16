@@ -38,7 +38,15 @@ def test_stop_no_prompt(tt_cmd, tmp_path):
         rc, out = utils.run_command_and_get_output(stop_cmd, cwd=app_path, input="y\n")
         assert rc == 1
         assert f"Confirm stop of '{target}' [y/n]" not in out
-        assert "the standard input is not a terminal; pass --yes" in out
+        assert "--no-prompt asks no questions; pass --yes" in out
+        assert os.path.exists(pid_path)
+
+        # Nor on a terminal: --no-prompt asks nothing there either, and the
+        # stop fails as it does off a terminal.
+        rc, out = utils.run_command_with_tty(stop_cmd, "y\n", cwd=app_path)
+        assert rc == 1, out
+        assert "[y/n]" not in out
+        assert "--no-prompt asks no questions; pass --yes" in out
         assert os.path.exists(pid_path)
 
         stop_cmd = [tt_cmd, "--no-prompt", "instance", "stop", "--yes", target]

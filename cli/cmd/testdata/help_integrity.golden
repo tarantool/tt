@@ -46,7 +46,10 @@ FLAGS
   -I, --internal                     Use internal module
       --log-format text|json         Format of the log written to stderr: text
                                      or json (default text)
-      --no-prompt                    Skip cli interaction using default behavior
+      --no-prompt                    Ask no questions and take the default
+                                     answer: a confirmation is not given, so a
+                                     command that needs one fails unless --yes
+                                     gives it
   -V, --verbose                      Verbose output
 
 EXAMPLES
