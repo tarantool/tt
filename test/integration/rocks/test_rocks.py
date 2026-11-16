@@ -294,6 +294,61 @@ def test_rocks_install_local(tt_cmd, tmp_path, offline):
     assert requests == []
 
 
+# The programs LuaRocks runs to install and pack a rock of the fixture
+# repository, which a PATH without zip is to hold.
+PACK_TOOLS = [
+    "sh", "cp", "mv", "rm", "rmdir", "mkdir", "ln", "chmod", "touch", "find", "ls",
+    "cat", "pwd", "test", "stat", "md5sum", "unzip", "mktemp", "tarantool",
+]  # fmt: skip
+
+
+def path_without_zip(directory):
+    """A PATH holding PACK_TOOLS of the PATH of the test and no zip."""
+    directory.mkdir()
+    for tool in PACK_TOOLS:
+        found = shutil.which(tool)
+        if found:
+            os.symlink(found, directory / tool)
+    return str(directory)
+
+
+def test_rocks_pack_says_zip_is_missing_only_when_it_is(tt_cmd, tmp_path):
+    """tt rocks pack says that zip is missing when LuaRocks failed for want
+    of it, and not when it failed before it needed one: a rock that is not
+    installed is not packed for that reason."""
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "--only-server=repo", "install", "stat"],
+        cwd=tmp_path,
+        env=dict(os.environ, PWD=tmp_path),
+    )
+    assert rc == 0, output
+
+    env = dict(os.environ, PWD=tmp_path, PATH=path_without_zip(tmp_path / "bin"))
+    hint = "LuaRocks packs a rock with the zip program, which is not found in PATH"
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "pack", "nosuch"],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 1
+    assert "cannot find package nosuch" in output
+    assert hint not in output
+    assert "ZIP=" not in output
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "pack", "stat"],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 1, output
+    assert "Failed packing" in output
+    assert hint in output
+    assert "ZIP=" not in output
+    assert not list(tmp_path.glob("*.rock"))
+
+
 def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")

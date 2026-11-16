@@ -209,9 +209,12 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	// Match the historical progname: LuaRocks prints "<argv0> rocks" (and
 	// "<argv0> rocks admin") in its usage, the wrapper appending " admin" for
 	// the admin sub-CLI.
-	err = rocksClient.Exec(ctx, os.Args[0]+" rocks", args)
+	zip, runArgs := newZipProbe(args)
+	defer zip.remove()
+
+	err = rocksClient.Exec(ctx, os.Args[0]+" rocks", runArgs)
 	if err != nil {
-		err = explainPackFailure(fmt.Errorf("failed to run luarocks: %w", err), args)
+		err = fmt.Errorf("failed to run luarocks: %w", zip.explain(err))
 
 		return explainMissingHeaders(err, prefix, args)
 	}
@@ -275,12 +278,40 @@ func luarocksCommand(args []string) string {
 	return ""
 }
 
-// explainPackFailure adds ErrNoZip to err, the failure of a LuaRocks run of
-// args, when args pack a rock, zip is not in PATH, and args assign no ZIP
-// variable. LuaRocks 3.9.2 then says "Failed packing <rock>" and no more:
+// zipProbe stands in for the zip LuaRocks would pack a rock with on a system
+// that has none, to tell a run that failed for want of zip from one that
+// failed before it needed one: pack of a rock that is not installed fails
+// with "cannot find package", and the hint that zip is missing would be
+// wrong there. LuaRocks 3.9.2 does not say why it failed in the first case:
 // pack_installed_rock, which pack <rock name> and --pack-binary-rock run,
-// drops the reason fs.zip gives.
-func explainPackFailure(err error, args []string) error {
+// says "Failed packing <rock>" and drops the reason fs.zip gives, and tt does
+// not see what LuaRocks prints.
+//
+// The probe is a program that records that it ran and fails, which the run
+// is given as LuaRocks' ZIP variable. LuaRocks runs it where it would run
+// zip, and fails as it does with no zip, "Failed packing"; the record says
+// that it got there.
+type zipProbe struct {
+	// dir holds the program and its record; the probe removes it.
+	dir string
+	// assignment is the ZIP=<program> argument the run is given.
+	assignment string
+	// record is the file the program creates when it runs.
+	record string
+}
+
+// zipProbeScript is the program of the probe: it creates the file it is
+// given and fails.
+const zipProbeScript = "#!/bin/sh\n: > '%s'\nexit 1\n"
+
+// zipProbeMode is the mode of the program of the probe.
+const zipProbeMode = 0o700
+
+// newZipProbe returns the probe for a LuaRocks run of args, and the args to
+// run with it, when args pack a rock, zip is not in PATH and args assign no
+// ZIP variable; otherwise nil and args as they are. A probe that cannot be
+// made is none: the run goes as it would, without the hint.
+func newZipProbe(args []string) (*zipProbe, []string) {
 	packs := luarocksCommand(args) == "pack"
 
 	for _, arg := range args {
@@ -289,18 +320,83 @@ func explainPackFailure(err error, args []string) error {
 		}
 
 		if strings.HasPrefix(arg, "ZIP=") {
-			return err
+			return nil, args
 		}
 	}
 
 	if !packs {
-		return err
+		return nil, args
 	}
 
 	_, lookErr := exec.LookPath(zipTool)
 	if lookErr == nil {
+		return nil, args
+	}
+
+	dir, err := os.MkdirTemp("", "tt-zip-")
+	if err != nil {
+		return nil, args
+	}
+
+	probe := &zipProbe{
+		dir:        dir,
+		assignment: "ZIP=" + filepath.Join(dir, zipTool),
+		record:     filepath.Join(dir, "ran"),
+	}
+
+	// LuaRocks runs ZIP through the shell unquoted, so a directory the shell
+	// would split, or the quotes of the script would not hold, makes none.
+	if strings.ContainsAny(dir, " \t\n'\"\\$`;&|<>()*?[]#~") {
+		probe.remove()
+
+		return nil, args
+	}
+
+	err = os.WriteFile(filepath.Join(dir, zipTool),
+		fmt.Appendf(nil, zipProbeScript, probe.record), zipProbeMode)
+	if err != nil {
+		probe.remove()
+
+		return nil, args
+	}
+
+	return probe, append([]string{probe.assignment}, args...)
+}
+
+// remove removes the program of the probe and its record. A nil probe has
+// none.
+func (p *zipProbe) remove() {
+	if p != nil {
+		_ = os.RemoveAll(p.dir)
+	}
+}
+
+// explain makes err, the failure of the run the probe was given to, read as
+// the failure of the args the user gave, with no ZIP assignment of the
+// probe, and adds ErrNoZip when LuaRocks ran the probe: it failed for want
+// of zip. A nil probe leaves err as it is.
+func (p *zipProbe) explain(err error) error {
+	if p == nil {
+		return err
+	}
+
+	err = &probedError{err: err, msg: strings.Replace(err.Error(), p.assignment+" ", "", 1)}
+
+	_, statErr := os.Stat(p.record)
+	if statErr != nil {
 		return err
 	}
 
 	return fmt.Errorf("%w: %w", err, ErrNoZip)
 }
+
+// probedError is the failure of a run given a probe, its message without the
+// ZIP assignment of the probe.
+type probedError struct {
+	err error
+	msg string
+}
+
+func (e *probedError) Error() string { return e.msg }
+
+func (e *probedError) Unwrap() error { return e.err }

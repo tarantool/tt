@@ -2,8 +2,11 @@ package rocks
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -248,8 +251,10 @@ func TestLuarocksCommand(t *testing.T) {
 	}
 }
 
-func TestExplainPackFailure(t *testing.T) {
-	failure := errors.New("failed to run luarocks")
+// TestZipProbe: a run that packs a rock with no zip in PATH and no ZIP of
+// its own is given the probe as ZIP; the failure of the run says that zip is
+// missing only when LuaRocks ran the probe, and never names the probe.
+func TestZipProbe(t *testing.T) {
 	withZip := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(withZip, zipTool), []byte("#!/bin/sh\n"), 0o755))
 
@@ -257,7 +262,7 @@ func TestExplainPackFailure(t *testing.T) {
 		name  string
 		path  string
 		args  []string
-		noZip bool
+		probe bool
 	}{
 		{"pack, no zip", t.TempDir(), []string{"pack", "queue"}, true},
 		{"--pack-binary-rock, no zip", t.TempDir(), []string{"make", "--pack-binary-rock"}, true},
@@ -269,10 +274,44 @@ func TestExplainPackFailure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("PATH", tt.path)
+			t.Setenv("TMPDIR", t.TempDir())
 
-			err := explainPackFailure(failure, tt.args)
+			probe, args := newZipProbe(tt.args)
+			defer probe.remove()
+
+			failure := fmt.Errorf("luaEngine: %v exited with code 1", args)
+
+			if !tt.probe {
+				require.Nil(t, probe)
+				assert.Equal(t, tt.args, args)
+				assert.Equal(t, failure, probe.explain(failure))
+
+				return
+			}
+
+			require.NotNil(t, probe)
+			require.Equal(t, append([]string{"ZIP=" + filepath.Join(probe.dir, zipTool)},
+				tt.args...), args)
+
+			// LuaRocks failed before it needed zip: the pack of a rock that
+			// is not installed.
+			err := probe.explain(failure)
 			require.ErrorIs(t, err, failure)
-			require.Equal(t, tt.noZip, errors.Is(err, ErrNoZip))
+			require.NotErrorIs(t, err, ErrNoZip)
+			assert.Equal(t, fmt.Sprintf("luaEngine: %v exited with code 1", tt.args), err.Error())
+
+			// LuaRocks ran zip, as the shell runs it.
+			cmd := exec.CommandContext(t.Context(), "/bin/sh", "-c",
+				strings.TrimPrefix(args[0], "ZIP=")+" -r rock.zip a b")
+			require.Error(t, cmd.Run(), "the probe fails as no zip does")
+
+			err = probe.explain(failure)
+			require.ErrorIs(t, err, failure)
+			require.ErrorIs(t, err, ErrNoZip)
+			assert.NotContains(t, err.Error(), probe.dir)
+
+			probe.remove()
+			assert.NoDirExists(t, probe.dir)
 		})
 	}
 }

@@ -1272,6 +1272,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installs Community Edition, which `--local-dir` is refused for. Two
   entries of 3.0.0-alpha.1 below named the commands that do not exist as
   well, and name the ones that do now.
+- `tt rocks pack` and a `--pack-binary-rock` run on a system with no `zip`
+  say that LuaRocks packs a rock with the zip program only when it failed
+  for want of it: `tt rocks pack foo` of a rock that is not installed said
+  so after `cannot find package foo`. tt gives the run a stand-in for zip
+  as LuaRocks' `ZIP` variable, which records that LuaRocks ran it and
+  fails as no zip does, and gives the hint when it ran.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
