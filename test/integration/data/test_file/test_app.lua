@@ -1,4 +1,3 @@
-local fiber = require('fiber')
 local fio = require('fio')
 
 box.cfg()
@@ -11,6 +10,5 @@ box.space.test:create_index('0')
 
 fio.open('configured', 'O_CREAT'):close()
 
-while true do
-    fiber.sleep(5)
-end
+-- The file returns: one that never does keeps the config of the instance
+-- from being applied, and tt instance start waits for that.
