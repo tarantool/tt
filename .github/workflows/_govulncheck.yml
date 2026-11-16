@@ -33,6 +33,8 @@ jobs:
 
       # A branch is compared with the default branch rather than with its
       # previous push, so a later commit cannot hide an earlier module change.
+      # A scan of everything compares nothing: the payload of a scheduled run
+      # may not name the default branch.
       - name: Check dependency changes
         id: changes
         env:
@@ -40,13 +42,14 @@ jobs:
           SCAN_ALL: ${{ inputs.scan-all }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [ -z "$BASE" ]; then
-            BASE=$(git merge-base HEAD "origin/$DEFAULT_BRANCH")
-          fi
           changed=true
-          if [ "$SCAN_ALL" != true ] &&
-            git diff --quiet "$BASE...HEAD" -- ':(glob)**/go.mod' ':(glob)**/go.sum'; then
-            changed=false
+          if [ "$SCAN_ALL" != true ]; then
+            if [ -z "$BASE" ]; then
+              BASE=$(git merge-base HEAD "origin/$DEFAULT_BRANCH")
+            fi
+            if git diff --quiet "$BASE...HEAD" -- ':(glob)**/go.mod' ':(glob)**/go.sum'; then
+              changed=false
+            fi
           fi
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
           echo "Dependency scan requested: $changed" >> "$GITHUB_STEP_SUMMARY"
