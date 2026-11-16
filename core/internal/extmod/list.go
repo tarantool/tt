@@ -3,6 +3,7 @@ package extmod
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -15,7 +16,15 @@ func newModulesListCmd(modules []*Module, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List available modules",
-		RunE: func(*cobra.Command, []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if len(modules) == 0 {
+				// stdout stays empty, the list of no modules, as a script
+				// reads it; stderr says why.
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), noModules(os.Getenv(PathEnv)))
+
+				return nil
+			}
+
 			internalModulesList(out, modules, showVersion, showPath)
 
 			return nil
@@ -27,6 +36,16 @@ func newModulesListCmd(modules []*Module, out io.Writer) *cobra.Command {
 		"Show modules path instead of description")
 
 	return cmd
+}
+
+// noModules is what tt modules list says of no modules, for paths, the
+// value of PathEnv.
+func noModules(paths string) string {
+	if paths == "" {
+		return "no external modules: " + PathEnv + " is not set"
+	}
+
+	return "no external modules in the directories " + PathEnv + " lists: " + paths
 }
 
 // newModulesCmd creates a new `modules` command, which lists modules on out.

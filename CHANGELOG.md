@@ -954,6 +954,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- `tt modules list` with no external modules says so on stderr,
+  `no external modules: TT_CLI_MODULES_PATH is not set` or the directories
+  it lists, and exits 0; it printed nothing. stdout stays empty.
 - `tt package search` reports each version of a server once and in order:
   the rock searched for first, then the others by name, the versions of
   each newest first and `scm-1` after the releases. It listed a row for

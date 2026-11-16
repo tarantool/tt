@@ -1,3 +1,4 @@
+import os
 import re
 
 import pytest
@@ -260,3 +261,25 @@ def test_module_named_modules_is_ignored(tt_cmd, tmp_path):
     assert rc == 0
     assert stdout == "abc - Description for external module abc\n"
     assert stderr == ignored_module_warning("modules", modules_dir)
+
+
+@pytest.mark.parametrize("with_path", [False, True], ids=["unset", "empty-dir"])
+def test_modules_list_of_no_modules_says_so(tt_cmd, tmp_path, with_path):
+    """No modules: stdout stays empty, stderr says why, the exit code is 0."""
+    env = {key: value for key, value in os.environ.items() if key != "TT_CLI_MODULES_PATH"}
+    if with_path:
+        (tmp_path / "modules").mkdir()
+        env = modules_path_env(tmp_path / "modules")
+
+    rc, stdout, stderr = run_command_and_get_streams(
+        (tt_cmd, "modules", "list"),
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 0
+    assert stdout == ""
+    if with_path:
+        expected = "no external modules in the directories TT_CLI_MODULES_PATH lists: "
+        assert expected + str(tmp_path / "modules") in stderr
+    else:
+        assert "no external modules: TT_CLI_MODULES_PATH is not set" in stderr

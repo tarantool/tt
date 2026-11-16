@@ -657,6 +657,22 @@ func TestMountModulesList(t *testing.T) {
 	}
 }
 
+// TestMountModulesListNone checks that tt modules list of no modules says so
+// on stderr and prints nothing on stdout.
+func TestMountModulesListNone(t *testing.T) {
+	t.Parallel()
+
+	tree := newTree(t)
+
+	_, err := tree.mount(t.TempDir())
+	require.NoError(t, err)
+
+	_, err = tree.run("modules", "list")
+	require.NoError(t, err)
+	assert.Empty(t, tree.out.String())
+	assert.Contains(t, tree.errOut.String(), "no external modules")
+}
+
 // TestMountModulesCommandTaken checks that Mount fails when the tree cannot
 // hold tt modules.
 func TestMountModulesCommandTaken(t *testing.T) {
