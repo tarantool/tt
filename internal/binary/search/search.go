@@ -145,7 +145,6 @@ func SearchVersions(searchCtx SearchCtx) error {
 	}
 
 	prg := searchCtx.Program
-	log.Infof("Available versions of %s:", prg)
 
 	var vers version.VersionSlice
 
@@ -169,6 +168,10 @@ func SearchVersions(searchCtx SearchCtx) error {
 
 		return nil // It's not an error if nothing is found.
 	}
+
+	// The heading comes once the versions are there: a failed search
+	// prints only its error.
+	log.Infof("Available versions of %s:", prg)
 
 	for _, v := range vers {
 		printVersion(root, prg, v, searchCtx.DevBuilds)

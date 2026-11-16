@@ -93,6 +93,43 @@ func TestGetCredsFromFile(t *testing.T) {
 	}
 }
 
+// TestGetCredsOffTerminal: off a terminal nothing is prompted for, and the
+// error names where the credentials go.
+func TestGetCredsOffTerminal(t *testing.T) {
+	interactive := stdinIsTerminal
+
+	stdinIsTerminal = func() bool { return false }
+
+	t.Cleanup(func() { stdinIsTerminal = interactive })
+
+	t.Setenv(EnvSdkUsername, "")
+	t.Setenv(EnvSdkPassword, "")
+
+	_, err := GetCreds("")
+	require.ErrorIs(t, err, ErrNoCredentials)
+	require.ErrorContains(t, err, "--credentials-file FILE")
+	require.ErrorContains(t, err, "TT_CLI_EE_USERNAME and TT_CLI_EE_PASSWORD")
+
+	t.Setenv(EnvSdkUsername, "user")
+
+	_, err = GetCreds("")
+	require.ErrorIs(t, err, errPasswordNotSet)
+	require.EqualError(t, err,
+		"password not set: TT_CLI_EE_USERNAME is set, TT_CLI_EE_PASSWORD is not")
+
+	t.Setenv(EnvSdkUsername, "")
+	t.Setenv(EnvSdkPassword, "secret")
+
+	_, err = GetCreds("")
+	require.ErrorIs(t, err, errLoginNotSet)
+
+	t.Setenv(EnvSdkUsername, "user")
+
+	creds, err := GetCreds("")
+	require.NoError(t, err)
+	assert.Equal(t, UserCredentials{Username: "user", Password: "secret"}, creds)
+}
+
 func Test_getCredsFromEnvVars(t *testing.T) {
 	tests := []struct {
 		name    string

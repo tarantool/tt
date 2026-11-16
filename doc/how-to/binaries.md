@@ -160,7 +160,9 @@ $ tt binary install tcm 1.3.1-0-g074b5ffa --credentials-file ./credentials
 ```
 
 Without the flag, the credentials come from `TT_CLI_EE_USERNAME` and
-`TT_CLI_EE_PASSWORD`, or from a prompt.
+`TT_CLI_EE_PASSWORD`, or from a prompt on a terminal. In a script, with
+stdin not a terminal, there is no prompt: credentials given nowhere are an
+error that names the flag and the variables, and the command fails.
 
 ## The Enterprise SDK
 

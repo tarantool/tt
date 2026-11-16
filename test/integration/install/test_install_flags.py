@@ -1,6 +1,7 @@
 import os
 import platform
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -196,6 +197,45 @@ def test_invalid_credentials_file_changes_nothing(
         [program, selector, "--credentials-file", str(credentials)],
         error,
     )
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["install", "tarantool", "3ee"],
+        ["install", "tcm"],
+        ["search", "tcm"],
+        ["search", "tarantool-ee"],
+    ],
+)
+@pytest.mark.parametrize("partial", [None, "TT_CLI_EE_USERNAME", "TT_CLI_EE_PASSWORD"])
+def test_no_credentials_off_terminal(tt_cmd, tmp_path, monkeypatch, args, partial):
+    """With no credentials and no terminal there is no prompt: one error
+    names where the credentials go, and the command fails."""
+    if platform.system() != "Linux" or platform.machine() != "x86_64":
+        pytest.skip("Enterprise archives are listed on Linux amd64")
+    if partial:
+        monkeypatch.setenv(partial, "dummy")
+    process = subprocess.run(
+        [tt_cmd, "binary", *args],
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert process.returncode == 1, process.stderr
+    assert process.stdout == ""
+    assert "Enter Email" not in process.stderr
+    assert "Available versions" not in process.stderr
+    if partial is None:
+        assert "pass --credentials-file FILE" in process.stderr
+        assert "set TT_CLI_EE_USERNAME and TT_CLI_EE_PASSWORD" in process.stderr
+    else:
+        assert f"{partial} is set" in process.stderr
+    errors = [line for line in process.stderr.splitlines() if "⨯" in line]
+    assert len(errors) == 1, process.stderr
+    assert not (tmp_path / ".tarantool").exists()
 
 
 PRODUCTS = [

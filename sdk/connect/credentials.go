@@ -32,13 +32,32 @@ type UserCredentials struct {
 	Password string
 }
 
-// getCredsInteractive Interactively prompts the user for credentials.
+// ErrNoCredentials reports customer-zone credentials that are needed and
+// given nowhere, where no prompt can ask for them: stdin is not a terminal.
+var ErrNoCredentials = errors.New("customer-zone credentials are needed for " +
+	"Tarantool Enterprise and are not given: " +
+	"pass --credentials-file FILE, the login and the password on two lines, or set " +
+	EnvSdkUsername + " and " + EnvSdkPassword)
+
+// stdinIsTerminal reports whether a prompt can be answered. A variable for
+// the tests.
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(syscall.Stdin)
+}
+
+// getCredsInteractive Interactively prompts the user for credentials. The
+// prompts go to stderr, so stdout keeps only the result of the command.
 func getCredsInteractive() (UserCredentials, error) {
 	res := UserCredentials{Username: "", Password: ""}
+
+	if !stdinIsTerminal() {
+		return res, ErrNoCredentials
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 
-	_, _ = fmt.Fprintln(os.Stdout, "Signing in to Customer zone.")
-	_, _ = fmt.Fprintf(os.Stdout, "Enter Email: ")
+	_, _ = fmt.Fprintln(os.Stderr, "Signing in to Customer zone.")
+	_, _ = fmt.Fprintf(os.Stderr, "Enter Email: ")
 
 	resp, err := reader.ReadString('\n')
 	if err != nil {
@@ -47,7 +66,7 @@ func getCredsInteractive() (UserCredentials, error) {
 
 	res.Username = strings.TrimSpace(resp)
 
-	_, _ = fmt.Fprintf(os.Stdout, "Enter Password: ")
+	_, _ = fmt.Fprintf(os.Stderr, "Enter Password: ")
 
 	bytePass, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
@@ -55,7 +74,7 @@ func getCredsInteractive() (UserCredentials, error) {
 	}
 
 	res.Password = strings.TrimSpace(string(bytePass))
-	_, _ = fmt.Fprintln(os.Stdout, "")
+	_, _ = fmt.Fprintln(os.Stderr, "")
 
 	return res, nil
 }
@@ -120,19 +139,34 @@ func getCredsFromEnvVars() (UserCredentials, error) {
 	res.Username = os.Getenv(EnvSdkUsername)
 	res.Password = os.Getenv(EnvSdkPassword)
 
-	if res.Username == "" || res.Password == "" {
+	switch {
+	case res.Username == "" && res.Password == "":
 		return res, errNoCredentialsInEnvironmentVariablesWereFound
+	case res.Username == "":
+		return res, fmt.Errorf("%w: %s is set, %s is not",
+			errLoginNotSet, EnvSdkPassword, EnvSdkUsername)
+	case res.Password == "":
+		return res, fmt.Errorf("%w: %s is set, %s is not",
+			errPasswordNotSet, EnvSdkUsername, EnvSdkPassword)
 	}
 
 	return res, nil
 }
 
-// GetCreds gets credentials for tarantool-ee download.
+// GetCreds gets credentials for tarantool-ee download: from the file at
+// credPath, from TT_CLI_EE_USERNAME and TT_CLI_EE_PASSWORD, or from a prompt
+// on a terminal. Off a terminal, credentials given nowhere are
+// ErrNoCredentials, and only one of the variables set is an error naming
+// the other.
 func GetCreds(credPath string) (UserCredentials, error) {
 	if credPath == "" {
 		creds, err := getCredsFromEnvVars()
 		if err == nil {
 			return creds, nil
+		}
+
+		if !errors.Is(err, errNoCredentialsInEnvironmentVariablesWereFound) {
+			return creds, err
 		}
 
 		return getCredsInteractive()

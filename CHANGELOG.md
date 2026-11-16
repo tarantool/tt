@@ -1654,6 +1654,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   install` says that it installs into the `.tarantool` of the current
   directory, rather than creating `.tarantool/` and `.env/` in `$HOME`, say,
   without a word.
+- Searching or installing Tarantool Enterprise, TCM, tt Enterprise or the
+  SDK without customer-zone credentials off a terminal no longer prompts
+  `Enter Email:` into a pipe and fails with `reading the email: EOF`. It
+  fails at once with one error: `customer-zone credentials are needed for
+  Tarantool Enterprise and are not given: pass --credentials-file FILE ...
+  or set TT_CLI_EE_USERNAME and TT_CLI_EE_PASSWORD`; one of the two
+  variables set without the other is an error naming the missing one. On a
+  terminal the prompt is written to stderr. `tt binary install` reported
+  the failure twice, and `tt binary search` printed `Available versions of
+  tcm:` before it: the heading now comes only with the versions.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

@@ -616,11 +616,10 @@ func prepareBundleProgram(installCtx InstallCtx) (installationActivation, error)
 		return nil, err
 	}
 
+	// The error is reported once, by the command.
 	err = acquireBundleInfoToInstall(&params)
 	if err != nil {
-		log.Errorf("Failed to find bundles to install: %v", err)
-
-		return nil, err
+		return nil, fmt.Errorf("failed to find bundles to install: %w", err)
 	}
 
 	if prepareExistingBundle(&params) {

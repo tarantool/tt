@@ -75,7 +75,6 @@ func SearchVersionsLocal(searchCtx SearchCtx) error {
 	log.Debugf("Using local search directory: %s", localDir)
 
 	prg := searchCtx.Program
-	log.Infof("Available local versions of %s:", prg)
 
 	var vers version.VersionSlice
 
@@ -100,6 +99,8 @@ func SearchVersionsLocal(searchCtx SearchCtx) error {
 
 		return nil // It's not an error if nothing is found.
 	}
+
+	log.Infof("Available local versions of %s:", prg)
 
 	for _, v := range vers {
 		printVersion(root, prg, v, searchCtx.DevBuilds)
