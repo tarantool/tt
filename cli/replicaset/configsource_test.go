@@ -355,7 +355,8 @@ func TestCConfigSource_publish_error(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.Expel(replicaset.ExpelCtx{InstName: instName})
+				// No other instance is reached: --force goes on to publish.
+				return source.Expel(replicaset.ExpelCtx{InstName: instName, Force: true})
 			},
 		},
 		{
@@ -405,7 +406,8 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.Expel(replicaset.ExpelCtx{InstName: instName})
+				// No other instance is reached: --force goes on to the key.
+				return source.Expel(replicaset.ExpelCtx{InstName: instName, Force: true})
 			},
 		},
 		{
@@ -800,7 +802,9 @@ func TestCConfigSource_Expel_single_key(t *testing.T) {
 	})
 	publisher := newOnceMockDataPublisher(nil)
 	source := replicaset.NewCConfigSource(collector, publisher, picker)
-	err := source.Expel(replicaset.ExpelCtx{InstName: "instance-002"})
+	// No other instance of the replicaset is reached: --force removes the
+	// instance from the config alone.
+	err := source.Expel(replicaset.ExpelCtx{InstName: "instance-002", Force: true})
 	require.NoError(t, err)
 
 	// The instance is gone from the topology: an iproto.listen: {} it was
@@ -844,7 +848,7 @@ func TestCConfigSource_Expel_keeps_the_rest(t *testing.T) {
 	})
 	publisher := newOnceMockDataPublisher(nil)
 	source := replicaset.NewCConfigSource(collector, publisher, picker)
-	require.NoError(t, source.Expel(replicaset.ExpelCtx{InstName: "instance-002"}))
+	require.NoError(t, source.Expel(replicaset.ExpelCtx{InstName: "instance-002", Force: true}))
 
 	expected := []byte(`groups:
   group-1:
@@ -885,6 +889,33 @@ func TestCConfigSource_Expel_leader(t *testing.T) {
 	err := source.Expel(replicaset.ExpelCtx{InstName: "instance-001"})
 	require.EqualError(t, err, `cannot expel the leader "instance-001" of "replicaset-001": `+
 		`promote another instance first with tt replicaset promote`)
+	require.Zero(t, publisher.Called)
+}
+
+// TestCConfigSource_Expel_no_survivor checks that, with no other instance of
+// the replicaset reached, the expel is refused before the config is changed:
+// there is nothing to check that the instance is stopped on, nor to delete
+// it from _cluster on.
+func TestCConfigSource_Expel_no_survivor(t *testing.T) {
+	cfg := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002: {}
+`)
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
+		{Source: "a", Value: cfg, Revision: revision},
+	}, nil)
+	picker := replicaset.KeyPicker(func(_ []string, _ bool, _ string) (int, error) {
+		return 0, nil
+	})
+	publisher := newOnceMockDataPublisher(nil)
+	source := replicaset.NewCConfigSource(collector, publisher, picker)
+	err := source.Expel(replicaset.ExpelCtx{InstName: "instance-002"})
+	require.ErrorContains(t, err, "no other instance of the replicaset is reached")
+	require.ErrorContains(t, err, `pass --force to remove "instance-002" from the config alone`)
 	require.Zero(t, publisher.Called)
 }
 

@@ -2087,6 +2087,23 @@ FLAGS
 === tt cluster replicaset expel --help
 Expel an instance
 
+The instance is removed the way the Tarantool documentation removes one
+from a replicaset, as tt replicaset expel removes it. Stop it first, on its
+host, with tt instance stop <APP>:<INSTANCE_NAME>: expel does not stop it, and
+does not connect to it.
+
+The other instances of its replicaset that tt reaches are those of the
+project tt runs in. They are asked whether they are still connected to it,
+by an upstream or a downstream in box.info.replication: one that is refuses
+the expel. Then its entry is deleted from the config in the storage,
+they reload the config, and the instance is deleted from the _cluster space
+on the writable one of them, waiting up to --timeout seconds for one.
+
+With no other instance of the replicaset reached the expel is refused, as
+there is nothing to delete the instance from _cluster on. --force expels an
+instance that is still connected, and, with none reached, removes it from
+the config alone.
+
 The URL specifies the etcd or tarantool config storage connection settings in
 the following format:
 http(s)://[username:password@]host:port/prefix[?arguments]
@@ -2132,10 +2149,14 @@ USAGE
   tt cluster replicaset expel [-f] [flags] <URI> <INSTANCE_NAME>
 
 FLAGS
-  -f, --force             skip selecting a key for patching
+  -f, --force             skip selecting a key for patching, and expel an
+                          instance still connected to the replicaset or with no
+                          other instance of it reached
   -h, --help              help for expel
   -p, --password string   password (used as etcd/tarantool config storage
                           credentials)
+      --timeout int       seconds to wait for a writable instance to delete the
+                          instance from _cluster on (default 3)
   -u, --username string   username (used as etcd/tarantool config storage
                           credentials)
 
@@ -4724,11 +4745,18 @@ FLAGS
 Expel an instance from a replicaset.
 
 With the centralized config, the instance is removed the way the Tarantool
-documentation removes one: it is stopped, its entry is deleted from the
-config, the other instances of the replicaset reload the config, and the
-instance is deleted from the _cluster space on the writable one of them,
-waiting up to --timeout seconds for one. The leader of a replicaset with
-manual failover is refused: promote another instance first. The data of the
+documentation removes one. Stop it first, on its host, with
+tt instance stop <APP>:<INSTANCE>: expel does not stop it, and does not
+connect to it. The other instances of the replicaset are asked instead: one
+that is still connected to the instance, by its upstream or downstream in
+box.info.replication, refuses the expel. Then the entry of the instance is
+deleted from the config, the other instances of the replicaset reload the
+config, and the instance is deleted from the _cluster space on the writable
+one of them, waiting up to --timeout seconds for one.
+
+The leader of a replicaset with manual failover is refused: promote another
+instance first. --force expels an instance that is still connected, and
+goes on without the other instances that cannot be reached. The data of the
 expelled instance is left on disk, and an instances.yaml that names it still
 does.
 
@@ -4739,7 +4767,8 @@ USAGE
 FLAGS
       --config            to force the centralized config orchestrator
       --custom            to force a custom orchestrator
-  -f, --force             skip instances not found locally
+  -f, --force             expel an instance still connected to the replicaset,
+                          and skip instances not found locally
   -h, --help              help for expel
       --scope string      scope the application is looked for in: project, user
                           or system

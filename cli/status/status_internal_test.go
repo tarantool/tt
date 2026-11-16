@@ -457,6 +457,54 @@ func TestStatusOrphan(t *testing.T) {
 		"stop it with systemctl stop myapp@worker-1.service")
 }
 
+// TestStatusNotInConfig pins that an instance that runs while the config no
+// longer has it shows so: a note under the table that names it, a warning
+// among its alerts, and not_in_config in JSON, which the others lack.
+func TestStatusNotInConfig(t *testing.T) {
+	orphan := runningInstance(t, "storage-2", instances.KindCluster)
+
+	orphan.NotInConfig = true
+
+	member := runningInstance(t, "storage-1", instances.KindCluster)
+	both := running.RunningCtx{Instances: []running.InstanceCtx{member, orphan}}
+
+	printer := &recordingPrinter{}
+
+	require.NoError(t, Status(both, printer, DefaultInstanceTimeout))
+	require.NotNil(t, printer.printed["myapp:storage-2"])
+	assert.True(t, printer.printed["myapp:storage-2"].NotInConfig)
+	assert.Contains(t, printer.printed["myapp:storage-2"].Alerts, instanceAlert{
+		Message: "myapp:storage-2 is not in the config: it runs on from before it was " +
+			"removed from the topology; stop it with tt instance stop myapp:storage-2",
+		Severity: severityWarning,
+	})
+	assert.False(t, printer.printed["myapp:storage-1"].NotInConfig)
+
+	table := captureStdout(t, func() error {
+		return Status(both, NewTablePrinter(), DefaultInstanceTimeout)
+	})
+	assert.Regexp(t, `(?m)^\s*myapp:storage-2\s+RUNNING\s+`+strconv.Itoa(os.Getpid())+`\s`,
+		table, "the columns stay as they are")
+	assert.Contains(t, table, "\nNot in the config: myapp:storage-2.\n")
+	assert.Contains(t, table, "tt instance stop stops them")
+
+	table = captureStdout(t, func() error {
+		return Status(running.RunningCtx{Instances: []running.InstanceCtx{member}},
+			NewTablePrinter(), DefaultInstanceTimeout)
+	})
+	assert.NotContains(t, table, "Not in the config")
+
+	out := captureStdout(t, func() error {
+		return Status(both, NewJSONPrinter(), DefaultInstanceTimeout)
+	})
+
+	var statuses map[string]map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(out), &statuses))
+	assert.Equal(t, true, statuses["myapp:storage-2"]["not_in_config"])
+	assert.NotContains(t, statuses["myapp:storage-1"], "not_in_config")
+}
+
 // captureStdout returns what run writes to the standard output.
 func captureStdout(t *testing.T, run func() error) string {
 	t.Helper()

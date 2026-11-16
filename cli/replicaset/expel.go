@@ -3,6 +3,8 @@ package replicaset
 import (
 	"errors"
 	"fmt"
+
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 var (
@@ -16,11 +18,17 @@ type ExpelCtx struct {
 	// InstName is an instance name to expel.
 	InstName string
 	// Force is true when expelling can skip
-	// some non-critical checks.
+	// some non-critical checks: that the instance is no longer connected to
+	// the replicaset, and that the other members can be reached.
 	Force bool
 	// Timeout is a timeout for expelling waitings in seconds.
 	// Keep int, because it can be passed to the target instance.
 	Timeout int
+	// Instances are the instances tt can reach, for an expel from a config
+	// storage (CConfigSource): those of them that are members of the
+	// replicaset of the instance tell whether it still runs, reload the
+	// config and delete it from _cluster. An application has its own.
+	Instances []running.InstanceCtx
 }
 
 // Expeller is an interface for expelling instances from a replicaset.

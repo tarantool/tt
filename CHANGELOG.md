@@ -1200,17 +1200,35 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   they act on the project of the current directory. They required the name
   of the application and printed the usage without it.
 - `tt replicaset expel` with the centralized config removes the instance the
-  way the Tarantool documentation removes one from a replicaset: it stops the
-  instance, deletes its entry from the config, reloads the config of the
-  other instances of the replicaset, and deletes the instance from `_cluster`
-  on the writable one. It used to keep the instance in the config with
+  way the Tarantool documentation removes one from a replicaset. The instance
+  is to be stopped first, on its host, with `tt instance stop`: expel may run
+  on any machine, so it does not stop the instance, and does not connect to
+  it. It asks the other instances of the replicaset instead, and refuses
+  while any of them is still connected to the instance by an upstream or a
+  downstream in `box.info.replication`, with a hint to stop it or to pass
+  `--force`. It then deletes the entry of the instance from the config,
+  reloads the config of the other instances of the replicaset, and deletes
+  the instance from `_cluster` on the writable one, waiting up to
+  `--timeout` for one. It used to keep the instance in the config with
   `iproto.listen: {}`, which the schema of tt refuses and from which
   Tarantool 3.9 builds no `replication.peers` for the other members, so the
   leader of the replicaset of the `cluster` template was left in
   `check_errors`, while the expelled instance kept running. The leader of a
   replicaset with manual failover is refused with a hint to promote another
-  instance first. `tt cluster replicaset expel` deletes the entry from the
-  config too.
+  instance first. `tt cluster replicaset expel` expels the same way from a
+  config in etcd or a Tarantool config storage, asking the instances of the
+  project it runs in, and takes `--timeout` as well. With none of them
+  reached it refuses, as there is nothing to delete the instance from
+  `_cluster` on; `--force` then removes the instance from the config alone.
+- `tt instance status` shows an instance that runs while the topology no
+  longer has it, such as one `tt replicaset expel --force` left running in
+  a project whose `instances.yaml` has `"*"`, with a note that it is not in
+  the config, and `not_in_config: true` in JSON and YAML. `tt instance stop`,
+  `kill`, `logs` and `logrotate` reach it by name and through `<APP>:*`, as
+  its watchdog runs it, while `tt instance start` and `restart` do not start
+  it again and say that it still runs. Such an instance is found by the lock
+  its watchdog holds on its `tt.pid`: a pid file a crashed watchdog left
+  behind no longer brings an instance into `"*"`.
 - `tt replicaset status` and the other `tt replicaset` commands see every
   member of a replicaset after one of them was expelled. An expelled member
   leaves a hole in the replica ids of the others, and the members whose ids

@@ -91,6 +91,59 @@ $ tt instance status
 
 Every field is in the [reference](../reference/instances-yaml.md).
 
+### Instances that are not in the config
+
+An instance can leave the topology while it runs: `tt replicaset expel
+--force` removes one that is still running, and so does `tt cluster publish`
+of a config without it. With `"*"` such an instance is still found by its
+watchdog, which holds `var/run/<app>/<instance>/tt.pid`. `status` shows it
+with a note, `stop`, `kill`, `logs` and `logrotate` reach it by name and
+through `<app>:*`, and `start` and `restart` do not start it again:
+
+```console
+$ tt instance status
+ INSTANCE             STATUS   PID      MODE  CONFIG  BOX      UPSTREAM
+ ex:replicaset-001-a  RUNNING  2320034  RW    ready   running  --
+ ex:replicaset-001-b  RUNNING  2315711  RO    ready   running  stopped
+ ex:replicaset-002-a  RUNNING  2320041  RW    ready   running  --
+
+Not in the config: ex:replicaset-001-b.
+Removed from the topology while running, they run on: tt instance stop stops them,
+tt instance start does not start them again
+$ tt instance stop -y ex:replicaset-001-b
+```
+
+`-o json` and `-o yaml` mark it with `not_in_config: true`. Once it has
+stopped, it is gone from the list.
+
+### Removing an instance from a replicaset
+
+`tt replicaset expel <app>:<instance>` removes an instance of the
+centralized config from its replicaset, in the order the Tarantool
+documentation gives for
+[removing instances](https://www.tarantool.io/en/doc/latest/platform/replication/replication_tutorials/repl_bootstrap/#removing-instances).
+Expel does not stop the instance, which may run on another host: stop it
+there first. Expel then asks the other instances of the replicaset, not the
+instance itself, and refuses while any of them is still connected to it:
+
+```console
+$ tt replicaset expel ex:replicaset-002-b
+…
+   ⨯ instance "replicaset-002-b" is still connected to the replicaset: stop it on its host (tt instance stop ex:replicaset-002-b) or pass --force (replicaset-002-a has upstream follow, downstream follow)
+$ tt instance stop -y ex:replicaset-002-b
+$ tt replicaset expel ex:replicaset-002-b
+…
+   • The instance replicaset-002-b is removed from the config and from _cluster. Its data is left in …/var/lib/ex/replicaset-002-b; if instances.yaml lists it by name, remove it from there
+   • Done.
+```
+
+The entry of the instance is deleted from `config.yaml`, the other
+instances reload the config, and the instance is deleted from `_cluster`
+on the writable one. The leader of a replicaset with manual failover is
+refused: promote another instance first. `tt cluster replicaset expel <URI>
+<instance>` does the same with a config in etcd or a Tarantool config
+storage; the other instances it asks are those of the project it runs in.
+
 ## Targets
 
 An instance command takes targets:

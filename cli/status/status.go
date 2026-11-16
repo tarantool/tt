@@ -128,6 +128,9 @@ type instanceStatus struct {
 	// log is the tt.log of an instance that does not run, whose last lines
 	// the details quote.
 	log string `json:"-" yaml:"-"`
+	// NotInConfig tells that the instance runs while the config no longer
+	// has it (running.InstanceCtx.NotInConfig), left out when it has.
+	NotInConfig bool `json:"not_in_config,omitempty" yaml:"not_in_config,omitempty"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -157,6 +160,7 @@ func newInstanceStatus() instanceStatus {
 		TCM:                nil,
 		LastExit:           nil,
 		log:                "",
+		NotInConfig:        false,
 	}
 }
 
@@ -418,6 +422,11 @@ func processStatusForInstance(instance running.InstanceCtx,
 	name := running.GetAppInstanceName(instance)
 	result := statusResult{name: name, uuid: "", status: &instStatus}
 
+	if instance.NotInConfig {
+		instStatus.NotInConfig = true
+		instStatus.addAlert(notInConfigAlert(name), severityWarning)
+	}
+
 	// External processes have no Tarantool console to query.
 	if running.IsExternal(&instance) {
 		orphan := running.Orphan(&instance)
@@ -523,6 +532,13 @@ func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter,
 	}
 
 	return printer.Print(instances)
+}
+
+// notInConfigAlert is the alert for the instance name that runs while the
+// config no longer has it: it names how to stop it.
+func notInConfigAlert(name string) string {
+	return fmt.Sprintf("%s is not in the config: it runs on from before it was removed "+
+		"from the topology; stop it with tt instance stop %s", name, name)
 }
 
 // orphanAlert is the alert for the process orphan of the external process

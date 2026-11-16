@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/sdk/integrity"
@@ -123,6 +124,20 @@ type App struct {
 	// none, so that the application is one of the cluster config even when
 	// "*" stands for no instance.
 	wildcard bool
+	// orphans are the instances among Instances that are not in the config
+	// (NotInConfig).
+	orphans []string
+}
+
+// NotInConfig reports whether the instance name of app is an orphan: one
+// that "*" stands for because its watchdog runs here, while the topology
+// of the config, read by the best effort (Options.BestEffortConfig), no
+// longer has it and no record names it, as after tt replicaset expel
+// --force. Such an instance is still there to be looked at and stopped,
+// and a command that needs the config, such as tt instance start, does
+// not see it.
+func (app *App) NotInConfig(name string) bool {
+	return slices.Contains(app.orphans, name)
 }
 
 // HasClusterInstances reports whether the description of app has Tarantool
@@ -204,5 +219,6 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		Integrity:        checks,
 		named:            loaded.named,
 		wildcard:         loaded.wildcard,
+		orphans:          loaded.orphans,
 	}, nil
 }

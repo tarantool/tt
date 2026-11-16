@@ -44,9 +44,6 @@ var (
 	errNoInstanceFoundInTheApplication = errors.New(
 		"no instance found in the application",
 	)
-	errNotFoundAnyOtherInstanceJoinedToAReplicaset = errors.New(
-		"not found any other instance joined to a replicaset",
-	)
 	errNotFoundAnyVshardRouterInReplicaset = errors.New(
 		"not found any vshard router in replicaset",
 	)
@@ -238,57 +235,19 @@ func NewCConfigApplication(
 	return app
 }
 
-// Expel expels an instance from the centralized config's replicasets.
+// Expel expels an instance from the centralized config's replicasets. The
+// instance is to be stopped first: it is not stopped, nor asked anything,
+// and the other members of its replicaset tell whether it still runs
+// (planExpel).
 func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
-	replicasets, err := c.Discovery(UseCache)
-	if err != nil {
-		return fmt.Errorf("failed to get replicasets: %w", err)
+	idx := slices.IndexFunc(c.runningCtx.Instances, func(inst running.InstanceCtx) bool {
+		return inst.InstName == ctx.InstName
+	})
+	if idx < 0 {
+		return fmt.Errorf("%w%q not found in the application", errInstanceNotFound, ctx.InstName)
 	}
 
-	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
-	if !found {
-		return fmt.Errorf("%w%q not found in a configured replicaset",
-			errInstanceNotFound, ctx.InstName)
-	}
-
-	if !targetInstance.InstanceCtxFound {
-		return fmt.Errorf("%w%q should be online", errInstanceShouldBeOnline, ctx.InstName)
-	}
-
-	if len(targetReplicaset.Instances) == 1 {
-		return errNotFoundAnyOtherInstanceJoinedToAReplicaset
-	}
-
-	var (
-		survivors   []running.InstanceCtx
-		unavailable []string
-	)
-
-	for _, inst := range targetReplicaset.Instances {
-		switch {
-		case inst.Alias == ctx.InstName:
-		case !inst.InstanceCtxFound:
-			unavailable = append(unavailable, inst.Alias)
-		default:
-			survivors = append(survivors, inst.InstanceCtx)
-		}
-	}
-
-	if len(unavailable) > 0 {
-		msg := "could not connect to: " + strings.Join(unavailable, ",")
-		if !ctx.Force {
-			return fmt.Errorf(
-				"%w%s", errAllOtherInstancesInTheTargetReplicasetShouldBeOnline, msg)
-		}
-
-		log.Warn(msg)
-	}
-
-	if len(survivors) == 0 {
-		return errNotFoundAnyOtherInstanceJoinedToAReplicaset
-	}
-
-	return c.expel(targetInstance, survivors, ctx.Timeout)
+	return c.expel(c.runningCtx.Instances[idx], ctx.Force, ctx.Timeout)
 }
 
 // getCConfigInstanceTopology returns a topology for an instance.
@@ -844,15 +803,14 @@ func (c *CConfigApplication) demote(instance Instance,
 	return true, nil
 }
 
-// expel removes an instance from its replicaset the way the documentation
-// of Tarantool does (patchCConfigExpel): it stops the instance, removes it
-// from the config, reloads the config of the other instances of the
-// replicaset, survivors, and deletes the instance from _cluster on the one
-// of them that is writable.
-func (c *CConfigApplication) expel(target Instance, survivors []running.InstanceCtx,
-	timeout int,
-) error {
-	clusterCfgPath := target.InstanceCtx.ClusterConfigPath
+// expel removes the instance target of the application from its replicaset
+// in the order of the documentation of Tarantool (planExpel): the instance
+// is stopped already, by the operator on its host, and is not asked
+// anything; it is removed from the config file, the members that stay in
+// the replicaset reload it, and the instance is deleted from _cluster on the
+// writable one of them.
+func (c *CConfigApplication) expel(target running.InstanceCtx, force bool, timeout int) error {
+	clusterCfgPath := target.ClusterConfigPath
 
 	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
@@ -861,21 +819,14 @@ func (c *CConfigApplication) expel(target Instance, survivors []running.Instance
 
 	goView := clusterCfg.Snapshot()
 
-	cconfigInstance, err := getCConfigInstance(goView, target.Alias)
+	cconfigInstance, err := getCConfigInstance(goView, target.InstName)
 	if err != nil {
 		return err
 	}
 
-	err = checkExpelLeader(&goView, cconfigInstance)
+	plan, err := planExpel(goView, cconfigInstance, c.runningCtx.Instances, force, true)
 	if err != nil {
 		return err
-	}
-
-	log.Infof("Stopping the instance %s", target.Alias)
-
-	err = running.Stop(&target.InstanceCtx)
-	if err != nil {
-		return fmt.Errorf("failed to stop %q: %w", target.Alias, err)
 	}
 
 	err = patchLocalCConfig(
@@ -890,30 +841,19 @@ func (c *CConfigApplication) expel(target Instance, survivors []running.Instance
 		return err
 	}
 
-	err = reloadCConfig(survivors)
+	err = finishExpel(plan, target.InstName, timeout)
 	if err != nil {
 		return err
 	}
 
-	// With election failover a new leader may yet have to be elected.
-	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
-
-	for {
-		err = deleteFromCluster(survivors, target.UUID)
-		if !errors.Is(err, errNoWritableInstance) || time.Now().After(deadline) {
-			break
-		}
-
-		time.Sleep(expelRetryInterval)
+	removed := "the config"
+	if plan.uuid != "" {
+		removed += " and from _cluster"
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to delete %q from _cluster: %w", target.Alias, err)
-	}
-
-	log.Infof("The instance %s is removed from the config and from _cluster. "+
+	log.Infof("The instance %s is removed from %s. "+
 		"Its data is left in %s; if instances.yaml lists it by name, remove it from there",
-		target.Alias, target.InstanceCtx.WalDir)
+		target.InstName, removed, target.WalDir)
 
 	return nil
 }
@@ -1254,13 +1194,14 @@ func patchCConfigPromote(config *goconfig.MutableConfig,
 // instance from the topology, as the documentation of Tarantool removes one
 // from a replicaset:
 // https://www.tarantool.io/en/doc/latest/platform/replication/
-// replication_tutorials/repl_bootstrap/#removing-an-instance
+// replication_tutorials/repl_bootstrap/#removing-an-instance-from-the-configuration
 //
 // The disconnecting step of that page, an instance kept with iproto: {} or
 // iproto.listen: {}, leaves a config that tt's schema refuses and from which
-// Tarantool 3.9 builds no replication.peers for the other members. The
-// leader of a replicaset is refused: the config would name a leader the
-// replicaset no longer has.
+// Tarantool 3.9 builds no replication.peers for the other members; the
+// instance is stopped instead, the next step of the page, which disconnects
+// it as well, before the expel (planExpel). The leader of a replicaset is
+// refused: the config would name a leader the replicaset no longer has.
 func patchCConfigExpel(config *goconfig.MutableConfig,
 	inst cconfigInstance,
 ) (*goconfig.MutableConfig, error) {

@@ -268,21 +268,29 @@ func newExpelCmd() *cobra.Command {
 		Long: `Expel an instance from a replicaset.
 
 With the centralized config, the instance is removed the way the Tarantool
-documentation removes one: it is stopped, its entry is deleted from the
-config, the other instances of the replicaset reload the config, and the
-instance is deleted from the _cluster space on the writable one of them,
-waiting up to --timeout seconds for one. The leader of a replicaset with
-manual failover is refused: promote another instance first. The data of the
+documentation removes one. Stop it first, on its host, with
+tt instance stop <APP>:<INSTANCE>: expel does not stop it, and does not
+connect to it. The other instances of the replicaset are asked instead: one
+that is still connected to the instance, by its upstream or downstream in
+box.info.replication, refuses the expel. Then the entry of the instance is
+deleted from the config, the other instances of the replicaset reload the
+config, and the instance is deleted from the _cluster space on the writable
+one of them, waiting up to --timeout seconds for one.
+
+The leader of a replicaset with manual failover is refused: promote another
+instance first. --force expels an instance that is still connected, and
+goes on without the other instances that cannot be reached. The data of the
 expelled instance is left on disk, and an instances.yaml that names it still
 does.`,
 		RunE: internalRunE(internalReplicasetExpelModule),
-		Args:  cobra.ExactArgs(1),
+		Args: cobra.ExactArgs(1),
 	}
 
 	addOrchestratorFlags(cmd)
 	addInstanceFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
-		"skip instances not found locally")
+		"expel an instance still connected to the replicaset, and skip instances "+
+			"not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.DefaultTimeout, "timeout")
 	integrityprovider.Get().RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 
@@ -846,17 +854,25 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 		return errTheCommandExpectsAnInstanceTarget
 	}
 
-	var ctx replicasetCtx
-
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true, readConfig)
+	forced, err := getOrchestrator()
 	if err != nil {
 		return err
 	}
 
-	if ctx.IsInstanceConnect {
-		defer func() {
-			_ = ctx.Conn.Close()
-		}()
+	// The instance to expel is stopped, and is not connected to: the other
+	// instances of the application tell about it.
+	application, instances, instName, err := resolveAppTarget(cmdCtx, args[0], readConfig)
+	if err != nil {
+		return err
+	}
+
+	ctx := replicasetCtx{
+		IsApplication:     true,
+		IsInstanceConnect: false,
+		InstName:          instName,
+		RunningCtx:        running.RunningCtx{Instances: instances},
+		Conn:              nil,
+		Orchestrator:      targetOrchestrator(forced, application),
 	}
 
 	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(

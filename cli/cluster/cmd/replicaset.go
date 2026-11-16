@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 var (
@@ -218,8 +219,17 @@ type ExpelCtx struct {
 	// Password defines a password for connection.
 	Password string
 	// Force true if the key selection for patching the config
-	// should be skipped.
+	// should be skipped, and the instance expelled while it is still
+	// connected to its replicaset, or with no other instance of it reached.
 	Force bool
+	// Timeout is how long, in seconds, to wait for a writable instance to
+	// delete the expelled one from _cluster on.
+	Timeout int
+	// Instances are the instances tt can reach: those of the project the
+	// command runs in. The members of the replicaset of the instance among
+	// them are asked whether it still runs, reload the config and delete it
+	// from _cluster.
+	Instances []running.InstanceCtx
 }
 
 // Expel expels an instance by patching the cluster config.
@@ -245,9 +255,10 @@ func Expel(url string, ctx ExpelCtx) error {
 		replicaset.KeyPicker(pickPatchKey))
 
 	err = source.Expel(replicaset.ExpelCtx{
-		InstName: ctx.InstName,
-		Force:    ctx.Force,
-		Timeout:  0,
+		InstName:  ctx.InstName,
+		Force:     ctx.Force,
+		Timeout:   ctx.Timeout,
+		Instances: ctx.Instances,
 	})
 	if err == nil {
 		log.Info("Done.")

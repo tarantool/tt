@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/internal/instances"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 // TestWildcard pins what "*" stands for when the cluster config is read: the
@@ -238,6 +239,22 @@ func runDirs(t *testing.T, root, appName string, names ...string) {
 
 	for _, name := range names {
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "var", "run", appName, name), 0o755))
+	}
+}
+
+// runningWatchdogs makes the instances names of the application appName
+// in the scope root run, as their watchdogs would: each pid file is held,
+// locked, by this process until the test ends.
+func runningWatchdogs(t *testing.T, root, appName string, names ...string) {
+	t.Helper()
+
+	runDirs(t, root, appName, names...)
+
+	for _, name := range names {
+		owned, err := pidfile.Acquire(
+			filepath.Join(root, "var", "run", appName, name, "tt.pid"), os.Getpid())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = owned.Release() })
 	}
 }
 
@@ -474,15 +491,14 @@ func TestWildcardRunning(t *testing.T) {
 	root := filepath.Join(tree, ".tarantool")
 	// storage-5 has stopped; the others run, storage-0 and storage-3 dropped
 	// from the topology. The records of storage-2 and worker-1 take their
-	// names whatever runs.
+	// names whatever runs. The watchdog of storage-6, dropped as well, has
+	// crashed and left its pid file, which no one holds.
 	runDirs(t, root, "myapp", "storage-5")
+	runningWatchdogs(t, root, "myapp", "storage-0", "storage-1", "storage-2", "storage-3",
+		"worker-1")
+	runningWatchdogs(t, root, "other", "storage-9")
 	writeTree(t, root, map[string]string{
-		"var/run/myapp/storage-0/tt.pid": "",
-		"var/run/myapp/storage-1/tt.pid": "",
-		"var/run/myapp/storage-2/tt.pid": "",
-		"var/run/myapp/storage-3/tt.pid": "",
-		"var/run/myapp/worker-1/tt.pid":  "",
-		"var/run/other/storage-9/tt.pid": "",
+		"var/run/myapp/storage-6/tt.pid": "12345",
 	})
 
 	bestEffort := app.Options{Start: tree, BestEffortConfig: true}
@@ -498,6 +514,15 @@ func TestWildcardRunning(t *testing.T) {
 		"an instance that runs gets the fields of \"*\"")
 	assert.Equal(t, instances.KindCluster, got.Instances[3].Kind())
 
+	// The instances that run while the topology has them no longer are not
+	// in the config; those it has, or a record names, are.
+	for name, orphan := range map[string]bool{
+		"storage-0": true, "storage-3": true, "storage-1": false, "storage-2": false,
+		"storage-4": false, "worker-1": false, "storage-6": false,
+	} {
+		assert.Equal(t, orphan, got.NotInConfig(name), name)
+	}
+
 	ctx := context.Background()
 
 	selections, err := app.Resolve(ctx, []app.Target{{App: "myapp", Instance: "storage-3"}},
@@ -509,10 +534,18 @@ func TestWildcardRunning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"worker-1", "storage-1", "storage-4", "storage-2"},
 		names(got.Instances), "a command that checks the topology sees what it declares")
+	assert.False(t, got.NotInConfig("storage-3"))
 
+	// tt instance start does not start it, and says that it runs.
 	_, err = app.Resolve(ctx, []app.Target{{App: "myapp", Instance: "storage-3"}},
 		app.Options{Start: tree})
 	requireFailure(t, err, app.ErrInstanceNotFound)
+	require.ErrorContains(t, err, `"storage-3" still runs, though the config no longer has it`)
+
+	_, err = app.Resolve(ctx, []app.Target{{App: "myapp", Instance: "storage-6"}},
+		app.Options{Start: tree})
+	requireFailure(t, err, app.ErrInstanceNotFound)
+	assert.NotContains(t, err.Error(), "still runs")
 
 	// The instances the description names are all there is without "*".
 	got, err = load(t, "", app.Options{Start: tree, Template: "named", BestEffortConfig: true})
@@ -581,9 +614,8 @@ func TestCheckTopology(t *testing.T) {
 			writeTree(t, tree, files)
 			// An instance dropped before, which still runs, is no instance
 			// of the description to keep.
-			writeTree(t, filepath.Join(tree, ".tarantool"), map[string]string{
-				"var/run/" + filepath.Base(tree) + "/storage-9/tt.pid": "",
-			})
+			runningWatchdogs(t, filepath.Join(tree, ".tarantool"), filepath.Base(tree),
+				"storage-9")
 
 			got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
 			require.NoError(t, err)

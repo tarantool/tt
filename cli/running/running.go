@@ -177,6 +177,10 @@ type InstanceCtx struct {
 	// TCM is what the record of TCM says and what tt makes of it as TCM
 	// starts (IsTCM); zero for any other instance.
 	TCM TCMCtx
+	// NotInConfig tells that the instance is an orphan (app.App.NotInConfig):
+	// its watchdog runs, while the topology of the config no longer has it.
+	// Its paths are those its watchdog runs it with (RunningLaunch).
+	NotInConfig bool `json:"-"`
 
 	// configVars are the variables tarantool substitutes into the config of
 	// a Tarantool instance the cluster config configures, such as

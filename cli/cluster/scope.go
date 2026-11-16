@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"errors"
+	"slices"
 
 	goconfig "github.com/tarantool/go-config/v2"
 
@@ -61,6 +62,28 @@ func FindInstance(cfg goconfig.Config, name string) (string, string, bool) {
 	}
 
 	return "", "", false
+}
+
+// ReplicasetInstances returns the names of the instances of the replicaset
+// of the group in cfg, sorted; none for a replicaset cfg does not have.
+func ReplicasetInstances(cfg goconfig.Config, group, replicaset string) []string {
+	all, err := cfg.EffectiveAll()
+	if err != nil {
+		return nil
+	}
+
+	var names []string
+
+	for path := range all {
+		g, r, inst := splitInstancePath(path)
+		if inst != "" && g == group && r == replicaset {
+			names = append(names, inst)
+		}
+	}
+
+	slices.Sort(names)
+
+	return slices.Compact(names)
 }
 
 // FindGroupByReplicaset scans EffectiveAll() keys and returns the group that

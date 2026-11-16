@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	goconfig "github.com/tarantool/go-config/v2"
+	"github.com/tarantool/tt/sdk/log"
 
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/v3/cli/cluster"
@@ -121,14 +122,40 @@ func (c *CConfigSource) Demote(ctx DemoteCtx) error {
 	)
 }
 
-// Expel patches a config to expel an instance.
+// Expel expels an instance as CConfigApplication.Expel does, from the
+// config in the storage: it checks on the members of its replicaset among
+// ctx.Instances that it is no longer connected to them (planExpel), removes
+// it from the config, and has them reload it and delete it from _cluster.
 func (c *CConfigSource) Expel(ctx ExpelCtx) error {
-	return c.patchInstanceConfig(
+	var plan expelPlan
+
+	err := c.patchInstanceConfigChecked(
 		ctx.InstName,
 		ctx.Force,
 		getCConfigExpelPath,
 		patchCConfigExpel,
+		func(view goconfig.Config, inst cconfigInstance) error {
+			var err error
+
+			plan, err = planExpel(view, inst, ctx.Instances, ctx.Force, false)
+
+			return err
+		},
 	)
+	if err != nil {
+		return err
+	}
+
+	err = finishExpel(plan, ctx.InstName, ctx.Timeout)
+	if err != nil {
+		return err
+	}
+
+	if plan.uuid != "" {
+		log.Infof("The instance %s is removed from the config and from _cluster", ctx.InstName)
+	}
+
+	return nil
 }
 
 // ChangeRole patches a config with addition/removing role.
@@ -158,6 +185,16 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	getPathFunc func(cconfigInstance) (goconfig.KeyPath, int, error),
 	patchFunc func(*goconfig.MutableConfig, cconfigInstance) (*goconfig.MutableConfig, error),
 ) error {
+	return c.patchInstanceConfigChecked(instanceName, force, getPathFunc, patchFunc, nil)
+}
+
+// patchInstanceConfigChecked is patchInstanceConfig that runs check, if
+// any, on the whole config and the instance before it patches anything.
+func (c *CConfigSource) patchInstanceConfigChecked(instanceName string, force bool,
+	getPathFunc func(cconfigInstance) (goconfig.KeyPath, int, error),
+	patchFunc func(*goconfig.MutableConfig, cconfigInstance) (*goconfig.MutableConfig, error),
+	check func(goconfig.Config, cconfigInstance) error,
+) error {
 	configData, goView, err := collectCConfig(c.collector)
 	if err != nil {
 		return err
@@ -166,6 +203,13 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	inst, err := getCConfigInstance(goView, instanceName)
 	if err != nil {
 		return err
+	}
+
+	if check != nil {
+		err = check(goView, inst)
+		if err != nil {
+			return err
+		}
 	}
 
 	path, depth, err := getPathFunc(inst)

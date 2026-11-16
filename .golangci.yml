@@ -532,6 +532,8 @@ linters:
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/tt/v3/internal/instances"
+            # "*" stands for the instances whose watchdog holds its pid file.
+            - "github.com/tarantool/tt/v3/internal/pidfile"
             - "go.etcd.io/etcd/client/v3"
         dir-cli-checkpoint:
           files:
@@ -556,6 +558,8 @@ linters:
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/replicaset"
+            # tt cluster replicaset expel asks the instances it can reach.
+            - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/templates"
             # The signers and verifiers of a configuration storage come from
             # the integrity provider the distribution chose.

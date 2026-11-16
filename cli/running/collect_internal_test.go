@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/instances"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 // pairFiles returns the files of an application whose default template
@@ -341,9 +342,14 @@ func TestCollectDroppedInstance(t *testing.T) {
 	declared, err := collect(t, app.Options{Start: dir}, "myapp:storage-1")
 	require.NoError(t, err)
 
+	// The watchdog of storage-2 runs, holding its pid file, with no launch
+	// in its run directory: the layout gives its paths.
 	pidFile := strings.Replace(declared[0].PIDFile, "storage-1", "storage-2", 1)
 	require.NoError(t, os.MkdirAll(filepath.Dir(pidFile), 0o755))
-	require.NoError(t, os.WriteFile(pidFile, nil, 0o644))
+
+	owned, err := pidfile.Acquire(pidFile, os.Getpid())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = owned.Release() })
 
 	insts, err := collect(t, app.Options{Start: dir, BestEffortConfig: true}, "myapp:storage-2")
 	require.NoError(t, err)
@@ -355,7 +361,15 @@ func TestCollectDroppedInstance(t *testing.T) {
 		insts[0].ConsoleSocket)
 	assert.Nil(t, insts[0].Configuration)
 	assert.Equal(t, instances.RestartAlways, insts[0].Restart)
+	assert.True(t, insts[0].NotInConfig)
 
 	_, err = collect(t, app.Options{Start: dir}, "myapp:storage-2")
+	require.ErrorIs(t, err, app.ErrInstanceNotFound)
+
+	// A pid file no watchdog holds names no instance that runs.
+	require.NoError(t, owned.Release())
+	require.NoError(t, os.WriteFile(pidFile, []byte("12345"), 0o644))
+
+	_, err = collect(t, app.Options{Start: dir, BestEffortConfig: true}, "myapp:storage-2")
 	require.ErrorIs(t, err, app.ErrInstanceNotFound)
 }

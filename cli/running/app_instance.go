@@ -157,6 +157,7 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Unit:              "",
 		Integrity:         application.Integrity,
 		TCM:               NoTCM(),
+		NotInConfig:       false,
 		configVars:        nil,
 		clusterConfig:     nil,
 	}
@@ -214,7 +215,34 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		return InstanceCtx{}, wrap(err)
 	}
 
+	if inst.Kind() == instances.KindCluster && application.NotInConfig(inst.Name) {
+		return orphanCtx(instCtx), nil
+	}
+
 	return instCtx, nil
+}
+
+// orphanCtx returns the context of inst, an instance that is not in the
+// config (app.App.NotInConfig), as its watchdog runs it: the config no
+// longer says where it keeps its console socket, its logs and its data, and
+// the layout may not either, while the launch of its watchdog does. A
+// watchdog without a launch leaves inst as the layout gives it.
+func orphanCtx(inst InstanceCtx) InstanceCtx {
+	inst.NotInConfig = true
+
+	launch := RunningLaunch(&inst)
+	if launch == nil {
+		return inst
+	}
+
+	adopted := launch.Instance
+
+	adopted.NotInConfig = true
+	adopted.Integrity = inst.Integrity
+	adopted.Template = inst.Template
+	adopted.Unit = inst.Unit
+
+	return adopted
 }
 
 // configPath is a key of the effective config of an instance that names a

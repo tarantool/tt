@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/internal/instances"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 const (
@@ -274,6 +275,9 @@ type loadedPair struct {
 	// configErr is why the config could not be read, when it was read as far
 	// as it can be.
 	configErr error
+	// orphans are the instances among records that "*" stands for because
+	// their watchdog runs, while the topology no longer has them (orphans).
+	orphans []string
 }
 
 // loadPair reads the instances description and the cluster config of pair,
@@ -321,6 +325,7 @@ func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loade
 		wildcard:  desc.Wildcard != nil,
 		config:    nil,
 		configErr: nil,
+		orphans:   nil,
 	}
 
 	if len(clusterRecords(desc)) == 0 {
@@ -357,6 +362,7 @@ func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loade
 				return loadedPair{}, listErr
 			}
 
+			loaded.orphans = orphans(desc, topology, running)
 			topology = slices.Concat(topology, running)
 		}
 
@@ -518,15 +524,15 @@ func ranInstances(loc location) ([]string, error) {
 	return slices.Compact(names), nil
 }
 
-// runningInstances returns the names of those of ranInstances whose run
-// directory holds the pid file of the watchdog,
-// <root>/var/run/<app>/<inst>/tt.pid, sorted: those that run there, or have
-// crashed and left the file behind. The watchdog removes the file when its
-// instance stops, while the directory stays, so a stopped instance is not
-// among them. With the config of the pair read, "*" stands for these
-// besides the topology to a command that acts on the processes of the
-// instances. A pid file that cannot be looked for is an error, as a run
-// directory that cannot be read is.
+// runningInstances returns the names of those of ranInstances whose
+// watchdog runs, sorted: those whose run directory holds the pid file of the
+// watchdog, <root>/var/run/<app>/<inst>/tt.pid, locked by its owner for its
+// whole life (pidfile.Owner). A file a crashed watchdog left behind is held
+// by no one, and its instance is not among them, nor is one that stopped:
+// the watchdog removes the file, while the directory stays. With the config
+// of the pair read, "*" stands for these besides the topology to a command
+// that acts on the processes of the instances. A pid file that cannot be
+// probed is an error, as a run directory that cannot be read is.
 func runningInstances(loc location) ([]string, error) {
 	ran, err := ranInstances(loc)
 	if err != nil {
@@ -538,17 +544,29 @@ func runningInstances(loc location) ([]string, error) {
 	var names []string
 
 	for _, name := range ran {
-		found, err := exists(filepath.Join(dir, name, scope.PidFileName))
+		_, owned, err := pidfile.Owner(filepath.Join(dir, name, scope.PidFileName))
 		if err != nil {
 			return nil, failf("cannot look for the instances that run: %w", err)
 		}
 
-		if found {
+		if owned {
 			names = append(names, name)
 		}
 	}
 
 	return names, nil
+}
+
+// orphans returns those of running, the instances whose watchdog runs, that
+// neither topology nor a record of desc names: the instances dropped from
+// the topology while they run, as tt replicaset expel --force leaves one.
+func orphans(desc instances.Description, topology, running []string) []string {
+	return slices.DeleteFunc(slices.Clone(running), func(name string) bool {
+		return slices.Contains(topology, name) ||
+			slices.ContainsFunc(desc.Instances, func(record instances.Instance) bool {
+				return record.Name == name
+			})
+	})
 }
 
 // checkFields refuses the fields of a record that an instance of its kind

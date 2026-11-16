@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -170,6 +171,12 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	writer.SetColumnConfigs(columns)
 	writer.Render()
 
+	if orphans := notInConfig(instances); len(orphans) > 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "\nNot in the config: %s.\nRemoved from the topology "+
+			"while running, they run on: tt instance stop stops them,\n"+
+			"tt instance start does not start them again\n", strings.Join(orphans, ", "))
+	}
+
 	if !t.details && hasAlerts(instances) {
 		msg := "\nThe status of some instances requires attention.\n" +
 			"Please rerun the command with the --details flag to see " +
@@ -190,6 +197,22 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	}
 
 	return nil
+}
+
+// notInConfig returns the names of the instances that run while the config
+// no longer has them, sorted.
+func notInConfig(instances map[string]*instanceStatus) []string {
+	var names []string
+
+	for name, instStatus := range instances {
+		if instStatus.NotInConfig {
+			names = append(names, name)
+		}
+	}
+
+	slices.Sort(names)
+
+	return names
 }
 
 // endedUnstopped reports whether any instance that does not run ended other

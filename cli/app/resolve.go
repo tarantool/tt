@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/internal/instances"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 // Selection is the instances a command acts on in one application.
@@ -158,12 +159,16 @@ func selectInstances(app *App, names []string) ([]instances.Instance, error) {
 // notDescribedError reports the names of missing, in the order names gives
 // them, as instances the description of app does not declare.
 func notDescribedError(app *App, names []string, missing map[string]bool) error {
-	var quoted []string
+	var quoted, running []string
 
 	for _, name := range names {
 		if missing[name] {
 			quoted = append(quoted, fmt.Sprintf("%q", name))
 			delete(missing, name)
+
+			if app.wildcard && watchdogRuns(app, name) {
+				running = append(running, fmt.Sprintf("%q", name))
+			}
 		}
 	}
 
@@ -177,6 +182,24 @@ func notDescribedError(app *App, names []string, missing map[string]bool) error 
 		described = "it describes " + strings.Join(known, ", ")
 	}
 
+	if len(running) > 0 {
+		described += "; " + strings.Join(running, ", ") + " still runs, though the config " +
+			"no longer has it: tt instance stop stops it, and it is not started again"
+	}
+
 	return failf("%w: %s of %q not in %s; %s", ErrInstanceNotFound,
 		strings.Join(quoted, ", "), app.Name, app.Pair.DescriptionFile(), described)
+}
+
+// watchdogRuns reports whether the watchdog of the instance name of app runs
+// in its scope, holding its pid file (runningInstances).
+func watchdogRuns(app *App, name string) bool {
+	if !validName(name) {
+		return false
+	}
+
+	_, owned, err := pidfile.Owner(
+		filepath.Join(app.Root, scope.RunDirName, app.Name, name, scope.PidFileName))
+
+	return err == nil && owned
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/replicaset"
+	replicasetcmd "github.com/tarantool/tt/v3/cli/replicaset/cmd"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
@@ -84,7 +85,27 @@ var expelCtx = clustercmd.ExpelCtx{
 	Username:   "",
 	Password:   "",
 	Force:      false,
+	Timeout:    replicasetcmd.DefaultTimeout,
+	Instances:  nil,
 }
+
+// clusterExpelHelp is how tt cluster replicaset expel removes an instance.
+const clusterExpelHelp = `The instance is removed the way the Tarantool documentation removes one
+from a replicaset, as tt replicaset expel removes it. Stop it first, on its
+host, with tt instance stop <APP>:<INSTANCE_NAME>: expel does not stop it, and
+does not connect to it.
+
+The other instances of its replicaset that tt reaches are those of the
+project tt runs in. They are asked whether they are still connected to it,
+by an upstream or a downstream in box.info.replication: one that is refuses
+the expel. Then its entry is deleted from the config in the storage,
+they reload the config, and the instance is deleted from the _cluster space
+on the writable one of them, waiting up to --timeout seconds for one.
+
+With no other instance of the replicaset reached the expel is refused, as
+there is nothing to delete the instance from _cluster on. --force expels an
+instance that is still connected, and, with none reached, removes it from
+the config alone.`
 
 var switchCtx = clustercmd.SwitchCtx{
 	InstName: "",
@@ -250,9 +271,10 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:                   "expel [-f] [flags] <URI> <INSTANCE_NAME>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Expel an instance",
-		Long:                  "Expel an instance\n\n" + clusterURIHelp,
-		RunE:                  internalRunE(internalClusterReplicasetExpelModule),
-		Args:                  cobra.ExactArgs(targetArgs),
+		Long: "Expel an instance\n\n" + clusterExpelHelp + "\n\n" +
+			clusterURIHelp,
+		RunE: internalRunE(internalClusterReplicasetExpelModule),
+		Args: cobra.ExactArgs(targetArgs),
 	}
 
 	expelCmd.Flags().StringVarP(&expelCtx.Username, "username", "u", "",
@@ -260,7 +282,10 @@ func newClusterReplicasetCmd() *cobra.Command {
 	expelCmd.Flags().StringVarP(&expelCtx.Password, "password", "p", "",
 		"password (used as etcd/tarantool config storage credentials)")
 	expelCmd.Flags().BoolVarP(&expelCtx.Force, "force", "f", false,
-		"skip selecting a key for patching")
+		"skip selecting a key for patching, and expel an instance still connected "+
+			"to the replicaset or with no other instance of it reached")
+	expelCmd.Flags().IntVarP(&expelCtx.Timeout, "timeout", "", replicasetcmd.DefaultTimeout,
+		"seconds to wait for a writable instance to delete the instance from _cluster on")
 	integrityprovider.Get().RegisterWithIntegrityFlag(expelCmd.Flags(), &clusterIntegrityPrivateKey)
 
 	rolesCmd := &cobra.Command{
@@ -724,8 +749,23 @@ func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []stri
 	}
 
 	expelCtx.InstName = args[1]
+	expelCtx.Instances = projectInstances(cmdCtx)
 
 	return clustercmd.Expel(args[0], expelCtx)
+}
+
+// projectInstances returns the instances of the project tt runs in, none
+// outside of one: those a cluster-level command that acts on a config
+// storage can reach, over their control sockets.
+func projectInstances(cmdCtx *cmdcontext.CmdCtx) []running.InstanceCtx {
+	_, instances, _, err := resolveAppTarget(cmdCtx, "", tryConfig)
+	if err != nil {
+		log.Debugf("No instances of a project to reach: %s", err)
+
+		return nil
+	}
+
+	return instances
 }
 
 // internalClusterReplicasetRolesAddModule is a "cluster replicaset roles add" command.

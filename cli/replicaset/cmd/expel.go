@@ -63,6 +63,9 @@ func Expel(expelCtx ExpelCtx) error {
 		InstName: expelCtx.Instance,
 		Force:    expelCtx.Force,
 		Timeout:  expelCtx.Timeout,
+		// An application orchestrator asks the instances of its own running
+		// context.
+		Instances: nil,
 	})
 	if err == nil {
 		log.Info("Done.")
