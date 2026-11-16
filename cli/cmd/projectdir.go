@@ -3,12 +3,14 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/spf13/cobra"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/scope"
 )
@@ -113,6 +115,46 @@ func projectRootDir() (string, error) {
 	}
 
 	return dir, nil
+}
+
+var (
+	// errNotInProject reports a package command run outside every project.
+	errNotInProject = errors.New("not inside a project")
+	// errNoPackageManifest reports a package command run in a project, or
+	// in the -C directory, that has no app.manifest.toml.
+	errNoPackageManifest = errors.New("no " + manifestFileName)
+)
+
+// packageRootDir is projectRootDir for a tt package command that works on
+// the package of the project - build, fetch, pack, clean, add, remove,
+// update, resolve, deps: one whose project has no app.manifest.toml fails
+// here, before the command looks for a Tarantool and its headers, with
+// where the manifest was looked for. tt new creates one.
+func packageRootDir() (string, error) {
+	dir, err := projectRootDir()
+	if err != nil {
+		return "", err
+	}
+
+	_, statErr := os.Stat(filepath.Join(dir, manifestFileName))
+	if !errors.Is(statErr, fs.ErrNotExist) {
+		// There, or not to be read: the command that reads it says why.
+		return dir, nil
+	}
+
+	_, found, findErr := scope.FindProject(dir)
+
+	switch {
+	case projectDir != "":
+		return "", sdk.Errorf(sdk.ExitFailure, "%w in %s; tt new creates one",
+			errNoPackageManifest, dir)
+	case findErr == nil && found:
+		return "", sdk.Errorf(sdk.ExitFailure, "%w in the project %s; tt new creates one",
+			errNoPackageManifest, dir)
+	default:
+		return "", sdk.Errorf(sdk.ExitFailure, "%w: no %s found from %s up; tt new creates one",
+			errNotInProject, manifestFileName, dir)
+	}
 }
 
 // ProjectRoot returns the directory projectRootDir returns, without saying

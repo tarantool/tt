@@ -439,7 +439,7 @@ func newPackageDepsCmd() *cobra.Command {
 // evaluates a rockspec here, so a project's dependencies can be listed on a
 // machine that has no tarantool installed at all.
 func runPackageDeps(format *output.FormatFlag) error {
-	projectDir, err := projectRootDir()
+	projectDir, err := packageRootDir()
 	if err != nil {
 		return err
 	}
@@ -483,7 +483,7 @@ func dependencyOptions() (deps.Options, error) {
 // and may branch on the Tarantool version — so a missing tarantool is a real
 // error here rather than something to work around.
 func dependencyOptionsFor(registries []string) (deps.Options, error) {
-	projectDir, err := projectRootDir()
+	projectDir, err := packageRootDir()
 	if err != nil {
 		return deps.Options{}, err
 	}
@@ -1230,7 +1230,7 @@ func runPackagePack() error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	projectDir, err := projectRootDir()
+	projectDir, err := packageRootDir()
 	if err != nil {
 		return err
 	}
@@ -1427,7 +1427,7 @@ type packageRun struct {
 // buildPackage assembles build.Options for run from the environment and
 // drives the build of the project.
 func buildPackage(ctx context.Context, run packageRun) error {
-	projectDir, err := projectRootDir()
+	projectDir, err := packageRootDir()
 	if err != nil {
 		return err
 	}

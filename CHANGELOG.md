@@ -954,6 +954,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- `tt package build`, `fetch`, `pack`, `clean`, `add`, `remove`, `update`,
+  `resolve` and `deps` outside every project say `not inside a project: no
+  app.manifest.toml found from <dir> up; tt new creates one`, and in a
+  project that has no manifest, of instance templates alone, `no
+  app.manifest.toml in the project <dir>`. They failed with `reading
+  app.manifest.toml: open ...: no such file or directory`, after a warning
+  about the headers of Tarantool they had looked for first.
 - `tt modules list` with no external modules says so on stderr,
   `no external modules: TT_CLI_MODULES_PATH is not set` or the directories
   it lists, and exits 0; it printed nothing. stdout stays empty.

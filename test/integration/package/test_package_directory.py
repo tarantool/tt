@@ -9,6 +9,8 @@ needed.
 import subprocess
 from pathlib import Path
 
+import pytest
+
 MANIFEST = """manifest_version = '0.1'
 
 [package]
@@ -79,7 +81,49 @@ def test_the_project_is_found_above_the_working_directory(tt_cmd, tmp_path):
 
     exact = run(tt_cmd, tmp_path, "package", "deps", "-C", str(sub))
     assert exact.returncode == 1
-    assert str(sub / "app.manifest.toml") in exact.stderr
+    assert f"no app.manifest.toml in {sub}" in exact.stderr
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("build",),
+        ("fetch",),
+        ("pack",),
+        ("clean",),
+        ("add", "checks"),
+        ("remove", "checks"),
+        ("update",),
+        ("resolve",),
+        ("deps",),
+    ],
+    ids=lambda args: args[0],
+)
+def test_outside_a_project_says_so(tt_cmd, tmp_path, args):
+    """A package command outside every project says so before anything else.
+
+    No raw "open ... no such file", and no warning about the headers of
+    Tarantool: nothing is built.
+    """
+    empty = tmp_path / "empty"
+    empty.mkdir()
+
+    result = run(tt_cmd, empty, "package", *args)
+    assert result.returncode == 1
+    assert f"not inside a project: no app.manifest.toml found from {empty} up" in result.stderr
+    assert "no such file" not in result.stderr
+    assert "headers" not in result.stderr
+
+
+def test_a_project_without_a_manifest_says_so(tt_cmd, tmp_path):
+    """A project of instance templates alone has no package to build."""
+    project = tmp_path / "project"
+    (project / ".templates" / "app").mkdir(parents=True)
+    (project / ".templates" / "app" / "instances.yaml").write_text("a:\n")
+
+    result = run(tt_cmd, project, "package", "build")
+    assert result.returncode == 1
+    assert f"no app.manifest.toml in the project {project}" in result.stderr
 
 
 def test_c_accepts_a_relative_path(tt_cmd, tmp_path):

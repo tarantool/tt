@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/v3/cli/exitcode"
 )
 
 // withProjectDir sets the -C value for one test and restores it afterwards.
@@ -145,6 +147,49 @@ func TestProjectRootDir(t *testing.T) {
 	dir, err = projectRootDir()
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(root, "app"), dir)
+}
+
+// TestPackageRootDir checks that a package command finds no manifest with
+// an error that says where it looked: outside every project, in a project
+// of templates alone, and at -C.
+//
+//nolint:paralleltest // Changes the working directory and -C.
+func TestPackageRootDir(t *testing.T) {
+	withProjectDir(t, "")
+
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	t.Chdir(root)
+
+	_, err = packageRootDir()
+	require.ErrorIs(t, err, errNotInProject)
+	assert.Equal(t, "not inside a project: no app.manifest.toml found from "+root+
+		" up; tt new creates one", err.Error())
+	assert.Equal(t, 1, exitcode.Code(err))
+
+	templates := filepath.Join(root, ".templates", "app")
+	require.NoError(t, os.MkdirAll(templates, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(templates, "instances.yaml"),
+		[]byte("a:\n"), 0o644))
+
+	_, err = packageRootDir()
+	require.ErrorIs(t, err, errNoPackageManifest)
+	assert.Contains(t, err.Error(), "no app.manifest.toml in the project "+root)
+
+	withProjectDir(t, templates)
+
+	_, err = packageRootDir()
+	require.ErrorIs(t, err, errNoPackageManifest)
+	assert.Contains(t, err.Error(), "no app.manifest.toml in "+templates)
+
+	withProjectDir(t, "")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "app.manifest.toml"),
+		[]byte("manifest_version = \"0.1\"\n"), 0o644))
+
+	dir, err := packageRootDir()
+	require.NoError(t, err)
+	assert.Equal(t, root, dir)
 }
 
 // TestProjectDirFlagIsWired checks that the commands which act on a project

@@ -59,7 +59,7 @@ func runPackageClean(args []string) error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	projectDir, err := projectRootDir()
+	projectDir, err := packageRootDir()
 	if err != nil {
 		return err
 	}
