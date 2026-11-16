@@ -38,6 +38,30 @@ type SearchCtx struct {
 	ReleaseVersion string
 	// Search for development builds.
 	DevBuilds bool
+	// All keeps the development tags of a Git repository, such as the
+	// X.Y.Z-entrypoint tags of Tarantool, that are no releases.
+	All bool
+}
+
+// releaseTags drops the development tags of a Git repository from versions
+// unless all is set: the X.Y.Z-entrypoint tags Tarantool puts where a
+// version starts. They are no releases, have no prebuilt builds, and take
+// a source build to install.
+func releaseTags(versions version.VersionSlice, all bool) version.VersionSlice {
+	if all {
+		return versions
+	}
+
+	releases := make(version.VersionSlice, 0, len(versions))
+
+	for _, found := range versions {
+		// master has the zero Release, whose type is TypeNightly too.
+		if found.Release.Type != version.TypeNightly || found.Release.String() == "" {
+			releases = append(releases, found)
+		}
+	}
+
+	return releases
 }
 
 // NewSearchCtx creates a new SearchCtx with default production values.
@@ -128,6 +152,7 @@ func SearchVersions(searchCtx SearchCtx) error {
 	switch {
 	case prg.GitRepo() != "":
 		vers, err = searchVersionsGit(prg.GitRepo())
+		vers = releaseTags(vers, searchCtx.All)
 	case prg.BundleSource() != binary.ProgramUnknown:
 		vers, err = searchVersionsBundles(&searchCtx)
 	default:

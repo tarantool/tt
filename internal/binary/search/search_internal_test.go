@@ -31,6 +31,32 @@ func TestIsMasked(t *testing.T) {
 	}
 }
 
+func TestReleaseTags(t *testing.T) {
+	tags := []string{"3.8.0-entrypoint", "3.8.0", "3.9.0-rc1", "3.9.0-entrypoint"}
+	versions := make(version.VersionSlice, 0, len(tags)+1)
+
+	for _, tag := range tags {
+		parsed, err := version.Parse(tag)
+		require.NoError(t, err)
+
+		versions = append(versions, parsed)
+	}
+
+	versions = append(versions, newMasterVersion())
+
+	names := func(found version.VersionSlice) []string {
+		result := make([]string, 0, len(found))
+		for _, ver := range found {
+			result = append(result, ver.Str)
+		}
+
+		return result
+	}
+
+	assert.Equal(t, []string{"3.8.0", "3.9.0-rc1", "master"}, names(releaseTags(versions, false)))
+	assert.Equal(t, names(versions), names(releaseTags(versions, true)))
+}
+
 func TestNewSearchCtx(t *testing.T) {
 	got := NewSearchCtx()
 	assert.Equal(t, SearchRelease, got.Filter)

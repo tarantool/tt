@@ -201,6 +201,45 @@ def test_version_cmd_local(tt_cmd, tmp_path, program):
     assert output.splitlines() == expected
 
 
+@pytest.mark.parametrize("all_tags", [False, True])
+def test_search_hides_entrypoint_tags(tt_cmd, tmp_path, all_tags):
+    """The X.Y.Z-entrypoint tags are no releases: search leaves them out
+    unless --all is given."""
+    git_repo = tmp_path / "sources" / "tarantool"
+    git_repo.mkdir(parents=True)
+    commit = [
+        "git",
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "test",
+    ]
+    for command in [
+        ["git", "init", "-q"],
+        commit,
+        ["git", "tag", "3.8.0-entrypoint"],
+        ["git", "tag", "3.8.0"],
+        ["git", "tag", "3.9.0-entrypoint"],
+    ]:
+        rc, output = run_command_and_get_output(command, cwd=git_repo)
+        assert rc == 0, output
+
+    cmd = [tt_cmd, "binary", "search", "tarantool", "--local-repo", "sources"]
+    if all_tags:
+        cmd.append("--all")
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
+    assert rc == 0, output
+    if all_tags:
+        assert output.splitlines() == ["3.8.0-entrypoint", "3.8.0", "3.9.0-entrypoint", "master"]
+    else:
+        assert output.splitlines() == ["3.8.0", "master"]
+
+
 @pytest.mark.parametrize("scope", ["project", "user", "nested-project"])
 @pytest.mark.parametrize("explicit_config", [False, True])
 def test_local_dir_scope_isolation(tt_cmd, tmp_path, monkeypatch, scope, explicit_config):

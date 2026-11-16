@@ -734,6 +734,9 @@ func newSearchTarantoolCmd(base *binary.BinaryContext,
 		Long: `Search available Tarantool Community Edition versions.
 
 Available Tarantool Community Edition releases start with version 3.0.
+The X.Y.Z-entrypoint tags of the repository mark where a version starts
+and are no releases: they are left out unless --all is given, and
+installing one builds it from source.
 
 With --local-repo <dir>, <dir>/tarantool must be a local Git clone of the
 Tarantool source repository. Versions are read from its Git tags.`,
@@ -743,6 +746,8 @@ Tarantool source repository. Versions are read from its Git tags.`,
 
 	tntCmd.Flags().StringVar(&searchCtx.LocalRepo, "local-repo", "",
 		"Directory containing the Tarantool Git source repository in tarantool/")
+	tntCmd.Flags().BoolVar(&searchCtx.All, "all", false,
+		"Also list the X.Y.Z-entrypoint development tags")
 
 	return tntCmd
 }

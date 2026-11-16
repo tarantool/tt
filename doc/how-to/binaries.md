@@ -198,6 +198,11 @@ $ tt binary search sdk
 scope does not change where the available versions come from. An SDK is
 shown as active when all of its components are.
 
+`tt binary search tarantool` lists the releases: the `X.Y.Z-entrypoint`
+tags of the Tarantool repository mark where a version starts, are no
+releases, and are left out unless `--all` is given. Installing one builds
+it from source, with a warning that says so.
+
 ## Headers for rocks with a C part
 
 `tt rocks` and `tt package build`, `install` and `pack` build a rock with a

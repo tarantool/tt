@@ -1620,6 +1620,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   (active), 3.9.0`; `tt binary uninstall` says the same instead of
   `program is not installed`. `uninstall`, which removes what it matches,
   still takes no `X` or `X.Y` of Enterprise, tt Enterprise and TCM.
+- `tt binary search tarantool` lists the releases only: about half of the
+  list was `X.Y.Z-entrypoint` tags, which mark where a version starts in
+  the repository, are no releases, have no prebuilt build, and took a
+  source build of minutes to install. `--all` lists them too, and
+  `tt binary install tarantool 3.5.0-entrypoint` warns that it is a
+  development tag built from source.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

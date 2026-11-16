@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -35,6 +36,8 @@ func prepareTarantoolInstallation(installCtx InstallCtx) (installationActivation
 	if err != nil {
 		return nil, err
 	}
+
+	warnDevelopmentTag(resolved)
 
 	selected := binary.Selection{Program: binary.ProgramCe, ID: resolved.name}
 	directory := binary.InstallationPath(artifactRoot, selected.Program, selected.ID)
@@ -87,6 +90,23 @@ func prepareTarantoolInstallation(installCtx InstallCtx) (installationActivation
 	}
 
 	return activate, nil
+}
+
+// warnDevelopmentTag warns that a tag such as 3.5.0-entrypoint, which tt
+// binary search leaves out, is no release: it has no prebuilt build and is
+// built from source, which takes minutes.
+func warnDevelopmentTag(resolved resolvedInstallVersion) {
+	if resolved.kind != versionKindTag {
+		return
+	}
+
+	parsed, err := version.Parse(resolved.ref)
+	if err != nil || parsed.Release.Type != version.TypeNightly || parsed.Release.String() == "" {
+		return
+	}
+
+	log.Warnf("%s is a development tag, not a release: it is built from source; "+
+		"tt binary search tarantool lists the releases", resolved.ref)
 }
 
 func prepareTarantoolArtifact(installCtx InstallCtx, temporary string,

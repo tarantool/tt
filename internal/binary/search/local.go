@@ -84,6 +84,7 @@ func SearchVersionsLocal(searchCtx SearchCtx) error {
 		repoPath := filepath.Join(localDir, prg.String())
 
 		vers, err = searchVersionsLocalGit(prg, repoPath)
+		vers = releaseTags(vers, searchCtx.All)
 	case prg.BundleSource() != binary.ProgramUnknown:
 		vers, err = searchVersionsLocalBundles(&searchCtx, localDir)
 	default:
