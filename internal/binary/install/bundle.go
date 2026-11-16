@@ -216,6 +216,7 @@ func produceBundle(directory string, program binary.Program) ([]programArtifact,
 		var artifact programArtifact
 
 		artifact.program, artifact.executable = program, executable
+		artifact.licenses = findLicenses(filepath.Dir(executable))
 
 		return []programArtifact{artifact}, nil
 	default:
@@ -225,6 +226,8 @@ func produceBundle(directory string, program binary.Program) ([]programArtifact,
 
 // produceSDK prepares the Enterprise SDK once and selects the requested products.
 // Installing an individual product selects a subset of the same prepared artifacts.
+// Every product takes the license files of the SDK along, and Tarantool its
+// share/tarantool, the EmmyLua stubs of its built-in modules among them.
 func produceSDK(directory string, requested binary.Program) ([]programArtifact, error) {
 	products := []binary.Program{requested}
 	if requested == binary.ProgramSDK {
@@ -233,12 +236,14 @@ func produceSDK(directory string, requested binary.Program) ([]programArtifact, 
 
 	artifacts := make([]programArtifact, 0, len(products))
 	root := filepath.Join(directory, "tarantool-enterprise")
+	licenses := findLicenses(root)
 
 	for _, program := range products {
 		var artifact programArtifact
 
 		artifact.program = program
 		artifact.executable = filepath.Join(root, program.Exec())
+		artifact.licenses = licenses
 
 		if program == binary.ProgramEe {
 			executable, headers, err := findBundlePathsInDir(directory, program)
@@ -247,6 +252,7 @@ func produceSDK(directory string, requested binary.Program) ([]programArtifact, 
 			}
 
 			artifact.executable, artifact.headers = executable, headers
+			artifact.share = findShare(root)
 		} else if !binary.IsRegularFile(artifact.executable) {
 			return nil, fmt.Errorf("%w%q", errCouldNotFindBinaryAt, artifact.executable)
 		}

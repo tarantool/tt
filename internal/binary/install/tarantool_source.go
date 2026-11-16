@@ -63,10 +63,16 @@ func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
 		log.Debugf("Binary name is %s", resolved.name)
 	}
 
+	prefix := filepath.Join(buildDir, "tarantool-prefix")
+
+	// The install keeps the Lua files of Tarantool in share/tarantool, and
+	// the source tree has the license files.
 	return programArtifact{
 		program:    binary.ProgramCe,
-		executable: filepath.Join(buildDir, "tarantool-prefix", "bin", "tarantool"),
-		headers:    filepath.Join(buildDir, "tarantool-prefix", "include", "tarantool"),
+		executable: filepath.Join(prefix, "bin", "tarantool"),
+		headers:    filepath.Join(prefix, "include", "tarantool"),
+		share:      findShare(prefix),
+		licenses:   findLicenses(tempDir),
 	}, nil
 }
 

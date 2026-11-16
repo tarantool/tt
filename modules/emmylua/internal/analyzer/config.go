@@ -195,9 +195,11 @@ func (l Layout) ConfigFiles(generated string) []string {
 
 // FindStubs returns the directory of the EmmyLua stubs of the Tarantool at
 // executable: under the parent of the directory of the executable, as a
-// package installs it, the path as it is and then with its links resolved.
-// It returns "" when neither has them: a Tarantool older than 3.9, or one
-// tt installed, which keeps the executable and the headers only.
+// package installs it (<prefix>/bin/tarantool), or under the directory of
+// the executable, as tt binary install does (<installation>/tarantool), the
+// path as it is and then with its links resolved. It returns "" when none
+// has them: a Tarantool older than 3.9, or one an older tt installed, which
+// kept the executable and the headers only.
 func FindStubs(executable string) string {
 	if executable == "" {
 		return ""
@@ -209,11 +211,13 @@ func FindStubs(executable string) string {
 	}
 
 	for _, exe := range []string{executable, resolved} {
-		dir := filepath.Join(filepath.Dir(filepath.Dir(exe)), filepath.FromSlash(StubsDir))
+		for _, prefix := range []string{filepath.Dir(filepath.Dir(exe)), filepath.Dir(exe)} {
+			dir := filepath.Join(prefix, filepath.FromSlash(StubsDir))
 
-		info, err := os.Stat(dir)
-		if err == nil && info.IsDir() {
-			return dir
+			info, err := os.Stat(dir)
+			if err == nil && info.IsDir() {
+				return dir
+			}
 		}
 	}
 

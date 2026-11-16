@@ -57,7 +57,8 @@ func prepareTtFromSource(installCtx InstallCtx, tempDir string,
 
 	return programArtifact{
 		program:    binary.ProgramTt,
-		executable: filepath.Join(tempDir, binary.ProgramTt.Exec()), headers: "",
+		executable: filepath.Join(tempDir, binary.ProgramTt.Exec()), headers: "", share: "",
+		licenses: findLicenses(tempDir),
 	}, nil
 }
 

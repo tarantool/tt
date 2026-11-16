@@ -253,7 +253,9 @@ func parsePackageIndex(reader io.Reader) (map[string]struct{}, error) {
 
 // Fetch implements bundle.Source. It downloads the runtime and the devel
 // RPM of the build into a temporary directory, unpacks them and writes the
-// executable and the headers to dst as a tar.gz. An RPM the listing named
+// executable, the headers, the share/tarantool of the runtime RPM - the
+// EmmyLua stubs of Tarantool 3.9 and later - and its LICENSE and AUTHORS to
+// dst as a tar.gz. An RPM the listing named
 // and the repository does not serve is a failed delivery.
 func (s *Source) Fetch(ctx context.Context, artifact bundle.Artifact, dst io.Writer) error {
 	var packages locator
@@ -302,7 +304,46 @@ func (s *Source) Fetch(ctx context.Context, artifact bundle.Artifact, dst io.Wri
 			errPackageContents)
 	}
 
-	return writeArchive(dst, executable, headers)
+	usrShare := filepath.Join(extractDir, "runtime", "usr", "share")
+	contents := archiveContents{
+		executable: executable, headers: headers, share: "",
+		licenses: findLicenses(filepath.Join(usrShare, "licenses", product),
+			filepath.Join(usrShare, "doc", product)),
+	}
+
+	info, err = os.Stat(filepath.Join(usrShare, product))
+	if err == nil && info.IsDir() {
+		contents.share = filepath.Join(usrShare, product)
+	}
+
+	return writeArchive(dst, contents)
+}
+
+// licenseNames are the names of the license files of Tarantool.
+var licenseNames = []string{"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING", "AUTHORS"}
+
+// findLicenses returns the license files of the first of the directories,
+// usr/share/licenses/tarantool and usr/share/doc/tarantool of an RPM, that
+// has any.
+func findLicenses(directories ...string) []string {
+	for _, directory := range directories {
+		var licenses []string
+
+		for _, name := range licenseNames {
+			path := filepath.Join(directory, name)
+
+			info, err := os.Lstat(path)
+			if err == nil && info.Mode().IsRegular() {
+				licenses = append(licenses, path)
+			}
+		}
+
+		if len(licenses) > 0 {
+			return licenses
+		}
+	}
+
+	return nil
 }
 
 func (s *Source) downloadAndExtractRPM(ctx context.Context, address, destination string,

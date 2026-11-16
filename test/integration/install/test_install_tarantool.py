@@ -131,6 +131,35 @@ def test_install_tarantool_scope(
         assert output.count("source .env/activate.sh") == 1
 
 
+@pytest.mark.parametrize("dynamic", [False, True])
+@pytest.mark.usefixtures("local_tarantool_build")
+def test_install_tarantool_keeps_share_and_licenses(tt_cmd, tmp_path, dynamic):
+    # The sources have the license files; the build installs share/tarantool.
+    repository = tmp_path / "distfiles" / "tarantool"
+    (repository / "LICENSE").write_text("license\n")
+    (repository / "AUTHORS").write_text("authors\n")
+    for args in [
+        ["add", "LICENSE", "AUTHORS"],
+        ["-c", "user.name=Scope Test", "-c", "user.email=scope@example.com", "commit", "-m", "lic"],
+        ["tag", "-f", "3.2.1"],
+    ]:
+        subprocess.run(["git", *args], cwd=repository, check=True, capture_output=True)
+    make = tmp_path / "tools" / "make"
+    make.write_text(
+        make.read_text()
+        + "mkdir -p tarantool-prefix/share/tarantool/emmylua\n"
+        + "echo '-- box' > tarantool-prefix/share/tarantool/emmylua/box.lua\n",
+    )
+
+    rc, output = install_tarantool(tt_cmd, tmp_path, ["--dynamic"] if dynamic else [])
+    assert rc == 0, output
+    version = tmp_path / ".tarantool" / "versions" / "tarantool" / "tarantool_3.2.1"
+    assert (version / "share" / "tarantool" / "emmylua" / "box.lua").read_text() == "-- box\n"
+    assert (version / "LICENSE").read_text() == "license\n"
+    assert (version / "AUTHORS").read_text() == "authors\n"
+    assert not (version / "README").exists()
+
+
 @pytest.mark.parametrize("with_symlinks", [False, True])
 def test_install_tarantool_existing_version(tt_cmd, tmp_path, local_tarantool_build, with_symlinks):
     built_binary, built_header, build_log = local_tarantool_build

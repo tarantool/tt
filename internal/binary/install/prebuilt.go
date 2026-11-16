@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/bundle"
@@ -192,8 +193,9 @@ func findPrebuilt(ctx context.Context, source bundle.Source, program binary.Prog
 }
 
 // extractPrebuilt unpacks the archive of a Community product sdk/bundle
-// defines into destination: the executable at the root and, of tarantool,
-// the headers in include/tarantool. Other regular files and directories are
+// defines into destination: the executable and the license files at the
+// root and, of tarantool, the headers in include/tarantool and the Lua
+// files in share/tarantool. Other regular files and directories are
 // skipped; any other entry, or one outside the archive, is an error.
 // Bounded reads include the gzip footer, detecting truncation and checksum
 // failures.
@@ -223,10 +225,12 @@ func extractPrebuilt(program binary.Program, archivePath, destination string) (
 	defer func() { _ = root.Close() }()
 
 	extractor := prebuiltExtractor{
-		program: program, root: root, headers: "", executable: false,
+		program: program, root: root, headers: "", share: "", executable: false,
+		hasShare: false, licenses: nil,
 	}
 	if program == binary.ProgramCe {
 		extractor.headers = path.Join(binary.IncDirName, program.Exec())
+		extractor.share = shareDir
 	}
 
 	err = extractor.extract(compressed)
@@ -236,6 +240,15 @@ func extractPrebuilt(program binary.Program, archivePath, destination string) (
 
 	prepared := programArtifact{
 		program: program, executable: filepath.Join(destination, program.Exec()), headers: "",
+		share: "", licenses: nil,
+	}
+
+	if extractor.hasShare {
+		prepared.share = filepath.Join(destination, filepath.FromSlash(extractor.share))
+	}
+
+	for _, license := range extractor.licenses {
+		prepared.licenses = append(prepared.licenses, filepath.Join(destination, license))
 	}
 
 	if extractor.headers != "" {
@@ -257,8 +270,14 @@ type prebuiltExtractor struct {
 	root    *os.Root
 	// headers is the directory of the headers in the archive, if program has them.
 	headers string
+	// share is the directory of the Lua files in the archive, if program
+	// may have them; hasShare is set once one of them is extracted.
+	share    string
+	hasShare bool
 	// executable is set once the executable is extracted.
 	executable bool
+	// licenses are the license files extracted.
+	licenses []string
 }
 
 func (e *prebuiltExtractor) extract(compressed io.Reader) error {
@@ -331,20 +350,42 @@ func (e *prebuiltExtractor) extractEntry(header *tar.Header, content io.Reader) 
 		e.executable = true
 
 		return e.extractFile(name, content, header.Size, defaultDirPermissions)
-	case e.headers != "" && (name == e.headers || strings.HasPrefix(name, e.headers+"/")):
-		if header.Typeflag == tar.TypeDir {
-			return e.mkdirAll(name)
-		}
+	case isUnder(name, e.headers):
+		return e.extractTreeEntry(name, header, content)
+	case isUnder(name, e.share):
+		e.hasShare = true
 
-		err := e.mkdirAll(path.Dir(name))
-		if err != nil {
-			return err
-		}
+		return e.extractTreeEntry(name, header, content)
+	case header.Typeflag == tar.TypeReg && slices.Contains(licenseNames, name):
+		e.licenses = append(e.licenses, name)
 
 		return e.extractFile(name, content, header.Size, headerFilePermissions)
 	default:
 		return nil
 	}
+}
+
+// isUnder reports whether the archive entry name is the directory tree or
+// in it; nothing is under an empty tree.
+func isUnder(name, tree string) bool {
+	return tree != "" && (name == tree || strings.HasPrefix(name, tree+"/"))
+}
+
+// extractTreeEntry unpacks a directory or a file of a tree, its parents
+// included.
+func (e *prebuiltExtractor) extractTreeEntry(name string, header *tar.Header,
+	content io.Reader,
+) error {
+	if header.Typeflag == tar.TypeDir {
+		return e.mkdirAll(name)
+	}
+
+	err := e.mkdirAll(path.Dir(name))
+	if err != nil {
+		return err
+	}
+
+	return e.extractFile(name, content, header.Size, headerFilePermissions)
 }
 
 func (e *prebuiltExtractor) mkdirAll(name string) error {

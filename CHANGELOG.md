@@ -943,6 +943,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `os-release`, compared case-insensitively; the packages are checked with
   `rpm -q` and the command that installs the missing ones is `dnf`, or
   `yum` where there is no `dnf`.
+- A Tarantool `tt binary install` installs keeps its `share/tarantool/`,
+  the EmmyLua stubs of its built-in modules (Tarantool 3.9 and later) among
+  them, and its `LICENSE` and `AUTHORS`, whichever way it is installed:
+  from the RPMs of rws.tarantool.org, from an Enterprise archive or an SDK
+  of the customer zone or `--local-dir`, or built from source. Only the
+  executable and the headers were kept, so `tt emmylua` checked a project
+  without the types of the Tarantool API. The installation directory has
+  them as `share/tarantool/` and, at its root, the license files, and
+  `tt emmylua` finds the stubs beside the executable there. A tt release
+  keeps the `LICENSE` of its archive too. A version installed before has
+  none of them until it is installed again with `--reinstall`.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in

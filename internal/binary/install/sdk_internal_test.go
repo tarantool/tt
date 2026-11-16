@@ -28,14 +28,16 @@ func writeTestSDK(t *testing.T, directory, selected, missing string) {
 	gzipWriter := gzip.NewWriter(file)
 	archive := tar.NewWriter(gzipWriter)
 	files := map[string]string{
-		"tarantool":                   "#!/bin/sh\necho tarantool\n",
-		"tcm":                         "#!/bin/sh\necho 1.11.0-0-g4ecac7de8\n",
-		"tt":                          "#!/bin/sh\necho 3.0.0.abcdef0\n",
-		"include/tarantool/module.h":  selected,
-		"rocks/manifest":              "repository = {}\n",
-		"rocks/test-1.0.0-1.all.rock": "rock",
-		"env.sh":                      "# Ignore the archive's environment.\nreturn 99\n",
-		"VERSION":                     "TARANTOOL_EE=3.7.1\nTARANTOOL_EE_SDK=" + selected,
+		"tarantool":                       "#!/bin/sh\necho tarantool\n",
+		"tcm":                             "#!/bin/sh\necho 1.11.0-0-g4ecac7de8\n",
+		"tt":                              "#!/bin/sh\necho 3.0.0.abcdef0\n",
+		"include/tarantool/module.h":      selected,
+		"share/tarantool/emmylua/box.lua": "-- box",
+		"LICENSE":                         "license",
+		"rocks/manifest":                  "repository = {}\n",
+		"rocks/test-1.0.0-1.all.rock":     "rock",
+		"env.sh":                          "# Ignore the archive's environment.\nreturn 99\n",
+		"VERSION":                         "TARANTOOL_EE=3.7.1\nTARANTOOL_EE_SDK=" + selected,
 	}
 
 	for name, data := range files {

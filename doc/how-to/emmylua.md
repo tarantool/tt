@@ -804,9 +804,11 @@ warn on stderr, and `checks` and `metrics` are unresolved as well:
 or, for a Tarantool without stubs, `Tarantool 3.8.1 has no EmmyLua stubs:
 checking without the types of the Tarantool API`.
 
-A Tarantool older than 3.9 has no stubs, and neither has one
-`tt binary install` installed, which keeps the executable and the headers
-only. tt takes the Tarantool of the project as the other commands do; see
+A Tarantool older than 3.9 has no stubs. One `tt binary install` installed
+keeps them in `share/tarantool/emmylua/` of its installation, beside the
+executable, where `tt emmylua` finds them; one installed by an older tt,
+which kept the executable and the headers only, has none: install it again
+with `--reinstall`. tt takes the Tarantool of the project as the other commands do; see
 [Manage binaries](binaries.md#install-and-switch).
 
 ### `not in the workspace`

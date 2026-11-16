@@ -114,6 +114,32 @@ func TestFindStubs(t *testing.T) {
 	assert.Empty(t, FindStubs(""))
 }
 
+// TestFindStubsInstallation finds the stubs of a Tarantool tt binary
+// install installed: <installation>/tarantool and
+// <installation>/share/tarantool/emmylua, through the active link of the
+// scope, <root>/bin/tarantool.
+func TestFindStubsInstallation(t *testing.T) {
+	t.Parallel()
+
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	installation := filepath.Join(root, "versions", "tarantool", "tarantool_3.9.0")
+	stubs := filepath.Join(installation, "share", "tarantool", "emmylua")
+	require.NoError(t, os.MkdirAll(stubs, 0o755))
+
+	executable := filepath.Join(installation, "tarantool")
+	require.NoError(t, os.WriteFile(executable, []byte(""), 0o755))
+
+	assert.Equal(t, stubs, FindStubs(executable))
+
+	link := filepath.Join(root, "bin", "tarantool")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	require.NoError(t, os.Symlink(executable, link))
+
+	assert.Equal(t, stubs, FindStubs(link))
+}
+
 func TestProgramPath(t *testing.T) {
 	t.Parallel()
 

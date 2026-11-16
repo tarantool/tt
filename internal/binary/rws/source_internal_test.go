@@ -272,6 +272,96 @@ func TestListAndFetch(t *testing.T) {
 	}
 }
 
+// TestFetchKeepsShareAndLicenses keeps the share/tarantool of the runtime
+// RPM, the EmmyLua stubs of Tarantool 3.9 and later, and its license files,
+// as the RPMs of rws.tarantool.org lay them out; the rest of usr/share is
+// left out.
+func TestFetchKeepsShareAndLicenses(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		entries []cpioEntry
+		want    []archiveTestEntry
+	}{
+		{
+			name: "licenses",
+			entries: []cpioEntry{
+				{name: "./usr/share/licenses/tarantool/AUTHORS", mode: 0o100644, data: "authors"},
+				{name: "./usr/share/licenses/tarantool/LICENSE", mode: 0o100644, data: "license"},
+				{name: "./usr/share/doc/tarantool/LICENSE", mode: 0o100644, data: "doc license"},
+				{name: "./usr/share/doc/tarantool/README.md", mode: 0o100644, data: "readme"},
+				{name: "./usr/share/man/man1/tarantool.1.gz", mode: 0o100644, data: "man"},
+				{name: "./usr/share/tarantool/emmylua/box.lua", mode: 0o100644, data: "box"},
+				{name: "./usr/share/tarantool/emmylua/fio.lua", mode: 0o100644, data: "fio"},
+				{name: "./usr/share/tarantool/outside", mode: 0o120777, data: "../../outside"},
+			},
+			want: []archiveTestEntry{
+				{"LICENSE", tar.TypeReg, 0o644, "license"},
+				{"AUTHORS", tar.TypeReg, 0o644, "authors"},
+				{"include/", tar.TypeDir, 0o755, ""},
+				{"include/tarantool/", tar.TypeDir, 0o755, ""},
+				{"include/tarantool/module.h", tar.TypeReg, 0o644, "headers"},
+				{"share/", tar.TypeDir, 0o755, ""},
+				{"share/tarantool/", tar.TypeDir, 0o755, ""},
+				{"share/tarantool/emmylua/", tar.TypeDir, 0o755, ""},
+				{"share/tarantool/emmylua/box.lua", tar.TypeReg, 0o644, "box"},
+				{"share/tarantool/emmylua/fio.lua", tar.TypeReg, 0o644, "fio"},
+			},
+		},
+		{
+			name: "licenses among the documents",
+			entries: []cpioEntry{
+				{name: "./usr/share/doc/tarantool/LICENSE", mode: 0o100644, data: "doc license"},
+				{name: "./usr/share/doc/tarantool/README.md", mode: 0o100644, data: "readme"},
+			},
+			want: []archiveTestEntry{
+				{"LICENSE", tar.TypeReg, 0o644, "doc license"},
+				{"include/", tar.TypeDir, 0o755, ""},
+				{"include/tarantool/", tar.TypeDir, 0o755, ""},
+				{"include/tarantool/module.h", tar.TypeReg, 0o644, "headers"},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("TMPDIR", t.TempDir())
+
+			const (
+				runtimeName = "tarantool-3.9.0-1.x86_64.rpm"
+				headersName = "tarantool-devel-3.9.0-1.x86_64.rpm"
+			)
+
+			runtimeRPM := rpmFixture(t, "xz", cpioFixture(append([]cpioEntry{
+				{name: "./usr/bin/tarantool", mode: 0o100755, data: "executable"},
+			}, test.entries...)...))
+			headersRPM := packageTestRPM(t, "./usr/include/tarantool/module.h", "headers", 0100644)
+			client := packageTestClient(t, func(writer http.ResponseWriter, request *http.Request) {
+				switch filepath.Base(request.URL.Path) {
+				case "Packages":
+					_, _ = fmt.Fprintf(writer, `<a href="%s">runtime</a><a href="%s">headers</a>`,
+						runtimeName, headersName)
+				case runtimeName:
+					_, _ = writer.Write(runtimeRPM)
+				case headersName:
+					_, _ = writer.Write(headersRPM)
+				default:
+					http.NotFound(writer, request)
+				}
+			})
+
+			source := packageTestSource(t, client)
+			artifacts, err := source.List(t.Context(), packageTestQuery("amd64", "3.9.0"))
+			require.NoError(t, err)
+			require.Len(t, artifacts, 1)
+
+			var archive bytes.Buffer
+
+			require.NoError(t, source.Fetch(t.Context(), artifacts[0], &archive))
+			assert.Equal(t, append([]archiveTestEntry{
+				{"tarantool", tar.TypeReg, 0o755, "executable"},
+			}, test.want...), readTestArchive(t, archive.Bytes()))
+		})
+	}
+}
+
 func TestListAndFetchErrors(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -422,7 +512,9 @@ func TestWriteArchiveLinks(t *testing.T) {
 
 			var archive bytes.Buffer
 
-			err := writeArchive(&archive, executable, headers)
+			err := writeArchive(&archive, archiveContents{
+				executable: executable, headers: headers, share: "", licenses: nil,
+			})
 			if test.want != nil {
 				require.ErrorIs(t, err, test.want)
 

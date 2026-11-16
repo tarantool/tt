@@ -14,16 +14,36 @@ import (
 const (
 	dirMode        = 0o755
 	executableMode = 0o755
+	fileMode       = 0o644
 	// headersDir is where the archive of tarantool has the headers.
 	headersDir = "include/tarantool"
+	// shareDir is where the archive of tarantool has the Lua files of
+	// Tarantool, the EmmyLua stubs of its built-in modules among them.
+	shareDir = "share/tarantool"
 )
 
+// archiveContents are the files of a build of Tarantool the archive of
+// tarantool holds.
+type archiveContents struct {
+	// executable is the tarantool executable.
+	executable string
+	// headers is the tree of the headers, include/tarantool of the archive.
+	headers string
+	// share is the tree of share/tarantool of the archive, or empty for a
+	// build without one.
+	share string
+	// licenses are the license files, LICENSE and AUTHORS, at the root of
+	// the archive.
+	licenses []string
+}
+
 // writeArchive writes the archive of tarantool sdk/bundle defines to dst:
-// executable as tarantool at the root and the tree of headers as
-// include/tarantool. A link among the headers is written as the file it
-// leads to inside the tree; one that leads elsewhere, or to a directory, is
-// an error.
-func writeArchive(dst io.Writer, executable, headers string) error {
+// the executable as tarantool at the root, the tree of headers as
+// include/tarantool, that of share as share/tarantool and the license files
+// at the root. A link among the headers is written as the file it leads to
+// inside the tree; one that leads elsewhere, or to a directory, is an
+// error. One under share is skipped instead.
+func writeArchive(dst io.Writer, contents archiveContents) error {
 	compressed, err := gzip.NewWriterLevel(dst, gzip.BestSpeed)
 	if err != nil {
 		return fmt.Errorf("compress Tarantool archive: %w", err)
@@ -31,7 +51,7 @@ func writeArchive(dst io.Writer, executable, headers string) error {
 
 	archive := tar.NewWriter(compressed)
 
-	err = writeArchiveEntries(archive, executable, headers)
+	err = writeArchiveEntries(archive, contents)
 	if err != nil {
 		return err
 	}
@@ -49,51 +69,77 @@ func writeArchive(dst io.Writer, executable, headers string) error {
 	return nil
 }
 
-func writeArchiveEntries(archive *tar.Writer, executable, headers string) error {
-	err := writeArchiveFile(archive, "tarantool", executable, executableMode)
+func writeArchiveEntries(archive *tar.Writer, contents archiveContents) error {
+	err := writeArchiveFile(archive, "tarantool", contents.executable, executableMode)
 	if err != nil {
 		return err
 	}
 
-	for _, name := range []string{filepath.Dir(headersDir), headersDir} {
-		err = writeArchiveDir(archive, name)
+	for _, license := range contents.licenses {
+		err = writeArchiveFile(archive, filepath.Base(license), license, fileMode)
 		if err != nil {
 			return err
 		}
 	}
 
-	root, err := os.OpenRoot(headers)
+	err = writeArchiveTree(archive, contents.headers, headersDir, true)
 	if err != nil {
-		return fmt.Errorf("open Tarantool headers: %w", err)
+		return err
+	}
+
+	if contents.share == "" {
+		return nil
+	}
+
+	return writeArchiveTree(archive, contents.share, shareDir, false)
+}
+
+// writeArchiveTree writes the tree at directory as the directory name of
+// the archive, its parents included. strict makes an entry other than a
+// directory or a regular file, a link that leads out of the tree say, an
+// error; otherwise it is skipped.
+func writeArchiveTree(archive *tar.Writer, directory, name string, strict bool) error {
+	for _, parent := range []string{filepath.Dir(name), name} {
+		err := writeArchiveDir(archive, parent)
+		if err != nil {
+			return err
+		}
+	}
+
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return fmt.Errorf("open Tarantool %s: %w", name, err)
 	}
 
 	defer func() { _ = root.Close() }()
 
 	//nolint:wrapcheck // The function below wraps every error it returns.
-	return fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, err error) error {
+	return fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("read Tarantool headers: %w", err)
+			return fmt.Errorf("read Tarantool %s: %w", name, err)
 		}
 
-		if name == "." {
+		if path == "." {
 			return nil
 		}
 
-		// The root follows the links that stay inside the headers only.
-		info, err := root.Stat(name)
-		if err != nil {
-			return fmt.Errorf("%w: header %s: %w", errPackageContents, name, err)
-		}
+		archiveName := name + "/" + path
 
-		archiveName := headersDir + "/" + name
+		// The root follows the links that stay inside the tree only.
+		info, err := root.Stat(path)
 
 		switch {
-		case entry.IsDir():
+		case err == nil && entry.IsDir():
 			return writeArchiveDir(archive, archiveName)
-		case info.Mode().IsRegular():
-			return writeArchiveRootFile(archive, archiveName, root, name, info.Mode().Perm())
+		case err == nil && info.Mode().IsRegular():
+			return writeArchiveRootFile(archive, archiveName, root, path, info.Mode().Perm())
+		case !strict:
+			// A link that leads out of the tree, say, is left out.
+			return nil
+		case err != nil:
+			return fmt.Errorf("%w: %s: %w", errPackageContents, archiveName, err)
 		default:
-			return fmt.Errorf("%w: header %s is not a regular file", errPackageContents, name)
+			return fmt.Errorf("%w: %s is not a regular file", errPackageContents, archiveName)
 		}
 	})
 }

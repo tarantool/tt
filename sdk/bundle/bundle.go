@@ -25,9 +25,13 @@
 //
 //   - tarantool: a gzip-compressed tar with the executable tarantool at its
 //     root and the headers modules are built with in include/tarantool/,
-//     module.h among them. tt ignores the other files.
+//     module.h among them; optionally the Lua files of Tarantool in
+//     share/tarantool/, the EmmyLua stubs of its built-in modules among
+//     them, and the license files (LICENSE, LICENSE.md, LICENSE.txt,
+//     COPYING, AUTHORS) at its root. tt ignores the other files.
 //   - tt: a gzip-compressed tar with the executable tt at its root, the
-//     archives of the releases of tt on GitHub. tt ignores the other files.
+//     archives of the releases of tt on GitHub, and optionally the license
+//     files at its root. tt ignores the other files.
 //
 // Both hold regular files and directories only, with relative names that
 // stay inside the archive.

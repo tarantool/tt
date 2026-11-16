@@ -14,7 +14,7 @@ the system scope.
 │   └── tcm
 ├── include/tarantool                     # the headers of the active tarantool (link)
 ├── versions/
-│   ├── tarantool/tarantool_3.8.1/        # tarantool, include/tarantool/
+│   ├── tarantool/tarantool_3.8.1/        # tarantool, include/tarantool/, share/tarantool/, LICENSE, AUTHORS
 │   ├── tarantool-ee/tarantool-ee_3.8.1/
 │   ├── tt/tt_3.0.0/
 │   ├── tcm/tcm_1.3.1/

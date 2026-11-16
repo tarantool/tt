@@ -29,7 +29,11 @@ $ tt binary uninstall tarantool 3.9.0
 The version installed last becomes the active one: `<root>/bin/tarantool`
 points to it, and `<root>/include/tarantool` to its headers. Each version is
 kept in `<root>/versions/<product>/<product>_<version>/`, with the headers in
-its `include/tarantool/`. Tarantool Community and Enterprise share the
+its `include/tarantool/`, the Lua files of Tarantool - the EmmyLua stubs of
+its built-in modules, 3.9 and later, that `tt emmylua` finds beside the
+executable - in its `share/tarantool/`, and the license files of the
+release, `LICENSE` and `AUTHORS`, at its root, whichever way it was
+installed. Tarantool Community and Enterprise share the
 active `tarantool` link, and tt and tt Enterprise share `tt`.
 
 To use the active binaries, put `<root>/bin` on `PATH` for the user and the
