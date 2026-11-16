@@ -40,6 +40,7 @@ tooling:
 - completion
 - create
 - ee
+- emmylua
 - help
 - install
 - modules
