@@ -781,3 +781,38 @@ def test_pack_refuses_a_template_missing_its_config(tt_cmd, tmp_path):
     assert ".templates/default" in result.stderr
     assert 'missing config.yaml to configure its Tarantool instances "storage-1"' in result.stderr
     assert not list((project / "_build" / "pack").glob("*.tt"))
+
+
+def test_pack_warns_about_an_app_file_it_does_not_carry(tt_cmd, tmp_path):
+    """A template whose config loads app.file: init.lua runs in the project,
+    and not from the package installed from its archive, which carries no
+    init.lua of the root: pack says so, and how to fix it. Once init.lua is
+    in [package].include, the archive carries it, and the warning is gone."""
+    project = make_template_project(tmp_path / "project", "default", "instance-001:\n")
+    (project / "init.lua").write_text("return {}\n")
+    (project / ".templates" / "default" / "config.yaml").write_text(
+        "app:\n  file: init.lua\n"
+        "groups:\n  g:\n    replicasets:\n      r:\n        instances:\n"
+        "          instance-001: {}\n",
+    )
+    warning = (
+        ".templates/default/config.yaml: app.file init.lua is not in the archive, so the "
+        "package installed from it cannot load it; load the code from .rocks/ with "
+        'app.module: my-app, or add "init.lua" to [package].include'
+    )
+
+    args = ["package", "pack", "--without-deps", "--registry", str(ROCKS_REPO)]
+    result = run(tt_cmd, project, *args)
+    assert result.returncode == 0, result.stderr
+    assert warning in result.stderr
+    archive = next((project / "_build" / "pack").glob("*.tt"))
+    assert "init.lua" not in archive_names(archive)
+
+    manifest = project / "app.manifest.toml"
+    manifest.write_text(
+        manifest.read_text().replace("[platform]", "include = ['init.lua']\n\n[platform]"),
+    )
+    result = run(tt_cmd, project, *args)
+    assert result.returncode == 0, result.stderr
+    assert "app.file" not in result.stderr
+    assert "init.lua" in archive_names(next((project / "_build" / "pack").glob("*.tt")))

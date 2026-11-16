@@ -50,7 +50,14 @@ func stage(ctx context.Context, stageDir string, req stageRequest) error {
 		return err
 	}
 
-	return stageRocks(ctx, stageDir, req)
+	err = stageRocks(ctx, stageDir, req)
+	if err != nil {
+		return err
+	}
+
+	warnMissingAppFiles(ctx, stageDir, req.Manifest.Package.Name, req.Warn)
+
+	return nil
 }
 
 // stageRequest carries everything stage needs to lay out the archive tree.

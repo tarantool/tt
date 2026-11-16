@@ -371,7 +371,36 @@ the same bytes. It holds:
 
 Other files of the project, `init.lua` at its root say, are not in the
 archive unless `[package].include` lists them. So the cluster config of a
-package loads its code as `app.module: <name>`, from `.rocks/`.
+package loads its code as `app.module`, from `.rocks/`: `app.module: kv`
+loads the `init.lua` of a component of the package `kv`, which the build
+lays out as `.rocks/share/tarantool/kv/init.lua`:
+
+```yaml
+app:
+  module: kv
+```
+
+The `vshard_cluster` template of `tt create` does the same: its component
+has `namespace = ""`, and the config loads `app.module: storage` and
+`app.module: router`, its `storage.lua` and `router.lua`.
+
+A config of `app.file: init.lua` runs in the project, which has `init.lua`,
+and fails in every installed copy of the package, which has only what the
+archive carries. If the code has to be loaded from a file, list the file in
+`[package].include`, and the archive carries it at the same place:
+
+```toml
+[package]
+name = "kv"
+include = ["init.lua"]
+```
+
+`tt package pack` warns about an `app.file` of a template's `config.yaml`
+that names a file the archive does not carry:
+
+```text
+   ⚠ .templates/default/config.yaml: app.file init.lua is not in the archive, so the package installed from it cannot load it; load the code from .rocks/ with app.module: kv, or add "init.lua" to [package].include
+```
 
 Each runtime is the first of these that matches `[platform]`:
 

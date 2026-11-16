@@ -515,6 +515,61 @@ func TestStageIncludeCollidingWithTemplates(t *testing.T) {
 	})
 }
 
+// TestStageWarnsAboutAppFileNotPacked: an app.file of the cluster config of a
+// template, at whatever level of the config, that names a file the archive
+// does not carry is warned about, init.lua at the root of the project say:
+// the installed package has no such file. One [package].include brings in,
+// a config variable and an absolute path are not.
+func TestStageWarnsAboutAppFileNotPacked(t *testing.T) {
+	t.Parallel()
+
+	// a-1 runs the global init.lua, b-1 the README.md of its group, which
+	// [package].include brings in; the instances of r set their own.
+	config := "app:\n  file: init.lua\n" +
+		"groups:\n" +
+		"  a:\n    replicasets:\n      ra:\n        instances:\n          a-1: {}\n" +
+		"  b:\n    app:\n      file: README.md\n" +
+		"    replicasets:\n      rb:\n        instances:\n          b-1: {}\n" +
+		"      r:\n        app:\n          file: '{{ context.app }}'\n" +
+		"        instances:\n          i-1:\n            app:\n              file: lib/run.lua\n" +
+		"          i-2:\n            app:\n              file: /opt/app/init.lua\n" +
+		"          i-3:\n            app:\n              file: ../init.lua\n" +
+		"          i-4: {}\n"
+
+	projectDir, man := testProject(t, map[string]string{
+		"init.lua":                       "return {}\n",
+		"lib/run.lua":                    "return {}\n",
+		".templates/default/config.yaml": config,
+	})
+
+	var warned []string
+
+	req := baseRequest(projectDir, man, testTree(t, projectDir))
+
+	req.Warn = func(msg string) { warned = append(warned, msg) }
+
+	require.NoError(t, stage(t.Context(), t.TempDir(), req))
+
+	assert.Contains(t, warned, ".templates/default/config.yaml: app.file init.lua is not in "+
+		"the archive, so the package installed from it cannot load it; load the code from "+
+		`.rocks/ with app.module: my-app, or add "init.lua" to [package].include`)
+	require.Len(t, warned, 3, warned)
+	assert.Contains(t, strings.Join(warned, "\n"), "app.file lib/run.lua is not in the archive")
+	assert.Contains(t, strings.Join(warned, "\n"), "app.file ../init.lua is not in the archive")
+
+	// A config that loads the code as app.module is no news.
+	projectDir, man = testProject(t, map[string]string{
+		".templates/default/config.yaml": "app:\n  module: my-app\n",
+	})
+	warned = nil
+
+	req = baseRequest(projectDir, man, testTree(t, projectDir))
+	req.Warn = func(msg string) { warned = append(warned, msg) }
+
+	require.NoError(t, stage(t.Context(), t.TempDir(), req))
+	assert.Empty(t, warned)
+}
+
 // TestStageTemplatesFollowsSymlinkedTemplate: a template linked in from
 // elsewhere is checked and copied as its target, like every link pack meets.
 func TestStageTemplatesFollowsSymlinkedTemplate(t *testing.T) {

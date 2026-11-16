@@ -525,6 +525,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   nothing again. A module passes them as `sdk.BuildOptions.Jobs`, which a
   backend reads as `build.Context.Jobs`, and declares the flag with
   `sdk.AddJobsFlag`.
+- `tt package pack` warns about an `app.file` of the `config.yaml` of a
+  template that names a file the archive does not carry: `app.file:
+  init.lua` runs in the project, and fails in the package installed from
+  the archive, which has no `init.lua` of the root of the project unless
+  `[package].include` lists it. The warning says to load the code as
+  `app.module: <package>`, from `.rocks/`, or to include the file, and the
+  page on packages says the same.
 
 ### Changed
 

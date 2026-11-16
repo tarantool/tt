@@ -31,7 +31,10 @@ app1/
 
 `app.file` and the other paths of `config.yaml` are relative to the project
 directory, the directory the instances run in; the data, logs and sockets go
-to `.tarantool/var/` there. The project is named after its directory;
+to `.tarantool/var/` there. A package installed from an archive runs in a
+directory that holds only what the archive carries, so the config of a
+package loads its code as `app.module`, not as `app.file`; see
+[Packing](../concepts/packages.md#packing). The project is named after its directory;
 `vshard_cluster` also writes `app.manifest.toml`, which names it `--name` with
 `_` replaced by `-`, and needs `tt package build` for its `vshard`
 dependency before it starts. `config_storage` needs Tarantool Enterprise

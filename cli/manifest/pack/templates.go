@@ -226,6 +226,63 @@ func checkTemplateFile(path string) error {
 	return nil
 }
 
+// warnMissingAppFiles warns about each app.file of the cluster config of a
+// template staged in stageDir that names a file the archive does not carry.
+// The instances of an installed package run in its version directory, laid
+// out as the archive is, and the paths of the config are relative to it: a
+// config.yaml with app.file: init.lua runs in the project, which has
+// init.lua, and fails on every host the package is installed on, where the
+// files of the project are only those the archive carries. pkg is the name
+// of the package, which app.module names its code by.
+//
+// It warns rather than fails: a file a hook or a role puts in place on the
+// host is beyond what pack can see. An absolute path, and one of a config
+// variable ({{ ... }}), are left alone, as is a config.yaml that does not
+// parse, which the check of the templates has already let through. A path
+// out of the archive, ../init.lua say, is not in it.
+func warnMissingAppFiles(ctx context.Context, stageDir, pkg string, warn func(string)) {
+	if warn == nil {
+		return
+	}
+
+	configs, err := filepath.Glob(filepath.Join(stageDir, templatesDirName, "*",
+		templateConfigFile))
+	if err != nil || len(configs) == 0 {
+		return
+	}
+
+	archive, err := os.OpenRoot(stageDir)
+	if err != nil {
+		return
+	}
+
+	defer func() { _ = archive.Close() }()
+
+	for _, config := range configs {
+		data, err := os.ReadFile(config)
+		if err != nil {
+			continue
+		}
+
+		rel, _ := filepath.Rel(stageDir, config)
+
+		for _, file := range app.AppFiles(ctx, data) {
+			if filepath.IsAbs(file) || strings.Contains(file, "{{") {
+				continue
+			}
+
+			_, err = archive.Stat(file)
+			if err == nil {
+				continue
+			}
+
+			warn(fmt.Sprintf("%s: app.file %s is not in the archive, so the package installed "+
+				"from it cannot load it; load the code from .rocks/ with app.module: %s, or "+
+				"add %q to [package].include", filepath.ToSlash(rel), file, pkg, file))
+		}
+	}
+}
+
 // templateParseError names the template on every problem Parse found. Parse
 // joins one error per problem, each rendered on its own line, so a single
 // prefix would name the template on the first line only.
