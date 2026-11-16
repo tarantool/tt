@@ -99,10 +99,17 @@ def test_uninstall_missing(tt_cmd, tmp_path):
 
 
 @pytest.mark.parametrize("version", [None, "123"])
-def test_uninstall_foreign_program(tt_cmd, tmp_path, version):
-    rc, output = uninstall(tt_cmd, tmp_path, "bash", version)
-    assert rc == 0
-    assert "Uninstall a program" in output
+@pytest.mark.parametrize("command", ["uninstall", "install"])
+def test_uninstall_foreign_program(tt_cmd, tmp_path, command, version):
+    # The program is a subcommand: one tt does not manage is an unknown
+    # command, not the help of the group with exit code 0.
+    cmd = [tt_cmd, "binary", command, "bash"] + ([version] if version else [])
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 1
+    assert f'unknown command "bash" for "tt binary {command}"' in output
+    assert f"Run 'tt binary {command} --help' for usage." in output
+    assert "Usage:" not in output
+    assert not (tmp_path / ".tarantool").exists()
 
 
 @pytest.mark.parametrize("is_symlink_broken", [False, True])
