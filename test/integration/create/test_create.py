@@ -1353,6 +1353,19 @@ def test_create_non_interactive_follow_up(tt_cmd, tmp_path, template, next_step)
     assert out.index("created successfully") < out.index("What's next?")
 
 
+def test_create_vshard_cluster_tt_constraint(tt_cmd, tmp_path):
+    """The project manifest of vshard_cluster needs tt 3, as the manifest of
+    tt new does: tt 2 does not read app.manifest.toml at all."""
+    rc, _ = run_command_and_get_output(
+        [tt_cmd, "create", "vshard_cluster", "--name", "app", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 0
+    manifest = (tmp_path / "app" / "app.manifest.toml").read_text()
+    assert "tt = '>=3.0.0'\n" in manifest
+    assert "2.11" not in manifest
+
+
 def test_create_builtin_template_bad_var_interactive(tt_cmd, tmp_path):
     """Asked for a value, tt create says why one is refused and asks again."""
     p = subprocess.run(

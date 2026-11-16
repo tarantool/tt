@@ -1115,6 +1115,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installed in the user scope: …`, naming the constraint and the
   `tt binary install tarantool <version> --scope user` that satisfies it.
   The install succeeded silently, and the first `tt instance start` failed.
+- The `app.manifest.toml` of `tt create vshard_cluster` needs `tt =
+  '>=3.0.0'`, as the manifest of `tt new` does, where it said `>=2.11.0`:
+  tt 2 does not read the manifest at all. It is the only built-in template
+  that writes a project manifest.
 - `tt create -s` prints the follow-up message of the template, the "What's
   next?" that tells to enter the project and run `tt instance start`, as
   `tt create` without `-s` does. The non-interactive mode, which every
