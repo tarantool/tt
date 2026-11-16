@@ -1115,6 +1115,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installed in the user scope: …`, naming the constraint and the
   `tt binary install tarantool <version> --scope user` that satisfies it.
   The install succeeded silently, and the first `tt instance start` failed.
+- `tt replicaset vshard bootstrap` of a cluster whose vshard is bootstrapped
+  already, as the router of the `vshard_cluster` template bootstraps it
+  itself, warns `vshard is already bootstrapped` and succeeds, where it
+  failed with `Cluster is already bootstrapped` behind a quoted Lua chunk of
+  tt. The follow-up message of the template says that the router
+  bootstraps vshard. An error of the Lua code tt runs on an instance over
+  its console no longer starts with the position in that code,
+  `[string "local function func(...) ..."]:1:`, which names no place a
+  reader can look up.
 - `tt replicaset status`, `tt replicaset bootstrap` and `tt replicaset vshard
   bootstrap` take no target inside a project, as `tt instance status` does:
   they act on the project of the current directory. They required the name

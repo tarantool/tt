@@ -4,7 +4,15 @@ import re
 import shutil
 
 import pytest
-from replicaset_helpers import copy_application, eval_on_instance, parse_status, stop_application
+from replicaset_helpers import (
+    copy_application,
+    create_template_project,
+    eval_on_instance,
+    parse_status,
+    start_template_project,
+    stop_application,
+    stop_template_project,
+)
 
 from utils import (
     control_socket,
@@ -306,3 +314,47 @@ def test_vshard_bootstrap_non_vshard(tt, cluster, target_type):
     p = tt.run("rs", "vshard", "bootstrap", targets[target_type])
     assert p.returncode != 0
     assert "sharding roles are not configured" in p.stdout
+    # The position in the chunk tt evaluates names nothing to look up.
+    assert '[string "' not in p.stdout
+
+
+def test_vshard_bootstrap_vshard_cluster_template(tt_cmd, tmp_path):
+    """The router of the vshard_cluster template bootstraps vshard itself, so
+    on a fresh project of it tt replicaset vshard bootstrap has nothing left
+    to do: it says so and succeeds, in the project with no target as well."""
+    app_dir = create_template_project(tt_cmd, tmp_path, "vshard_cluster", "vs", "376")
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "package", "build"],
+        cwd=app_dir,
+        env=rocks_mirror_env(),
+    )
+    assert rc == 0, out
+
+    instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
+    start_template_project(tt_cmd, app_dir, instances, timeout=60)
+    try:
+
+        def buckets_available():
+            out = eval_on_instance(
+                tt_cmd,
+                "vs",
+                "router-001-a",
+                app_dir,
+                "vshard.router.info().bucket.available_rw",
+            )
+            return "- 3000" in out
+
+        assert wait_event(30, buckets_available)
+
+        for target in [["vs"], []]:
+            rc, out = run_command_and_get_output(
+                [tt_cmd, "replicaset", "vshard", "bootstrap", *target],
+                cwd=app_dir,
+            )
+            assert rc == 0, out
+            assert "vshard is already bootstrapped" in out
+            assert "Done." in out
+            assert "⨯" not in out
+            assert '[string "' not in out
+    finally:
+        stop_template_project(tt_cmd, app_dir)

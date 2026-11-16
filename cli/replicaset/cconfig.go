@@ -667,13 +667,23 @@ func cconfigPromoteElection(evaler connector.Evaler, timeout int) error {
 func cconfigBootstrapVShard(evaler connector.Evaler, timeout int) error {
 	var opts connector.RequestOpts
 
-	_, err := evaler.Eval(cconfigBootstrapVShardBody, []any{timeout}, opts)
+	data, err := evaler.Eval(cconfigBootstrapVShardBody, []any{timeout}, opts)
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap vshard: %w", err)
 	}
 
+	// A router may have bootstrapped vshard itself, as the one of the
+	// vshard_cluster template does: there is nothing left to do then.
+	if len(data) == 1 && data[0] == vshardAlreadyBootstrapped {
+		log.Warn("vshard is already bootstrapped")
+	}
+
 	return nil
 }
+
+// vshardAlreadyBootstrapped is what cconfigBootstrapVShardBody returns for
+// a cluster whose buckets are there already.
+const vshardAlreadyBootstrapped = "already bootstrapped"
 
 // cconfigGetShardingRoles returns sharding roles of the passed instance.
 func cconfigGetShardingRoles(evaler connector.Evaler) ([]string, error) {

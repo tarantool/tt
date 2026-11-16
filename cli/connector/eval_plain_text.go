@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,6 +42,19 @@ type evaluationError string
 
 func (err evaluationError) Error() string {
 	return string(err)
+}
+
+// chunkPosition matches the position Lua puts in front of an error raised
+// at level 1 in the chunk the console runs for an eval, the whole
+// eval_func_template.lua on one line:
+// `[string "local function func(...) local sharding = req..."]:1: `. It
+// names no place a reader can look up.
+var chunkPosition = regexp.MustCompile(`^\[string "local function func\(\.\.\.\).*?"\]:\d+: `)
+
+// newEvaluationError returns the error an eval over the console ended with,
+// without the position in the chunk of the eval.
+func newEvaluationError(message string) evaluationError {
+	return evaluationError(chunkPosition.ReplaceAllString(message, ""))
 }
 
 type EvalPlainTextOpts struct {
@@ -428,7 +442,7 @@ func getPlainTextEvalError(resBytes []byte, parseErr error) error {
 		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
 
-	return evaluationError(errStr)
+	return newEvaluationError(errStr)
 }
 
 func getPlainTextEvalResLua(resBytes []byte) (string, error) {
@@ -445,7 +459,7 @@ func getPlainTextEvalResLua(resBytes []byte) (string, error) {
 	luaRes := luaState.Env.RawGetString("res")
 
 	if luaRes.Type() == lua.LTString {
-		return "", evaluationError(lua.LVAsString(luaRes))
+		return "", newEvaluationError(lua.LVAsString(luaRes))
 	}
 
 	encodedDataLV := luaState.GetTable(luaRes, lua.LString("data_enc"))

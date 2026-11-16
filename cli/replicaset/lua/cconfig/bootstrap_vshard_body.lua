@@ -1,11 +1,11 @@
 local sharding = require('config'):get().sharding
 if sharding == nil or sharding.roles == nil then
-    error("sharding roles are not configured, please make sure managed cluster is sharded")
+    error("sharding roles are not configured, please make sure managed cluster is sharded", 0)
 end
 
 local ok, vshard = pcall(require, 'vshard')
 if not ok then
-    error("failed to require vshard module")
+    error("failed to require vshard module", 0)
 end
 
 local is_router = false
@@ -17,7 +17,7 @@ for _, role in ipairs(sharding.roles) do
 end
 
 if not is_router then
-    error("instance must be a router to bootstrap vshard")
+    error("instance must be a router to bootstrap vshard", 0)
 end
 
 pcall(vshard.router.master_search_wakeup)
@@ -30,12 +30,12 @@ local ok, err
 while fiber.time() < deadline do
     ok, err = vshard.router.bootstrap({timeout = timeout})
     if ok then
-        break
+        return 'bootstrapped'
     end
-    if err.message:find("already bootstrapped") then
-        error(err.message)
+    if type(err) == 'table' and tostring(err.message):find("already bootstrapped") then
+        return 'already bootstrapped'
     end
     fiber.sleep(0.1)
 end
 
-assert(ok, tostring(err))
+error(tostring(err), 0)

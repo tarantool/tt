@@ -6,6 +6,9 @@ follow-up-message: |
       $ tt package build
       $ tt instance start
 
+  The router bootstraps vshard itself once the storages are up,
+  so tt replicaset vshard bootstrap has nothing left to do.
+
   Pay attention that default passwords were generated,
   you can change it in .templates/default/config.yaml.
 
