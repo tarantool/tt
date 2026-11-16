@@ -3,6 +3,7 @@ package cluster_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -167,6 +168,58 @@ func TestGetInstanceConfig_environment(t *testing.T) {
 	require.NoError(t, err)
 	// TT_WAL_DIR (non-default) overrides file value per Tarantool docs (env > file).
 	assert.Equal(t, "envdir", getCfgString(t, instCfg, "wal/dir"))
+}
+
+// TestGetClusterConfig_env_empty_map checks that an empty map from the
+// environment leaves the map of the file as it is, as Tarantool merges it:
+// TT_LABELS='{}' adds no label and drops none.
+//
+// NEEDS THE GO-CONFIG BUMP: it fails with go-config 4c7c90ea0ec7, which gives
+// labels: null; fixed by "merge: let an empty map leave a map alone" in
+// go-config.
+func TestGetClusterConfig_env_empty_map(t *testing.T) {
+	for _, name := range []string{"TT_LABELS", "TT_LABELS_DEFAULT"} {
+		t.Run(name, func(t *testing.T) {
+			clearAmbientTTEnv(t)
+
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(`labels:
+  a: x
+groups:
+  g:
+    replicasets:
+      r:
+        instances:
+          i: {}
+`), 0o600))
+
+			t.Setenv(name, "{}")
+
+			ccfg, err := cluster.GetClusterConfig(context.Background(), path,
+				integrity.IntegrityCtx{})
+			require.NoError(t, err)
+
+			labels := map[string]any{"a": "x"}
+
+			assert.Equal(t, labels, mustGetMap(t, ccfg.Snapshot(), "labels"))
+
+			instCfg, err := cluster.GetInstanceConfig(ccfg, "i")
+			require.NoError(t, err)
+			assert.Equal(t, labels, mustGetMap(t, instCfg, "labels"))
+		})
+	}
+}
+
+// mustGetMap retrieves the map at a slash-separated path of cfg.
+func mustGetMap(t *testing.T, cfg goconfig.Config, path string) map[string]any {
+	t.Helper()
+
+	var v map[string]any
+
+	_, err := cfg.Get(goconfig.NewKeyPath(path), &v)
+	require.NoError(t, err, "path: %s", path)
+
+	return v
 }
 
 func TestGetInstanceConfig_noinstance(t *testing.T) {

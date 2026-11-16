@@ -811,3 +811,31 @@ def test_cluster_show_etcd_arrays(tt_cmd, tmp_path, etcd, target):
         assert "iproto:\n  listen:\n    - uri: 127.0.0.1:3301\n" in out
         assert "database:\n  mode: rw\n" in out
         assert '"0"' not in out
+
+
+def test_cluster_show_file_env_empty_map(tt_cmd, tmp_path):
+    # An empty map from the environment leaves the map of the file as it is,
+    # as Tarantool merges it: TT_LABELS='{}' drops no label.
+    #
+    # NEEDS THE GO-CONFIG BUMP: fails with go-config 4c7c90ea0ec7, which gives
+    # labels: null; fixed by "merge: let an empty map leave a map alone" in
+    # go-config.
+    (tmp_path / "config.yaml").write_text("labels:\n  a: x\n" + test_simple_app_cfg)
+
+    for name in ["TT_LABELS", "TT_LABELS_DEFAULT"]:
+        env = {**os.environ, name: "{}"}
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "show", "./config.yaml"],
+            cwd=tmp_path,
+            env=env,
+        )
+        assert rc == 0, out
+        assert out.startswith("labels:\n  a: x\n"), out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "show", "./config.yaml:master"],
+            cwd=tmp_path,
+            env=env,
+        )
+        assert rc == 0, out
+        assert "labels:\n  a: x\n" in out, out

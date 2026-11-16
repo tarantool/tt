@@ -1272,6 +1272,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   points to, and checked with `--validate`. A target is a file when it has a
   slash or ends in `.yaml` or `.yml`: `tt cluster show ./config.yaml`,
   `tt cluster show config.yaml:instance-001`.
+- An empty map from the environment, `TT_LABELS='{}'` or
+  `TT_LABELS_DEFAULT='{}'`, leaves the map of the config file as it is, as
+  Tarantool merges it: `tt cluster show` printed `labels: null` for
+  `labels: {a: x}` of the file. An empty map of an instance, `labels: {}`,
+  no longer drops the labels it inherits either.
 
 - `tt create ./tpl` with `instances.yaml` and `config.yaml` at the root of
   the template, or in a directory of it, creates a project: the pair goes

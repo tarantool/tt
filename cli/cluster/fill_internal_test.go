@@ -179,3 +179,17 @@ func TestCollectDataBytesKeepsArrays(t *testing.T) {
 		"iproto": map[string]any{"listen": []any{map[string]any{"uri": "127.0.0.1:3301"}}},
 	}, got)
 }
+
+// TestFillOnlyMergeEmptyMapOfSourceOnly checks that an empty map only the
+// storage has comes over as an empty map.
+//
+// NEEDS THE GO-CONFIG BUMP: it fails with go-config 4c7c90ea0ec7, which reads
+// labels: {} back as null; fixed by "merge: let an empty map leave a map
+// alone" in go-config.
+func TestFillOnlyMergeEmptyMapOfSourceOnly(t *testing.T) {
+	t.Parallel()
+
+	got := fillFrom(t, "a: 1\n", "labels: {}\n")
+
+	assert.Equal(t, map[string]any{"a": int64(1), "labels": map[string]any{}}, got)
+}
