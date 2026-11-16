@@ -677,8 +677,12 @@ def test_install_tarantool_docker_scope(tt_cmd, tmp_path, docker_tarantool_build
     assert rc == 0, output
     root = scope_root(tmp_path, scope)
     version = root / "versions" / "tarantool" / "tarantool_3.2.1"
-    assert (root / "bin" / "tarantool").readlink() == version / "tarantool"
-    assert (root / "include" / "tarantool").readlink() == version / "include" / "tarantool"
+    # The links of a scope are relative to their directories: compare where
+    # they lead.
+    assert (root / "bin" / "tarantool").resolve(strict=True) == version.resolve() / "tarantool"
+    assert (root / "include" / "tarantool").resolve(strict=True) == (
+        version.resolve() / "include" / "tarantool"
+    )
     assert (root / "bin" / "tarantool").read_bytes() == built_binary.read_bytes()
     assert (root / "include" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
     assert not (tmp_path / "tt.yaml").exists()
@@ -717,7 +721,7 @@ def test_install_tarantool_docker_existing_master(tt_cmd, tmp_path, docker_taran
     assert rc == 0, output
     assert "Found newest commit of tarantool in master" in output
     assert (root / "bin" / "tarantool").read_bytes() == built_binary.read_bytes()
-    assert (root / "include" / "tarantool").readlink() == headers
+    assert (root / "include" / "tarantool").resolve(strict=True) == headers.resolve()
     assert not (headers / "stale.h").exists()
 
 

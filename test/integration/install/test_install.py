@@ -737,7 +737,8 @@ def test_install_community_failed_reinstall_preserves_installation(
     rc, output = install(flags=flags, **({"version": "0" * 40} if failure == "version" else {}))
     assert rc != 0, output
     assert active.readlink() == original_link
-    assert active.resolve(strict=True) == original_link
+    # The link may be relative to its directory: compare where it leads.
+    assert active.resolve(strict=True) == (active.parent / original_link).resolve()
     assert active.read_bytes() == original_binary
     assert os.access(active, os.X_OK)
     if product == "tarantool":
