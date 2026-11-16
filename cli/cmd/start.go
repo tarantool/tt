@@ -198,8 +198,8 @@ func startWatchdogs(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx,
 		return
 	}
 
-	for i, err := range running.WaitUp(started, startWait.timeout, status.Probe) {
-		name := running.GetAppInstanceName(started[i].Instance)
+	for idx, err := range running.WaitUp(started, startWait.timeout, status.Probe) {
+		name := running.GetAppInstanceName(started[idx].Instance)
 		if err != nil {
 			result.fail(name, err)
 
@@ -207,7 +207,7 @@ func startWatchdogs(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx,
 		}
 
 		log.Infof("The instance %s is up.", name)
-		reportTCM(&started[i].Instance)
+		reportTCM(&started[idx].Instance)
 	}
 }
 

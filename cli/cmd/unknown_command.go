@@ -115,7 +115,7 @@ const (
 // doc/migration_from_older_versions.md tells. A %s in a hint is the command
 // typed.
 //
-//nolint:gochecknoglobals,goconst // A constant table, of the names tt 2 had.
+//nolint:gochecknoglobals // A constant table, of the names tt 2 had.
 var movedCommands = map[string]string{
 	"start":     instanceHint,
 	"stop":      instanceHint,
