@@ -62,7 +62,7 @@ func TestRunLoadsTheModule(t *testing.T) {
 	tarantool := filepath.Join(t.TempDir(), "tarantool")
 	module := filepath.Join(harness.Context.Dirs.Modules, "m"+harness.Context.Target.ModuleExt())
 
-	require.NoError(t, os.WriteFile(tarantool, []byte(fakeTarantool), 0o700))
+	writeProgram(t, tarantool, fakeTarantool)
 	writeFile(t, harness, "a.c", "/* a.c */\n")
 
 	// The fake module is no ELF, which checkLuaModule does not check.

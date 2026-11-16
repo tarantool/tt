@@ -1,7 +1,6 @@
 package cc
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -40,8 +39,7 @@ func TestProbeReproducible(t *testing.T) {
 	harness, bld := fakeHarness(t, C(), map[string]any{"module": "m", "sources": []any{"a.c"}},
 		map[string]string{"CC": "pickycc"})
 
-	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Tools, "pickycc"),
-		[]byte(pickyCC), 0o700))
+	writeTool(t, harness, "pickycc", pickyCC)
 	writeFile(t, harness, "a.c", "/* a.c */\n")
 
 	probes := func() int {
