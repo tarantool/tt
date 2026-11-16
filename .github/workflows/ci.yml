@@ -211,8 +211,14 @@ jobs:
           tarantool-version: latest
           build-tt: 'false'
 
+      - name: Set up the toolchains of the build backends
+        uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
+
       - name: Go tests with integration
         run: mage unit:fullSkipDocker
+
+      - name: Check that no build backend test skipped for a missing tool
+        run: ci/build-backend-skips.sh
 
   # Build a native tt: the default build artifact runs only on Linux.
   # Unlike build, the job takes fork pull requests too: ce-result requires
@@ -235,9 +241,15 @@ jobs:
         with:
           tarantool-version: latest
 
+      - name: Set up the toolchains of the build backends
+        uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
+
       # Hosted macOS runners have no Docker daemon.
       - name: Go tests with integration, excluding Docker
         run: mage unit:fullSkipDocker
+
+      - name: Check that no build backend test skipped for a missing tool
+        run: ci/build-backend-skips.sh
 
   it-ce:
     needs: build

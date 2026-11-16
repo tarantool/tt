@@ -121,6 +121,12 @@ jobs:
           build-tt: 'false'
           cache: ${{ inputs.cache }}
 
+      # The package tests of the tooling group build components with cargo
+      # (a static program for the musl target, too) and zig.
+      - name: Set up the toolchains of the build backends
+        if: contains(inputs.shard, 'tooling') || inputs.shard == 'all'
+        uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
+
       # The tests that fetch rocks install them from this directory rather
       # than from the registries; see test/rocks-mirror.txt.
       - name: Restore the rock mirror
