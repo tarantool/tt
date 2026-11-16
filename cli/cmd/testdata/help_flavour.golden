@@ -49,7 +49,7 @@ FLAGS
 EXAMPLES
   $ tt -V version
   $ tt -I help
-  $ tt completion
+  $ . <(tt completion bash)
 
 Use "tt <command> --help" for more information about a command.
 

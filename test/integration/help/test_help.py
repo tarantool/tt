@@ -151,3 +151,22 @@ def test_external_help_module_with_args(tt_cmd, tmp_path):
         "help",
         tmp_path / "modules",
     ) + ignored_module_warning("version", tmp_path / "modules")
+
+
+def test_root_help_examples_run(tt_cmd, tmp_path):
+    # Every example of tt --help works as written.
+    rc, stdout, _ = run_command_and_get_streams([tt_cmd, "--help"], cwd=tmp_path)
+    assert rc == 0
+
+    examples = stdout.split("EXAMPLES\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    commands = [line.strip().removeprefix("$ ") for line in examples]
+    assert ". <(tt completion bash)" in commands
+
+    for command in commands:
+        # ". <(tt ...)" sources what the command prints: run the command.
+        command = command.removeprefix(". <(").removesuffix(")")
+        args = command.split()
+        assert args[0] == "tt", command
+
+        rc, _, stderr = run_command_and_get_streams([tt_cmd, *args[1:]], cwd=tmp_path)
+        assert rc == 0, f"{command}: {stderr}"

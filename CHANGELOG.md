@@ -1029,6 +1029,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   help of the group and exited 0, so a mistyped command passed a script
   unnoticed. Every group behaves so, the groups of compiled-in modules
   included, and the group alone still prints its help.
+- The example of `tt --help` that enables completion is `. <(tt completion
+  bash)`: it was `tt completion`, which fails without the name of a shell.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

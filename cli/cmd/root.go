@@ -68,7 +68,7 @@ func newRootCmd() *cobra.Command {
 		Long:  long,
 		Example: `$ tt -V version
   $ tt -I help
-  $ tt completion`,
+  $ . <(tt completion bash)`,
 		RunE:             groupRunE,
 		TraverseChildren: true,
 	}
