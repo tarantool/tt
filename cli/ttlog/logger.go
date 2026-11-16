@@ -91,6 +91,24 @@ type fileLogger struct {
 	mu sync.Mutex
 }
 
+// CheckLogFile reports an error when the log file filename, whose directory
+// is there, cannot be opened as NewFileLogger opens it, creating it if it is
+// not there: for the command that starts a watchdog to fail on what the
+// watchdog would fail on with nowhere to say so.
+func CheckLogFile(filename string) error {
+	file, err := os.OpenFile(filename, logOpenFlags, logFileMode)
+	if err != nil {
+		return fmt.Errorf("cannot open the log file %q: %w", filename, err)
+	}
+
+	err = file.Close()
+	if err != nil {
+		return fmt.Errorf("cannot close the log file %q: %w", filename, err)
+	}
+
+	return nil
+}
+
 // NewFileLogger creates a new object of file logger.
 func NewFileLogger(opts LoggerOpts) (Logger, error) {
 	dir := filepath.Dir(opts.Filename)

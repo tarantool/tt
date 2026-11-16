@@ -1055,6 +1055,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   lists and asks nothing. It printed `Total files to remove: 0` and then
   ``instance `instance001` must be stopped`` as an info line. `tt instance
   stop` says `The instance … has been terminated.`, no more `The Instance`.
+- `tt instance start` checks that the `tt.log` of every instance can be
+  written before it starts the watchdogs, as it makes their directories, and
+  fails with exit code 2 naming the instance and the file when it cannot,
+  also with `--no-wait` and `--foreground`. A watchdog in the background
+  that could not open its log ended with nowhere to say why, and a start
+  with `--no-wait` exited with 0. The errors of the layout name the
+  instance, and `--foreground` exits with the code of such an error, 2,
+  rather than 1.
 - A rock server that cannot be reached or read is one line: what was being
   done, the server, where it is configured and why, `resolving "checks":
   cannot reach rock server http://no-such-host.invalid/ (from

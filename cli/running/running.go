@@ -1073,16 +1073,37 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 
 // prepareWatchdog resolves instance into its launch (ResolveLaunch) and
 // writes it into the file its watchdog runs it from, whose path it returns.
+//
+// What the watchdog needs before it has a log to write to is made or checked
+// here, by the command that starts it, which reports what fails: a watchdog
+// in the background whose directories cannot be made, or whose tt.log cannot
+// be written, would end with nowhere to say why, and a start that does not
+// wait would succeed. The run directory is checked by the launch file
+// written into it.
 func prepareWatchdog(instance *InstanceCtx) (string, error) {
 	launch, err := ResolveLaunch(instance)
 	if err != nil {
 		return "", err
 	}
 
+	name := GetAppInstanceName(*instance)
+
 	err = createInstanceDataDirectories(*instance)
 	if err != nil {
-		return "", fmt.Errorf("failed to create a directory: %w", err)
+		return "", fmt.Errorf("instance %s: failed to create a directory: %w", name, err)
 	}
 
-	return writeLaunchFile(&launch)
+	if instance.Log != "" {
+		err = ttlog.CheckLogFile(instance.Log)
+		if err != nil {
+			return "", fmt.Errorf("instance %s: %w", name, err)
+		}
+	}
+
+	launchFile, err := writeLaunchFile(&launch)
+	if err != nil {
+		return "", fmt.Errorf("instance %s: %w", name, err)
+	}
+
+	return launchFile, nil
 }

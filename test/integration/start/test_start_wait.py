@@ -1,6 +1,8 @@
 import os
 import time
 
+import pytest
+
 import utils
 
 # tt instance start and restart wait until the instances they start in the
@@ -61,6 +63,44 @@ def test_start_crashing_instance_fails(tt_cmd, tmp_path):
         assert "boom on start" in out
         assert status_of(tt_cmd, app_path)["app:i1"]["STATUS"] == "NOT RUNNING"
     finally:
+        stop_all(tt_cmd, app_path)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root writes into a read-only directory anyway")
+@pytest.mark.parametrize("wait", [[], ["--no-wait"], ["--foreground"]])
+def test_start_unwritable_layout_fails(tt_cmd, tmp_path, wait):
+    # What the watchdog needs before it has a log, the directories of the
+    # instance and its tt.log, is made and checked by tt instance start,
+    # which fails with code 2 and says why, also when it does not wait: a
+    # watchdog in the background would have nowhere to say so.
+    app_path = tmp_path / "app"
+    write_app(app_path, "i1:\n", "")
+    log_dir = utils.inst_log_dir(app_path, "app", "i1")
+    log = os.path.join(log_dir, utils.log_file)
+
+    try:
+        # A project that cannot be written into.
+        os.chmod(app_path, 0o555)
+        rc, out = run_tt(tt_cmd, app_path, "instance", "start", *wait)
+        assert rc == 2, out
+        assert "instance app:i1: failed to create a directory" in out
+        assert "permission denied" in out
+        os.chmod(app_path, 0o755)
+
+        # A log that cannot be written.
+        os.makedirs(log_dir)
+        with open(log, "w"):
+            pass
+        os.chmod(log, 0o444)
+        rc, out = run_tt(tt_cmd, app_path, "instance", "start", *wait)
+        assert rc == 2, out
+        assert f'instance app:i1: cannot open the log file "{log}"' in out
+        assert "permission denied" in out
+        assert status_of(tt_cmd, app_path)["app:i1"]["STATUS"] == "NOT RUNNING"
+    finally:
+        os.chmod(app_path, 0o755)
+        if os.path.exists(log):
+            os.chmod(log, 0o644)
         stop_all(tt_cmd, app_path)
 
 

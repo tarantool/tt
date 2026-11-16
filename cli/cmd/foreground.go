@@ -124,9 +124,11 @@ func startInstancesForeground(cmdCtx *cmdcontext.CmdCtx, instances []running.Ins
 			log.Error(err.Error())
 
 			if first == nil {
+				// The code of the error, as tt instance start in the
+				// background exits with: 2 for a layout it cannot write.
 				first = &foregroundEnd{
 					child: &foregroundChild{name: name, cmd: nil, done: true},
-					code:  sdk.ExitFailure,
+					code:  exitcode.Code(err),
 				}
 			}
 

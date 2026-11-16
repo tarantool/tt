@@ -61,6 +61,30 @@ func TestLoggerBase(t *testing.T) {
 	assert.Contains(t, contentStr, "log file has been reopened")
 }
 
+func TestCheckLogFile(t *testing.T) {
+	dir := t.TempDir()
+	fileName := filepath.Join(dir, "tt.log")
+
+	// A log that is not there is created, as the logger creates it.
+	require.NoError(t, ttlog.CheckLogFile(fileName))
+	require.FileExists(t, fileName)
+
+	if os.Geteuid() == 0 {
+		t.Skip("root writes a file whatever its mode")
+	}
+
+	require.NoError(t, os.Chmod(fileName, 0o440))
+
+	err := ttlog.CheckLogFile(fileName)
+	require.ErrorIs(t, err, os.ErrPermission)
+	require.ErrorContains(t, err, "cannot open the log file")
+
+	require.NoError(t, os.Remove(fileName))
+	require.NoError(t, os.Chmod(dir, 0o550))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o750) })
+	require.ErrorIs(t, ttlog.CheckLogFile(fileName), os.ErrPermission)
+}
+
 func TestLoggerNoDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	fileName := filepath.Join(tmpDir, "dir", "subdir", "test.log")
