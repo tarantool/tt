@@ -178,6 +178,11 @@ func materializeDep(
 		}
 
 		installErr := registryClient.Install(ctx, dep.Name, opts)
+		if serverErr, ok := rocks.AsServerError(
+			fmt.Sprintf("installing %s %s", dep.Name, dep.Version), installErr); ok {
+			return serverErr
+		}
+
 		if installErr != nil {
 			if advice := rocks.PinAdvice(installErr); advice != "" {
 				return fmt.Errorf("installing %s %s: %w; %s",

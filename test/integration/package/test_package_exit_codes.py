@@ -54,6 +54,48 @@ def test_unreachable_registry_exits_2(tt_cmd, project):
     assert "connection refused" in result.stderr
 
 
+@pytest.mark.parametrize("args", [("resolve",), ("search", "stat")], ids=["resolve", "search"])
+def test_unreachable_registry_says_it_in_one_line(tt_cmd, project, args):
+    """The error names the operation, the server, where it is configured and
+    why: no layers of wrapping, no Go type names. -V has them."""
+    registry = f"http://127.0.0.1:{closed_port()}/"
+    env = {**os.environ, "TT_REGISTRIES": registry}
+
+    result = subprocess.run(
+        [str(tt_cmd), "package", *args],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 2, result.stderr
+    assert (
+        f'"stat": cannot reach rock server {registry} (from TT_REGISTRIES): connection refused'
+    ) in result.stderr
+    assert "remote." not in result.stderr
+    assert "resolving product" not in result.stderr
+
+    verbose = subprocess.run(
+        [str(tt_cmd), "-V", "package", *args],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert "dial tcp" in verbose.stderr
+
+
+def test_missing_registry_directory_exits_1(tt_cmd, project, tmp_path):
+    """A rock server directory that is not there is the user's to fix."""
+    missing = tmp_path / "nowhere"
+    result = run(tt_cmd, project, "package", "resolve", "--registry", str(missing))
+    assert result.returncode == 1, result.stderr
+    assert (
+        f'resolving "stat": cannot reach rock server {missing} (from --registry): '
+        "no such file or directory"
+    ) in result.stderr
+
+
 def test_malformed_registry_exits_1(tt_cmd, project):
     """A registry URL with a scheme nothing speaks is the user's to fix.
 

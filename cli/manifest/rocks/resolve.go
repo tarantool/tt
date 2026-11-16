@@ -68,7 +68,8 @@ func resolveWith(
 ) (ResolvedRock, error) {
 	candidates, err := index.Query(ctx, name, "")
 	if err != nil {
-		return ResolvedRock{}, fmt.Errorf("rocks: resolve %q: %w", name, err)
+		return ResolvedRock{}, serverError(fmt.Sprintf("resolving %q", name),
+			fmt.Sprintf("rocks: resolve %q", name), err)
 	}
 
 	if len(candidates) == 0 {

@@ -102,7 +102,8 @@ func (a *Adapter) Search(
 
 	results, err := rocksClient.Search(ctx, pattern, opts)
 	if err != nil {
-		return nil, fmt.Errorf("rocks: search %q: %w", pattern, err)
+		return nil, serverError(fmt.Sprintf("searching %q", pattern),
+			fmt.Sprintf("rocks: search %q", pattern), err)
 	}
 
 	return results, nil
@@ -120,7 +121,8 @@ func (a *Adapter) Download(
 
 	path, err := rocksClient.Download(ctx, name, opts)
 	if err != nil {
-		return "", fmt.Errorf("rocks: download %q: %w", name, err)
+		return "", serverError(fmt.Sprintf("downloading %q", name),
+			fmt.Sprintf("rocks: download %q", name), err)
 	}
 
 	return path, nil

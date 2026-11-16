@@ -73,7 +73,7 @@ func reportError(cmd *cobra.Command, err error) int {
 
 		_ = cmd.Usage()
 	default:
-		exitcode.Report(err)
+		exitcode.Report(shortServerError(err))
 	}
 
 	return exitcode.Code(err)

@@ -954,6 +954,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- A rock server that cannot be reached or read is one line: what was being
+  done, the server, where it is configured and why, `resolving "checks":
+  cannot reach rock server http://no-such-host.invalid/ (from
+  TT_REGISTRIES): no such host; the manifest was left unchanged`. The error
+  went through seven levels of wrapping and named Go types of go-luarocks,
+  `remote.HTTPRemoteIndex`, and a missing directory said `stat` twice. This
+  holds for `tt package add`, `remove`, `update`, `resolve`, `build`,
+  `fetch`, `search` and `download`; `-V` logs the error in full. The exit
+  codes stay: 2 for the network, 1 for a directory that is not there.
 - `tt rocks install NAME` with no version and no `--dev` installs the
   newest release of NAME, as `tt package add` resolves it and as LuaRocks
   does with the scm versions of luarocks.org on a server of their own: it
