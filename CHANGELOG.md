@@ -927,6 +927,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   amd64 for tt 3 say, `tt binary install tt` fails naming the platforms the
   release has and `--source-build`, instead of looking for an archive there
   is none of.
+- `tt binary install tarantool 2.11.5`, or `1.10.15`, `2.11`, `2.11ee` or
+  an SDK of Tarantool 2, answered `the hash must contain at least 7
+  characters` or `hash has a wrong format`: the versions older than 3.0 were
+  left out of the search, and the version was then taken for a commit. It
+  now fails at once, with `--source-build`, `--dynamic`, `--use-docker` and
+  `--local-repo` too, saying that tt 3 installs Tarantool 3.0 and later
+  only and that tt 2 installs the version asked for.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in

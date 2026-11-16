@@ -338,6 +338,34 @@ def test_install_tarantool_latest_release(tt_cmd, tmp_path):
     assert (tmp_path / ".tarantool" / "versions" / "tarantool" / "tarantool_3.2.1").is_dir()
 
 
+@pytest.mark.parametrize(
+    "program,version,flags",
+    [
+        ("tarantool", "2.11.5", []),
+        ("tarantool", "1.10.15", []),
+        ("tarantool", "2.11", ["--source-build"]),
+        ("tarantool", "2.11.5", ["--dynamic"]),
+        ("tarantool", "2.11.5", ["--local-repo", "distfiles"]),
+        ("tarantool", "2.11.1ee", []),
+        ("sdk", "2.11", []),
+    ],
+)
+def test_install_tarantool_before_3(tt_cmd, tmp_path, program, version, flags):
+    # Refused by its version before anything is looked up: no network.
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "install", program, version, "--force", *flags],
+        cwd=tmp_path,
+    )
+    assert rc != 0, output
+    requested = version.removesuffix("ee")
+    assert (
+        f"{requested}: tt 3 installs Tarantool 3.0 and later only; "
+        f"use tt 2 to install Tarantool {requested}"
+    ) in output
+    assert "hash" not in output
+    assert not (tmp_path / ".tarantool").exists()
+
+
 @pytest.mark.parametrize("update", [False, True])
 def test_install_tarantool_existing_master(tt_cmd, tmp_path, local_tarantool_build, update):
     built_binary, _, build_log = local_tarantool_build

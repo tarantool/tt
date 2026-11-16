@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 
@@ -63,9 +65,47 @@ func BundleSource(program Program) (bundle.Source, error) {
 // supported. SDK archives carry the version of their Tarantool; tt, tt-ee and
 // TCM have versions of their own.
 func IsMasked(program Program, ver version.Version) bool {
-	isTarantool := program == ProgramCe || program.BundleSource() == ProgramSDK
+	return isTarantoolRelease(program) && ver.Major < minSupportedMajorVersion
+}
 
-	return isTarantool && ver.Major < minSupportedMajorVersion
+// isTarantoolRelease reports whether the versions of program are those of
+// Tarantool: Community or Enterprise, or the SDK.
+func isTarantoolRelease(program Program) bool {
+	return program == ProgramCe || program.BundleSource() == ProgramSDK
+}
+
+// ErrUnsupportedVersion reports a version of Tarantool tt no longer installs.
+var ErrUnsupportedVersion = errors.New("unsupported version")
+
+// requestedVersionPattern matches a version a user asks for: X, X.Y, X.Y.Z,
+// with a pre-release or a build after a dash, and an archive name with a
+// build name before the version, gc64-3.8.0-0-r94. Its submatch is the
+// major version.
+var requestedVersionPattern = regexp.MustCompile(
+	`^(?:[A-Za-z][A-Za-z0-9]*-)?v?(\d+)(?:\.\d+){0,2}(?:-[0-9A-Za-z.-]+)?$`)
+
+// CheckRequestedVersion reports a version of program tt no longer installs
+// (IsMasked): a Tarantool, Community or Enterprise, or an SDK, older than
+// 3.0. The error wraps ErrUnsupportedVersion and names the version
+// requested; anything else, a commit or a newer version, is nil. A request
+// that may be a commit, seven digits or more without a dot, is not taken for
+// a version.
+func CheckRequestedVersion(program Program, requested string) error {
+	selected := strings.TrimPrefix(requested, SDKVersionPrefix)
+
+	match := requestedVersionPattern.FindStringSubmatch(selected)
+	if match == nil || !strings.Contains(selected, ".") && len(selected) >= MinCommitHashLength {
+		return nil
+	}
+
+	major, err := strconv.ParseUint(match[1], 10, 64)
+	if err == nil && isTarantoolRelease(program) && major < minSupportedMajorVersion {
+		return fmt.Errorf("%w: %s %s: tt %d installs Tarantool %d.0 and later only; "+
+			"use tt 2 to install Tarantool %s", ErrUnsupportedVersion, program, requested,
+			version.Major, minSupportedMajorVersion, requested)
+	}
+
+	return nil
 }
 
 // Bundle is a build of a product a source offers.

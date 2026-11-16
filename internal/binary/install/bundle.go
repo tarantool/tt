@@ -602,6 +602,11 @@ func prepareBundleProgram(installCtx InstallCtx) (installationActivation, error)
 	params.inst = &installCtx
 	params.artifactRoot = artifactRoot
 
+	err = binary.CheckRequestedVersion(installCtx.Program, installCtx.requestedVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	err = acquireBundleInfoToInstall(&params)
 	if err != nil {
 		log.Errorf("Failed to find bundles to install: %v", err)

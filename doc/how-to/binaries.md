@@ -77,6 +77,11 @@ scope; without a version, `uninstall` removes the only installed one.
 - The SDK: like Enterprise - no version, `X`, `X.Y` or `X.Y.Z` select the
   latest stable `gc64` SDK, and a complete archive name an exact one.
 
+Tarantool, Community or Enterprise, and the SDK are installed from 3.0 on.
+A version older than that - `2.11.5`, `1.10.15`, `2.11ee` - is refused with
+a message that names it, whether it is to be downloaded or built from
+source; install it with tt 2.
+
 A standalone Tarantool Enterprise release is installed under its Tarantool
 version, `3.8.1`, without the `gc64` prefix, the revision, or the hash:
 `gc64-3.8.1-0-r93` and `gc64-3.8.1-0-r94` both install into

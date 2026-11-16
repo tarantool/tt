@@ -53,6 +53,13 @@ func (resolved resolvedInstallVersion) installName(program binary.Program) strin
 func resolveInstallVersion(installCtx InstallCtx) (resolvedInstallVersion, error) {
 	requested := installCtx.requestedVersion
 
+	// Tarantool 1.10 and 2.x are not offered, and the request is not taken
+	// for a commit either.
+	err := binary.CheckRequestedVersion(installCtx.Program, requested)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+
 	isPullRequest, pullRequestID := binary.IsPullRequest(requested)
 
 	switch {

@@ -85,3 +85,69 @@ func TestResolveInstallVersionMasterWithoutRepository(t *testing.T) {
 		assert.Equal(t, masterVersion, resolved.name)
 	}
 }
+
+// TestInstallTarantoolBefore3 refuses a Tarantool older than 3.0 by name,
+// before any lookup: it was taken for a commit hash and failed on its
+// format.
+func TestInstallTarantoolBefore3(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		ctx  InstallCtx
+	}{
+		{name: "release", ctx: InstallCtx{Program: binary.ProgramCe, requestedVersion: "2.11.5"}},
+		{name: "1.10", ctx: InstallCtx{Program: binary.ProgramCe, requestedVersion: "1.10.15"}},
+		{name: "mask", ctx: InstallCtx{Program: binary.ProgramCe, requestedVersion: "2.11"}},
+		{
+			name: "source build",
+			ctx: InstallCtx{
+				Program: binary.ProgramCe, requestedVersion: "2.11.5", SourceBuild: true,
+			},
+		},
+		{
+			name: "docker",
+			ctx: InstallCtx{
+				Program: binary.ProgramCe, requestedVersion: "2.11.5", BuildInDocker: true,
+			},
+		},
+		{
+			name: "dynamic",
+			ctx: InstallCtx{
+				Program: binary.ProgramCe, requestedVersion: "2.11.5", Dynamic: true,
+			},
+		},
+		{
+			name: "local repository",
+			ctx: InstallCtx{
+				Program: binary.ProgramCe, requestedVersion: "2.11.5", LocalRepo: "distfiles",
+			},
+		},
+		{
+			name: "enterprise",
+			ctx:  InstallCtx{Program: binary.ProgramEe, requestedVersion: "2.11.1"},
+		},
+		{
+			name: "enterprise archive",
+			ctx: InstallCtx{
+				Program: binary.ProgramEe, requestedVersion: "gc64-2.11.1-0-r609",
+				LocalRepo: "bundles",
+			},
+		},
+		{name: "sdk", ctx: InstallCtx{Program: binary.ProgramSDK, requestedVersion: "2.11"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			// Neither git nor a source is asked.
+			t.Setenv("PATH", t.TempDir())
+			setTestBundleSources(t)
+
+			test.ctx.Scope = binary.ScopeProject
+
+			err := Install(test.ctx)
+			require.ErrorIs(t, err, binary.ErrUnsupportedVersion)
+			require.ErrorContains(t, err, test.ctx.requestedVersion+
+				": tt 3 installs Tarantool 3.0 and later only; use tt 2 to install Tarantool "+
+				test.ctx.requestedVersion)
+			assert.NoDirExists(t, ".tarantool")
+		})
+	}
+}
