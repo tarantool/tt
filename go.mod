@@ -21,13 +21,12 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/otiai10/copy v1.14.1
 	github.com/pelletier/go-toml/v2 v2.2.4
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7
 	github.com/tarantool/go-iproto v1.1.0
-	github.com/tarantool/go-luarocks v0.1.1-0.20261111110720-119a9e469552
+	github.com/tarantool/go-luarocks v0.1.1-0.20261116155841-7d7909b11b0f
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c
 	github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094
@@ -130,6 +129,7 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect

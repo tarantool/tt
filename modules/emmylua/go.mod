@@ -6,7 +6,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-luarocks v0.1.1-0.20261111110720-119a9e469552
+	github.com/tarantool/go-luarocks v0.1.1-0.20261116155841-7d7909b11b0f
 	github.com/tarantool/tt/sdk v0.0.0-0
 	github.com/tarantool/tt/sdk/fetch v0.0.0-0
 	golang.org/x/term v0.47.0
