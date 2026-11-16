@@ -125,7 +125,8 @@ def test_cat_old_commands_are_gone(tt_cmd, tmp_path):
     for command in ("cat", "play"):
         rc, output = run_command_and_get_output([tt_cmd, command, "test.xlog"], cwd=tmp_path)
         assert rc == 1
-        assert f"unknown command {command}" in output
+        assert f'unknown command "{command}" for "tt"' in output
+        assert f"with tt data {command}" in output
 
 
 def test_cat_yaml(tt_cmd, tmp_path):

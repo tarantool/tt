@@ -382,7 +382,7 @@ hello = "./hello"
 
 	out, err = exec.CommandContext(t.Context(), result.Output, "version").CombinedOutput()
 	require.Error(t, err, "version is a command of builtin")
-	assert.Contains(t, string(out), `unknown command version`)
+	assert.Contains(t, string(out), `unknown command "version"`)
 
 	// A module that takes the name of a standard one fails the check.
 	writeFile(t, filepath.Join(dir, "hello", "hello.go"),

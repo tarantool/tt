@@ -553,6 +553,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- An unknown top-level command is one error, such as `unknown command
+  "instnace" for "tt"`, with the commands of a close name (`instance`) and <!-- codespell:ignore instnace -->
+  `Run 'tt --help' for usage.`, where tt printed the whole usage after it.
+  A command of tt 2 that tt 3 moved or dropped says where it went or what
+  replaces it: `tt start` points to `tt instance start`, `tt cat` to
+  `tt data cat`, `tt build` and `tt pack` to `tt package`, `tt install` to
+  `tt binary install`, `tt init` to `tt new`, `tt env` to
+  `.env/activate.sh`.
 - `tt run` works in any project, as the instance commands find it: one of
   templates alone, as `tt create single_instance` and `cluster` make, runs
   its own Tarantool, where `tt run` refused it with `not a tt package

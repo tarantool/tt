@@ -291,6 +291,35 @@ def test_unknown_subcommand_of_group(tt_cmd, tmp_path, group, typed, meant):
     assert "USAGE" not in stderr
 
 
+@pytest.mark.parametrize(
+    "args, hint",
+    [
+        (["start", "app:*"], "tt 3 manages instances with tt instance start"),
+        (["cat", "00000000000000000000.xlog"], "with tt data cat"),
+        (["build"], "tt 3 builds packages with tt package build"),
+        (["pack", "tgz"], "with tt package pack"),
+        (["install", "tarantool"], "with tt binary install"),
+        (["binaries", "list"], "tt binary list"),
+        (["init"], "with tt new"),
+        (["env"], "source .env/activate.sh"),
+        (
+            ["instnace", "start"],  # codespell:ignore instnace
+            "Did you mean this?\n         instance\n",
+        ),
+    ],
+)
+def test_unknown_top_level_command(tt_cmd, tmp_path, args, hint):
+    # One error with a hint or a suggestion, not the whole usage of tt.
+    rc, stdout, stderr = run_command_and_get_streams([tt_cmd, *args], cwd=tmp_path)
+
+    assert rc == 1
+    assert stdout == ""
+    assert stderr.startswith(f'   ⨯ unknown command "{args[0]}" for "tt"\n')
+    assert hint in stderr
+    assert stderr.endswith("Run 'tt --help' for usage.\n")
+    assert "USAGE" not in stderr
+
+
 @pytest.mark.parametrize("group", ["package", "binary", "instance", "data"])
 def test_group_alone_prints_help(tt_cmd, tmp_path, group):
     rc, stdout, stderr = run_command_and_get_streams([tt_cmd, group], cwd=tmp_path)

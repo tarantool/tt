@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -125,6 +126,66 @@ func TestUnknownSubcommand(t *testing.T) {
 		assert.Equal(t, sdk.ExitOK, got.code)
 		assert.Empty(t, got.logged)
 	})
+}
+
+// TestUnknownTopLevelCommand checks that the root names the command it does
+// not have in one line, with where a command of tt 2 went, and does not
+// print its usage.
+//
+//nolint:paralleltest // Replaces slog.Default for the duration of each case.
+func TestUnknownTopLevelCommand(t *testing.T) {
+	for _, testCase := range []struct {
+		args []string
+		hint string
+	}{
+		{[]string{"start", "app:*"}, "tt 3 manages instances with tt instance start"},
+		{[]string{"logrotate"}, "tt 3 manages instances with tt instance logrotate"},
+		{[]string{"log", "-f"}, "tt 3 shows the logs of instances with tt instance logs"},
+		{[]string{"play", "x.xlog"}, "with tt data play"},
+		{[]string{"build"}, "tt 3 builds packages with tt package build"},
+		{[]string{"pack", "tgz"}, "with tt package pack"},
+		{[]string{"install", "tarantool"}, "with tt binary install"},
+		{[]string{"init"}, "with tt new"},
+		{[]string{"env"}, "tt env is gone in tt 3: source .env/activate.sh"},
+		{[]string{"cfg", "dump"}, "tt cfg is gone in tt 3"},
+		{
+			[]string{"instnace", "start"}, // codespell:ignore instnace
+			"Did you mean this?\n         instance\n",
+		},
+	} {
+		t.Run(testCase.args[0], func(t *testing.T) {
+			got := runUnknown(t, NewCmdRoot(), testCase.args...)
+
+			assert.Equal(t, sdk.ExitFailure, got.code)
+			assert.True(t, strings.HasPrefix(got.logged,
+				`   ⨯ unknown command "`+testCase.args[0]+`" for "tt"`+"\n"), got.logged)
+			assert.Contains(t, got.logged, testCase.hint)
+			assert.True(t, strings.HasSuffix(got.logged, "     Run 'tt --help' for usage.\n"),
+				got.logged)
+			assert.Empty(t, got.out, "the usage is not printed")
+		})
+	}
+
+	t.Run("a hint only for the root", func(t *testing.T) {
+		got := runUnknown(t, newGroupTree(), "grp", "start")
+
+		assert.NotContains(t, got.logged, "tt instance")
+	})
+}
+
+// TestMovedCommandsAreGone checks that tt has none of the commands the hints
+// are for: a hint is given only for a command tt does not run.
+func TestMovedCommandsAreGone(t *testing.T) {
+	t.Parallel()
+
+	root := NewCmdRoot()
+
+	for name := range movedCommands {
+		for _, command := range root.Commands() {
+			assert.False(t, command.Name() == name || command.HasAlias(name),
+				"tt has %q, the hint for it is dead", name)
+		}
+	}
 }
 
 // TestRejectUnknownSubcommands checks which commands become groups: those

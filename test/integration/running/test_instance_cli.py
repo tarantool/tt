@@ -19,7 +19,8 @@ def test_old_top_level_commands_are_gone(tt_cmd, tmp_path, command):
     # The instance commands live under tt instance only, without shims.
     rc, out = utils.run_command_and_get_output([tt_cmd, command], cwd=tmp_path)
     assert rc != 0
-    assert f"unknown command {command}" in out
+    assert f'unknown command "{command}" for "tt"' in out
+    assert "with tt instance " in out
 
 
 def test_partial_success_exit_code(tt_cmd, tmp_path):

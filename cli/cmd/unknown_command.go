@@ -21,10 +21,10 @@ func (e *unknownCommandError) Error() string {
 	return fmt.Sprintf("unknown command %q for %q", e.name, e.parent.CommandPath())
 }
 
-// report returns what the user is told: the error, then the commands of the
-// parent whose names are close to the typed one, then where the usage is.
-// The usage itself is not printed: a whole command list buries the one line
-// that matters.
+// report returns what the user is told: the error, then where a command of
+// tt 2 went or the commands of the parent whose names are close to the
+// typed one, then where the usage is. The usage itself is not printed: a
+// whole command list buries the one line that matters.
 func (e *unknownCommandError) report() string {
 	var report strings.Builder
 
@@ -35,7 +35,9 @@ func (e *unknownCommandError) report() string {
 		e.parent.SuggestionsMinimumDistance = 2
 	}
 
-	if suggestions := e.parent.SuggestionsFor(e.name); len(suggestions) > 0 {
+	if hint, ok := movedCommandHint(e.parent, e.name); ok {
+		report.WriteString("\n" + hint)
+	} else if suggestions := e.parent.SuggestionsFor(e.name); len(suggestions) > 0 {
 		report.WriteString("\nDid you mean this?")
 
 		for _, suggestion := range suggestions {
@@ -97,4 +99,68 @@ func isGroup(command *cobra.Command) bool {
 // group of its subcommands: its usage has a line to run it by.
 func runsItself(command *cobra.Command) bool {
 	return command.Runnable() && !isGroup(command)
+}
+
+// Hints of movedCommands that more than one command shares; %s is the
+// command typed.
+const (
+	instanceHint = "tt 3 manages instances with tt instance %s"
+	binaryHint   = "tt 3 manages Tarantool, tt and tcm with tt binary %s"
+	dataHint     = "tt 3 reads and replays snapshots and write-ahead logs with tt data %s"
+	logsHint     = "tt 3 shows the logs of instances with tt instance logs"
+)
+
+// movedCommands are the hints for the top-level commands of tt 2 that tt 3
+// has not, by name: where the command went, or what replaces it, as
+// doc/migration_from_older_versions.md tells. A %s in a hint is the command
+// typed.
+//
+//nolint:gochecknoglobals,goconst // A constant table, of the names tt 2 had.
+var movedCommands = map[string]string{
+	"start":     instanceHint,
+	"stop":      instanceHint,
+	"restart":   instanceHint,
+	"status":    instanceHint,
+	"kill":      instanceHint,
+	"logrotate": instanceHint,
+	"check":     instanceHint,
+	"clean":     instanceHint,
+	"log":       logsHint,
+	"logs":      logsHint,
+	"instances": "tt 3 lists instances with tt instance status, " +
+		"and installed applications with tt package list --scope system",
+	"cat":       dataHint,
+	"play":      dataHint,
+	"build":     "tt 3 builds packages with tt package build",
+	"pack":      "tt 3 packs packages into .tt archives with tt package pack",
+	"init":      "tt 3 creates a package with tt new",
+	"install":   binaryHint,
+	"uninstall": binaryHint,
+	"search":    binaryHint,
+	"binaries":  "tt 3 lists and switches versions with tt binary list and tt binary switch",
+	"download":  "tt 3 installs the Tarantool SDK with tt binary install tarantool-sdk",
+	"backup-id": "tt 3 prints the identifier of a new backup with tt backup id",
+	"env": "tt env is gone in tt 3: source .env/activate.sh, " +
+		"which the first tt binary install in a project creates",
+	"cfg": "tt cfg is gone in tt 3, as tt.yaml is: " +
+		"tt registry list shows the rock servers",
+	"enable": "tt enable is gone in tt 3: projects are found from the current " +
+		"directory, and tt package install installs applications",
+	"cartridge": "tt 3 does not support Cartridge",
+}
+
+// movedCommandHint returns the hint of movedCommands for name, typed in
+// place of a command of parent. ok is false for a parent other than the
+// root and for a name tt 2 did not have either.
+func movedCommandHint(parent *cobra.Command, name string) (string, bool) {
+	hint, ok := movedCommands[name]
+	if parent.HasParent() || !ok {
+		return "", false
+	}
+
+	if strings.Contains(hint, "%s") {
+		hint = fmt.Sprintf(hint, name)
+	}
+
+	return hint, true
 }

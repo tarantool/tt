@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -16,8 +14,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/logging"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
-
-var errUnknownCommand = errors.New("unknown command ")
 
 var (
 	cmdCtx  cmdcontext.CmdCtx
@@ -73,13 +69,7 @@ func newRootCmd() *cobra.Command {
 		Example: `$ tt -V version
   $ tt -I help
   $ tt completion`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			} else {
-				return fmt.Errorf("%w%s", errUnknownCommand, args[0])
-			}
-		},
+		RunE:             groupRunE,
 		TraverseChildren: true,
 	}
 

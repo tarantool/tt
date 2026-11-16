@@ -435,11 +435,16 @@ func TestMainExitCodes(t *testing.T) {
 			name: "exit with a reported error", program: "demo",
 			args: []string{"demo", "exit-reported"}, code: 3, quiet: true,
 		},
-		// cobra reports what it detects itself, with the usage.
+		// An unknown command points to the usage rather than printing it.
 		{
 			name: "unknown command", program: "demo", args: []string{"nosuch"}, code: 1,
-			stderr: []string{"unknown command nosuch"}, usage: true,
+			stderr: []string{`unknown command "nosuch" for "tt"`, "Run 'tt --help' for usage."},
 		},
+		{
+			name: "command of tt 2", program: "demo", args: []string{"start", "app"}, code: 1,
+			stderr: []string{"tt 3 manages instances with tt instance start"},
+		},
+		// cobra reports what it detects itself, with the usage.
 		{
 			name: "unknown flag", program: "demo", args: []string{"demo", "ok", "--nosuch"},
 			code: 1, stderr: []string{"unknown flag: --nosuch"}, usage: true,
@@ -968,5 +973,5 @@ func TestMainExternalModulesListed(t *testing.T) {
 
 	got = runTT(t, ttRun{program: "no-extmod", args: []string{"modules", "list"}, env: env})
 	assert.Equal(t, 1, got.code)
-	assert.Contains(t, got.stderr, "unknown command modules")
+	assert.Contains(t, got.stderr, `unknown command "modules" for "tt"`)
 }
