@@ -96,33 +96,41 @@ func (s Scope) ArtifactPath() (string, error) {
 // is no fallback: the project scope there would write into the version, so
 // ProjectDir fails with scope.ErrInstalledTree and points at the other scopes.
 func ProjectDir() (string, error) {
+	projectDir, _, err := FindProjectDir()
+
+	return projectDir, err
+}
+
+// FindProjectDir is ProjectDir that also tells whether the directory is a
+// project, rather than the working directory outside one.
+func FindProjectDir() (string, bool, error) {
 	workingDir, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
+		return "", false, fmt.Errorf("cannot resolve project artifact path: %w", err)
 	}
 
 	projectDir, found, err := scope.FindProject(workingDir)
 	if err != nil {
-		return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
+		return "", false, fmt.Errorf("cannot resolve project artifact path: %w", err)
 	}
 
 	if found {
-		return projectDir, nil
+		return projectDir, true, nil
 	}
 
 	// Inside an installed version there is no project to fall back on: the
 	// working directory would put .tarantool into the version itself.
 	installed, err := scope.InstalledTree(workingDir)
 	if err != nil {
-		return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
+		return "", false, fmt.Errorf("cannot resolve project artifact path: %w", err)
 	}
 
 	if installed {
-		return "", fmt.Errorf("cannot resolve project artifact path: %s %w; "+
+		return "", false, fmt.Errorf("cannot resolve project artifact path: %s %w; "+
 			"use --scope user or --scope system", workingDir, scope.ErrInstalledTree)
 	}
 
-	return workingDir, nil
+	return workingDir, false, nil
 }
 
 // InstallationName returns the directory name of a standalone or SDK component.

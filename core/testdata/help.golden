@@ -1082,10 +1082,12 @@ Install tt, Tarantool, Enterprise, and TCM.
 The installed version becomes active in the selected scope. See
 "tt binary --help" for scope locations and the binary layout.
 
-Project installations create .env/activate.sh and .env/deactivate.sh in the
-project directory once.
+Project installations create .env/activate.sh and .env/deactivate.sh, and
+activate.fish and deactivate.fish for fish, in the project directory once.
 Source them to use the project binaries and headers or restore your shell
 environment.
+Outside a project, the project scope is the current directory: the first
+installation there says that it creates .tarantool/ and .env/ in it.
 
 USAGE
   tt binary install [flags] <command> [command flags]
@@ -1341,7 +1343,9 @@ EXAMPLES
 
 === tt binary list --help
 List installed versions and active binaries in the selected scope.
-The project scope uses only .tarantool in the current directory.
+The project scope is the .tarantool of the project the current directory is
+in, found as "tt binary --help" says, even from its subdirectories; outside
+a project, the .tarantool of the current directory.
 
 Each line names the product and the version; the active version is marked
 [active]. A local build linked with --from-build is listed by its path.

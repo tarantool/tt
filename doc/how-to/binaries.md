@@ -14,7 +14,10 @@ applications run on:
 
 Every command acts on one [scope](../concepts/projects-and-scopes.md):
 `--scope project` (the default), `user` or `system`, and never falls back to
-another.
+another. The project scope is the `.tarantool` of the project the current
+directory is in, from any of its subdirectories; outside a project it is the
+`.tarantool` of the current directory, and the first `tt binary install`
+there says so.
 
 ## Install and switch
 

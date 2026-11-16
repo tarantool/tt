@@ -1647,6 +1647,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   project that has the sh scripts already, and prints `source
   .env/activate.fish` when `SHELL` is fish. Links and scripts written by
   an earlier tt stay as they are: `tt binary switch` rewrites the links.
+- The help of `tt binary list` said that the project scope uses only the
+  `.tarantool` of the current directory; it is the `.tarantool` of the
+  project the current directory is in, from its subdirectories too, as the
+  help of `tt binary` says. Outside every project, the first `tt binary
+  install` says that it installs into the `.tarantool` of the current
+  directory, rather than creating `.tarantool/` and `.env/` in `$HOME`, say,
+  without a word.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

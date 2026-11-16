@@ -53,6 +53,27 @@ func TestScopeArtifactPathProjectSubdirectory(t *testing.T) {
 	}
 }
 
+// TestFindProjectDir tells a project from the working directory outside one.
+func TestFindProjectDir(t *testing.T) {
+	outside := t.TempDir()
+	t.Chdir(outside)
+
+	dir, found, err := binary.FindProjectDir()
+	require.NoError(t, err)
+	assert.False(t, found)
+	assert.Equal(t, outside, dir)
+
+	project := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(project, "app.manifest.toml"), nil, 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(project, "src"), 0o755))
+	t.Chdir(filepath.Join(project, "src"))
+
+	dir, found, err = binary.FindProjectDir()
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, project, dir)
+}
+
 func TestScopeArtifactPathProjectInstalledVersion(t *testing.T) {
 	// An installed version carries a manifest like a project, but it is not
 	// one, and the working directory is no fallback either: the project

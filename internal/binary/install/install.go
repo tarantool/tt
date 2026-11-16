@@ -36,6 +36,8 @@ func Install(installCtx InstallCtx) error {
 		installCtx.LocalRepo = localRepo
 	}
 
+	noteProjectScope(installCtx.Scope)
+
 	// SIGINT and SIGTERM stop the build and remove the temporary files:
 	// the deferred cleanups below do not run when a signal ends tt.
 	stop := binary.WatchInterrupts(installCtx.KeepTemp)
@@ -62,6 +64,23 @@ func Install(installCtx InstallCtx) error {
 	}
 
 	return finishInstallation(installCtx, activate)
+}
+
+// noteProjectScope says where a project-scope installation outside every
+// project goes, when it is the first: the working directory gets .tarantool
+// and .env, which is easy to miss in $HOME.
+func noteProjectScope(installScope binary.Scope) {
+	if installScope != binary.ScopeProject {
+		return
+	}
+
+	directory, found, err := binary.FindProjectDir()
+	if err != nil || found || binary.IsDir(filepath.Join(directory, ".tarantool")) {
+		return
+	}
+
+	log.Infof("Not inside a project: the project scope is %s, in the current directory "+
+		"(see tt binary --help)", filepath.Join(directory, ".tarantool"))
 }
 
 // finishInstallation completes every filesystem preparation before changing active links.

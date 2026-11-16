@@ -177,6 +177,23 @@ def test_install_tt_failure_leaves_no_scope(tt_cmd, tmp_path, local_tt_build, mo
     assert not build_log.exists()
 
 
+@pytest.mark.parametrize("in_project", [False, True])
+@pytest.mark.usefixtures("local_tt_build")
+def test_install_tt_outside_project_says_where(tt_cmd, tmp_path, in_project):
+    """The first project-scope install outside every project names the
+    .tarantool it creates in the current directory."""
+    if in_project:
+        (tmp_path / "app.manifest.toml").write_text("")
+    rc, output = install_tt(tt_cmd, tmp_path)
+    assert rc == 0, output
+    note = f"Not inside a project: the project scope is {tmp_path / '.tarantool'}"
+    assert (note in output) != in_project, output
+
+    rc, output = install_tt(tt_cmd, tmp_path, flags=["--reinstall"])
+    assert rc == 0, output
+    assert "Not inside a project" not in output
+
+
 @pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
 @pytest.mark.parametrize("keep", [False, True])
 @pytest.mark.usefixtures("local_tt_build")
