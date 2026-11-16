@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/status"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
@@ -34,6 +37,12 @@ var (
 	// its instance from (running.StartWatchdog), which tt instance start
 	// resolved.
 	watchdogLaunch string
+	// watchdogReport is --report, the report file of the start that waits
+	// for the instance of the watchdog (running.WaitUp).
+	watchdogReport string
+	// startWait is how tt instance start and restart wait for the instances
+	// they start in the background.
+	startWait waitOptions
 	// integrityCheckPeriod is a flag that enables periodic integrity checks.
 	// The default period is 1 day.
 	integrityCheckPeriod = 24 * 60 * 60
@@ -50,7 +59,7 @@ func NewStartCmd() *cobra.Command {
 		Short: "Start instance(s)",
 		Long: "Start the instances the targets select. By default every instance runs " +
 			"in the background under a watchdog of tt, which restarts it as the restart " +
-			"field of its record says.\n\n" +
+			"field of its record says.\n\n" + waitHelp + "\n\n" +
 			"What an instance runs - its binary or tarantool, its script or cluster " +
 			"config, its arguments, environment, restart policy and paths - is resolved " +
 			"here, before its watchdog starts, and the watchdog runs that for its whole " +
@@ -82,10 +91,12 @@ func NewStartCmd() *cobra.Command {
 
 	startCmd.Flags().BoolVar(&startForeground, running.ForegroundFlag, false,
 		"stay in the foreground while the instances run, without restarting them")
+	addWaitFlags(startCmd)
 	startCmd.Flags().BoolVar(&watchdog, running.WatchdogFlag, false, "")
 	startCmd.Flags().StringVar(&watchdogLaunch, running.LaunchFlag, "", "")
+	startCmd.Flags().StringVar(&watchdogReport, running.ReportFlag, "", "")
 
-	for _, name := range []string{running.WatchdogFlag, running.LaunchFlag} {
+	for _, name := range []string{running.WatchdogFlag, running.LaunchFlag, running.ReportFlag} {
 		_ = startCmd.Flags().MarkHidden(name)
 	}
 
@@ -93,6 +104,46 @@ func NewStartCmd() *cobra.Command {
 		&cmdCtx.Cli.IntegrityCheckPeriod)
 
 	return startCmd
+}
+
+// waitHelp is what the help of tt instance start and restart says of the
+// wait for the instances.
+const waitHelp = "In the background tt waits until every instance it starts is up, " +
+	"all of them at once, for --timeout at most: a Tarantool instance once its box " +
+	"runs and its config is applied, as tt instance status shows them in BOX and " +
+	"CONFIG, an external process once it has run for a second. An instance that " +
+	"exits before that has failed, also when its restart policy has its watchdog " +
+	"start it again, and so has one that is not up in time, which is left to its " +
+	"watchdog: tt says what happened, quotes the end of its tt.log and exits with " +
+	"an error. --no-wait starts the watchdogs and returns at once."
+
+// waitOptions are the flags of the wait of tt instance start and restart for
+// the instances they start in the background.
+type waitOptions struct {
+	// timeout is --timeout, how long to wait.
+	timeout time.Duration
+	// noWait is --no-wait, not to wait at all.
+	noWait bool
+}
+
+// errNotPositiveTimeout is the error for a --timeout that is not positive.
+var errNotPositiveTimeout = errors.New("--timeout must be positive; --no-wait does not wait")
+
+// addWaitFlags declares --timeout and --no-wait on cmd.
+func addWaitFlags(cmd *cobra.Command) {
+	cmd.Flags().DurationVar(&startWait.timeout, "timeout", running.DefaultStartTimeout,
+		"how long to wait for the instances started in the background to come up")
+	cmd.Flags().BoolVar(&startWait.noWait, "no-wait", false,
+		"do not wait for the instances started in the background to come up")
+}
+
+// check refuses a timeout the wait cannot keep.
+func (wait waitOptions) check() error {
+	if !wait.noWait && wait.timeout <= 0 {
+		return util.NewArgError(errNotPositiveTimeout.Error())
+	}
+
+	return nil
 }
 
 // startInstancesUnderWatchdog starts instances under tt watchdog.
@@ -107,7 +158,9 @@ func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.
 }
 
 // startWatchdogs starts the watchdogs of instances, in order, and records in
-// result those that do not start.
+// result those that do not start. Unless startWait says not to, it then
+// waits for all of them to come up at once (running.WaitUp), and records
+// those that do not as well.
 func startWatchdogs(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx,
 	result *instancesResult,
 ) {
@@ -123,11 +176,34 @@ func startWatchdogs(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx,
 		return
 	}
 
-	for i := range instances {
-		err := running.StartWatchdog(cmdCtx, ttBin, instances[i], watchdogStartArgs(cmdCtx))
-		if err != nil {
-			result.fail(names[i], err)
+	wait := !startWait.noWait
+	started := make([]*running.StartedWatchdog, 0, len(instances))
+
+	for idx := range instances {
+		watchdog, err := running.StartWatchdog(cmdCtx, ttBin, instances[idx],
+			watchdogStartArgs(cmdCtx), wait)
+
+		switch {
+		case err != nil:
+			result.fail(names[idx], err)
+		case watchdog.Waits():
+			started = append(started, watchdog)
 		}
+	}
+
+	if !wait || len(started) == 0 {
+		return
+	}
+
+	for i, err := range running.WaitUp(started, startWait.timeout, status.Probe) {
+		name := running.GetAppInstanceName(started[i].Instance)
+		if err != nil {
+			result.fail(name, err)
+
+			continue
+		}
+
+		log.Infof("The instance %s is up.", name)
 	}
 }
 
@@ -170,7 +246,12 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 // An instance that a systemd unit manages is refused, but when its unit
 // starts it (startedByItsUnit).
 func startResolved(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
-	err := refuseManaged(instances, "start", startedByItsUnit)
+	err := startWait.check()
+	if err != nil {
+		return err
+	}
+
+	err = refuseManaged(instances, "start", startedByItsUnit)
 	if err != nil {
 		return err
 	}
@@ -190,7 +271,9 @@ func startResolved(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) e
 // runWatchdog runs the watchdog of one instance, of the background or of the
 // foreground, from the launch --launch names, which the tt that started it
 // resolved and checked (running.StartWatchdog). It resolves nothing itself:
-// target only names the instance in the list of processes.
+// target only names the instance in the list of processes. A failure before
+// the watchdog runs goes to the start that waits for it, through --report,
+// as well: the standard error of the watchdog is the null device.
 func runWatchdog(cmdCtx *cmdcontext.CmdCtx, target []string) error {
 	if watchdogLaunch == "" {
 		return util.NewArgError(errWatchdogWithoutLaunch.Error())
@@ -202,6 +285,8 @@ func runWatchdog(cmdCtx *cmdcontext.CmdCtx, target []string) error {
 
 	launch, err := running.LoadLaunch(cmdCtx, watchdogLaunch)
 	if err != nil {
+		running.ReportEnd(watchdogReport, err)
+
 		return err
 	}
 
@@ -211,7 +296,7 @@ func runWatchdog(cmdCtx *cmdcontext.CmdCtx, target []string) error {
 		return startForegroundWatchdog(cmdCtx, launch)
 	}
 
-	return running.Start(cmdCtx, launch)
+	return running.Start(cmdCtx, launch, watchdogReport)
 }
 
 // integrityCheckPeriodOf returns the integrity check period of a watchdog in

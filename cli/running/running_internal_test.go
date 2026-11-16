@@ -35,15 +35,24 @@ func TestWatchdogArgs(t *testing.T) {
 		AppDir: "/opt/tarantool/versions/myapp/myapp_1.0.0", Template: "big",
 	}
 
+	launch := watchdogFiles{launch: "/run/.start.1.json", report: ""}
+
 	assert.Equal(t, []string{
 		"instance", "start", "--watchdog", "--launch", "/run/.start.1.json", "myapp:storage-1",
-	}, watchdogArgs(&inst, "/run/.start.1.json", false))
+	}, watchdogArgs(&inst, launch, false))
+
+	// A watchdog a start waits for.
+	assert.Equal(t, []string{
+		"instance", "start", "--watchdog", "--launch", "/run/.start.1.json",
+		"--report", "/run/.report.1.json", "myapp:storage-1",
+	}, watchdogArgs(&inst, watchdogFiles{launch: launch.launch, report: "/run/.report.1.json"},
+		false))
 
 	// The watchdog of tt instance start --foreground.
 	assert.Equal(t, []string{
 		"instance", "start", "--watchdog", "--launch", "/run/.start.1.json", "--foreground",
 		"myapp:storage-1",
-	}, watchdogArgs(&inst, "/run/.start.1.json", true))
+	}, watchdogArgs(&inst, launch, true))
 }
 
 // TestAppFile pins the application file tt instance check checks: app.file of

@@ -112,7 +112,7 @@ func startInstance(t *testing.T, inst *InstanceCtx, want string) *startedInstanc
 	require.NoError(t, err)
 
 	go func() {
-		started.done <- Start(&cmdcontext.CmdCtx{}, &launch)
+		started.done <- Start(&cmdcontext.CmdCtx{}, &launch, "")
 	}()
 
 	t.Cleanup(func() {

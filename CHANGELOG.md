@@ -918,6 +918,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   path given, `fmt` works as before. `check`, `doc` and `ls` still read the
   files git ignores: EmmyLua takes a list of files only as workspaces of
   their own, which changes how modules resolve.
+- `tt instance start` and `tt instance restart` wait for the instances they
+  start in the background, all of them at once, until each is up or has
+  failed. A Tarantool instance is up once its console socket tells that its
+  box runs and its config is applied (`BOX running`, `CONFIG ready` in
+  `tt instance status`), an instance that runs its script once its box
+  runs, and an external process once it has run for a second. They used to
+  print `Starting an instance [...]` and exit with 0 while the instance had
+  already failed, saying why in its `tt.log` alone. An instance that exits
+  before it is up now fails the command, also when its `restart` policy has
+  its watchdog start it again, and so does one not up within `--timeout`
+  (60 seconds by default), which is left to its watchdog: tt says what
+  happened, quotes the last lines of the `tt.log` of the instance and exits
+  with 1, or with 3 when some of the instances are up. `--no-wait` keeps the
+  old behaviour. An application file that never returns keeps the config of
+  its instance from being applied, so such an instance is never up; its
+  endless work belongs in a fiber of its own.
 
 ### Fixed
 

@@ -125,7 +125,7 @@ func TestIntegrityChecksTheInstalledApplication(t *testing.T) {
 
 	// The watchdog is run by a tt the checks know only when it is signed.
 	_, err = watchdogCommandLine(&cmdcontext.CmdCtx{}, filepath.Join(t.TempDir(), "tt"),
-		&insts[0], "launch.json", nil, false)
+		&insts[0], watchdogFiles{launch: "launch.json", report: ""}, nil, false)
 	require.ErrorIs(t, err, errNotSigned)
 
 	t.Run("tarantool not signed", func(t *testing.T) {

@@ -15,6 +15,15 @@ import (
 // While the caller lives, a goroutine waits for the process, so one that
 // exits before the caller does not stay behind as a zombie.
 func Detach(path string, args []string, start StartFunc) (int, error) {
+	pid, _, err := DetachWatched(path, args, start)
+
+	return pid, err
+}
+
+// DetachWatched is Detach that also returns a channel closed once the
+// process has exited, for a caller that waits a while for the process to
+// get going while it lives.
+func DetachWatched(path string, args []string, start StartFunc) (int, <-chan struct{}, error) {
 	if start == nil {
 		start = StartCmd
 	}
@@ -25,17 +34,21 @@ func Detach(path string, args []string, start StartFunc) (int, error) {
 
 	err := start(cmd)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
 	if cmd.Process == nil {
-		return 0, ErrNotStarted
+		return 0, nil, ErrNotStarted
 	}
+
+	exited := make(chan struct{})
 
 	go func() {
 		// Nobody reads the exit status of a detached process.
 		_ = cmd.Wait()
+
+		close(exited)
 	}()
 
-	return cmd.Process.Pid, nil
+	return cmd.Process.Pid, exited, nil
 }

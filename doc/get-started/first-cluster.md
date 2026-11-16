@@ -51,6 +51,10 @@ $ tt instance start
    • Starting an instance [myapp:replicaset-001-b]...
    • Starting an instance [myapp:replicaset-002-a]...
    • Starting an instance [myapp:replicaset-002-b]...
+   • The instance myapp:replicaset-001-a is up.
+   • The instance myapp:replicaset-001-b is up.
+   • The instance myapp:replicaset-002-a is up.
+   • The instance myapp:replicaset-002-b is up.
 $ tt instance status
  INSTANCE                STATUS   PID      MODE  CONFIG  BOX      UPSTREAM
  myapp:replicaset-001-a  RUNNING  1303991  RW    ready   running  --
@@ -59,7 +63,9 @@ $ tt instance status
  myapp:replicaset-002-b  RUNNING  1303994  RO    ready   running  --
 ```
 
-Each instance runs in the background under a watchdog of tt. Inside the
+Each instance runs in the background under a watchdog of tt, and
+`tt instance start` returns once all of them are up, or says which one
+failed and why. Inside the
 project the commands act on its instances; an instance is named
 `<application>:<instance>`, and the application is named after the project
 directory.

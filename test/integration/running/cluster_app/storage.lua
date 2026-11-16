@@ -15,7 +15,11 @@ box.cfg{}
 -- Create something to generate xlogs.
 box.schema.space.create('test-' .. box.cfg.instance_name, {if_not_exists = true})
 
-while true do
-    log.info(pid_path)
-    fiber.sleep(1)
-end
+-- The application file returns, so that the config of the instance is
+-- applied and tt instance start finds it up.
+fiber.create(function()
+    while true do
+        log.info(pid_path)
+        fiber.sleep(1)
+    end
+end)

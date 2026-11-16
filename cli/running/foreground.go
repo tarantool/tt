@@ -94,7 +94,7 @@ func StartForeground(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer) 
 	output := newAsyncEcho(echo)
 	defer output.close(echoDrainTimeout)
 
-	end, err := superviseInstance(cmdCtx, launch, output)
+	end, err := superviseInstance(cmdCtx, launch, output, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -259,7 +259,8 @@ func StartForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 		return nil, err
 	}
 
-	cmdArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance, launchFile, args, true)
+	cmdArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance,
+		watchdogFiles{launch: launchFile, report: ""}, args, true)
 	if err != nil {
 		_ = os.Remove(launchFile)
 

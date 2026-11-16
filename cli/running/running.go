@@ -289,18 +289,29 @@ func createInstanceDataDirectories(instance InstanceCtx) error {
 // resolved (LoadLaunch), every time: a restart after an exit runs what the
 // first start ran, on the version it started from, whatever the pair says
 // by then. An explicit tt instance restart resolves the instance anew.
-func Start(cmdCtx *cmdcontext.CmdCtx, launch *Launch) error {
-	_, err := superviseInstance(cmdCtx, launch, nil)
+//
+// report is the report file of the start that waits for the instance
+// (ReportFlag), empty for none: the watchdog tells it how the first process
+// it starts fares, or why it ends without one.
+func Start(cmdCtx *cmdcontext.CmdCtx, launch *Launch, report string) error {
+	rep := newReporter(report)
+
+	_, err := superviseInstance(cmdCtx, launch, nil, rep)
+	if err != nil {
+		rep.end(err)
+	}
 
 	return err
 }
 
 // superviseInstance runs the watchdog of the instance of launch and returns
-// how the supervision ended; the failure that ended it is in its log. With
+// how the supervision ended; the failure that ended it is in its log, and
+// goes to rep, if there is one, as the events of the first start do. With
 // echo it is the watchdog of tt instance start --foreground
 // (StartForeground): it never restarts the instance, and copies its output
 // to echo as well.
 func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer,
+	rep *reporter,
 ) (supervisionEnd, error) {
 	inst := &launch.Instance
 
@@ -337,6 +348,8 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer
 	opts.OnEvent = func(event supervisor.Event) {
 		end.record(event)
 		onEvent(event)
+		// Reported once tt.log has it, which the report quotes.
+		rep.onEvent(&src.ran, event)
 	}
 
 	engine, err := supervisor.New(source, opts)
@@ -346,6 +359,7 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer
 
 	end.err = engine.Run(context.Background())
 	src.log.onEnd(end.err)
+	rep.end(end.err)
 
 	return end, nil
 }
@@ -838,13 +852,18 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 // (LoadLaunch), which tt instance start resolved it to, and its target, which
 // names it in the list of processes. The watchdog resolves nothing: the pair
 // may have changed by the time it comes up, and <root>/apps/<app> may point
-// to another version. The watchdog of tt instance start --foreground gets
-// --foreground as well.
-func watchdogArgs(instance *InstanceCtx, launchFile string, foreground bool) []string {
+// to another version. A watchdog a start waits for gets the report file it
+// tells that start about the instance through (ReportFlag). The watchdog of
+// tt instance start --foreground gets --foreground as well.
+func watchdogArgs(instance *InstanceCtx, files watchdogFiles, foreground bool) []string {
 	args := append(slices.Clone(watchdogCommand),
 		"--"+WatchdogFlag,
-		"--"+LaunchFlag, launchFile,
+		"--"+LaunchFlag, files.launch,
 	)
+
+	if files.report != "" {
+		args = append(args, "--"+ReportFlag, files.report)
+	}
 
 	if foreground {
 		args = append(args, "--"+ForegroundFlag)
@@ -853,12 +872,20 @@ func watchdogArgs(instance *InstanceCtx, launchFile string, foreground bool) []s
 	return append(args, GetAppInstanceName(*instance))
 }
 
+// watchdogFiles are the files the command that starts a watchdog hands it:
+// the launch it runs, and the report file of a start that waits for it,
+// empty for none.
+type watchdogFiles struct {
+	launch string
+	report string
+}
+
 // watchdogCommandLine returns the arguments of ttExecutable that run the
-// watchdog of instance from launchFile: args, after --integrity-check when
+// watchdog of instance with files: args, after --integrity-check when
 // integrity checks are on, then watchdogArgs. The executable must pass the
 // integrity checks.
 func watchdogCommandLine(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
-	instance *InstanceCtx, launchFile string, args []string, foreground bool,
+	instance *InstanceCtx, files watchdogFiles, args []string, foreground bool,
 ) ([]string, error) {
 	cmdArgs := []string{}
 	if cmdCtx.Cli.IntegrityCheck != "" {
@@ -866,7 +893,7 @@ func watchdogCommandLine(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 	}
 
 	cmdArgs = append(cmdArgs, args...)
-	cmdArgs = append(cmdArgs, watchdogArgs(instance, launchFile, foreground)...)
+	cmdArgs = append(cmdArgs, watchdogArgs(instance, files, foreground)...)
 
 	repository := cmdCtx.Integrity.Repository
 	if instance.Integrity != nil {
@@ -917,47 +944,70 @@ func clearForWatchdog(instance *InstanceCtx) (int, bool, error) {
 //
 // The instance is resolved into its launch here (ResolveLaunch), which the
 // watchdog runs for its whole life (watchdogArgs).
+//
+// It returns the watchdog it started, one that is not waited for
+// (StartedWatchdog.Waits) for an instance that runs already. With wait the
+// watchdog reports how its instance fares to the start, for WaitUp.
 func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance InstanceCtx,
-	args []string,
-) error {
+	args []string, wait bool,
+) (*StartedWatchdog, error) {
 	appName := GetAppInstanceName(instance)
 	// If an instance is already running don't try to start it again.
 	// To restart an instance use tt instance restart command.
 	pid, running, err := clearForWatchdog(&instance)
 	if err != nil {
-		return fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
+		return nil, fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
 	}
 
 	if running {
 		log.Infof("The instance %s (PID = %d) is already running.", appName, pid)
 
-		return nil
+		return &StartedWatchdog{Instance: instance, exited: nil, report: ""}, nil
 	}
 
 	launchFile, err := prepareWatchdog(&instance)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	newArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance, launchFile, args, false)
-	if err != nil {
+	report := ""
+	if wait {
+		report, err = newReportFile(&instance)
+		if err != nil {
+			_ = os.Remove(launchFile)
+
+			return nil, err
+		}
+	}
+
+	cleanup := func() {
 		_ = os.Remove(launchFile)
 
-		return err
+		if report != "" {
+			_ = os.Remove(report)
+		}
+	}
+
+	newArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance,
+		watchdogFiles{launch: launchFile, report: report}, args, false)
+	if err != nil {
+		cleanup()
+
+		return nil, err
 	}
 
 	log.Infof("Starting an instance [%s]...", appName)
 
 	// The watchdog leads a process group of its own, so it is not killed when
 	// the session is closed, and tt instance kill kills it with its tarantool.
-	_, err = supervisor.Detach(ttExecutable, newArgs, nil)
+	_, exited, err := supervisor.DetachWatched(ttExecutable, newArgs, nil)
 	if err != nil {
-		_ = os.Remove(launchFile)
+		cleanup()
 
-		return fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
+		return nil, fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
 	}
 
-	return nil
+	return &StartedWatchdog{Instance: instance, exited: exited, report: report}, nil
 }
 
 // prepareWatchdog resolves instance into its launch (ResolveLaunch) and

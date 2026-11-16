@@ -13,7 +13,11 @@ func NewRestartCmd() *cobra.Command {
 	restartCmd := &cobra.Command{
 		Use:   "restart " + instanceTargetsUsage,
 		Short: "Restart instance(s)",
-		RunE:  internalRunE(internalRestartModule),
+		Long: "Stop the instances the targets select and start them again in the " +
+			"background, resolved anew: an installed application restarts on its active " +
+			"version, with its pair as it is now. Every target is checked as " +
+			"tt instance start checks it before any instance stops.\n\n" + waitHelp,
+		RunE: internalRunE(internalRestartModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -25,6 +29,7 @@ func NewRestartCmd() *cobra.Command {
 
 	addInstanceFlags(restartCmd)
 	addYesFlag(restartCmd)
+	addWaitFlags(restartCmd)
 
 	return restartCmd
 }
@@ -41,8 +46,14 @@ func NewRestartCmd() *cobra.Command {
 //
 // After that an instance that does not stop is not started again, and does
 // not keep the others from restarting; the outcome counts the instances
-// that failed to stop or to start (instancesResult).
+// that failed to stop or to start, or to come up, which the restart waits
+// for as tt instance start does (instancesResult).
 func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	err := startWait.check()
+	if err != nil {
+		return err
+	}
+
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err

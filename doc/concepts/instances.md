@@ -123,6 +123,35 @@ The instances start in the order of the description, and none waits for
 another to be ready. An instance that runs already is an error before
 anything starts.
 
+In the background, `tt instance start` and `tt instance restart` then wait
+for all the instances they started at once, for `--timeout` at most (60
+seconds by default):
+
+- a Tarantool instance is up once it answers on its console socket that its
+  box runs and its config is applied, what `tt instance status` shows as
+  `BOX running` and `CONFIG ready`; an instance that runs its script needs
+  only the box;
+- an external process is up once it has run for a second.
+
+An instance that exits before that has failed, also when its `restart`
+policy has the watchdog start it again, and so has one that is not up in
+time, which is left running under its watchdog. tt prints what happened and
+the last lines of the `tt.log` of the instance, and exits with 1, or with 3
+when only some of the instances failed:
+
+```console
+$ tt instance start
+   • Starting an instance [demo:instance001]...
+   ⨯ instance demo:instance001 did not start: it exited with code 1
+     The last lines of /…/demo/.tarantool/var/log/demo/instance001/tt.log:
+         … E> init.lua:1: boom on start
+         Watchdog … (WARN): "exit status 1".
+```
+
+`--no-wait` starts the watchdogs and returns at once. An application file
+that never returns keeps the config of its instance from being applied:
+start its endless work in a fiber of its own.
+
 ## Where the files go
 
 An instance of the application `<app>` keeps its files under the root of

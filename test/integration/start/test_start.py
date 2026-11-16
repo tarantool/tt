@@ -110,6 +110,15 @@ tt_cluster_app = dict(
     ],
 )
 def test_start_cluster(tt, tt_app, target):
+    if target == "app:storage-replica" and "app:storage-master" not in tt_app.running_instances:
+        # The replica cannot bootstrap without its bootstrap leader: it
+        # fails as it starts, and the start, which waits for it, says so.
+        rc, out = tt.exec("instance", "start", target)
+        assert rc != 0
+        assert "instance app:storage-replica did not start" in out
+        assert "failed to connect to the bootstrap leader" in out
+        return
+
     check_start(tt, tt_app, target)
 
 

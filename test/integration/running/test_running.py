@@ -52,6 +52,8 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
+    # The start returns once the instance is up.
+    assert instance_process.wait(60) == 0, instance_process.stdout.read()
 
     # Check status.
     file = wait_file(inst_run_dir(app_dir, "test_app", "test_app"), pid_file, [])
@@ -94,6 +96,8 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
+    # The start returns once the instance is up.
+    assert instance_process.wait(60) == 0, instance_process.stdout.read()
 
     # Check status.
     file = wait_file(inst_run_dir(app_dir, "test_app", "test_app"), pid_file, [])
@@ -120,6 +124,8 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     )
     restart_output = instance_process_2.stdout.readline()
     assert re.search(r"Starting an instance", restart_output)
+    # The restart returns once the instance is up.
+    assert instance_process_2.wait(60) == 0, instance_process_2.stdout.read()
 
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
@@ -160,6 +166,8 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
+    # The start returns once the instance is up.
+    assert instance_process.wait(60) == 0, instance_process.stdout.read()
 
     # Check logrotate.
     tt_log_file = os.path.join(inst_log_dir(app_dir, "test_env_app", "test_env_app"), log_file)
@@ -220,6 +228,9 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
+    # The start returns once the instance is up: one stopped before that
+    # fails the start.
+    assert instance_process.wait(60) == 0, instance_process.stdout.read()
 
     # Wait until application is ready.
     lib_dir = inst_lib_dir(app_dir, app_name, app_name)
@@ -288,6 +299,9 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
         )
         start_output = instance_process.stdout.readline()
         assert re.search(r"Starting an instance \[app:router\]", start_output)
+        # The start returns once the instance is up: one stopped before that
+        # fails the start.
+        assert instance_process.wait(60) == 0, instance_process.stdout.read()
 
         # Check status.
         file = wait_file(inst_run_dir(test_app_path, "app", "router"), pid_file, [])
@@ -519,6 +533,9 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
         )
         start_output = instance_process.stdout.readline()
         assert re.search(r"Starting an instance", start_output)
+        # The start returns once the instance is up: one stopped before that
+        # fails the start.
+        assert instance_process.wait(60) == 0, instance_process.stdout.read()
 
         # Check status.
         file = wait_file(
@@ -578,6 +595,8 @@ def test_running_start(tt_cmd):
                     r"Starting an instance \[app:(router|master|replica)\]",
                     start_output,
                 )
+            # The start returns once the instances are up.
+            assert instance_process.wait(60) == 0, instance_process.stdout.read()
 
             # Check status.
             for instName in instances:

@@ -26,7 +26,7 @@ func startLaunched(inst *InstanceCtx) error {
 		return err
 	}
 
-	return Start(&cmdcontext.CmdCtx{}, &launch)
+	return Start(&cmdcontext.CmdCtx{}, &launch, "")
 }
 
 // startForegroundLaunched runs the watchdog of tt instance start

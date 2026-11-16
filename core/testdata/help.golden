@@ -3726,24 +3726,49 @@ FLAGS
                           described in (default "default")
 
 === tt instance restart --help
-Restart instance(s)
+Stop the instances the targets select and start them again in the background,
+resolved anew: an installed application restarts on its active version, with its
+pair as it is now. Every target is checked as tt instance start checks it before
+any instance stops.
+
+In the background tt waits until every instance it starts is up, all of them at
+once, for --timeout at most: a Tarantool instance once its box runs and its
+config is applied, as tt instance status shows them in BOX and CONFIG, an
+external process once it has run for a second. An instance that exits before
+that has failed, also when its restart policy has its watchdog start it again,
+and so has one that is not up in time, which is left to its watchdog: tt says
+what happened, quotes the end of its tt.log and exits with an error. --no-wait
+starts the watchdogs and returns at once.
 
 USAGE
   tt instance restart [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 
 FLAGS
-  -h, --help              help for restart
-      --scope string      scope the application is looked for in: project, user
-                          or system
-      --template string   template of the application the instances are
-                          described in (default "default")
-  -y, --yes               confirm without a prompt, as is needed when the
-                          standard input is not a terminal
+  -h, --help               help for restart
+      --no-wait            do not wait for the instances started in the
+                           background to come up
+      --scope string       scope the application is looked for in: project, user
+                           or system
+      --template string    template of the application the instances are
+                           described in (default "default")
+      --timeout duration   how long to wait for the instances started in the
+                           background to come up (default 1m0s)
+  -y, --yes                confirm without a prompt, as is needed when the
+                           standard input is not a terminal
 
 === tt instance start --help
 Start the instances the targets select. By default every instance runs in the
 background under a watchdog of tt, which restarts it as the restart field of its
 record says.
+
+In the background tt waits until every instance it starts is up, all of them at
+once, for --timeout at most: a Tarantool instance once its box runs and its
+config is applied, as tt instance status shows them in BOX and CONFIG, an
+external process once it has run for a second. An instance that exits before
+that has failed, also when its restart policy has its watchdog start it again,
+and so has one that is not up in time, which is left to its watchdog: tt says
+what happened, quotes the end of its tt.log and exits with an error. --no-wait
+starts the watchdogs and returns at once.
 
 What an instance runs - its binary or tarantool, its script or cluster config,
 its arguments, environment, restart policy and paths - is resolved here, before
@@ -3765,13 +3790,17 @@ USAGE
   tt instance start [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 
 FLAGS
-      --foreground        stay in the foreground while the instances run,
-                          without restarting them
-  -h, --help              help for start
-      --scope string      scope the application is looked for in: project, user
-                          or system
-      --template string   template of the application the instances are
-                          described in (default "default")
+      --foreground         stay in the foreground while the instances run,
+                           without restarting them
+  -h, --help               help for start
+      --no-wait            do not wait for the instances started in the
+                           background to come up
+      --scope string       scope the application is looked for in: project, user
+                           or system
+      --template string    template of the application the instances are
+                           described in (default "default")
+      --timeout duration   how long to wait for the instances started in the
+                           background to come up (default 1m0s)
 
 === tt instance status --help
 The 'status' command provides information about the status of the instances.

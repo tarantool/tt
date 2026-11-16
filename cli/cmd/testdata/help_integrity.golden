@@ -62,6 +62,15 @@ Start the instances the targets select. By default every instance runs in the
 background under a watchdog of tt, which restarts it as the restart field of its
 record says.
 
+In the background tt waits until every instance it starts is up, all of them at
+once, for --timeout at most: a Tarantool instance once its box runs and its
+config is applied, as tt instance status shows them in BOX and CONFIG, an
+external process once it has run for a second. An instance that exits before
+that has failed, also when its restart policy has its watchdog start it again,
+and so has one that is not up in time, which is left to its watchdog: tt says
+what happened, quotes the end of its tt.log and exits with an error. --no-wait
+starts the watchdogs and returns at once.
+
 What an instance runs - its binary or tarantool, its script or cluster config,
 its arguments, environment, restart policy and paths - is resolved here, before
 its watchdog starts, and the watchdog runs that for its whole life, restarts
@@ -87,10 +96,14 @@ FLAGS
   -h, --help                         help for start
       --integrity-check-period int   how often the watchdog re-checks integrity,
                                      in seconds
+      --no-wait                      do not wait for the instances started in
+                                     the background to come up
       --scope string                 scope the application is looked for in:
                                      project, user or system
       --template string              template of the application the instances
                                      are described in (default "default")
+      --timeout duration             how long to wait for the instances started
+                                     in the background to come up (default 1m0s)
 
 === tt cluster publish --help
 Publish an application or an instance configuration to a cluster configuration

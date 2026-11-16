@@ -96,7 +96,8 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, rbCtx RebootstrapCtx) error {
 		return fmt.Errorf("cannot find the tt executable: %w", err)
 	}
 
-	err = running.StartWatchdog(&cmdCtx, ttBin, instCtx, []string{})
+	// The instance joins its replicaset in the background, as it always has.
+	_, err = running.StartWatchdog(&cmdCtx, ttBin, instCtx, []string{}, false)
 	if err != nil {
 		return fmt.Errorf("failed to start the instance: %w", err)
 	}
