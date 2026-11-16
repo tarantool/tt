@@ -1152,7 +1152,8 @@ request.
 
 With --local-repo <dir>, <dir>/tarantool
 must be a local Git clone of the Tarantool source repository.
-Use --local-dir <dir> to install Enterprise SDK archives from a local directory.
+With an Enterprise version, 3ee or gc64-3.8.0-0-r94, --local-dir <dir> installs
+it from the SDK archives in <dir>.
 
 Git commits, master, and pull requests are built from source automatically.
 The --local-repo, --dynamic, and --use-docker options also select source builds.
@@ -1305,10 +1306,9 @@ Git commits, master, pull requests, and --local-repo select source builds
 automatically.
 
 With --local-repo <dir>, <dir>/tt must be a local Git clone of the tt source
-repository. Use --local-dir <dir> with standalone tt-ee-*.tar.gz archives to
-install
-Enterprise Edition. Enterprise search and installation are available only on
-Linux amd64.
+repository. With an ee version, --local-dir <dir> installs Enterprise Edition
+from the standalone tt-ee-*.tar.gz archives in <dir>: 2.15ee --local-dir <dir>.
+Enterprise search and installation are available only on Linux amd64.
 Use "tt binary search tt" or "tt binary search tt-ee" to list available
 versions.
 

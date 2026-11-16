@@ -301,6 +301,37 @@ func TestBundleRuntimeNoSourceAtAll(t *testing.T) {
 	assert.NotContains(t, err.Error(), "does not satisfy")
 }
 
+// TestInstallCommand: the hints of pack name commands tt binary install has.
+// An Enterprise product is installed through the command of its Community
+// one, with the ee suffix on the version: tt binary install tarantool-ee
+// and tt binary install tt-ee are no commands.
+func TestInstallCommand(t *testing.T) {
+	t.Parallel()
+
+	for _, example := range []struct{ name, flavor, want string }{
+		{runtimeTarantool, flavorCE, "tt binary install tarantool"},
+		{runtimeTarantool, flavorEE, "tt binary install tarantool <version>ee"},
+		{runtimeTt, flavorCE, "tt binary install tt"},
+		{runtimeTt, flavorEE, "tt binary install tt <version>ee"},
+		{runtimeTcm, flavorCE, "tt binary install tcm"},
+		{runtimeTcm, flavorEE, "tt binary install tcm"},
+	} {
+		assert.Equal(t, example.want, installCommand(example.name, example.flavor), example)
+	}
+
+	_, err := bundleRuntime(t.TempDir(), RuntimeOptions{
+		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		Platform: manifest.Platform{
+			Tarantool: manifest.Constraint{Version: ">=3.0.0", Flavor: flavorEE},
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+	})
+
+	require.ErrorIs(t, err, errNoRuntime)
+	assert.Contains(t, err.Error(), "install one with tt binary install tarantool <version>ee,")
+	assert.NotContains(t, err.Error(), "tarantool-ee")
+}
+
 // fakeInstallation lays out a tt binary installation of program at version
 // in the project scope rooted at root: the executable at the top and, for
 // tarantool, its headers.

@@ -161,9 +161,9 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 		if src.Fallback && req.Warn != nil {
 			req.Warn(fmt.Sprintf(
 				"no %s %s in the runtime cache (%s) or the project; bundling the active "+
-					"%s %s instead (tt binary install %s puts one into the project)",
+					"%s %s instead (%s puts one into the project)",
 				want.name, want.constraint.Version, req.CacheDir, want.name, src.Version,
-				productName(want.name, want.constraint.EffectiveFlavor())))
+				installCommand(want.name, want.constraint.EffectiveFlavor())))
 		}
 
 		// A prerelease satisfies the constraint here on its core version alone
@@ -321,19 +321,21 @@ func resolveRuntime(
 // runtimeRemedy says how to give pack a runtime it found none of: install one
 // into the project with tt binary install, or place a build in the cache.
 func runtimeRemedy(cacheDir, name, flavor string) string {
-	return fmt.Sprintf("install one with tt binary install %s, or place a matching build "+
-		"under %s", productName(name, flavor), filepath.Join(cacheDir, name, flavor, "<version>"))
+	return fmt.Sprintf("install one with %s, or place a matching build under %s",
+		installCommand(name, flavor), filepath.Join(cacheDir, name, flavor, "<version>"))
 }
 
-// productName is the tt binary product a component of the flavor is installed
-// as: tarantool-ee for an [ee] tarantool, say.
-func productName(name, flavor string) string {
-	programs := installedPrograms(name, []string{flavor})
-	if len(programs) == 0 {
-		return name
+// installCommand is the tt binary install command that puts a component of
+// the flavor into the project: tt binary install tarantool for a [ce]
+// tarantool. The Enterprise products are no commands of tt binary install of
+// their own: tarantool and tt install them for a version with the ee suffix,
+// so an [ee] tarantool is tt binary install tarantool <version>ee.
+func installCommand(name, flavor string) string {
+	if flavor == flavorEE && name != runtimeTcm {
+		return "tt binary install " + name + " <version>" + flavorEE
 	}
 
-	return programs[0].String()
+	return "tt binary install " + name
 }
 
 // installedPrograms lists the tt binary products a component of the given

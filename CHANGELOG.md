@@ -1262,6 +1262,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `install` read a prerelease of tt named the way its tags are,
   `3.0.0-alpha.2`, where `tt binary list` failed with `failed to parse
   version "3.0.0-alpha.2"` on such an installation.
+- The hints of `tt package pack` for an `[ee]` runtime it found none of name
+  a command that exists, `tt binary install tarantool <version>ee` and
+  `tt binary install tt <version>ee`, instead of `tt binary install
+  tarantool-ee` and `tt binary install tt-ee`, which fail with `unknown
+  command`. The help of `tt binary install tarantool` and `tt binary install
+  tt` says that `--local-dir` installs Enterprise Edition for an Enterprise
+  version, `3ee` or `2.15ee`: given a bare version, or none, the command
+  installs Community Edition, which `--local-dir` is refused for. Two
+  entries of 3.0.0-alpha.1 below named the commands that do not exist as
+  well, and name the ones that do now.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
@@ -1547,8 +1557,8 @@ documentation is a preview that is still being written.
 - `tt binary search` and `tt binary install`: add `--credentials-file <path>`
   for remote EE/TCM/SDK searches and downloads, allowing customer-zone
   credentials to be supplied from a file without `tt.yaml`.
-- `tt binary install tarantool-ee`, `tt binary install tarantool-sdk`, and
-  `tt binary install tcm`: accept `X`,
+- `tt binary install tarantool` of an Enterprise version (`Xee`),
+  `tt binary install tarantool-sdk`, and `tt binary install tcm`: accept `X`,
   `X.Y`, and `X.Y.Z` to select the latest matching stable build, including from
   `--local-dir`. Omitting the version selects the latest stable build.
   EE and SDK use `gc64` by default. Complete version names select exact builds,
@@ -2196,8 +2206,8 @@ documentation is a preview that is still being written.
   replacements for removed active components. Unusable candidates are skipped;
   a failed replacement warns without failing removal. TCM replacements are
   compared by TCM's own version.
-- `tt binary install tt-ee`: install tt Enterprise from the same SDK archive as
-  Tarantool Enterprise. `tt-ee` has separate version directories and supports
+- `tt binary install tt <version>ee`: install tt Enterprise from the same SDK
+  archive as Tarantool Enterprise. `tt-ee` has separate version directories and supports
   search, list, switch, and uninstall, sharing `bin/tt` with ordinary tt.
   Removing an active tt-ee version can select a remaining tt-ee or ordinary tt;
   comparisons use the executable's own version rather than its SDK bundle version.

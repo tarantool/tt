@@ -699,6 +699,32 @@ def test_install_takes_the_tt_pack_bundled(tt_cmd, tmp_path):
     assert bundled in listed.stdout
 
 
+def test_pack_hints_name_commands_that_exist(tt_cmd, tmp_path):
+    """The hint of a pack that found no [ee] runtime names the command that
+    installs one, and that command is one tt binary install has."""
+    project = make_project(tmp_path / "project", dependency=False)
+    manifest = project / "app.manifest.toml"
+    manifest.write_text(
+        manifest.read_text().replace("tarantool = '>=3.0.0'", "tarantool = '>=3.0.0[ee]'"),
+    )
+    env = {"PATH": "/nonexistent", "HOME": str(tmp_path / "home")}
+
+    result = run(tt_cmd, project, "package", "pack", "--registry", str(ROCKS_REPO), env=env)
+    assert result.returncode == 1
+    assert "install one with tt binary install tarantool <version>ee," in result.stderr
+    assert "tarantool-ee" not in result.stderr
+
+    for program in ("tarantool", "tt"):
+        result = run(tt_cmd, tmp_path, "binary", "install", f"{program}-ee")
+        assert result.returncode != 0
+        assert "unknown command" in result.stdout + result.stderr, program
+
+        result = run(tt_cmd, tmp_path, "binary", "install", program, "--help")
+        assert result.returncode == 0, result.stderr
+        assert "--local-dir <dir>" in result.stdout
+    assert "2.15ee --local-dir <dir>" in result.stdout
+
+
 def make_template_project(root: Path, name: str, instances: str) -> Path:
     """Write a project without dependencies, which packs offline, whose
     template name has the instance description instances and no config."""
