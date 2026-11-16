@@ -384,8 +384,9 @@ def wait_tarantool(watchdog_pid, run_dir, exclude=None, timeout=10):
 
 
 def test_running_reread_pair(tt_cmd, tmp_path):
-    # The watchdog reads the instance anew from its pair before it starts it
-    # again: the restart policy in effect is the one of the record by then.
+    # The watchdog does not read the pair anew before it starts the instance
+    # again: the restart policy in effect is the one tt instance start
+    # resolved, until tt instance restart resolves the instance anew.
     app_dir = prepare_file_app(tmp_path, "test_app")
     target = "test_app:test_app"
     instances_path = os.path.join(app_dir, instances_file)
@@ -423,11 +424,27 @@ def test_running_reread_pair(tt_cmd, tmp_path):
         assert status_out[target]["STATUS"] == "RUNNING"
         assert status_out[target]["PID"] == pid
 
-        # The record changes: the next exit is not restarted.
+        # The record changes: the watchdog runs what the start resolved, so
+        # the next exit is restarted all the same.
         with open(instances_path, "w") as file:
             file.write('test_app:\n  restart: "no"\n')
 
         restarted.terminate()
+        again = wait_tarantool(pid, run_dir, exclude=restarted, timeout=20)
+        assert again is not None, "the edited restart policy reached the watchdog"
+
+        # An explicit restart takes the edit: the next exit is not restarted.
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "restart", "-y", target],
+            cwd=app_dir,
+        )
+        assert rc == 0, out
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_dir)
+        assert status_rc == 0
+        pid = extract_status(status_out)[target]["PID"]
+        tarantool = wait_tarantool(pid, run_dir)
+        assert tarantool is not None
+        tarantool.terminate()
         assert wait_instance_stop(os.path.join(run_dir, pid_file), timeout_sec=20)
 
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_dir)

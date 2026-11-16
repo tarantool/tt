@@ -35,9 +35,6 @@ var (
 	errInstanceDead = errors.New(
 		process_utils.ProcStateDead.String(),
 	)
-	errLoggerChangedCheckFailedPassingNullAsAnInstanceContext = errors.New(
-		"logger changed check failed: passing null as an instance context",
-	)
 	errTheInstanceIsNotRunningItMustBeStarted = errors.New(
 		": the instance is not running, it must be started",
 	)
@@ -55,23 +52,13 @@ const (
 	killCleanupTimeout = 5 * time.Second
 )
 
-// The flags of tt instance start that make it the watchdog of one instance
-// (StartWatchdog), and pin the application the watchdog runs the instance
-// from: the watchdog must find the same application directory that the
-// command that started it found, not whatever <root>/apps/<app> points to by
-// the time it comes up. --watchdog and --app-dir are hidden; --scope and
-// --template are the flags every command of tt instance takes.
-const (
-	// WatchdogFlag makes tt instance start run the watchdog of its one
-	// target.
-	WatchdogFlag = "watchdog"
-	// ScopeFlag is the scope of the application.
-	ScopeFlag = sdk.ScopeFlag
-	// TemplateFlag is the template the instance was resolved with.
-	TemplateFlag = sdk.TemplateFlag
-	// AppDirFlag pins the application directory (app.Options.Dir).
-	AppDirFlag = "app-dir"
-)
+// WatchdogFlag is the hidden flag of tt instance start that makes it the
+// watchdog of one instance (StartWatchdog), which it runs from the launch
+// LaunchFlag names.
+const WatchdogFlag = "watchdog"
+
+// ScopeFlag is the flag of the scope of an application.
+const ScopeFlag = sdk.ScopeFlag
 
 // watchdogCommand is the command that runs the watchdog of an instance:
 // tt instance start, with WatchdogFlag.
@@ -163,16 +150,16 @@ type InstanceCtx struct {
 	// cluster config does not configure.
 	ClusterConfigPath string
 	// Configuration is instance configuration loaded from cluster config.
-	// Nil when no cluster config is loaded.
-	Configuration *goconfig.Config
+	// Nil when no cluster config is loaded, and in the launch of a watchdog,
+	// which keeps what tt takes from it, the paths of the instance (Launch).
+	Configuration *goconfig.Config `json:"-"`
 	// Scope is the scope of the application.
 	Scope app.Scope
 	// Root is the root of that scope, which the runtime artifacts of the
 	// instance are under (layout.ScopeLayout).
 	Root string
 	// Template is the --template value the instance was resolved with,
-	// empty for none: the watchdog resolves the instance again with it
-	// (PinnedOptions).
+	// empty for none.
 	Template string
 	// Env holds the variables the instance record sets on top of the
 	// inherited environment of tarantool.
@@ -184,12 +171,9 @@ type InstanceCtx struct {
 	// Integrity are the integrity checks of the application of the instance
 	// and of the runtimes it runs on (AppIntegrity), nil when they are off.
 	// What the instance runs is checked with them before it is run: its
-	// tarantool, its script, its binary, the tt of its watchdog.
-	Integrity *integrity.IntegrityCtx
-
-	// integrityFor finds the checks again where the watchdog reloads the
-	// instance (PinnedOptions): app.Options.IntegrityFor it was found with.
-	integrityFor func(app.Scope, string) (integrity.IntegrityCtx, error)
+	// tarantool, its script, its binary, the tt of its watchdog. The
+	// watchdog finds them anew from the launch (LoadLaunch).
+	Integrity *integrity.IntegrityCtx `json:"-"`
 
 	// configVars are the variables tarantool substitutes into the config of
 	// a Tarantool instance the cluster config configures, such as
@@ -301,44 +285,28 @@ func createInstanceDataDirectories(instance InstanceCtx) error {
 // the instance names the watchdog, so tt instance stop, status, kill and
 // logrotate reach it; watchdogOptions says what it does with their signals.
 //
-// Before every start the watchdog reads the instance anew from the pair of
-// the application directory it started from (reload): a restart after an
-// exit picks up an edited config and restart policy, and stays on the
-// version it started from. ctx bounds those reads, which may go to a config
-// storage.
-func Start(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
-	pinned := *inst
-
-	//nolint:contextcheck // The watchdog runs until it is stopped; ctx bounds the reads.
-	_, err := superviseInstance(cmdCtx, inst, func() (InstanceCtx, error) {
-		return reload(ctx, &pinned, cmdCtx.Integrity)
-	}, nil)
+// The watchdog starts the instance from launch, which tt instance start
+// resolved (LoadLaunch), every time: a restart after an exit runs what the
+// first start ran, on the version it started from, whatever the pair says
+// by then. An explicit tt instance restart resolves the instance anew.
+func Start(cmdCtx *cmdcontext.CmdCtx, launch *Launch) error {
+	_, err := superviseInstance(cmdCtx, launch, nil)
 
 	return err
 }
 
-// superviseInstance runs the watchdog of inst, which takes the context of
-// the instance from refresh before every start and after every exit, and
-// returns how the supervision ended; the failure that ended it is in its
-// log. With echo it is the watchdog of tt instance start --foreground
+// superviseInstance runs the watchdog of the instance of launch and returns
+// how the supervision ended; the failure that ended it is in its log. With
+// echo it is the watchdog of tt instance start --foreground
 // (StartForeground): it never restarts the instance, and copies its output
 // to echo as well.
-func superviseInstance(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx,
-	refresh func() (InstanceCtx, error), echo io.Writer,
+func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer,
 ) (supervisionEnd, error) {
-	err := checkStart(inst)
-	if err != nil {
-		return supervisionEnd{}, err
-	}
+	inst := &launch.Instance
 
-	err = createInstanceDataDirectories(*inst)
+	err := createInstanceDataDirectories(*inst)
 	if err != nil {
 		return supervisionEnd{}, fmt.Errorf("failed to create a directory: %w", err)
-	}
-
-	err = linkIntegrityLayout(inst)
-	if err != nil {
-		return supervisionEnd{}, err
 	}
 
 	logger, err := createLogger(inst)
@@ -348,10 +316,10 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx,
 
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
 
-	src := newInstanceSource(cmdCtx, inst, &watchdogLog{
+	src := newInstanceSource(cmdCtx, launch, &watchdogLog{
 		logger:      logger,
 		checkPeriod: time.Duration(cmdCtx.Cli.IntegrityCheckPeriod) * time.Second,
-	}, refresh)
+	})
 
 	var source supervisor.Source = src
 
@@ -866,22 +834,17 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 }
 
 // watchdogArgs returns the arguments of tt that run the watchdog of instance,
-// tt instance start --watchdog: its target, and the scope, the application
-// directory and the template it was resolved with, so that the watchdog runs
-// the instance from the same application directory (PinnedOptions).
-// Resolving the target anew in the watchdog could find another version,
-// should <root>/apps/<app> move before the watchdog comes up. The watchdog
-// of tt instance start --foreground gets --foreground as well.
-func watchdogArgs(instance *InstanceCtx, foreground bool) []string {
+// tt instance start --watchdog: the launch file it runs the instance from
+// (LoadLaunch), which tt instance start resolved it to, and its target, which
+// names it in the list of processes. The watchdog resolves nothing: the pair
+// may have changed by the time it comes up, and <root>/apps/<app> may point
+// to another version. The watchdog of tt instance start --foreground gets
+// --foreground as well.
+func watchdogArgs(instance *InstanceCtx, launchFile string, foreground bool) []string {
 	args := append(slices.Clone(watchdogCommand),
 		"--"+WatchdogFlag,
-		"--"+ScopeFlag, instance.Scope.String(),
-		"--"+AppDirFlag, instance.AppDir,
+		"--"+LaunchFlag, launchFile,
 	)
-
-	if instance.Template != "" {
-		args = append(args, "--"+TemplateFlag, instance.Template)
-	}
 
 	if foreground {
 		args = append(args, "--"+ForegroundFlag)
@@ -891,10 +854,11 @@ func watchdogArgs(instance *InstanceCtx, foreground bool) []string {
 }
 
 // watchdogCommandLine returns the arguments of ttExecutable that run the
-// watchdog of instance: args, after --integrity-check when integrity checks
-// are on, then watchdogArgs. The executable must pass the integrity checks.
+// watchdog of instance from launchFile: args, after --integrity-check when
+// integrity checks are on, then watchdogArgs. The executable must pass the
+// integrity checks.
 func watchdogCommandLine(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
-	instance *InstanceCtx, args []string, foreground bool,
+	instance *InstanceCtx, launchFile string, args []string, foreground bool,
 ) ([]string, error) {
 	cmdArgs := []string{}
 	if cmdCtx.Cli.IntegrityCheck != "" {
@@ -902,7 +866,7 @@ func watchdogCommandLine(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 	}
 
 	cmdArgs = append(cmdArgs, args...)
-	cmdArgs = append(cmdArgs, watchdogArgs(instance, foreground)...)
+	cmdArgs = append(cmdArgs, watchdogArgs(instance, launchFile, foreground)...)
 
 	repository := cmdCtx.Integrity.Repository
 	if instance.Integrity != nil {
@@ -951,8 +915,8 @@ func clearForWatchdog(instance *InstanceCtx) (int, bool, error) {
 // is already running: unless a watchdog holds its pid file. args go before
 // the arguments that run the watchdog.
 //
-// The watchdog gets no tt.yaml: it finds the application from what it is
-// given (watchdogArgs).
+// The instance is resolved into its launch here (ResolveLaunch), which the
+// watchdog runs for its whole life (watchdogArgs).
 func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance InstanceCtx,
 	args []string,
 ) error {
@@ -970,8 +934,15 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 		return nil
 	}
 
-	newArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance, args, false)
+	launchFile, err := prepareWatchdog(&instance)
 	if err != nil {
+		return err
+	}
+
+	newArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance, launchFile, args, false)
+	if err != nil {
+		_ = os.Remove(launchFile)
+
 		return err
 	}
 
@@ -981,8 +952,26 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	// the session is closed, and tt instance kill kills it with its tarantool.
 	_, err = supervisor.Detach(ttExecutable, newArgs, nil)
 	if err != nil {
+		_ = os.Remove(launchFile)
+
 		return fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
 	}
 
 	return nil
+}
+
+// prepareWatchdog resolves instance into its launch (ResolveLaunch) and
+// writes it into the file its watchdog runs it from, whose path it returns.
+func prepareWatchdog(instance *InstanceCtx) (string, error) {
+	launch, err := ResolveLaunch(instance)
+	if err != nil {
+		return "", err
+	}
+
+	err = createInstanceDataDirectories(*instance)
+	if err != nil {
+		return "", fmt.Errorf("failed to create a directory: %w", err)
+	}
+
+	return writeLaunchFile(&launch)
 }

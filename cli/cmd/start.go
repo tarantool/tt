@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -16,20 +14,26 @@ import (
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
-// errPinWithoutWatchdog reports a pin of the application directory given to
-// tt instance start without --watchdog.
-var errPinWithoutWatchdog = errors.New("--" + running.AppDirFlag +
-	" is only for the watchdog of an instance")
+var (
+	// errLaunchWithoutWatchdog reports a launch given to tt instance start
+	// without --watchdog.
+	errLaunchWithoutWatchdog = errors.New("--" + running.LaunchFlag +
+		" is only for the watchdog of an instance")
+	// errWatchdogWithoutLaunch reports a watchdog started without the launch
+	// it runs.
+	errWatchdogWithoutLaunch = errors.New("the watchdog of an instance needs --" +
+		running.LaunchFlag)
+)
 
 var (
 	// "watchdog" is a hidden flag used to daemonize a process.
 	// In go, we can't just fork the process (reason - goroutines).
 	// So, for daemonize, we restarts the process with "watchdog" flag.
 	watchdog bool
-	// watchdogDir is --app-dir, the application directory the watchdog runs
-	// its instance from (StartWatchdog). The scope and the template come with
-	// it as --scope and --template.
-	watchdogDir string
+	// watchdogLaunch is --launch, the file of the launch the watchdog runs
+	// its instance from (running.StartWatchdog), which tt instance start
+	// resolved.
+	watchdogLaunch string
 	// integrityCheckPeriod is a flag that enables periodic integrity checks.
 	// The default period is 1 day.
 	integrityCheckPeriod = 24 * 60 * 60
@@ -47,6 +51,12 @@ func NewStartCmd() *cobra.Command {
 		Long: "Start the instances the targets select. By default every instance runs " +
 			"in the background under a watchdog of tt, which restarts it as the restart " +
 			"field of its record says.\n\n" +
+			"What an instance runs - its binary or tarantool, its script or cluster " +
+			"config, its arguments, environment, restart policy and paths - is resolved " +
+			"here, before its watchdog starts, and the watchdog runs that for its whole " +
+			"life, restarts included: an edit of instances.yaml takes effect at the next " +
+			"tt instance start or restart. tarantool reads config.yaml itself at every " +
+			"start.\n\n" +
 			"With --" + running.ForegroundFlag + " tt stays in the foreground, for " +
 			"systemd, a container or a terminal, while every instance runs under a " +
 			"watchdog of its own that does not restart it. The output of the instances " +
@@ -73,9 +83,9 @@ func NewStartCmd() *cobra.Command {
 	startCmd.Flags().BoolVar(&startForeground, running.ForegroundFlag, false,
 		"stay in the foreground while the instances run, without restarting them")
 	startCmd.Flags().BoolVar(&watchdog, running.WatchdogFlag, false, "")
-	startCmd.Flags().StringVar(&watchdogDir, running.AppDirFlag, "", "")
+	startCmd.Flags().StringVar(&watchdogLaunch, running.LaunchFlag, "", "")
 
-	for _, name := range []string{running.WatchdogFlag, running.AppDirFlag} {
+	for _, name := range []string{running.WatchdogFlag, running.LaunchFlag} {
 		_ = startCmd.Flags().MarkHidden(name)
 	}
 
@@ -138,12 +148,14 @@ func watchdogStartArgs(cmdCtx *cmdcontext.CmdCtx) []string {
 
 // internalStartModule is a default start module.
 func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	opts, err := startOptions(cmdCtx)
-	if err != nil {
-		return err
+	switch {
+	case watchdog:
+		return runWatchdog(cmdCtx, args)
+	case watchdogLaunch != "":
+		return util.NewArgError(errLaunchWithoutWatchdog.Error())
 	}
 
-	instances, err := resolveInstancesWith(args, opts)
+	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
@@ -153,67 +165,53 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 // startResolved starts instances, resolved by tt instance start or anew by
 // tt instance restart, as the flags of tt instance start say: in the
-// background, in the foreground, or as the watchdog of one instance, of the
-// background or of the foreground.
+// background or in the foreground.
 //
 // An instance that a systemd unit manages is refused, but when its unit
-// starts it (startedByItsUnit). The watchdog is started by a tt that has
-// checked that already.
+// starts it (startedByItsUnit).
 func startResolved(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
-	if watchdog && len(instances) != 1 {
+	err := refuseManaged(instances, "start", startedByItsUnit)
+	if err != nil {
+		return err
+	}
+
+	canStart, err := running.IsAbleToStartInstances(instances)
+	if !canStart {
+		return err
+	}
+
+	if startForeground {
+		return startInstancesForeground(cmdCtx, instances)
+	}
+
+	return startInstancesUnderWatchdog(cmdCtx, instances)
+}
+
+// runWatchdog runs the watchdog of one instance, of the background or of the
+// foreground, from the launch --launch names, which the tt that started it
+// resolved and checked (running.StartWatchdog). It resolves nothing itself:
+// target only names the instance in the list of processes.
+func runWatchdog(cmdCtx *cmdcontext.CmdCtx, target []string) error {
+	if watchdogLaunch == "" {
+		return util.NewArgError(errWatchdogWithoutLaunch.Error())
+	}
+
+	if len(target) != 1 {
 		return util.NewArgError("the watchdog runs one instance")
 	}
 
-	if !watchdog {
-		err := refuseManaged(instances, "start", startedByItsUnit)
-		if err != nil {
-			return err
-		}
-	}
-
-	// The watchdog of the foreground has been checked by tt in the
-	// foreground, whose output its own would repeat.
-	if !watchdog || !startForeground {
-		canStart, err := running.IsAbleToStartInstances(instances)
-		if !canStart {
-			return err
-		}
-	}
-
-	switch {
-	case !watchdog && startForeground:
-		return startInstancesForeground(cmdCtx, instances)
-	case !watchdog:
-		return startInstancesUnderWatchdog(cmdCtx, instances)
+	launch, err := running.LoadLaunch(cmdCtx, watchdogLaunch)
+	if err != nil {
+		return err
 	}
 
 	cmdCtx.Cli.IntegrityCheckPeriod = integrityCheckPeriodOf(&cmdCtx.Cli)
 
 	if startForeground {
-		return startForegroundWatchdog(cmdCtx, &instances[0])
+		return startForegroundWatchdog(cmdCtx, launch)
 	}
 
-	return running.Start(context.Background(), cmdCtx, &instances[0])
-}
-
-// startOptions are the options tt instance start resolves its targets with.
-// The watchdog of an instance gets the scope, the template and the
-// application directory the instance was resolved with, so that it runs it
-// from the application directory the command that started it found
-// (running.StartWatchdog).
-func startOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
-	if watchdogDir != "" && !watchdog {
-		return app.Options{}, util.NewArgError(errPinWithoutWatchdog.Error())
-	}
-
-	opts, err := instanceTargetOptions(cmdCtx)
-	if err != nil {
-		return app.Options{}, err
-	}
-
-	opts.Dir = watchdogDir
-
-	return opts, nil
+	return running.Start(cmdCtx, launch)
 }
 
 // integrityCheckPeriodOf returns the integrity check period of a watchdog in

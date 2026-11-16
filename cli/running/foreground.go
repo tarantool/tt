@@ -84,23 +84,17 @@ func ExitCodeOf(state *os.ProcessState) int {
 	return state.ExitCode()
 }
 
-// StartForeground runs the watchdog of inst as tt instance start --foreground
-// runs it, in the current process: the watchdog Start runs, which never
-// restarts the instance and copies its output to echo as well. It returns
-// the exit code that tells how the instance ended, as the comment above
-// says, or the error that kept the watchdog from running.
-func StartForeground(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx,
-	echo io.Writer,
-) (int, error) {
-	pinned := *inst
-
+// StartForeground runs the watchdog of the instance of launch as
+// tt instance start --foreground runs it, in the current process: the
+// watchdog Start runs, which never restarts the instance and copies its
+// output to echo as well. It returns the exit code that tells how the
+// instance ended, as the comment above says, or the error that kept the
+// watchdog from running.
+func StartForeground(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer) (int, error) {
 	output := newAsyncEcho(echo)
 	defer output.close(echoDrainTimeout)
 
-	//nolint:contextcheck // The watchdog runs until it is stopped; ctx bounds the reads.
-	end, err := superviseInstance(cmdCtx, inst, func() (InstanceCtx, error) {
-		return reload(ctx, &pinned, cmdCtx.Integrity)
-	}, output)
+	end, err := superviseInstance(cmdCtx, launch, output)
 	if err != nil {
 		return 0, err
 	}
@@ -249,19 +243,27 @@ func (echo *asyncEcho) close(timeout time.Duration) {
 //
 // The caller has made sure that the instance does not run; a pid file
 // nobody holds is removed first, as StartWatchdog removes it
-// (clearForWatchdog).
+// (clearForWatchdog). The instance is resolved into the launch the watchdog
+// runs here, as StartWatchdog resolves it.
 func StartForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 	instance InstanceCtx, args []string, stdout, stderr io.Writer,
 ) (*exec.Cmd, error) {
-	cmdArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance, args, true)
+	_, _, err := clearForWatchdog(&instance)
+	if err != nil {
+		return nil, fmt.Errorf("cannot start the watchdog for %s: %w",
+			GetAppInstanceName(instance), err)
+	}
+
+	launchFile, err := prepareWatchdog(&instance)
 	if err != nil {
 		return nil, err
 	}
 
-	_, _, err = clearForWatchdog(&instance)
+	cmdArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance, launchFile, args, true)
 	if err != nil {
-		return nil, fmt.Errorf("cannot start the watchdog for %s: %w",
-			GetAppInstanceName(instance), err)
+		_ = os.Remove(launchFile)
+
+		return nil, err
 	}
 
 	cmd := exec.CommandContext(context.Background(), ttExecutable, cmdArgs...)
@@ -275,6 +277,8 @@ func StartForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 
 	err = cmd.Start()
 	if err != nil {
+		_ = os.Remove(launchFile)
+
 		return nil, fmt.Errorf("cannot start the watchdog for %s: %w",
 			GetAppInstanceName(instance), err)
 	}

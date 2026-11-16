@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -249,11 +248,11 @@ func (w relayWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// startForegroundWatchdog runs the watchdog of inst for tt instance start
-// --foreground (running.StartForeground) and ends with the exit code that
-// tells how the instance ended.
-func startForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, inst *running.InstanceCtx) error {
-	code, err := running.StartForeground(context.Background(), cmdCtx, inst, os.Stdout)
+// startForegroundWatchdog runs the watchdog of the instance of launch for
+// tt instance start --foreground (running.StartForeground) and ends with the
+// exit code that tells how the instance ended.
+func startForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, launch *running.Launch) error {
+	code, err := running.StartForeground(cmdCtx, launch, os.Stdout)
 	if err != nil {
 		return err
 	}
@@ -265,5 +264,5 @@ func startForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, inst *running.InstanceCt
 	// The watchdog logged a failure of its own; the exit of an instance is
 	// for tt in the foreground to tell.
 	return exitcode.Silent(sdk.Errorf(code, "instance %s %w %d",
-		running.GetAppInstanceName(*inst), errInstanceExited, code))
+		running.GetAppInstanceName(launch.Instance), errInstanceExited, code))
 }

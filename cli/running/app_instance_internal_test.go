@@ -18,7 +18,6 @@ import (
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/app"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -524,10 +523,10 @@ func TestOldLayoutGuard(t *testing.T) {
 		require.ErrorContains(t, err,
 			filepath.Join(fixture.dir, ".tarantool", "var", "lib", fixtureApp, "<instance>"))
 
-		_, err = StartForeground(t.Context(), &cmdcontext.CmdCtx{}, &inst, io.Discard)
+		_, err = ResolveLaunch(&inst)
 		require.ErrorIs(t, err, errOldLayout)
 
-		err = Start(t.Context(), &cmdcontext.CmdCtx{}, &inst)
+		_, err = prepareWatchdog(&inst)
 		require.ErrorIs(t, err, errOldLayout)
 
 		assert.NoDirExists(t, fixture.root, "a refused start creates nothing")

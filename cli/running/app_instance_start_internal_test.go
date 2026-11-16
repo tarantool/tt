@@ -106,8 +106,13 @@ func startInstance(t *testing.T, inst *InstanceCtx, want string) *startedInstanc
 
 	started := &startedInstance{t: t, inst: inst, done: make(chan error, 1), pid: 0}
 
+	// The launch is resolved as tt instance start resolves it before it
+	// starts the watchdog.
+	launch, err := ResolveLaunch(inst)
+	require.NoError(t, err)
+
 	go func() {
-		started.done <- Start(t.Context(), &cmdcontext.CmdCtx{}, inst)
+		started.done <- Start(&cmdcontext.CmdCtx{}, &launch)
 	}()
 
 	t.Cleanup(func() {
@@ -234,7 +239,7 @@ func TestInstalledInstanceLongSocketPath(t *testing.T) {
 	assert.False(t, canStart)
 	require.ErrorIs(t, err, errSocketPathIsLongerThanSymbols)
 
-	err = Start(t.Context(), &cmdcontext.CmdCtx{}, &inst)
+	_, err = prepareWatchdog(&inst)
 	require.ErrorIs(t, err, errSocketPathIsLongerThanSymbols)
 	assert.NoDirExists(t, filepath.Join(root, "var"))
 }

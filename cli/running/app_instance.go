@@ -156,7 +156,6 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Env:               maps.Clone(inst.Env),
 		Unit:              "",
 		Integrity:         application.Integrity,
-		integrityFor:      nil,
 		configVars:        nil,
 	}
 

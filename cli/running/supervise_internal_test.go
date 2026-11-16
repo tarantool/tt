@@ -98,45 +98,48 @@ func TestWatchdogIntegrityHardStop(t *testing.T) {
 	assertNoSockets(t, &test.inst)
 }
 
-// TestWatchdogCleanupAfterRunDirChange pins that the sockets removed after
-// tarantool exits are the ones it ran with, when the configuration has moved
-// them meanwhile: at the end of the watchdog when the instance is not
-// restarted, and before the next start when it is.
-func TestWatchdogCleanupAfterRunDirChange(t *testing.T) {
-	cases := map[string]instances.RestartPolicy{
-		"not restarted": instances.RestartNo, "restarted": instances.RestartAlways,
-	}
+// TestWatchdogRestartsItsLaunch pins that the watchdog starts the instance
+// from its launch every time: a restart runs the process the first start
+// ran, whatever the context of the instance says by then. While it runs,
+// the launch is in the run directory, naming the watchdog, for
+// tt instance status --details; it goes with the sockets at the end.
+func TestWatchdogRestartsItsLaunch(t *testing.T) {
+	test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
+	done := test.run()
 
-	for name, policy := range cases {
-		t.Run(name, func(t *testing.T) {
-			test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
-			done := test.run()
+	first := test.waitStarted(1)
+	waitSockets(t, &test.inst)
 
-			first := test.waitStarted(1)
-			old := test.inst
+	running := RunningLaunch(&test.inst)
+	require.NotNil(t, running, "the launch is not in the run directory")
+	assert.Equal(t, os.Getpid(), running.Watchdog)
+	assert.Equal(t, test.src.launch.Spec, running.Spec)
+	assert.Equal(t, instances.RestartAlways, running.Instance.Restart)
 
-			waitSockets(t, &old)
+	firstSpec, err := test.src.Next(t.Context())
+	require.NoError(t, err)
 
-			moved := test.moveRunDir()
+	// An edit of the description after the start does not reach the
+	// watchdog: it does not read it.
+	test.inst.Restart = instances.RestartNo
+	test.inst.Env = map[string]string{"EDITED": "1"}
 
-			test.setRestart(policy)
+	// Killed, tarantool leaves its sockets behind, and is started again.
+	require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
+	test.waitStarted(2)
 
-			// Killed, tarantool leaves its sockets behind.
-			require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
+	secondSpec, err := test.src.Next(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, firstSpec.Path, secondSpec.Path)
+	assert.Equal(t, firstSpec.Args, secondSpec.Args)
+	assert.Equal(t, firstSpec.Env, secondSpec.Env)
+	assert.NotContains(t, secondSpec.Env, "EDITED=1")
 
-			if policy == instances.RestartAlways {
-				test.waitStarted(2)
-				waitSockets(t, &moved)
-				assertNoSockets(t, &old)
-
-				require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
-			}
-
-			require.NoError(t, waitDone(t, done))
-			assertNoSockets(t, &old)
-			assertNoSockets(t, &moved)
-		})
-	}
+	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
+	require.NoError(t, waitDone(t, done))
+	assertNoSockets(t, &test.inst)
+	assert.NoFileExists(t, filepath.Join(test.inst.RunDir, launchFileName))
+	assert.Nil(t, RunningLaunch(&test.inst))
 }
 
 // TestWatchdogRemovesThePidFileOfADeadTarantool pins that the pid file
@@ -144,7 +147,7 @@ func TestWatchdogCleanupAfterRunDirChange(t *testing.T) {
 // without removing it, killed here: with it, tt instance stop would leave
 // it behind. A file that names another process by then is left alone.
 func TestWatchdogRemovesThePidFileOfADeadTarantool(t *testing.T) {
-	test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
+	test := newWatchdogTest(t, instances.RestartNo, &cmdcontext.CmdCtx{})
 	pidFile := filepath.Join(test.inst.RunDir, layout.TarantoolPidFileName)
 	done := test.run()
 
@@ -156,7 +159,6 @@ func TestWatchdogRemovesThePidFileOfADeadTarantool(t *testing.T) {
 		return err == nil && strings.TrimSpace(string(data)) == strconv.Itoa(first)
 	}, 20*time.Second, 10*time.Millisecond, "tarantool did not write its pid file")
 
-	test.setRestart(instances.RestartNo)
 	require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
 	require.NoError(t, waitDone(t, done))
 	assert.NoFileExists(t, pidFile)
@@ -168,10 +170,8 @@ func TestWatchdogRemovesThePidFileOfADeadTarantool(t *testing.T) {
 	assert.Equal(t, other, readPidFile(t, pidFile))
 }
 
-// TestWatchdogCleanupAfterFailedStart pins that the sockets removed at the
-// end are those of the tarantool that ran, when the context of the next
-// start is ready but that start fails: the paths of the context that never
-// ran, where something else may live, are left alone.
+// TestWatchdogCleanupAfterFailedStart pins that the sockets of the tarantool
+// that ran are removed when the start after it fails.
 func TestWatchdogCleanupAfterFailedStart(t *testing.T) {
 	errStart := errors.New("the start failed")
 	starts := 0
@@ -195,12 +195,6 @@ func TestWatchdogCleanupAfterFailedStart(t *testing.T) {
 
 	waitSockets(t, &old)
 
-	moved := test.moveRunDir()
-
-	for _, path := range []string{moved.ConsoleSocket, moved.BinaryPort} {
-		require.NoError(t, os.WriteFile(path, nil, 0o600))
-	}
-
 	// Killed, tarantool leaves its sockets behind.
 	require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
 
@@ -212,8 +206,6 @@ func TestWatchdogCleanupAfterFailedStart(t *testing.T) {
 	require.ErrorAs(t, err, &runErr)
 	assert.Equal(t, supervisor.OpStart, runErr.Op)
 	assertNoSockets(t, &old)
-	assert.FileExists(t, moved.ConsoleSocket)
-	assert.FileExists(t, moved.BinaryPort)
 }
 
 // TestWatchdogForwardsStopSignal pins that a stop signal reaches tarantool as

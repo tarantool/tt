@@ -91,7 +91,7 @@ func TestInstanceGroupFlags(t *testing.T) {
 	assert.Empty(t, foreground.Shorthand)
 	assert.Nil(t, start.Flags().Lookup("interactive"))
 
-	for _, hidden := range []string{"watchdog", "app-dir"} {
+	for _, hidden := range []string{"watchdog", "launch"} {
 		flag := start.Flags().Lookup(hidden)
 		require.NotNil(t, flag, hidden)
 		assert.True(t, flag.Hidden, hidden)
@@ -132,25 +132,37 @@ func TestConnectFacade(t *testing.T) {
 //
 //nolint:paralleltest // Sets the flags of tt instance start.
 func TestStartOptionsRefuse(t *testing.T) {
-	previousWatchdog, previousDir, previousForeground := watchdog, watchdogDir, startForeground
+	previousWatchdog, previousLaunch, previousForeground := watchdog, watchdogLaunch,
+		startForeground
 	previousFlags := instanceFlags
 
 	t.Cleanup(func() {
-		watchdog, watchdogDir, startForeground = previousWatchdog, previousDir, previousForeground
+		watchdog, watchdogLaunch, startForeground = previousWatchdog, previousLaunch,
+			previousForeground
 		instanceFlags = previousFlags
 	})
 
 	cmdCtx := &cmdcontext.CmdCtx{}
 
-	watchdog, watchdogDir, startForeground = false, "/somewhere", false
+	watchdog, watchdogLaunch, startForeground = false, "/somewhere", false
 
-	_, err := startOptions(cmdCtx)
-	require.ErrorContains(t, err, "--app-dir is only for the watchdog")
+	err := internalStartModule(cmdCtx, nil)
+	require.ErrorContains(t, err, "--launch is only for the watchdog")
 
-	watchdog, watchdogDir, startForeground = false, "", false
+	watchdog, watchdogLaunch = true, ""
+
+	err = internalStartModule(cmdCtx, []string{"myapp:storage-1"})
+	require.ErrorContains(t, err, "the watchdog of an instance needs --launch")
+
+	watchdog, watchdogLaunch = true, "/missing/launch.json"
+
+	err = internalStartModule(cmdCtx, []string{"myapp:storage-1"})
+	require.ErrorContains(t, err, "cannot read the launch of the instance")
+
+	watchdog, watchdogLaunch = false, ""
 	instanceFlags.Scope = "global"
 
-	_, err = startOptions(cmdCtx)
+	err = internalStartModule(cmdCtx, nil)
 	require.ErrorContains(t, err, `unknown scope "global"`)
 }
 

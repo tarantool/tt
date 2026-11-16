@@ -52,8 +52,9 @@ func (started *startedInstance) marker() string {
 
 // TestWatchdogRestartStaysOnItsVersion pins the restart after a crash: the
 // watchdog starts the instance again from the version it started from,
-// although apps/<app> has moved to another version meanwhile, and with the
-// pair of that version read anew, so an edited config applies.
+// although apps/<app> has moved to another version meanwhile, from the
+// launch of its start; tarantool reads the cluster config of the version
+// itself at every start, so an edited config applies.
 func TestWatchdogRestartStaysOnItsVersion(t *testing.T) {
 	root, _ := setScopeRoots(t)
 	installTarantoolLink(t, root)

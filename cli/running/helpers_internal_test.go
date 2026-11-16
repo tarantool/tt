@@ -3,6 +3,7 @@ package running
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"sync"
@@ -10,10 +11,34 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
 const filePollInterval = 500 * time.Millisecond
+
+// startLaunched runs the watchdog of inst as tt instance start --watchdog
+// runs it: from the launch tt instance start resolves inst to, which fails
+// as that start would.
+func startLaunched(inst *InstanceCtx) error {
+	launch, err := ResolveLaunch(inst)
+	if err != nil {
+		return err
+	}
+
+	return Start(&cmdcontext.CmdCtx{}, &launch)
+}
+
+// startForegroundLaunched runs the watchdog of tt instance start
+// --foreground for inst, as startLaunched runs that of the background.
+func startForegroundLaunched(inst *InstanceCtx, echo io.Writer) (int, error) {
+	launch, err := ResolveLaunch(inst)
+	if err != nil {
+		return 0, err
+	}
+
+	return StartForeground(&cmdcontext.CmdCtx{}, &launch, echo)
+}
 
 // waitForFile waits for the file to appear.
 func waitForFile(filePath string) int {

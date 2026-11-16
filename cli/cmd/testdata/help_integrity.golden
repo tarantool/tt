@@ -62,6 +62,12 @@ Start the instances the targets select. By default every instance runs in the
 background under a watchdog of tt, which restarts it as the restart field of its
 record says.
 
+What an instance runs - its binary or tarantool, its script or cluster config,
+its arguments, environment, restart policy and paths - is resolved here, before
+its watchdog starts, and the watchdog runs that for its whole life, restarts
+included: an edit of instances.yaml takes effect at the next tt instance start
+or restart. tarantool reads config.yaml itself at every start.
+
 With --foreground tt stays in the foreground, for systemd, a container or a
 terminal, while every instance runs under a watchdog of its own that does not
 restart it. The output of the instances goes to their tt.log and to the standard

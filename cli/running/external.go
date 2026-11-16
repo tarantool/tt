@@ -41,9 +41,6 @@ var (
 	// errNoWorkdir is wrapped by the error for an external process whose
 	// working directory is not a directory.
 	errNoWorkdir = errors.New("cannot run in the working directory")
-	// errKindChanged is wrapped by the error for an instance whose record
-	// has turned into another kind of instance while its watchdog runs.
-	errKindChanged = errors.New("the instance has changed its kind")
 	// errNotDirectory is wrapped by the error for a working directory that
 	// is a file.
 	errNotDirectory = errors.New("is not a directory")
@@ -90,19 +87,6 @@ func RequireTarantoolRecord(application *app.App, name string) error {
 func notTarantoolError(appName, instName, binary string) error {
 	return fmt.Errorf("%s%c%s is an external process (binary: %s): %w",
 		appName, InstanceDelimiter, instName, binary, ErrNotTarantool)
-}
-
-// kindName names kind for a message.
-func kindName(kind instances.Kind) string {
-	switch kind {
-	case instances.KindExternal:
-		return "an external process"
-	case instances.KindScript:
-		return "a Tarantool instance that runs its script"
-	case instances.KindCluster:
-	}
-
-	return "a Tarantool instance"
 }
 
 // setExternalCtx makes instCtx, built for the record inst with the paths of

@@ -19,7 +19,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
@@ -396,7 +395,7 @@ func startWatchdog(t *testing.T, inst *InstanceCtx) *runningWatchdog {
 	watchdog := &runningWatchdog{t: t, inst: inst, done: make(chan error, 1)}
 
 	go func() {
-		watchdog.done <- Start(t.Context(), &cmdcontext.CmdCtx{}, inst)
+		watchdog.done <- startLaunched(inst)
 	}()
 
 	t.Cleanup(func() {
@@ -483,8 +482,8 @@ func TestExternalProcessStartStop(t *testing.T) {
 }
 
 // externalWatchdog is the watchdog of an external process run in a
-// goroutine of the test as Start runs it, reading the instance anew before
-// every start, with a short restart delay, and stopped by its context.
+// goroutine of the test as Start runs it, from the launch of the instance,
+// with a short restart delay, and stopped by its context.
 type externalWatchdog struct {
 	t      *testing.T
 	inst   *InstanceCtx
@@ -501,11 +500,11 @@ func superviseExternal(t *testing.T, inst *InstanceCtx) *externalWatchdog {
 	require.NoError(t, err)
 
 	cmdCtx := &cmdcontext.CmdCtx{}
-	pinned := *inst
-	src := newInstanceSource(cmdCtx, inst, &watchdogLog{logger: logger, checkPeriod: 0},
-		func() (InstanceCtx, error) {
-			return reload(t.Context(), &pinned, integrity.IntegrityCtx{Repository: nil})
-		})
+
+	launch, err := ResolveLaunch(inst)
+	require.NoError(t, err)
+
+	src := newInstanceSource(cmdCtx, &launch, &watchdogLog{logger: logger, checkPeriod: 0})
 
 	opts := watchdogOptions(cmdCtx, src)
 
@@ -748,7 +747,7 @@ func TestExternalProcessFromPath(t *testing.T) {
 
 	require.NoError(t, os.RemoveAll(fixture.root))
 
-	err = Start(t.Context(), &cmdcontext.CmdCtx{}, &missing)
+	_, err = prepareWatchdog(&missing)
 	require.ErrorIs(t, err, exec.ErrNotFound)
 	assert.NoDirExists(t, fixture.root)
 }

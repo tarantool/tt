@@ -141,7 +141,7 @@ func TestLookupFlagsMatchResolver(t *testing.T) {
 		app.ScopeProject.String(), app.ScopeUser.String(), app.ScopeSystem.String(),
 	}, got)
 
-	template := status.Flags().Lookup(running.TemplateFlag)
+	template := status.Flags().Lookup(sdk.TemplateFlag)
 	require.NotNil(t, template)
 	assert.Contains(t, template.Usage, `(default "`+app.DefaultTemplate+`")`)
 }

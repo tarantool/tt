@@ -93,6 +93,18 @@ $ tt instance logs myapp:storage-001 --follow
 of tt. The watchdog starts the instance again after it exits on its own when
 its `restart` field says so: `no` (the default), `on-failure` or `always`.
 
+`tt instance start` resolves what an instance runs before it starts the
+watchdog: the binary or the `tarantool`, the script or the cluster config,
+the arguments, the environment, the restart policy and the paths of the
+instance. The watchdog runs that for its whole life, restarts after a crash
+included, on the version the instance started from. An edit of
+`instances.yaml` made after the start therefore takes effect only at the next
+`tt instance start` or `tt instance restart`. `tarantool` itself reads
+`config.yaml` at every start, as `config:reload()` does, so a restarted
+instance sees the cluster config as it is then. While the watchdog runs, what it
+runs is in `<root>/var/run/<app>/<instance>/launch.json`, and
+`tt instance status --details` names the `tarantool` the instance runs on.
+
 With `--foreground` tt stays in the foreground instead, for systemd, a
 container or a terminal. Every instance still runs under a watchdog of its
 own, which does not restart it, so `tt instance stop`, `kill`, `logrotate`

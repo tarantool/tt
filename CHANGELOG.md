@@ -1381,6 +1381,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   started without `--watchdog` inherits the lock of `tcm.pid` from
   `tt tcm start` and holds it for as long as it runs; a `tcm.pid` written by
   an earlier tt, which nobody holds, is taken for a TCM that has exited.
+- The watchdog of an instance no longer reads `instances.yaml` and
+  `config.yaml` itself: it read them as it came up and before every restart,
+  so an edit made right after `tt instance start` changed what started, and
+  one made later changed what a crash restarted. `tt instance start` now
+  resolves what each instance runs - the binary or `tarantool`, the script or
+  cluster config, the arguments, the environment, the restart policy and the
+  paths - before it returns, and hands that to the watchdog, which runs it
+  for its whole life, restarts included. An edit takes effect at the next
+  `tt instance start` or `tt instance restart`; `tarantool` still reads
+  `config.yaml` at every start, as `config:reload()` does. What the watchdog
+  runs is in `var/run/<app>/<instance>/launch.json` while it runs, and
+  `tt instance status --details` names the `tarantool` a running instance
+  runs on rather than the one a new start would choose.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

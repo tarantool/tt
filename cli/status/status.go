@@ -178,8 +178,20 @@ func showsDetails(printer InstanceStatusPrinter) bool {
 }
 
 // setTarantool sets the tarantool the Tarantool instance run starts on, and
-// where it comes from, in instStatus (running.DescribeTarantool).
+// where it comes from, in instStatus (running.DescribeTarantool). For an
+// instance that runs, it is the tarantool its watchdog runs it on, as
+// tt instance start resolved it (running.RunningLaunch): the watchdog starts
+// the instance on it again after a crash, whatever the next start would
+// choose.
 func setTarantool(instStatus *instanceStatus, run *running.InstanceCtx) {
+	launch := running.RunningLaunch(run)
+	if launch != nil && launch.Tarantool != "" {
+		instStatus.tarantool = launch.Tarantool + "; the watchdog runs it as it was started"
+		instStatus.tarantoolWarnings = launch.TarantoolWarnings
+
+		return
+	}
+
 	described, warnings, err := running.DescribeTarantool(run)
 	if err != nil {
 		instStatus.tarantool = "none can be chosen: " + err.Error()

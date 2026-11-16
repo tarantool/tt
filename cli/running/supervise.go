@@ -3,13 +3,12 @@ package running
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
-	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/ttlog"
@@ -81,104 +80,86 @@ func (wl *watchdogLog) onEnd(err error) {
 	}
 }
 
-// instanceSource is the Source of the watchdog of an instance. It reads the
-// instance again from its pair before every start and after every exit, so
-// that a change of the config or of the description applies from the next
-// start on.
+// instanceSource is the Source of the watchdog of an instance: it starts the
+// instance from its Launch, which tt instance start resolved, every time,
+// and restarts it as the restart policy of the launch says. Nothing is read
+// from the pair of the application meanwhile.
 type instanceSource struct {
 	cmdCtx *cmdcontext.CmdCtx
-	// ran is the context tarantool started last runs, or ran, with: the one
-	// whose sockets are on disk. Before the first start it is the context
-	// the watchdog was started for.
-	ran InstanceCtx
-	// next is the context the last Spec was built from. It becomes ran once
-	// tarantool has started with it.
-	next InstanceCtx
-	log  *watchdogLog
-	// refresh reads the context of the instance anew from its pair.
-	refresh func() (InstanceCtx, error)
+	// launch is what the watchdog runs; ran is the context of its instance,
+	// whose sockets tarantool binds.
+	launch *Launch
+	ran    InstanceCtx
+	log    *watchdogLog
 	// stdout and stderr are where the output of tarantool goes; nil is the
 	// log of the watchdog, tt.log.
 	stdout io.Writer
 	stderr io.Writer
-	// checks are the integrity checks of the context the last Spec was built
-	// from, nil while they are off: the periodic check, on a goroutine of
-	// its own, validates them.
-	checks atomic.Pointer[integrity.IntegrityCtx]
 }
 
-func newInstanceSource(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, log *watchdogLog,
-	refresh func() (InstanceCtx, error),
+func newInstanceSource(cmdCtx *cmdcontext.CmdCtx, launch *Launch, log *watchdogLog,
 ) *instanceSource {
-	src := &instanceSource{
-		cmdCtx:  cmdCtx,
-		ran:     *inst,
-		next:    *inst,
-		log:     log,
-		refresh: refresh,
-		stdout:  nil,
-		stderr:  nil,
-		checks:  atomic.Pointer[integrity.IntegrityCtx]{},
+	return &instanceSource{
+		cmdCtx: cmdCtx,
+		launch: launch,
+		ran:    launch.Instance,
+		log:    log,
+		stdout: nil,
+		stderr: nil,
 	}
-
-	src.checks.Store(inst.Integrity)
-
-	return src
 }
 
-// Next reads the configuration and builds the Spec of the instance from it.
+// Next returns the Spec of the launch, once what its start needs is there:
+// the directories of the instance, the links of its version to the layout,
+// when it runs on them, and the signature of what it runs, with the
+// integrity checks on.
 func (src *instanceSource) Next(context.Context) (supervisor.Spec, error) {
-	inst, err := src.refresh()
+	inst := &src.ran
+
+	err := prepareLaunch(inst, &src.launch.Spec)
 	if err != nil {
 		return supervisor.Spec{}, err
 	}
-
-	src.next = inst
 
 	if inst.ClusterConfigPath != "" {
 		src.log.logger.Printf("(INFO): using %q cluster config for instance %q",
 			inst.ClusterConfigPath, inst.InstName)
 	}
 
-	src.checks.Store(inst.Integrity)
+	return src.launch.Spec.supervisorSpec(outputOr(src.stdout, src.log.logger),
+		outputOr(src.stderr, src.log.logger)), nil
+}
 
-	return instanceSpec(&src.next, specOptions{
-		integrity: inst.Integrity,
-		stdout:    outputOr(src.stdout, src.log.logger),
-		stderr:    outputOr(src.stderr, src.log.logger),
-		warn: func(message string) {
-			src.log.logger.Printf("(WARN): %s.", message)
-		},
-	})
+// prepareLaunch readies the start of inst from spec, its launch: the
+// directories of the instance, which tt instance clean may have removed, the
+// links of its version to the layout (linkIntegrityLayout), and, with the
+// integrity checks on, the signature of the program it runs, which may have
+// changed since the launch was resolved.
+func prepareLaunch(inst *InstanceCtx, spec *LaunchSpec) error {
+	err := createInstanceDataDirectories(*inst)
+	if err != nil {
+		return fmt.Errorf("failed to create a directory: %w", err)
+	}
+
+	err = linkIntegrityLayout(inst)
+	if err != nil {
+		return err
+	}
+
+	what := "tarantool"
+	if IsExternal(inst) {
+		what = "binary"
+	}
+
+	return checkSigned(inst, what, spec.Path)
 }
 
 // Restart removes the sockets tarantool left as it exited, then restarts the
-// instance as its current restart policy says (restartsAfter), and switches
-// to a new log if the log settings have changed.
+// instance as the restart policy of its launch says (restartsAfter).
 func (src *instanceSource) Restart(_ context.Context, exit supervisor.Exit) (bool, error) {
 	removeSockets(&src.ran)
 
-	inst, err := src.refresh()
-	if err != nil {
-		src.log.logger.Println("(ERROR): can't check if the instance is restartable.")
-
-		return false, nil //nolint:nilerr // Logged above; the watchdog ends.
-	}
-
-	if !restartsAfter(&inst, exit) {
-		return false, nil
-	}
-
-	logger, err := updateLogger(src.log.logger, &inst)
-	if err != nil {
-		src.log.logger.Println("(ERROR): can't update logger parameters.")
-
-		return false, nil //nolint:nilerr // Logged above; the watchdog ends.
-	}
-
-	src.log.logger = logger
-
-	return true, nil
+	return restartsAfter(&src.ran, exit), nil
 }
 
 // restartsAfter reports whether the watchdog starts inst again after exit, an
@@ -211,13 +192,10 @@ func outputOr(out, log io.Writer) io.Writer {
 	return log
 }
 
-// started records that tarantool runs with the context of the last Spec, and
-// records the application directory it runs from in the run directory, for
-// tt instance status and tt package to tell the version it runs
-// (RunningAppDir).
+// started records the application directory the instance runs from in the
+// run directory, for tt instance status and tt package to tell the version it
+// runs (RunningAppDir).
 func (src *instanceSource) started() {
-	src.ran = src.next
-
 	err := recordAppDir(&src.ran)
 	if err != nil {
 		src.log.logger.Printf("(WARN): %v.", err)
@@ -239,52 +217,14 @@ func (src *instanceSource) exited(pid int) {
 	}
 }
 
-// isLoggerChanged reports whether instanceCtx names another log file than
-// the one logger writes; no logger at all counts as a change.
-func isLoggerChanged(logger ttlog.Logger, instanceCtx *InstanceCtx) (bool, error) {
-	if logger == nil {
-		return true, nil
-	}
-
-	if instanceCtx == nil {
-		return true, errLoggerChangedCheckFailedPassingNullAsAnInstanceContext
-	}
-
-	loggerOpts := logger.GetOpts()
-
-	if loggerOpts.Filename != instanceCtx.Log {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-// updateLogger returns logger, or a new one for the log settings of
-// instanceCtx if they have changed.
-func updateLogger(logger ttlog.Logger, instanceCtx *InstanceCtx) (ttlog.Logger, error) {
-	changed, err := isLoggerChanged(logger, instanceCtx)
-	if err != nil {
-		return logger, err
-	}
-
-	if !changed {
-		return logger, nil
-	}
-
-	if logger != nil {
-		_ = logger.Close()
-	}
-
-	return createLogger(instanceCtx)
-}
-
 // watchdogOptions are the options of the watchdog of an instance: the pid file
 // names the watchdog, the stop signals reach tarantool as they were sent, a
 // SIGHUP rotates the log of the watchdog and reaches tarantool as well, once
 // tarantool handles it, and
-// the periodic integrity check, when there is one, is a hard stop. The
-// sockets removed at the end are those of the context tarantool last ran
-// with, whatever the configuration says by then.
+// the periodic integrity check, when there is one, is a hard stop. Once the
+// watchdog holds the pid file, the launch it runs goes into the run
+// directory (Launch.publish), for tt instance status --details, and is
+// removed at the end with the sockets of the instance.
 //
 // The watchdog of an external process writes the pid of the process into its
 // own pid file as well, since the process leads a group of its own that
@@ -305,6 +245,7 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 		Check:        nil,
 		Cleanup: func() {
 			removeSockets(&src.ran)
+			src.launch.unpublish()
 
 			err := removeAppDir(&src.ran)
 			if err != nil {
@@ -315,6 +256,13 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 			switch event := event.(type) {
 			case supervisor.Started:
 				src.started()
+			case supervisor.PidFileWritten:
+				if event.Path == src.ran.PIDFile {
+					err := src.launch.publish(event.Pid)
+					if err != nil {
+						src.log.logger.Printf("(WARN): %v.", err)
+					}
+				}
 			case supervisor.Exit:
 				src.exited(event.Pid)
 			}
@@ -325,12 +273,12 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 	}
 
 	if src.log.checkPeriod != 0 {
+		// The checks of the instance: they know the files of its
+		// application and its runtimes, wherever the watchdog runs.
+		checks := src.ran.Integrity
+
 		opts.CheckPeriod = src.log.checkPeriod
 		opts.Check = func(context.Context) error {
-			// The checks of the instance, as its last start found them: they
-			// know the files of its application and its runtimes, wherever
-			// the watchdog runs.
-			checks := src.checks.Load()
 			if checks == nil {
 				return cmdCtx.Integrity.Repository.ValidateAll()
 			}

@@ -70,9 +70,6 @@ type watchdogTest struct {
 	mu      sync.Mutex
 	started []int
 	exits   []supervisor.Exit
-	// restart is the restart policy of the instance record, read at every
-	// exit.
-	restart instances.RestartPolicy
 }
 
 // testRestartDelay is the restart delay of the watchdog of a test.
@@ -94,35 +91,29 @@ func newWatchdogTest(t *testing.T, restart instances.RestartPolicy, cmdCtx *cmdc
 	fixture := appFixture{scope: app.ScopeProject, root: scope.ProjectRoot(dir), dir: dir, link: ""}
 
 	test := &watchdogTest{
-		t:       t,
-		cmdCtx:  cmdCtx,
-		inst:    fixture.instanceCtx(t),
-		flag:    filepath.Join(dir, "started"),
-		log:     &lockedBuffer{},
-		restart: restart,
+		t:      t,
+		cmdCtx: cmdCtx,
+		inst:   fixture.instanceCtx(t),
+		flag:   filepath.Join(dir, "started"),
+		log:    &lockedBuffer{},
 	}
 
 	require.NoError(t, createInstanceDataDirectories(test.inst))
 
-	// The watchdog logs into test.log, a logger of no file: with a log file
-	// in the context it would switch to that file at the first restart.
+	// The watchdog logs into test.log, a logger of no file.
 	test.inst.Log = ""
 
 	t.Setenv("started_flag_file", test.flag)
 	t.Setenv("exit_status", "")
 
-	test.src = newInstanceSource(cmdCtx, &test.inst, &watchdogLog{
+	test.inst.Restart = restart
+
+	launch, err := ResolveLaunch(&test.inst)
+	require.NoError(t, err)
+
+	test.src = newInstanceSource(cmdCtx, &launch, &watchdogLog{
 		logger:      ttlog.NewCustomLogger(test.log, "Watchdog ", 0),
 		checkPeriod: time.Duration(cmdCtx.Cli.IntegrityCheckPeriod) * time.Second,
-	}, func() (InstanceCtx, error) {
-		test.mu.Lock()
-		defer test.mu.Unlock()
-
-		inst := test.inst
-
-		inst.Restart = test.restart
-
-		return inst, nil
 	})
 
 	opts := watchdogOptions(cmdCtx, test.src)
@@ -143,8 +134,6 @@ func newWatchdogTest(t *testing.T, restart instances.RestartPolicy, cmdCtx *cmdc
 	for _, change := range configure {
 		change(&opts)
 	}
-
-	var err error
 
 	test.engine, err = supervisor.New(test.src, opts)
 	require.NoError(t, err)
@@ -262,30 +251,6 @@ func shortTempDir(t *testing.T) string {
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 
 	return dir
-}
-
-// moveRunDir changes where the configuration puts the sockets, as an edit of
-// run_dir would, and returns the new context.
-func (test *watchdogTest) moveRunDir() InstanceCtx {
-	test.t.Helper()
-
-	runDir := shortTempDir(test.t)
-
-	test.mu.Lock()
-	defer test.mu.Unlock()
-
-	test.inst.ConsoleSocket = filepath.Join(runDir, "tarantool.control")
-	test.inst.BinaryPort = filepath.Join(runDir, "tarantool.sock")
-
-	return test.inst
-}
-
-// setRestart changes the restart policy of the instance record.
-func (test *watchdogTest) setRestart(policy instances.RestartPolicy) {
-	test.mu.Lock()
-	defer test.mu.Unlock()
-
-	test.restart = policy
 }
 
 // waitSockets waits for the sockets of inst to exist.

@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/internal/instances"
@@ -304,9 +303,7 @@ func TestExternalStartChecks(t *testing.T) {
 			require.ErrorContains(t, err, `instance "worker-1" of "myapp"`)
 			require.ErrorIs(t, specErr, test.want)
 
-			_, err = superviseInstance(nil, &inst, func() (InstanceCtx, error) {
-				return inst, nil
-			}, nil)
+			_, err = prepareWatchdog(&inst)
 			require.ErrorIs(t, err, test.want)
 			assert.NoDirExists(t, fixture.root, "nothing is created")
 		})
@@ -334,31 +331,6 @@ func TestCollectExternal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"myapp:worker-1", "myapp:storage-1", "myapp:legacy-1"},
 		instNames(insts))
-}
-
-// TestReloadRefusesAnotherKind pins that the watchdog does not run an
-// instance whose record has turned into another kind of instance since it
-// started: the watchdog is set up for the kind it started.
-func TestReloadRefusesAnotherKind(t *testing.T) {
-	setScopeRoots(t)
-
-	dir := filepath.Join(t.TempDir(), fixtureApp)
-	writeFiles(t, dir, pairFiles("storage-1:\n  binary: ./bin/worker\n", "storage-1"))
-
-	insts, err := collect(t, app.Options{Start: dir})
-	require.NoError(t, err)
-	require.True(t, IsExternal(&insts[0]))
-
-	reloaded, err := reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
-	require.NoError(t, err)
-	assert.True(t, IsExternal(&reloaded))
-
-	writeFiles(t, dir, pairFiles("storage-1:\n", "storage-1"))
-
-	_, err = reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
-	require.ErrorIs(t, err, errNotReloaded)
-	require.ErrorIs(t, err, errKindChanged)
-	assert.ErrorContains(t, err, "it was an external process and is a Tarantool instance now")
 }
 
 // TestRequireTarantoolRecord pins the check of the commands that take an

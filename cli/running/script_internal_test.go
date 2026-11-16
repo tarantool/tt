@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -262,27 +261,6 @@ func TestAppScriptSpecIntegrity(t *testing.T) {
 	}, spec.Args)
 }
 
-// TestReloadRefusesScriptKindChange pins that the watchdog of an instance
-// that runs its script does not run it once its record configures it by the
-// cluster config instead.
-func TestReloadRefusesScriptKindChange(t *testing.T) {
-	setScopeRoots(t)
-
-	dir := filepath.Join(t.TempDir(), fixtureApp)
-	writeFiles(t, dir, pairFiles("storage-1:\n  script: init.lua\n", "storage-1"))
-
-	insts, err := collect(t, app.Options{Start: dir})
-	require.NoError(t, err)
-	require.True(t, IsScript(&insts[0]))
-
-	writeFiles(t, dir, pairFiles("storage-1:\n", "storage-1"))
-
-	_, err = reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
-	require.ErrorIs(t, err, errKindChanged)
-	assert.ErrorContains(t, err,
-		"it was a Tarantool instance that runs its script and is a Tarantool instance now")
-}
-
 // TestRequireClusterRecord pins the check of the commands that act on the
 // instances of the cluster config: an instance that runs its script and an
 // external process are refused, an instance of the cluster config and a name
@@ -330,7 +308,7 @@ func TestScriptInstanceStarts(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- Start(t.Context(), &cmdcontext.CmdCtx{}, &inst)
+		done <- startLaunched(&inst)
 	}()
 
 	data := filepath.Join(root, "var", "lib", fixtureApp, fixtureInst)

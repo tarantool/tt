@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -170,13 +170,15 @@ func TestCollectKinds(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "init.lua"), insts[0].InstanceScript)
 }
 
-// TestReloadStaysOnPinnedVersion pins what the watchdog reads before it
-// starts an instance again: the pair of the version the instance started
-// from, read anew, even after apps/<app> has moved to another version; while
-// resolving the application anew, as an explicit restart does, finds the
-// active version.
-func TestReloadStaysOnPinnedVersion(t *testing.T) {
+// TestLaunchKeepsWhatTheStartResolved pins what the watchdog starts an
+// instance from, again and again: the launch tt instance start resolved, on
+// the version the instance started from, with its restart policy, after
+// apps/<app> has moved to another version and the pair of the version has
+// changed; while resolving the application anew, as an explicit restart
+// does, finds the active version and the pair as it is.
+func TestLaunchKeepsWhatTheStartResolved(t *testing.T) {
 	user, _ := setScopeRoots(t)
+	installTarantoolLink(t, user)
 
 	first, _ := installVersion(t, user, "1.0.0", pairFiles("storage-1:\n", "storage-1"))
 	first, err := filepath.EvalSymlinks(first)
@@ -191,6 +193,12 @@ func TestReloadStaysOnPinnedVersion(t *testing.T) {
 	started := insts[0]
 	assert.Equal(t, instances.RestartNo, started.Restart)
 
+	launch, err := ResolveLaunch(&started)
+	require.NoError(t, err)
+
+	launchFile, err := writeLaunchFile(&launch)
+	require.NoError(t, err)
+
 	second, _ := installVersion(t, user, "2.0.0", pairFiles("storage-1:\n", "storage-1"))
 
 	second, err = filepath.EvalSymlinks(second)
@@ -198,76 +206,76 @@ func TestReloadStaysOnPinnedVersion(t *testing.T) {
 
 	// The pair of the running version changes.
 	writeFiles(t, first, map[string]string{
-		".templates/default/instances.yaml": "storage-1: {restart: on-failure}\n",
+		".templates/default/instances.yaml": "storage-1: {restart: on-failure, env: {A: b}}\n",
 	})
 
-	reloaded, err := reload(t.Context(), &started, integrity.IntegrityCtx{Repository: nil})
+	loaded, err := LoadLaunch(&cmdcontext.CmdCtx{}, launchFile)
 	require.NoError(t, err)
-	assert.Equal(t, first, reloaded.AppDir, "a restart stays on its version")
-	assert.Equal(t, instances.RestartOnFailure, reloaded.Restart, "the pair is read anew")
-	assert.Equal(t, started.PIDFile, reloaded.PIDFile)
+	assert.NoFileExists(t, launchFile, "the watchdog leaves the file of tt instance start")
+	assert.Equal(t, first, loaded.Instance.AppDir, "a restart stays on its version")
+	assert.Equal(t, instances.RestartNo, loaded.Instance.Restart, "the edit reached the launch")
+	assert.Empty(t, loaded.Instance.Env, "the edit reached the launch")
+	assert.Equal(t, started.PIDFile, loaded.Instance.PIDFile)
+	assert.Equal(t, launch.Spec, loaded.Spec)
 
 	resolved, err := collect(t, opts, "myapp:storage-1")
 	require.NoError(t, err)
 	assert.Equal(t, second, resolved[0].AppDir, "resolving anew finds the active version")
 }
 
-// TestReloadProject pins that the watchdog of a project instance finds its
-// project from the directory it started in, wherever it runs, and fails
-// when the instance has left the description.
-func TestReloadProject(t *testing.T) {
+// TestLaunchSpec pins the process a launch runs: the Spec of the instance as
+// the start resolved it, and of the environment only what tt and the record
+// add, which goes on top of the environment the watchdog inherits.
+func TestLaunchSpec(t *testing.T) {
 	setScopeRoots(t)
+	t.Setenv("TT_LAUNCH_TEST_INHERITED", "secret")
 
 	dir := filepath.Join(t.TempDir(), fixtureApp)
-	writeFiles(t, dir, pairFiles("storage-1:\n", "storage-1"))
+	writeFiles(t, dir, pairFiles("storage-1:\n  env: {FROM_RECORD: '1'}\n", "storage-1"))
 
 	insts, err := collect(t, app.Options{Start: dir})
 	require.NoError(t, err)
 
-	t.Chdir(t.TempDir())
-
-	reloaded, err := reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
+	spec, err := instanceSpec(&insts[0], specOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, insts[0].WalDir, reloaded.WalDir)
 
-	writeFiles(t, dir, pairFiles("storage-2:\n", "storage-2"))
-
-	_, err = reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
-	require.ErrorIs(t, err, errNotReloaded)
-	require.ErrorIs(t, err, app.ErrInstanceNotFound)
-}
-
-// TestReloadReadsConfig pins that the watchdog requires the cluster config
-// of its pair when it reads the instance anew, whatever the context it was
-// given was built with: the commands that only stop and inspect instances
-// read the config as far as they can (app.Options.BestEffortConfig), the
-// start of an instance does not do without it.
-func TestReloadReadsConfig(t *testing.T) {
-	setScopeRoots(t)
-
-	dir := filepath.Join(t.TempDir(), fixtureApp)
-	wal := filepath.Join(t.TempDir(), "wal")
-	files := pairFiles("storage-1:\n", "storage-1")
-	config := files[".templates/default/config.yaml"] + "wal:\n  dir: " + wal + "\n"
-
-	files[".templates/default/config.yaml"] = "groups: [\n"
-	writeFiles(t, dir, files)
-
-	insts, err := collect(t, app.Options{Start: dir, BestEffortConfig: true})
+	launch, err := ResolveLaunch(&insts[0])
 	require.NoError(t, err)
-	require.Len(t, insts, 1)
-	assert.Nil(t, insts[0].Configuration)
-	assert.NotEqual(t, wal, insts[0].WalDir, "the layout without the config")
+	assert.True(t, launch.Spec.InheritEnv)
+	assert.Contains(t, launch.Spec.Env, "FROM_RECORD=1")
+	assert.NotContains(t, launch.Spec.Env, "TT_LAUNCH_TEST_INHERITED=secret",
+		"the launch file keeps the environment of the user")
+	assert.NotEmpty(t, launch.Tarantool)
 
-	_, err = reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
-	require.ErrorIs(t, err, errNotReloaded)
+	rebuilt := launch.Spec.supervisorSpec(nil, nil)
+	assert.Equal(t, spec.Path, rebuilt.Path)
+	assert.Equal(t, spec.Args, rebuilt.Args)
+	assert.Equal(t, spec.Env, rebuilt.Env, "the process gets the environment the start gave it")
+	assert.Equal(t, spec.Dir, rebuilt.Dir)
+	assert.Equal(t, spec.StopSignal, rebuilt.StopSignal)
+	assert.Equal(t, spec.StopTimeout, rebuilt.StopTimeout)
 
-	writeFiles(t, dir, map[string]string{".templates/default/config.yaml": config})
-
-	reloaded, err := reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
+	launchFile, err := writeLaunchFile(&launch)
 	require.NoError(t, err)
-	assert.NotNil(t, reloaded.Configuration)
-	assert.Equal(t, wal, reloaded.WalDir, "the config has the last word")
+
+	info, err := os.Stat(launchFile)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(launchFileMode), info.Mode().Perm())
+
+	data, err := os.ReadFile(launchFile)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "secret")
+
+	_, err = LoadLaunch(&cmdcontext.CmdCtx{}, launchFile)
+	require.NoError(t, err)
+
+	_, err = LoadLaunch(&cmdcontext.CmdCtx{}, launchFile)
+	require.ErrorIs(t, err, errLaunch, "the file is read once")
+
+	writeFiles(t, dir, map[string]string{"stale.json": `{"version": 42}`})
+
+	_, err = LoadLaunch(&cmdcontext.CmdCtx{}, filepath.Join(dir, "stale.json"))
+	require.ErrorIs(t, err, errLaunch, "a launch of another format is taken")
 }
 
 // TestCollectBestEffortConfig pins the contexts of the instances of a pair

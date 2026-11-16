@@ -1,7 +1,6 @@
 package running
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/app"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/supervisor"
@@ -206,7 +204,7 @@ func startForeground(t *testing.T, inst *InstanceCtx, echo *lockedBuffer) <-chan
 	done := make(chan foregroundRun, 1)
 
 	go func() {
-		code, err := StartForeground(context.Background(), &cmdcontext.CmdCtx{}, inst, echo)
+		code, err := startForegroundLaunched(inst, echo)
 		done <- foregroundRun{code: code, err: err}
 	}()
 
@@ -239,7 +237,7 @@ func TestForegroundExitCode(t *testing.T) {
 
 	var echo lockedBuffer
 
-	code, err := StartForeground(t.Context(), &cmdcontext.CmdCtx{}, &inst, &echo)
+	code, err := startForegroundLaunched(&inst, &echo)
 	require.NoError(t, err)
 	assert.Equal(t, 3, code)
 	assert.Equal(t, 1, countStarts(t, starts), "the instance restarted")
