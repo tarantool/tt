@@ -1288,6 +1288,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `TT_SNAPSHOT_COUNT_DEFAULT=3`, an instance with `snapshot.count: 9` in the
   file had 3. A global key of the file now also wins over an instance key of
   the storage, as in Tarantool.
+- A `null` in the config is no value, as in Tarantool: `failover: null` of
+  an instance in the config file leaves the failover of the global scope,
+  of the config storage or of `TT_*_DEFAULT` to the instance, where
+  `tt cluster show` printed `failover: null`.
 
 - `tt create ./tpl` with `instances.yaml` and `config.yaml` at the root of
   the template, or in a directory of it, creates a project: the pair goes

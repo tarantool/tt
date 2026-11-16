@@ -162,3 +162,37 @@ func TestBuildClusterConfigWhole(t *testing.T) {
 		"a": "file-instance", "b": "storage-instance", "d": "storage-instance",
 	}, labels)
 }
+
+// TestBuildClusterConfigNullIsUnset checks that null is no value, as
+// Tarantool 3.9 reads it: the scopes and the sources under it fill it in.
+//
+// NEEDS THE GO-CONFIG BUMP: it fails with go-config 4c7c90ea0ec7, where null
+// replaces the value under it; fixed by "merge: read null as no value" in
+// go-config.
+func TestBuildClusterConfigNullIsUnset(t *testing.T) {
+	clearTTEnv(t)
+	t.Setenv("TT_MEMTX_MEMORY_DEFAULT", "268435456")
+
+	got := instanceOf(t, `memtx:
+  memory: null
+snapshot:
+  count: 5
+groups:
+  g:
+    replicasets:
+      r:
+        instances:
+          i1:
+            replication:
+              failover: null
+            snapshot:
+              count: null
+`, "replication:\n  failover: manual\n")
+
+	assert.Equal(t, map[string]any{"failover": "manual"}, got["replication"],
+		"null of the file over the storage")
+	assert.Equal(t, map[string]any{"memory": int64(268435456)}, got["memtx"],
+		"null of the file over a default of the environment")
+	assert.Equal(t, map[string]any{"count": int64(5)}, got["snapshot"],
+		"null of the instance over the global scope")
+}

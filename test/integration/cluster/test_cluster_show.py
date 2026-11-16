@@ -930,3 +930,37 @@ groups:
     assert got["memtx"] == {"memory": 268435456}
     assert got["snapshot"] == {"count": 9}
     assert got["replication"] == {"failover": "manual"}
+
+
+def test_cluster_show_null_is_unset(tt_cmd, tmp_path, etcd):
+    # Null is no value, as Tarantool 3.9 reads it: the scopes and the
+    # sources under it fill it in.
+    #
+    # NEEDS THE GO-CONFIG BUMP: fails with go-config 4c7c90ea0ec7, where null
+    # replaces the value under it; fixed by "merge: read null as no value" in
+    # go-config.
+    app_path = make_precedence_app(
+        tmp_path,
+        etcd,
+        """memtx:
+  memory: null
+snapshot:
+  count: 5
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            replication:
+              failover: null
+            snapshot:
+              count: null
+""",
+        "replication:\n  failover: manual\n",
+    )
+
+    got = show_instance(tt_cmd, app_path, {"TT_MEMTX_MEMORY_DEFAULT": "268435456"})
+    assert got["replication"] == {"failover": "manual"}
+    assert got["memtx"] == {"memory": 268435456}
+    assert got["snapshot"] == {"count": 5}
