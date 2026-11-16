@@ -469,6 +469,141 @@ func TestBundle(t *testing.T) {
 		"bundle names one of libraries, of link or of pkg_config")
 }
 
+// requireDarwin skips the calling test on a host that is not macOS: what it
+// checks is read from Mach-O files, with otool.
+func requireDarwin(t *testing.T) {
+	t.Helper()
+
+	if runtime.GOOS != darwinOS {
+		t.Skipf("the test is of the link of macOS: otool reads Mach-O files, and %s "+
+			"builds none", runtime.GOOS)
+	}
+}
+
+// otool returns what otool prints of the Mach-O file at path with the flag
+// flag.
+func otool(t *testing.T, flag, path string) string {
+	t.Helper()
+
+	printed, err := exec.CommandContext(t.Context(), "otool", flag, path).CombinedOutput()
+	require.NoError(t, err, string(printed))
+
+	return string(printed)
+}
+
+// machoLoads returns the paths of the load commands of the Mach-O file at
+// path of the command cmd, as otool -l prints them: path of LC_RPATH, name of
+// LC_LOAD_DYLIB and LC_ID_DYLIB.
+func machoLoads(t *testing.T, path, cmd string) []string {
+	t.Helper()
+
+	var (
+		paths   []string
+		current string
+	)
+
+	for line := range strings.Lines(otool(t, "-l", path)) {
+		words := strings.Fields(line)
+		if len(words) < 2 {
+			continue
+		}
+
+		switch {
+		case words[0] == "cmd":
+			current = words[1]
+		case current == cmd && (words[0] == "path" || words[0] == "name"):
+			paths = append(paths, words[1])
+		}
+	}
+
+	return paths
+}
+
+// TestBundleDarwin builds the module of answerC against the dylib foo of
+// vendor/, libfoo.dylib a symbolic link to libfoo.1.dylib, whose install
+// name is the absolute path of the latter, and bundles it, with static =
+// true as well, which links the dylib though libfoo.a is there: the copy
+// beside the module is libfoo.1.dylib, of the install name
+// @rpath/libfoo.1.dylib that install_name_tool gave it and of a valid
+// signature again; the module asks for it by that name, by no path of
+// vendor/, has the rpath @loader_path alone, and loads in Tarantool from
+// another directory, with vendor/ gone and no DYLD_LIBRARY_PATH.
+func TestBundleDarwin(t *testing.T) {
+	t.Parallel()
+
+	requireDarwin(t)
+
+	includeDir, tarantool := requireHostHeaders(t)
+
+	rest := map[string]any{
+		"module": "answer", "sources": []any{"answer.c"}, "library_dirs": []any{"vendor"},
+		"libraries": []any{"foo"}, "bundle": []any{"foo"},
+	}
+
+	for _, static := range []bool{false, true} {
+		harness := hostHarness(t, includeDir, map[string]string{
+			"answer.c": answerC, "check.lua": answerCheck,
+		})
+		vendor := filepath.Join(harness.Context.Dirs.Cwd, "vendor")
+
+		require.NoError(t, os.MkdirAll(vendor, 0o755))
+
+		source := filepath.Join(vendor, "foo.c")
+		library := filepath.Join(vendor, "libfoo.1.dylib")
+
+		require.NoError(t, os.WriteFile(source, []byte(fooC), 0o600))
+
+		printed, err := exec.CommandContext(t.Context(), "cc", "-dynamiclib", "-o", library,
+			source, "-Wl,-install_name,"+library).CombinedOutput()
+		require.NoError(t, err, string(printed))
+		require.NoError(t, os.Symlink("libfoo.1.dylib", filepath.Join(vendor, "libfoo.dylib")))
+		staticLibrary(t, vendor, "foo", fooC, "-fPIC")
+
+		harness.Context.Static = static
+		// The module is loaded once it is linked, and finds the copy beside
+		// it already.
+		harness.Context.Tarantool.Executable = tarantool
+
+		hostBuild(t, harness, LuaC(), rest, "answer")
+
+		modules := harness.Context.Dirs.Modules
+		module := filepath.Join(modules, "answer.dylib")
+		bundled := filepath.Join(modules, "libfoo.1.dylib")
+
+		assert.FileExists(t, bundled, "the copy is named by the base name of the install name")
+		assert.Equal(t, []string{"@rpath/libfoo.1.dylib"}, machoLoads(t, bundled, "LC_ID_DYLIB"))
+
+		printed, err = exec.CommandContext(t.Context(), "codesign", "--verify",
+			bundled).CombinedOutput()
+		require.NoError(t, err, "the copy is signed again: %s", printed)
+
+		assert.Contains(t, machoLoads(t, module, "LC_LOAD_DYLIB"), "@rpath/libfoo.1.dylib")
+		assert.NotContains(t, otool(t, "-L", module), vendor, "static = %t", static)
+		assert.Equal(t, []string{"@loader_path"}, machoLoads(t, module, "LC_RPATH"))
+		assert.Empty(t, harness.Warnings())
+
+		// Installed elsewhere, with what it was built of gone.
+		installed := t.TempDir()
+
+		for _, name := range []string{"answer.dylib", "libfoo.1.dylib"} {
+			data, err := os.ReadFile(filepath.Join(modules, name))
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(installed, name), data, 0o755))
+		}
+
+		require.NoError(t, os.RemoveAll(vendor))
+
+		cmd := exec.CommandContext(t.Context(), tarantool,
+			filepath.Join(harness.Context.Dirs.Cwd, "check.lua"), installed)
+
+		cmd.Env = withoutLibraryPath(os.Environ())
+
+		printed, err = cmd.CombinedOutput()
+		require.NoError(t, err, string(printed))
+		assert.Equal(t, "42", strings.TrimSpace(string(printed)), "static = %t", static)
+	}
+}
+
 // withoutLibraryPath is environ without LD_LIBRARY_PATH and
 // DYLD_LIBRARY_PATH.
 func withoutLibraryPath(environ []string) []string {

@@ -5,7 +5,8 @@ zig, a Rust target, tarantool, pkg-config's zlib. CI installs all of them
 (.github/actions/setup-build-toolchains), so such a skip there means a tool
 went missing and the backend went untested. A test may still skip for the
 platform it runs on: a static program is built for Linux alone, ELF files are
-read on Linux. Those reasons are listed below per OS; any other skip fails.
+read on Linux, Mach-O files on macOS. Those reasons are listed below per OS;
+any other skip fails.
 
 Usage: backend_skips.py --os Linux|macOS FILE...  (the output of go test -json)
 """
@@ -19,7 +20,9 @@ from collections import defaultdict
 
 # The reasons a test may skip for, by the runner OS ($RUNNER_OS).
 PLATFORM_REASONS = {
-    "Linux": [],
+    "Linux": [
+        r"is of the link of macOS",
+    ],
     "macOS": [
         r"is built for linux only",
         r"is inspected on linux",
