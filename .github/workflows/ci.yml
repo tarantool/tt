@@ -221,13 +221,15 @@ jobs:
         run: ci/build-backend-skips.sh
 
   # Build a native tt: the default build artifact runs only on Linux.
-  # Unlike build, the job takes fork pull requests too: ce-result requires
-  # every job it names to succeed.
+  # The job needs no build, so it repeats the condition of build: it runs
+  # wherever go runs, and ce-result, which requires every job it names to
+  # succeed, sees a result. A pull request from a branch of this repository
+  # is tested by the push of that branch, and its result reaches no status.
   go-macos:
     if: >-
       ${{ github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.action != 'labeled' &&
-      github.event.action != 'unlabeled') }}
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
+      github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
     runs-on: macos-15
     timeout-minutes: 30
     steps:
