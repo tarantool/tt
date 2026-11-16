@@ -132,7 +132,8 @@ func describeTargets(args []string) string {
 
 // resolveAppTarget resolves the target of a cluster-level command, such as
 // tt replicaset and tt cluster: <app>, every instance of the application,
-// or <app>:<instance>, one of them. It returns the application, every
+// or <app>:<instance>, one of them, and an empty target for the project
+// the command runs in, as tt instance takes it. It returns the application, every
 // Tarantool instance it describes, and the instance the target names, empty
 // for none.
 //
@@ -163,8 +164,10 @@ func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string, config pairConfi
 ) {
 	appName, instName, found := strings.Cut(target, string(running.InstanceDelimiter))
 	// A URI with credentials cuts into an application and an instance as
-	// well as anything, and the errors of the lookup name both.
-	if appName == "" || (found && instName == "") || sdkconnect.IsCredentialsURI(target) {
+	// well as anything, and the errors of the lookup name both. No target
+	// at all is the project the command runs in, as for tt instance.
+	if (appName == "" && target != "") || (found && instName == "") ||
+		sdkconnect.IsCredentialsURI(target) {
 		return nil, nil, "", fmt.Errorf("%q: %w", log.RedactTarget(target), errNotAnAppTarget)
 	}
 

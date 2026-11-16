@@ -6,7 +6,13 @@ import time
 from pathlib import Path
 
 import pytest
-from replicaset_helpers import copy_application, stop_application
+from replicaset_helpers import (
+    copy_application,
+    create_template_project,
+    start_template_project,
+    stop_application,
+    stop_template_project,
+)
 
 from utils import run_command_and_get_output, short_tmp_dir, wait_file
 
@@ -336,3 +342,39 @@ Replicasets state: bootstrapped
         )
     finally:
         stop_application(tt_cmd, app_name, app_path, [])
+
+
+def test_status_of_the_project(tt_cmd, tmp_path):
+    """In a project tt replicaset status needs no target, as tt instance
+    status does; outside of one it says so."""
+    instances = ["replicaset-001-a", "replicaset-001-b"]
+    app_dir = create_template_project(tt_cmd, tmp_path, "cluster", "st", "379", "num_replicasets=1")
+    start_template_project(tt_cmd, app_dir, instances)
+    try:
+        rc, by_name = run_command_and_get_output(
+            [tt_cmd, "replicaset", "status", "st"],
+            cwd=app_dir,
+        )
+        assert rc == 0, by_name
+
+        rc, out = run_command_and_get_output([tt_cmd, "replicaset", "status"], cwd=app_dir)
+        assert rc == 0, out
+        assert out == by_name
+        assert "replicaset-001-a 127.0.0.1:3791 rw" in out
+
+        # From a directory inside of the project as well.
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "replicaset", "status"],
+            cwd=app_dir / ".templates",
+        )
+        assert rc == 0, out
+        assert out == by_name
+
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        rc, out = run_command_and_get_output([tt_cmd, "replicaset", "status"], cwd=outside)
+        assert rc == 1
+        assert "not inside a project" in out
+        assert "accepts 1 arg(s)" not in out
+    finally:
+        stop_template_project(tt_cmd, app_dir)

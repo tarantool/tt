@@ -106,7 +106,20 @@ var (
 		"  * [tcp://][username:password@][host:port]\n" +
 		"  * [unix://][username:password@]socketpath\n" +
 		"  To specify relative path without `unix://` use `./`."
+
+	replicasetProjectHelp = "Without a target, the command acts on the project of the\n" +
+		"current directory, as tt instance does."
 )
+
+// appTargetArg returns the target of a command whose target is optional:
+// the argument, or none for the project of the current directory.
+func appTargetArg(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	return args[0]
+}
 
 const defaultLSNSyncTimeout = 5
 
@@ -181,14 +194,14 @@ func newDowngradeCmd() *cobra.Command {
 func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "status [--config|--custom] [flags] " +
-			"(<APP> | <APP>:<INSTANCE> | <URI>)\n\n" +
+			"[<APP> | <APP>:<INSTANCE> | <URI>]\n\n" +
 			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Show a replicaset status",
-		Long: "Show a replicaset status.\n\n" +
+		Long: "Show a replicaset status.\n\n" + replicasetProjectHelp + "\n\n" +
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		RunE: internalRunE(internalReplicasetStatusModule),
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	addOrchestratorFlags(cmd)
@@ -279,11 +292,11 @@ does.`,
 // newBootstrapCmd creates a "replicaset bootstrap" command.
 func newBootstrapCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "bootstrap [--timeout secs] [flags] (<APP> | <APP>:<INSTANCE>)",
+		Use:   "bootstrap [--timeout secs] [flags] [<APP> | <APP>:<INSTANCE>]",
 		Short: "Bootstrap an application or instance",
-		Long:  "Bootstrap an application or instance.",
+		Long:  "Bootstrap an application or instance.\n\n" + replicasetProjectHelp,
 		RunE:  internalRunE(internalReplicasetBootstrapModule),
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 	}
 
 	addOrchestratorFlags(cmd)
@@ -302,14 +315,14 @@ func newBootstrapCmd() *cobra.Command {
 func newBootstrapVShardCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "bootstrap [--config|--custom] [--timeout secs] [flags] " +
-			"(<APP> | <APP>:<INSTANCE> | <URI>)\n\n" +
+			"[<APP> | <APP>:<INSTANCE> | <URI>]\n\n" +
 			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Bootstrap vshard in the cluster",
-		Long: "Bootstrap vshard in the cluster.\n\n" +
+		Long: "Bootstrap vshard in the cluster.\n\n" + replicasetProjectHelp + "\n\n" +
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		RunE: internalRunE(internalReplicasetBootstrapVShardModule),
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	addOrchestratorFlags(cmd)
@@ -808,7 +821,7 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 
 	// The status comes from the running instances, which tell their
 	// replicasets themselves.
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, tryConfig)
+	err := replicasetFillCtx(cmdCtx, &ctx, appTargetArg(args), false, tryConfig)
 	if err != nil {
 		return err
 	}
@@ -869,7 +882,7 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, readConfig)
+	err := replicasetFillCtx(cmdCtx, &ctx, appTargetArg(args), false, readConfig)
 	if err != nil {
 		return err
 	}
@@ -902,11 +915,12 @@ func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []s
 func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// Without the delimiter the instance name is empty: the whole replicaset
 	// is bootstrapped.
-	_, instName, _ := strings.Cut(args[0], string(running.InstanceDelimiter))
+	target := appTargetArg(args)
+	_, instName, _ := strings.Cut(target, string(running.InstanceDelimiter))
 
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true, readConfig)
+	err := replicasetFillCtx(cmdCtx, &ctx, target, true, readConfig)
 	if err != nil {
 		return err
 	}

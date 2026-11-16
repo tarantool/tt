@@ -56,11 +56,13 @@ func TestResolveAppTargetExternal(t *testing.T) {
 
 	cmdCtx := &cmdcontext.CmdCtx{}
 
+	// No target is the project of the current directory, as for tt instance.
 	for target, wantInst := range map[string]string{
-		"myapp": "", "myapp:*": "", "myapp:storage-2": "storage-2",
+		"myapp": "", "myapp:*": "", "myapp:storage-2": "storage-2", "": "",
 	} {
 		application, insts, instName, err := resolveAppTarget(cmdCtx, target, readConfig)
 		require.NoError(t, err, target)
+		assert.Equal(t, "myapp", application.Name, target)
 		assert.Len(t, application.Instances, 3, "the description is whole")
 		assert.Equal(t, []string{"storage-1", "storage-2"}, instanceNames(insts), target)
 		assert.Equal(t, wantInst, instName, target)

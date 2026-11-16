@@ -1115,6 +1115,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installed in the user scope: …`, naming the constraint and the
   `tt binary install tarantool <version> --scope user` that satisfies it.
   The install succeeded silently, and the first `tt instance start` failed.
+- `tt replicaset status`, `tt replicaset bootstrap` and `tt replicaset vshard
+  bootstrap` take no target inside a project, as `tt instance status` does:
+  they act on the project of the current directory. They required the name
+  of the application and printed the usage without it.
 - `tt replicaset expel` with the centralized config removes the instance the
   way the Tarantool documentation removes one from a replicaset: it stops the
   instance, deletes its entry from the config, reloads the config of the

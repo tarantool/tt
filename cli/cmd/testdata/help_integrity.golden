@@ -253,13 +253,16 @@ FLAGS
 === tt replicaset vshard bootstrap --help
 Bootstrap vshard in the cluster.
 
+Without a target, the command acts on the project of the
+current directory, as tt instance does.
+
 The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies the Tarantool username
 * TT_CLI_PASSWORD - specifies the Tarantool password
 
 USAGE
   tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]
-  (<APP> | <APP>:<INSTANCE> | <URI>)
+  [<APP> | <APP>:<INSTANCE> | <URI>]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
