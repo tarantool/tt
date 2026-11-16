@@ -1167,6 +1167,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   with optional `min` and `max` bounds, which the built-in templates now use
   for their counts, and the reason of a refused value, a regular expression
   it does not match included, is told both with `-s` and when asked.
+- A line pasted into the interactive console of `tt connect` runs as a typed
+  one does. A terminal sends a paste in one piece, and the Enter that came in
+  the same piece as the text was taken for a line break inside the command:
+  nothing ran, and the next line was glued to the pasted one. Every line of a
+  multi-line paste now runs in turn, a statement that is not complete going on
+  in the next line, as in the console of Tarantool; backslash commands pasted
+  among the lines work too. The console also turns on the bracketed paste mode
+  of the terminal, so a tab in a paste is inserted rather than completed.
+- `\help` in the console of `tt connect` no longer ends its introduction with
+  the broken sentence "because tt connect is using": it says that tt connect
+  runs the backslash commands itself and adds some of its own.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

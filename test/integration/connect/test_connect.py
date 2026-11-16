@@ -201,8 +201,7 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
   To get help, see the Tarantool manual at https://tarantool.io/en/doc/
   To start the interactive Tarantool tutorial, type 'tutorial()' here.
 
-  This help is expanded with additional backslash commands
-  because tt connect is using.
+  tt connect runs the backslash commands itself and adds some of its own.
 
   Available backslash commands:
 

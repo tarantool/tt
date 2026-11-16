@@ -80,3 +80,13 @@ func TestConsoleHistoryOutput(t *testing.T) {
 		require.ErrorIs(t, err, errTheCommandExpectsZeroOrSingleArgument)
 	})
 }
+
+func TestHelpText(t *testing.T) {
+	help, err := newHelpCmd(cmdInfos).Run(&Console{}, "\\help", nil)
+	require.NoError(t, err)
+
+	assert.Contains(t, help,
+		"\n  tt connect runs the backslash commands itself and adds some of its own.\n")
+	assert.NotContains(t, help, "is using.")
+	assert.Contains(t, help, "\n  \\help, ?")
+}
