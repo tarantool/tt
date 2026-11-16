@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
@@ -36,51 +37,56 @@ func isProgramInstalled(program string) bool {
 	return err == nil
 }
 
-// isPackageInstalledDebian checks if package is installed on Debian/Ubuntu.
-func isPackageInstalledDebian(packageName string) bool {
-	cmd := exec.CommandContext(context.Background(), "dpkg", "-L", packageName)
-
-	_ = cmd.Start()
-
-	if cmd.Wait() == nil {
-		return true
-	} else {
-		return false
-	}
+// isPackageInstalledWith reports whether the command that asks the package
+// manager for a package succeeds.
+func isPackageInstalledWith(name string, args ...string) bool {
+	return exec.CommandContext(context.Background(), name, args...).Run() == nil
 }
 
-// isPackageInstalled checks if package is installed.
-func isPackageInstalled(packageName string) bool {
-	osName, _ := detectOsName()
-	if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
-		return isPackageInstalledDebian(packageName)
-	}
-
-	if strings.Contains(osName, osDarwin) {
+// isPackageInstalled checks if package is installed on a system of family.
+func isPackageInstalled(family osFamily, packageName string) bool {
+	switch family {
+	case osFamilyDebian:
+		return isPackageInstalledWith("dpkg", "-L", packageName)
+	case osFamilyRedHat:
+		return isPackageInstalledWith("rpm", "-q", packageName)
+	case osFamilyDarwin:
 		packageList, _ := binary.RunCommandAndGetOutput("brew", "list")
-		return strings.Contains(packageList, packageName)
-	}
 
-	if strings.Contains(osName, "CentOS") {
-		packageList, _ := binary.RunCommandAndGetOutput("yum", "list", "--installed")
 		return strings.Contains(packageList, packageName)
+	case osFamilyUnknown:
 	}
 
 	return false
 }
 
+// redHatPackageManager is the package manager of a Red Hat system: dnf, or
+// yum where there is no dnf, CentOS 7 say.
+func redHatPackageManager() string {
+	if isProgramInstalled("dnf") {
+		return "dnf"
+	}
+
+	return "yum"
+}
+
 // programDependenciesInstalled checks if dependencies are installed.
 func programDependenciesInstalled(program binary.Program) error {
+	return dependenciesInstalledOn(program, detectOsFamily())
+}
+
+// dependenciesInstalledOn checks if the dependencies of a build of program
+// from source are installed on a system of family.
+func dependenciesInstalledOn(program binary.Program, family osFamily) error {
 	programs := []Package{}
 	packages := []string{}
-	osName, _ := detectOsName()
 
 	switch program {
 	case binary.ProgramTt:
 		programs = []Package{{mageExec, mageExec}, {gitExec, gitExec}}
 	case binary.ProgramCe:
-		switch {
-		case osName == osDarwin:
+		switch family {
+		case osFamilyDarwin:
 			programs = []Package{
 				{cmakeExec, cmakeExec},
 				{gitExec, gitExec},
@@ -88,24 +94,24 @@ func programDependenciesInstalled(program binary.Program) error {
 				{"clang", "clang"},
 				{"openssl", "openssl"},
 			}
-		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
+		case osFamilyDebian:
 			programs = []Package{
 				{cmakeExec, cmakeExec},
 				{gitExec, gitExec},
 				{makeExec, makeExec},
-				{gccExec, " build-essential"},
+				{gccExec, "build-essential"},
 			}
 			packages = []string{"coreutils", "sed"} // spell-checker:disable-line
-		case strings.Contains(osName, "CentOs"):
+		case osFamilyRedHat:
 			programs = []Package{
 				{cmakeExec, cmakeExec},
 				{gitExec, gitExec},
 				{makeExec, makeExec},
 				{gccExec, gccExec},
-				{"g++", "gcc-c++ "},
+				{"g++", "gcc-c++"},
 			}
 			packages = []string{"libstdc++-static", "perl"}
-		default:
+		case osFamilyUnknown:
 			answer, err := binary.AskConfirm(os.Stdin,
 				"Unknown OS, can't check if dependencies"+
 					" are installed.\n"+
@@ -141,59 +147,56 @@ func programDependenciesInstalled(program binary.Program) error {
 	}
 
 	for _, packageName := range packages {
-		if !isPackageInstalled(packageName) {
+		if !isPackageInstalled(family, packageName) {
 			missingPack = append(missingPack, packageName)
 		}
 	}
 
-	if len(missingPack) != 0 || len(missingPackSrc) != 0 {
-		log.Error("The operation requires some dependencies.")
-
-		var errMsg strings.Builder
-
-		errMsg.WriteString("Missing packages: " + strings.Join(missingPack, " ") + " " +
-			strings.Join(missingPackSrc, " ") + "\n")
-
-		switch {
-		case osName == osDarwin:
-			errMsg.WriteString(
-				"You can install them by running commands:\nbrew install " + strings.Join(
-					missingPack,
-					" ",
-				) +
-					strings.Join(
-						missingPackSrc,
-						" ",
-					) + "\n",
-			)
-		case strings.Contains(osName, "CentOs"):
-			errMsg.WriteString("You can install them by running command:\n")
-
-			if len(missingPack) != 0 {
-				errMsg.WriteString(" sudo yum install " + strings.Join(missingPack, " ") + "\n")
-			}
-
-			if len(missingPackSrc) != 0 {
-				errMsg.WriteString("install from sources: " +
-					strings.Join(missingPackSrc, " ") + "\n")
-			}
-		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
-			errMsg.WriteString("You can install them by running command:\n")
-
-			if len(missingPack) != 0 {
-				errMsg.WriteString(" sudo apt install " + strings.Join(missingPack, " ") + "\n")
-			}
-
-			if len(missingPackSrc) != 0 {
-				errMsg.WriteString("install from sources: " +
-					strings.Join(missingPackSrc, " ") + "\n")
-			}
-		}
-
-		errMsg.WriteString("Use --force if you already have those packages installed")
-
-		return missingPackagesError(errMsg.String())
+	if len(missingPack) == 0 && len(missingPackSrc) == 0 {
+		return nil
 	}
 
-	return nil
+	log.Error("The operation requires some dependencies.")
+
+	return missingPackagesError(missingPackagesMessage(family, missingPack, missingPackSrc))
+}
+
+// missingPackagesMessage says what is missing on a system of family and the
+// commands that install it: missing are the packages of the package manager,
+// fromSource the programs installed from source.
+func missingPackagesMessage(family osFamily, missing, fromSource []string) string {
+	var message strings.Builder
+
+	all := strings.Join(append(slices.Clone(missing), fromSource...), " ")
+
+	message.WriteString("Missing packages: " + all + "\n")
+
+	installer := ""
+
+	switch family {
+	case osFamilyDarwin:
+		message.WriteString("You can install them by running commands:\nbrew install " +
+			all + "\n")
+	case osFamilyRedHat:
+		installer = "sudo " + redHatPackageManager() + " install "
+	case osFamilyDebian:
+		installer = "sudo apt install "
+	case osFamilyUnknown:
+	}
+
+	if installer != "" {
+		message.WriteString("You can install them by running command:\n")
+
+		if len(missing) != 0 {
+			message.WriteString(" " + installer + strings.Join(missing, " ") + "\n")
+		}
+
+		if len(fromSource) != 0 {
+			message.WriteString("install from sources: " + strings.Join(fromSource, " ") + "\n")
+		}
+	}
+
+	message.WriteString("Use --force if you already have those packages installed")
+
+	return message.String()
 }

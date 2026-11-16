@@ -2,18 +2,11 @@ package install
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"runtime"
+	"slices"
 	"strings"
-
-	"github.com/tarantool/tt/v3/internal/binary"
-)
-
-var (
-	errUnknownOS = errors.New("unknown OS")
 )
 
 const (
@@ -26,74 +19,107 @@ const (
 	archARM64 = "arm64"
 )
 
-// DistroInfo is a struct containing info about linux distro.
-type DistroInfo struct {
-	Name         string
-	Vendor       string
-	Version      string
-	Architecture string
-}
+// osFamily is a kind of system tt knows the packages of the dependencies of
+// a build from source of: what checks they are installed and what installs
+// them.
+type osFamily int
 
-var (
-	// PrettyNameRe is a regexp for PrettyName in os-release file.
-	PrettyNameRe = regexp.MustCompile(`^PRETTY_NAME=(.*)$`)
-	// IDRe is a regexp for ID in os-release file.
-	IDRe = regexp.MustCompile(`^ID=(.*)$`)
-	// VersionIDRe is a regexp for VersionID in os-release file.
-	VersionIDRe = regexp.MustCompile(`^VERSION_ID=(.*)$`)
+const (
+	// osFamilyUnknown is a system tt does not know the packages of.
+	osFamilyUnknown osFamily = iota
+	// osFamilyDarwin is macOS, with Homebrew.
+	osFamilyDarwin
+	// osFamilyDebian is Debian, Ubuntu and their derivatives: dpkg and apt.
+	osFamilyDebian
+	// osFamilyRedHat is RHEL, CentOS, Rocky Linux, AlmaLinux, Fedora and
+	// their derivatives: rpm, and dnf or yum.
+	osFamilyRedHat
 )
 
-// getDistroInfo collects info about linux distro.
-func getDistroInfo() (DistroInfo, error) {
-	var (
-		distroInfo DistroInfo
-		err        error
-	)
+var (
+	// osReleasePaths are where os-release(5) may be, in the order it is
+	// looked for.
+	osReleasePaths = []string{"/etc/os-release", "/usr/lib/os-release"}
 
-	// Get architecture.
-	distroInfo.Architecture, err = binary.GetArch()
+	// familyIDs are the os-release IDs of the distributions of a family.
+	familyIDs = map[osFamily][]string{
+		osFamilyDebian: {"debian", "ubuntu"},
+		osFamilyRedHat: {"rhel", "centos", "fedora", "rocky", "almalinux", "ol", "amzn"},
+	}
+)
+
+// osRelease is what os-release(5) tells of a distribution that tt reads:
+// the ID of the distribution and those of the ones it derives from,
+// ID_LIKE, all lowercase.
+type osRelease struct {
+	id   string
+	like []string
+}
+
+// readOSRelease reads the os-release file at path.
+func readOSRelease(path string) (osRelease, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return distroInfo, err
+		return osRelease{}, fmt.Errorf("failed to read OS release info: %w", err)
 	}
 
-	// Get distribution info.
-	releaseFile, err := os.Open("/etc/os-release")
-	if err != nil {
-		return distroInfo, fmt.Errorf("failed to read OS release info: %w", err)
-	}
+	defer func() { _ = file.Close() }()
 
-	defer func() {
-		_ = releaseFile.Close()
-	}()
+	var release osRelease
 
-	scanner := bufio.NewScanner(releaseFile)
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		if m := PrettyNameRe.FindStringSubmatch(scanner.Text()); m != nil {
-			distroInfo.Name = strings.Trim(m[1], `"`)
-		} else if m := IDRe.FindStringSubmatch(scanner.Text()); m != nil {
-			distroInfo.Vendor = strings.Trim(m[1], `"`)
-		} else if m := VersionIDRe.FindStringSubmatch(scanner.Text()); m != nil {
-			distroInfo.Version = strings.Trim(m[1], `"`)
+		key, value, found := strings.Cut(strings.TrimSpace(scanner.Text()), "=")
+		if !found {
+			continue
+		}
+
+		value = strings.ToLower(strings.Trim(strings.TrimSpace(value), `"'`))
+
+		switch key {
+		case "ID":
+			release.id = value
+		case "ID_LIKE":
+			release.like = strings.Fields(value)
 		}
 	}
 
-	return distroInfo, nil
+	err = scanner.Err()
+	if err != nil {
+		return osRelease{}, fmt.Errorf("failed to read OS release info %s: %w", path, err)
+	}
+
+	return release, nil
 }
 
-// detectOsName returns name of the OS.
-func detectOsName() (string, error) {
-	if runtime.GOOS == osDarwin {
-		return osDarwin, nil
+// family returns the family of the distribution: that of its ID, else
+// that of the first of the distributions it derives from with one.
+func (release osRelease) family() osFamily {
+	for _, id := range append([]string{release.id}, release.like...) {
+		for _, family := range []osFamily{osFamilyDebian, osFamilyRedHat} {
+			if slices.Contains(familyIDs[family], id) {
+				return family
+			}
+		}
 	}
 
-	if runtime.GOOS == "windows" {
-		return "windows", nil
+	return osFamilyUnknown
+}
+
+// detectOsFamily returns the family of the host: macOS, or, on Linux, that
+// of the distribution os-release describes.
+func detectOsFamily() osFamily {
+	switch runtime.GOOS {
+	case osDarwin:
+		return osFamilyDarwin
+	case osLinux:
+		for _, path := range osReleasePaths {
+			release, err := readOSRelease(path)
+			if err == nil {
+				return release.family()
+			}
+		}
 	}
 
-	if runtime.GOOS == osLinux {
-		distroInfo, err := getDistroInfo()
-		return distroInfo.Name, err
-	}
-
-	return "", errUnknownOS
+	return osFamilyUnknown
 }

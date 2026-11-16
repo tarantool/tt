@@ -934,6 +934,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   now fails at once, with `--source-build`, `--dynamic`, `--use-docker` and
   `--local-repo` too, saying that tt 3 installs Tarantool 3.0 and later
   only and that tt 2 installs the version asked for.
+- The dependency check of a build of Tarantool from source recognizes
+  CentOS, RHEL, Rocky Linux, AlmaLinux, Fedora and Oracle Linux, and the
+  distributions derived from them or from Debian and Ubuntu. It compared the
+  name of the distribution with `CentOs`, which no `os-release` spells so,
+  and every CentOS was an unknown OS that asked whether to proceed without
+  checking. The distribution is now told by the `ID` and `ID_LIKE` of
+  `os-release`, compared case-insensitively; the packages are checked with
+  `rpm -q` and the command that installs the missing ones is `dnf`, or
+  `yum` where there is no `dnf`.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in
