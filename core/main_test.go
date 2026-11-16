@@ -943,7 +943,7 @@ func TestMainExternalModulesListed(t *testing.T) {
 	assert.Contains(t, got.stdout, "\n  connect     External connect\n")
 	assert.Contains(t, got.stdout, "\n  hello       External hello\n")
 	// Not a terminal: the headings are not bold.
-	assert.Contains(t, got.stdout, "\n \nEXTERNAL COMMANDS\n  connect\tExternal connect\n"+
+	assert.Contains(t, got.stdout, "commands\n\nEXTERNAL COMMANDS\n  connect\tExternal connect\n"+
 		"  hello\tExternal hello\n\nFLAGS")
 	assert.NotContains(t, got.stdout, "\x1b[")
 	assert.Contains(t, got.stdout, "\n  modules     Manage tt cli modules\n")

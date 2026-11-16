@@ -12,7 +12,7 @@ import (
 func NewRestartCmd() *cobra.Command {
 	restartCmd := &cobra.Command{
 		Use:   "restart " + instanceTargetsUsage,
-		Short: "Restart instance(s)",
+		Short: "Restart instances",
 		Long: "Stop the instances the targets select and start them again in the " +
 			"background, resolved anew: an installed application restarts on its active " +
 			"version, with its pair as it is now. Every target is checked as " +

@@ -30,7 +30,7 @@ const cleanDirKinds = 5
 func NewCleanCmd() *cobra.Command {
 	cleanCmd := &cobra.Command{
 		Use:   "clean " + instanceTargetsUsage,
-		Short: "Clean instance(s) files",
+		Short: "Remove the data and the logs of stopped instances",
 		Long: "Remove the data and the logs of the instances: the files of " +
 			"<root>/var/lib/<app>/<instance>/ and <root>/var/log/<app>/<instance>/, " +
 			"and of the data directories their config moves elsewhere. A running " +

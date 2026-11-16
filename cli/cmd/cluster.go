@@ -30,7 +30,7 @@ import (
 const (
 	addAction            = true
 	tarantoolServiceName = "Tarantool"
-	etcdServiceName      = "Etcd"
+	etcdServiceName      = "etcd"
 	urlHelpFooter        = "footer"
 	urlHelpTarantoolAuth = "env_TT_CLI_auth"
 	urlHelpEtcdAuth      = "env_TT_CLI_ETCD_auth"
@@ -207,7 +207,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "replicaset",
-		Short:   "manage replicaset via 3.0 cluster config source",
+		Short:   "Manage replicasets in the cluster configuration storage",
 		Aliases: []string{"rs"},
 	}
 
@@ -502,7 +502,7 @@ func NewClusterCmd() *cobra.Command {
 		Use:   "publish (<APP> | <APP>:<INSTANCE> | <URI>) file",
 		Short: "Publish a cluster configuration",
 		Long: "Publish an application or an instance configuration to a cluster " +
-			"configuration file, to a etcd URI or to a tarantool config storage URI.\n\n" +
+			"configuration file, to an etcd URI or to a tarantool config storage URI.\n\n" +
 			"An application gets the configuration in the config.yaml of its pair, or " +
 			"in the config storage its config.yaml points to with config.etcd or " +
 			"config.storage. A configuration that drops an instance of the cluster " +

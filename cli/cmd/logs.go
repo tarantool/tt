@@ -31,7 +31,7 @@ const (
 func NewLogsCmd() *cobra.Command {
 	logsCmd := &cobra.Command{
 		Use:   "logs " + instanceTargetsUsage + " [flags]",
-		Short: `Get logs of instance(s)`,
+		Short: `Print the logs of instances`,
 		Long: "Print the last lines of tt.log of the instances, the log their output " +
 			"goes to, whether they run in the background or in the foreground.",
 		RunE: internalRunE(internalLogsModule),

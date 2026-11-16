@@ -11,7 +11,7 @@ import (
 func NewLogrotateCmd() *cobra.Command {
 	logrotateCmd := &cobra.Command{
 		Use:   "logrotate " + instanceTargetsUsage,
-		Short: "Rotate logs of started instance(s)",
+		Short: "Rotate the logs of running instances",
 		RunE:  internalRunE(internalLogrotateModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

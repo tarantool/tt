@@ -170,3 +170,24 @@ def test_root_help_examples_run(tt_cmd, tmp_path):
 
         rc, _, stderr = run_command_and_get_streams([tt_cmd, *args[1:]], cwd=tmp_path)
         assert rc == 0, f"{command}: {stderr}"
+
+
+def test_root_help_has_no_blank_line_with_spaces(tt_cmd, tmp_path):
+    rc, stdout, _ = run_command_and_get_streams([tt_cmd, "--help"], cwd=tmp_path)
+    assert rc == 0
+    assert "\nHELP TOPICS\n  errors      Exit codes of tt commands\n\nFLAGS\n" in stdout
+    assert all(line.strip() or not line for line in stdout.splitlines())
+
+
+def test_instance_help_describes_the_commands(tt_cmd, tmp_path):
+    rc, stdout, _ = run_command_and_get_streams([tt_cmd, "instance", "--help"], cwd=tmp_path)
+    assert rc == 0
+    assert "instance(s)" not in stdout
+
+    rc, stdout, _ = run_command_and_get_streams(
+        [tt_cmd, "instance", "kill", "--help"],
+        cwd=tmp_path,
+    )
+    assert rc == 0
+    assert stdout.startswith("Kill the instances the targets select with SIGKILL")
+    assert "With --dump tt sends SIGQUIT" in stdout

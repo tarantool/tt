@@ -36,7 +36,6 @@ COMMANDS
 
 HELP TOPICS
   errors      Exit codes of tt commands
- 
 
 FLAGS
   -h, --help                   help for tt

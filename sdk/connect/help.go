@@ -10,12 +10,12 @@ import (
 
 const EnvTarantoolCredentialsHelp = "The command supports the following " +
 	"Tarantool environment variables:\n" +
-	"* " + TarantoolUsernameEnv + " - specifies a Tarantool username\n" +
-	"* " + TarantoolPasswordEnv + " - specifies a Tarantool password"
+	"* " + TarantoolUsernameEnv + " - specifies the Tarantool username\n" +
+	"* " + TarantoolPasswordEnv + " - specifies the Tarantool password"
 
-const EnvEtcdCredentialsHelp = "The command supports the following Etcd environment variables:\n" +
-	"* " + EtcdUsernameEnv + " - specifies a Etcd username\n" +
-	"* " + EtcdPasswordEnv + " - specifies a Etcd password"
+const EnvEtcdCredentialsHelp = "The command supports the following etcd environment variables:\n" +
+	"* " + EtcdUsernameEnv + " - specifies the etcd username\n" +
+	"* " + EtcdPasswordEnv + " - specifies the etcd password"
 
 // MakeURLHelp returns a part of command help message related to URL arguments.
 // The function uses a template to generate the message.
@@ -30,14 +30,14 @@ const EnvEtcdCredentialsHelp = "The command supports the following Etcd environm
 //	`tag` - string: description how `#fragment` part used by application;
 //	`param_<name>` - string: description for an extra URL param with <name> added to help;
 //	`env_<name>_auth` - string: service info. It will expanded to:
-//		* <name>_USERNAME - specifies a <info> username;
-//		* <name>_PASSWORD - specifies a <info> password.
+//		* <name>_USERNAME - specifies the <info> username;
+//		* <name>_PASSWORD - specifies the <info> password.
 //	`env_<name>` - string: description for an extra environment variable with <name>:
 //		* <name> - <description>.
 func MakeURLHelp(data map[string]any) string {
 	helpText := `{{ if .header }}{{.header}}
 {{end -}}
-The URL specifies a {{.service}} connection settings in the following format:
+The URL specifies the {{.service}} connection settings in the following format:
 http(s)://[username:password@]host:port{{ if .url_path }}{{.url_path}}` +
 		`{{else if .prefix }}/prefix{{end}}[?arguments]` +
 		`{{ if and (not .url_path) .tag }}[#tag]{{end}}
@@ -68,8 +68,8 @@ Possible arguments:
 
 The command supports the following environment variables:
 {{- range $key, $value := .env_auth }}
-* {{$key}}_USERNAME - specifies a {{$value}} username;
-* {{$key}}_PASSWORD - specifies a {{$value}} password.
+* {{$key}}_USERNAME - specifies the {{$value}} username;
+* {{$key}}_PASSWORD - specifies the {{$value}} password.
 {{- end }}
 {{- range $key, $value := .env_vars }}
 * {{$key}} - {{$value}}.

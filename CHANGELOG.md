@@ -1043,6 +1043,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   help of tt: the nav of the site lists exactly its pages, every link to a
   command page and its anchor resolve, and a copy of the reference left in
   `doc/reference/commands/` by an earlier `mage docs:reference` is not stale.
+- Help texts: the commands of `tt instance` are described as tt 3 has them,
+  rather than by the one-liners of tt 2 ("Kill instance(s)", "Status of
+  instance(s)"), and `tt instance kill --help` tells what it sends, what
+  `--dump` does and when to use `tt instance stop` instead. The URL help of
+  `tt cluster` reads "specifies the etcd or tarantool config storage
+  connection settings" and "specifies the etcd username"; `tt cluster
+  replicaset` is "Manage replicasets in the cluster configuration storage";
+  `tt package uninstall` says that it removes an application in the user and
+  system scopes. `tt --help` no longer has a line of a single space after
+  HELP TOPICS.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

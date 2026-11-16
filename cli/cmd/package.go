@@ -862,7 +862,7 @@ func chooseAppVersion(opts inventory.SwitchOptions) (string, error) {
 func newPackageUninstallCmd() *cobra.Command {
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall NAME",
-		Short: "Remove an installed guest package from a scope",
+		Short: "Remove a guest package of a project, or an application of a scope",
 		Long: "Remove a guest package: its files and its metadata, plus every " +
 			"shared dependency that nothing else still needs. A dependency is " +
 			"owned by every installed package whose lock pins it, so one that " +

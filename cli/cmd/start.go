@@ -56,7 +56,7 @@ var (
 func NewStartCmd() *cobra.Command {
 	startCmd := &cobra.Command{
 		Use:   "start " + instanceTargetsUsage,
-		Short: "Start instance(s)",
+		Short: "Start instances",
 		Long: "Start the instances the targets select. By default every instance runs " +
 			"in the background under a watchdog of tt, which restarts it as the restart " +
 			"field of its record says.\n\n" + waitHelp + "\n\n" +

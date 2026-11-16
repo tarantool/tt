@@ -276,7 +276,7 @@ const usageTemplate = `{{$external := externalCommands .}}{{heading . "USAGE"}}
 {{end}}
 {{end -}}
 
-{{- if not .HasParent}} {{$external}}
+{{- if and (not .HasParent) $external}}{{$external}}
 {{end -}}
 
 {{- if .HasAvailableLocalFlags}}

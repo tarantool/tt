@@ -36,7 +36,6 @@ COMMANDS
 
 HELP TOPICS
   errors      Exit codes of tt commands
- 
 
 FLAGS
   -h, --help                         help for tt
@@ -107,7 +106,7 @@ FLAGS
 
 === tt cluster publish --help
 Publish an application or an instance configuration to a cluster configuration
-file, to a etcd URI or to a tarantool config storage URI.
+file, to an etcd URI or to a tarantool config storage URI.
 
 An application gets the configuration in the config.yaml of its pair, or in the
 config storage its config.yaml points to with config.etcd or config.storage. A
@@ -120,8 +119,8 @@ says what it wrote where once it has. The confirmation is asked on a terminal
 only: without a terminal on the standard input the command fails unless it is
 given --yes. --force skips the validation, not the confirmation.
 
-The URL specifies a etcd or tarantool config storage connection settings in the
-following format:
+The URL specifies the etcd or tarantool config storage connection settings in
+the following format:
 http(s)://[username:password@]host:port/prefix[?arguments]
 
 * prefix - a base path to Tarantool configuration in etcd or tarantool config
@@ -142,10 +141,10 @@ Possible arguments:
   certificate.
 
 The command supports the following environment variables:
-* TT_CLI_USERNAME - specifies a Tarantool username;
-* TT_CLI_PASSWORD - specifies a Tarantool password.
-* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
-* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+* TT_CLI_USERNAME - specifies the Tarantool username;
+* TT_CLI_PASSWORD - specifies the Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies the etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies the etcd password.
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
@@ -196,8 +195,8 @@ EXAMPLES
 === tt cluster replicaset promote --help
 Promote an instance
 
-The URL specifies a etcd or tarantool config storage connection settings in the
-following format:
+The URL specifies the etcd or tarantool config storage connection settings in
+the following format:
 http(s)://[username:password@]host:port/prefix[?arguments]
 
 * prefix - a base path to Tarantool configuration in etcd or tarantool config
@@ -218,10 +217,10 @@ Possible arguments:
   certificate.
 
 The command supports the following environment variables:
-* TT_CLI_USERNAME - specifies a Tarantool username;
-* TT_CLI_PASSWORD - specifies a Tarantool password.
-* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
-* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+* TT_CLI_USERNAME - specifies the Tarantool username;
+* TT_CLI_PASSWORD - specifies the Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies the etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies the etcd password.
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
@@ -254,8 +253,8 @@ FLAGS
 Bootstrap vshard in the cluster.
 
 The command supports the following Tarantool environment variables:
-* TT_CLI_USERNAME - specifies a Tarantool username
-* TT_CLI_PASSWORD - specifies a Tarantool password
+* TT_CLI_USERNAME - specifies the Tarantool username
+* TT_CLI_PASSWORD - specifies the Tarantool password
 
 USAGE
   tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]

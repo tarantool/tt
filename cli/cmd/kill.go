@@ -17,8 +17,20 @@ var dumpQuit bool
 func NewKillCmd() *cobra.Command {
 	killCmd := &cobra.Command{
 		Use:   "kill " + instanceTargetsUsage,
-		Short: "Kill instance(s)",
-		RunE:  internalRunE(internalKillModule),
+		Short: "Kill instances at once, without a graceful stop",
+		Long: "Kill the instances the targets select with SIGKILL: the process group " +
+			"of the watchdog of each instance, the instance included, and the process " +
+			"group of an external process. Nothing stops gracefully, nothing is " +
+			"restarted, and the pid file and the console socket are removed after " +
+			"them. tt instance stop is the graceful stop; kill is for an instance that " +
+			"does not stop.\n\n" +
+			"With --dump tt sends SIGQUIT instead, which has Tarantool quit with a " +
+			"core dump for a post-mortem, and waits for it to end. An external " +
+			"process and an instance that is not running are refused.\n\n" +
+			"kill asks for a confirmation, and off a terminal needs --yes. An " +
+			"instance a systemd unit manages is refused: the error names the " +
+			"systemctl kill command for its unit.",
+		RunE: internalRunE(internalKillModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -30,7 +42,8 @@ func NewKillCmd() *cobra.Command {
 
 	addInstanceFlags(killCmd)
 	addYesFlag(killCmd)
-	killCmd.Flags().BoolVarP(&dumpQuit, "dump", "d", false, "quit with dump")
+	killCmd.Flags().BoolVarP(&dumpQuit, "dump", "d", false,
+		"quit with a core dump (SIGQUIT) instead of SIGKILL")
 
 	return killCmd
 }

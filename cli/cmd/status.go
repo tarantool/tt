@@ -43,7 +43,7 @@ var opts statusOpts
 func NewStatusCmd() *cobra.Command {
 	statusCmd := &cobra.Command{
 		Use:   "status " + instanceTargetsUsage,
-		Short: "Status of instance(s)",
+		Short: "Show the status of instances",
 		Long: `The 'status' command provides information about the status of the instances.
 
 Columns:

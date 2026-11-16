@@ -19,7 +19,7 @@ func TestMakeURLHelp(t *testing.T) {
 	}{
 		"empty_data": {
 			args: args{data: map[string]any{}},
-			want: `The URL specifies a  connection settings in the following format:
+			want: `The URL specifies the  connection settings in the following format:
 http(s)://[username:password@]host:port[?arguments]
 
 Possible arguments:
@@ -36,7 +36,7 @@ Possible arguments:
 
 		"nil_data": {
 			args: args{data: nil},
-			want: `The URL specifies a  connection settings in the following format:
+			want: `The URL specifies the  connection settings in the following format:
 http(s)://[username:password@]host:port[?arguments]
 
 Possible arguments:
@@ -67,7 +67,7 @@ environment variables < command flags < URL credentials.`,
 				"not used param": true,
 			}},
 			want: `=== Header info line ===
-The URL specifies a etcd or tarantool config storage connection settings in the following format:
+The URL specifies the etcd or tarantool config storage connection settings in the following format:
 http(s)://[username:password@]host:port/prefix[?arguments][#tag]
 
 * prefix - a base path to Tarantool configuration in etcd or tarantool config storage.
@@ -86,10 +86,10 @@ Possible arguments:
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
 
 The command supports the following environment variables:
-* TT_CLI_USERNAME - specifies a Tarantool username;
-* TT_CLI_PASSWORD - specifies a Tarantool password.
-* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
-* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+* TT_CLI_USERNAME - specifies the Tarantool username;
+* TT_CLI_PASSWORD - specifies the Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies the Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies the Etcd password.
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
@@ -102,7 +102,7 @@ environment variables < command flags < URL credentials.
 				"prefix":               "a base path to Tarantool configuration in etcd",
 				"env_TT_CLI_ETCD_auth": "Etcd",
 			}},
-			want: `The URL specifies a etcd connection settings in the following format:
+			want: `The URL specifies the etcd connection settings in the following format:
 http(s)://[username:password@]host:port/prefix[?arguments]
 
 * prefix - a base path to Tarantool configuration in etcd.
@@ -118,8 +118,8 @@ Possible arguments:
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
 
 The command supports the following environment variables:
-* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
-* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+* TT_CLI_ETCD_USERNAME - specifies the Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies the Etcd password.
 `,
 		},
 
@@ -129,7 +129,7 @@ The command supports the following environment variables:
 				"prefix":          "a base path to Tarantool configuration in TcS",
 				"env_TT_CLI_auth": "Tarantool",
 			}},
-			want: `The URL specifies a tarantool connection settings in the following format:
+			want: `The URL specifies the tarantool connection settings in the following format:
 http(s)://[username:password@]host:port/prefix[?arguments]
 
 * prefix - a base path to Tarantool configuration in TcS.
@@ -145,8 +145,8 @@ Possible arguments:
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
 
 The command supports the following environment variables:
-* TT_CLI_USERNAME - specifies a Tarantool username;
-* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_USERNAME - specifies the Tarantool username;
+* TT_CLI_PASSWORD - specifies the Tarantool password.
 `,
 		},
 
@@ -155,7 +155,7 @@ The command supports the following environment variables:
 				"service": "<test>",
 				"footer":  "=== Two final lines with extra chars ===\n<<< \"Last\" '&&' \\line >>>",
 			}},
-			want: `The URL specifies a <test> connection settings in the following format:
+			want: `The URL specifies the <test> connection settings in the following format:
 http(s)://[username:password@]host:port[?arguments]
 
 Possible arguments:
@@ -177,7 +177,7 @@ Possible arguments:
 				"service": "test",
 				"tag":     "fragment used by application",
 			}},
-			want: `The URL specifies a test connection settings in the following format:
+			want: `The URL specifies the test connection settings in the following format:
 http(s)://[username:password@]host:port[?arguments][#tag]
 
 * tag - fragment used by application.
@@ -205,7 +205,7 @@ Possible arguments:
 				"env_GHI": "description for 'ghi' variable",
 				"env_DEF": []any{"representation", 4, "some value", true},
 			}},
-			want: `The URL specifies a  connection settings in the following format:
+			want: `The URL specifies the  connection settings in the following format:
 http(s)://[username:password@]host:port[?arguments]
 
 Possible arguments:
@@ -219,12 +219,12 @@ Possible arguments:
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
 
 The command supports the following environment variables:
-* ABC_USERNAME - specifies a <a "b" c> username;
-* ABC_PASSWORD - specifies a <a "b" c> password.
-* KLM_USERNAME - specifies a k "l" m username;
-* KLM_PASSWORD - specifies a k "l" m password.
-* XYZ_USERNAME - specifies a x & y & z username;
-* XYZ_PASSWORD - specifies a x & y & z password.
+* ABC_USERNAME - specifies the <a "b" c> username;
+* ABC_PASSWORD - specifies the <a "b" c> password.
+* KLM_USERNAME - specifies the k "l" m username;
+* KLM_PASSWORD - specifies the k "l" m password.
+* XYZ_USERNAME - specifies the x & y & z username;
+* XYZ_PASSWORD - specifies the x & y & z password.
 * DEF - [representation 4 some value true].
 * GHI - description for 'ghi' variable.
 * SOME_LONG_NAME_VARIABLE_NAME - Here is a very long multiline info:
@@ -238,7 +238,7 @@ The command supports the following environment variables:
 				"service":  "etcd",
 				"url_path": "/prefix/host-name/worker-name",
 			}},
-			want: `The URL specifies a etcd connection settings in the following format:
+			want: `The URL specifies the etcd connection settings in the following format:
 http(s)://[username:password@]host:port/prefix/host-name/worker-name[?arguments]
 
 Possible arguments:
@@ -260,7 +260,7 @@ Possible arguments:
 				"path_host-name":   "a name of the host",
 				"path_worker-name": "a name of the worker",
 			}},
-			want: `The URL specifies a etcd connection settings in the following format:
+			want: `The URL specifies the etcd connection settings in the following format:
 http(s)://[username:password@]host:port/prefix[?arguments]
 
 * prefix - a base path to configuration.
@@ -291,7 +291,7 @@ Possible arguments:
 				"footer": `The priority of credentials:
 environment variables < command flags < URL credentials.`,
 			}},
-			want: "The URL specifies a etcd or tarantool config storage connection settings " +
+			want: "The URL specifies the etcd or tarantool config storage connection settings " +
 				`in the following format:
 http(s)://[username:password@]host:port/prefix/host-name/worker-name[?arguments]
 
@@ -310,10 +310,10 @@ Possible arguments:
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
 
 The command supports the following environment variables:
-* TT_CLI_USERNAME - specifies a Tarantool username;
-* TT_CLI_PASSWORD - specifies a Tarantool password.
-* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
-* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+* TT_CLI_USERNAME - specifies the Tarantool username;
+* TT_CLI_PASSWORD - specifies the Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies the Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies the Etcd password.
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
