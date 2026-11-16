@@ -1,0 +1,74 @@
+name: Set up the toolchains of the build backends
+description: >-
+  Installs what the tests of the build backends (modules/build, the cargo
+  and native library tests of test/integration/package) need beyond the CE
+  environment, so that they run instead of skipping: Rust with the musl
+  target of the host on Linux, zig with a checkout of zig-tarantool
+  (TT_TEST_ZIG_TARANTOOL), and zlib known to pkg-config on macOS. Run it
+  after prepare-ce-test-env, which installs Go, cc, cmake and Tarantool.
+
+inputs:
+  zig-version:
+    description: The zig of the zig backend tests; zig-tarantool needs 0.17.1 or later.
+    default: '0.17.1'
+  zig-tarantool-ref:
+    description: The commit of tarantool-contrib/zig-tarantool the tests build against.
+    default: 2ece203e626cb72922cc01e957407fbb2c3abdd3
+
+runs:
+  using: composite
+  steps:
+    # The hosted images have rustup; the action makes the toolchain the same
+    # on all of them and adds the target a static program is built for.
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      with:
+        toolchain: stable
+        targets: >-
+          ${{ runner.os == 'Linux' &&
+          (runner.arch == 'ARM64' && 'aarch64-unknown-linux-musl' || 'x86_64-unknown-linux-musl') || '' }}
+
+    - name: Set up zig
+      uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      with:
+        version: ${{ inputs.zig-version }}
+
+    # The zig tests build a module against a checkout of zig-tarantool with
+    # the helpers addModule and installModule; it lives out of the
+    # workspace, where the tests of tt would see it.
+    - name: Check out zig-tarantool
+      env:
+        REF: ${{ inputs.zig-tarantool-ref }}
+      # The path is fixed by this action, not PR metadata.
+      run: | # zizmor: ignore[github-env]
+        dir="$RUNNER_TEMP/zig-tarantool"
+        git init -q "$dir"
+        git -C "$dir" fetch -q --depth 1 https://github.com/tarantool-contrib/zig-tarantool.git "$REF"
+        git -C "$dir" checkout -q FETCH_HEAD
+        grep -q 'pub fn addModule(' "$dir/build.zig"
+        echo "TT_TEST_ZIG_TARANTOOL=$dir" >> "$GITHUB_ENV"
+      shell: bash
+
+    # pkg-config of macOS knows no zlib of the SDK: the cc tests of
+    # pkg_config link the zlib of Homebrew.
+    - name: Make zlib known to pkg-config on macOS
+      if: runner.os == 'macOS'
+      # The path is Homebrew's, not PR metadata.
+      run: | # zizmor: ignore[github-env]
+        brew install zlib
+        echo "PKG_CONFIG_PATH=$(brew --prefix zlib)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+      shell: bash
+
+    # What is missing here shows in the skips of ci/build-backend-skips.sh.
+    - name: Show the toolchains
+      run: |
+        set +e
+        cargo --version
+        rustup target list --installed
+        zig version
+        cmake --version | head -n 1
+        cc --version | head -n 1
+        c++ --version | head -n 1
+        pkg-config --modversion zlib
+        command -v tarantool && tarantool --version | head -n 1 || echo "no tarantool in PATH"
+      shell: bash
