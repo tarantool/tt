@@ -3,7 +3,13 @@
 The instance commands - `tt instance start`, `stop`, `restart`, `kill`,
 `status`, `logs`, `logrotate`, `check`, `clean` and `connect` - act on the
 instances of an application on this host. `tt connect` is
-`tt instance connect`, and `tt data play` takes the same targets.
+`tt instance connect`, and `tt data play` takes the same targets. `tt data
+play` and `tt connect --binary` reach an instance over iproto: at the first
+address of `iproto.listen` of its config when that lists TCP addresses only,
+as the built-in templates do, or else at its binary port, a unix socket. The
+credentials come from `--username` and `--password`, or from
+`TT_CLI_USERNAME` and `TT_CLI_PASSWORD`; without them the connection is
+guest's.
 
 ## The pair
 

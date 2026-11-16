@@ -301,9 +301,10 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 		}
 
 		if connectCtx.Binary {
-			connOpts = makeConnOpts(
-				connector.UnixNetwork, instances[0].BinaryPort, *connectCtx,
-			)
+			connOpts, err = instanceBinaryConnOpts(&instances[0], connectCtx)
+			if err != nil {
+				return connOpts, err
+			}
 		} else {
 			connOpts = makeConnOpts(
 				connector.UnixNetwork, instances[0].ConsoleSocket, *connectCtx,
@@ -358,6 +359,36 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	return connOpts, err
+}
+
+// instanceBinaryConnOpts returns how to reach an instance of an application
+// over iproto: at its binary port, the unix socket tt has it listen on or the
+// one its config names, or, when the config has it listen on TCP only, as the
+// built-in templates do, at the first address of its iproto.listen, with TLS
+// when that entry has transport ssl. The credentials are those of the flags,
+// or else of TT_CLI_USERNAME and TT_CLI_PASSWORD, as for a URI.
+func instanceBinaryConnOpts(inst *running.InstanceCtx,
+	connectCtx *connect.ConnectCtx,
+) (connector.ConnectOpts, error) {
+	if connectCtx.Username == "" && connectCtx.Password == "" {
+		connectCtx.Username = os.Getenv(sdkconnect.TarantoolUsernameEnv)
+		connectCtx.Password = os.Getenv(sdkconnect.TarantoolPasswordEnv)
+	}
+
+	listen, found, err := running.ConfigTCPListen(inst)
+	if err != nil {
+		return connector.ConnectOpts{}, err
+	}
+
+	if !found {
+		return makeConnOpts(connector.UnixNetwork, inst.BinaryPort, *connectCtx), nil
+	}
+
+	if listen.TLS && connectCtx.Transport == dial.TransportDefault {
+		connectCtx.Transport = dial.TransportSsl
+	}
+
+	return makeConnOpts(connector.TCPNetwork, listen.Address, *connectCtx), nil
 }
 
 // unresolvedTargetErr returns the error of a target that is no instance and

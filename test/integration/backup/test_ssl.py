@@ -23,8 +23,7 @@ from utils import (
 STORAGE_1_A = "storage-001-a"
 
 # The port must match ssl_app/config.yaml. The instance listens with TLS only,
-# so the backup commands address it by <URI>: an <APP:INSTANCE> target would be
-# resolved to the instance's own binary port and never negotiate TLS.
+# and the backup commands address it by <URI>, which the TLS flags apply to.
 SSL_APP_URI = "localhost:3344"
 SSL_APP_CREDENTIALS_URI = f"client:secret@{SSL_APP_URI}"
 

@@ -18,6 +18,67 @@ def copy_application(env_dir, app_name):
     return app_dir.as_posix()
 
 
+def create_template_project(tt_cmd, workdir, template, app_name, port_prefix, *tt_vars):
+    """Create the project app_name from a built-in template with tt create -s
+    and the --var values tt_vars, and move the ports of its config from
+    330x to <port_prefix>x, such as 377 for 3771, 3772...: the template
+    numbers them from 3301, which other tests use. Return its directory."""
+    cmd = [tt_cmd, "create", template, "--name", app_name, "-s"]
+    for var in tt_vars:
+        cmd += ["--var", var]
+    rc, out = run_command_and_get_output(cmd, cwd=workdir)
+    assert rc == 0, out
+
+    app_dir = Path(workdir) / app_name
+    config = app_dir / ".templates" / "default" / "config.yaml"
+    text = config.read_text()
+    assert ":3310" not in text, "the template has more ports than fit in 10"
+    config.write_text(text.replace(":330", f":{port_prefix}"))
+    return app_dir
+
+
+def template_project_status(tt_cmd, app_dir):
+    """Return tt instance status of the project in app_dir by instance name,
+    without the application name: {"replicaset-001-a": {"MODE": "RW", ...}}."""
+    rc, out = run_command_and_get_output([tt_cmd, "instance", "status"], cwd=app_dir)
+    if rc != 0:
+        return {}
+    status = {}
+    lines = out.splitlines()
+    if not lines:
+        return status
+    header = lines[0].split()
+    for line in lines[1:]:
+        fields = line.split()
+        if len(fields) != len(header) or ":" not in fields[0]:
+            continue
+        name = fields[0].split(":", 1)[1]
+        status[name] = dict(zip(header[1:], fields[1:]))
+    return status
+
+
+def start_template_project(tt_cmd, app_dir, instances, timeout=30):
+    """Start every instance of the project in app_dir, as the follow-up
+    message of a template says, and wait until each one is configured."""
+    rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_dir)
+    assert rc == 0, out
+
+    def all_ready():
+        status = template_project_status(tt_cmd, app_dir)
+        return all(
+            status.get(inst, {}).get("CONFIG") == "ready"
+            and status.get(inst, {}).get("BOX") == "running"
+            for inst in instances
+        )
+
+    assert wait_event(timeout, all_ready), template_project_status(tt_cmd, app_dir)
+
+
+def stop_template_project(tt_cmd, app_dir):
+    """Stop every instance of the project in app_dir."""
+    run_command_and_get_output([tt_cmd, "instance", "stop", "-y"], cwd=app_dir)
+
+
 def start_application(tt_cmd, workdir, app_name, instances):
     start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
     rc, _ = run_command_and_get_output(start_cmd, cwd=workdir)

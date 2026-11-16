@@ -8,6 +8,11 @@ import pytest
 import yaml
 from integration.connect.test_connect import start_app, stop_app, try_execute_on_instance
 from integration.data.test_cat import JOURNALS
+from integration.replicaset.replicaset_helpers import (
+    create_template_project,
+    start_template_project,
+    stop_template_project,
+)
 
 from utils import (
     BINARY_PORT_NAME,
@@ -555,3 +560,59 @@ def test_play_refuses_vinyl_runs(tt_cmd, tmp_path, name):
     )
     assert rc == 1
     assert "no journal files found" in output
+
+
+def test_play_to_instance_of_cluster_template(tt_cmd, tmp_path):
+    """The built-in templates have their instances listen for iproto on TCP
+    only, so <APP>:<INSTANCE> is reached at the address of iproto.listen of
+    the config, as tt connect --binary reaches it, with the credentials of the
+    flags or of TT_CLI_USERNAME and TT_CLI_PASSWORD; without them tt data play
+    connects as guest and says how to give them."""
+    app_dir = create_template_project(tt_cmd, tmp_path, "cluster", "pc", "377", "num_replicasets=1")
+    leader = "pc:replicaset-001-a"
+    shutil.copy(TEST_FILES / "test.xlog", app_dir)
+
+    start_template_project(tt_cmd, app_dir, ["replicaset-001-a", "replicaset-001-b"])
+    try:
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "connect", leader, "-f-"],
+            cwd=app_dir,
+            input="box.schema.space.create('bands', {id = 999}):create_index('pk')",
+        )
+        assert rc == 0, out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "data", "play", leader, "test.xlog"],
+            cwd=app_dir,
+        )
+        assert rc == 1
+        assert "denied for user 'guest'" in out
+        assert "connected as guest" in out
+        assert "binary port" not in out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "data", "play", leader, "test.xlog", "-u", "client", "-p", "secret"],
+            cwd=app_dir,
+        )
+        assert rc == 0, out
+        assert "Applied 3 of 3 transactions" in out
+
+        # Played again as the user of the environment, the rows are there.
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "data", "play", leader, "test.xlog"],
+            cwd=app_dir,
+            env=dict(os.environ, TT_CLI_USERNAME="client", TT_CLI_PASSWORD="secret"),
+        )
+        assert rc == 1
+        assert "Duplicate key exists" in out
+        assert "guest" not in out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "connect", leader, "--binary", "-u", "client", "-p", "secret", "-f-"],
+            cwd=app_dir,
+            input="box.space.bands:count()",
+        )
+        assert rc == 0, out
+        assert "- 3" in out
+    finally:
+        stop_template_project(tt_cmd, app_dir)
