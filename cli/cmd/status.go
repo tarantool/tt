@@ -66,7 +66,14 @@ Columns:
 MODE, CONFIG, BOX and UPSTREAM are what a running Tarantool instance tells
 over its console socket; an external process shows the state of its process
 alone. --details prints the alerts of the instances, and the tarantool each
-Tarantool instance starts on and where it comes from.`,
+Tarantool instance starts on and where it comes from.
+
+The status reads the cluster config as far as it can. When "*" stands for
+a topology in a config storage that is out of reach, it stands for the
+instances known on this host instead - named in instances.yaml, declared by
+config.yaml itself, or with state under var/run or var/lib of the
+application - and a warning names the storage and says that the list may be
+incomplete.`,
 		RunE: internalRunE(internalStatusModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

@@ -330,15 +330,52 @@ func readStorageFromConfig(
 	}
 
 	if ref.kind == storageEtcd {
-		return readEtcd(ctx, ref, collectorFactory)
+		result, cleanup, err := readEtcd(ctx, ref, collectorFactory)
+		if err != nil {
+			return goconfig.Config{}, nil, ref.unreadable(err)
+		}
+
+		return result, cleanup, nil
 	}
 
 	tcsResult, err := readTcs(ctx, ref, collectorFactory)
 	if err != nil {
-		return goconfig.Config{}, nil, err
+		return goconfig.Config{}, nil, ref.unreadable(err)
 	}
 
 	return tcsResult, nil, nil
+}
+
+// StorageError is the error for the config storage a cluster config points
+// to, config.etcd or config.storage, that cannot be read: it is out of
+// reach, refuses tt or holds no config it can parse.
+type StorageError struct {
+	// Storage names the storage, as DescribeStorage names it.
+	Storage string
+	// Err is why it cannot be read.
+	Err error
+}
+
+func (err *StorageError) Error() string {
+	return fmt.Sprintf("the config storage %s cannot be read: %v", err.Storage, err.Err)
+}
+
+func (err *StorageError) Unwrap() error {
+	return err.Err
+}
+
+// unreadable returns the StorageError of ref for err.
+func (ref storageRef) unreadable(err error) error {
+	var endpoints []string
+
+	for _, endpoint := range ref.endpoints {
+		endpoints = append(endpoints, endpoint.config.Endpoints...)
+	}
+
+	return &StorageError{
+		Storage: DescribeStorage(ref.kind, endpoints, ref.prefix, ""),
+		Err:     err,
+	}
 }
 
 // readEtcdRef reads the etcd config.etcd of cfg points to. found is false

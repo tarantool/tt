@@ -1410,6 +1410,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   runs is in `var/run/<app>/<instance>/launch.json` while it runs, and
   `tt instance status --details` names the `tarantool` a running instance
   runs on rather than the one a new start would choose.
+- `tt instance status` of a description with `"*"` whose `config.yaml`
+  points to a config storage that is out of reach no longer fails with `no
+  instances` when no instance has run yet. `"*"` stands then for the
+  instances known on this host: those the description names, those the
+  topology of `config.yaml` itself declares, and those with state under
+  `var/run/<app>/` or, new, `var/lib/<app>/`. A warning names the storage
+  and says that the list may be incomplete, and the command exits with 0
+  once it has printed the rows; with no instance known at all, the error
+  says so and names the storage. `stop`, `kill`, `logs` and `logrotate`
+  find the instances the same way. `start`, `restart` and `check`, which
+  need the config, fail with an error that names the storage, such as `the
+  config storage etcd http://127.0.0.1:2379, prefix "/app" cannot be read`.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

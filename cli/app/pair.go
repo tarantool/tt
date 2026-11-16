@@ -342,7 +342,7 @@ func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loade
 				return loadedPair{}, listErr
 			}
 
-			loaded.records = expand(desc, ran)
+			loaded.records = expand(desc, slices.Concat(ran, localTopology(ctx, pair, err)))
 		}
 
 		return loaded, nil
@@ -463,35 +463,59 @@ func expand(desc instances.Description, topology []string) []instances.Instance 
 	return append(records, desc.Instances[desc.Wildcard.At:]...)
 }
 
-// ranInstances returns the names of the instances of the application at loc
-// that have a run directory under the root of its scope,
-// <root>/var/run/<app>/<inst>/, sorted: those that run or have run there,
-// since the directory outlives the instance. Without the config of the pair
-// these are what "*" stands for to a command that acts on the processes of
-// the instances. A root without the directory has none; one that cannot be
-// read is an error, so that a command does not report success while it
-// leaves some of the instances meant out.
-func ranInstances(loc location) ([]string, error) {
-	dir := filepath.Join(loc.root, scope.RunDirName, loc.name)
-
-	entries, err := os.ReadDir(dir)
-	if isAbsent(err) {
-		return nil, nil
+// localTopology returns the instances the cluster config file of pair
+// declares by itself, when err, why the config cannot be read, is a config
+// storage it points to that cannot be read: the file may hold a topology of
+// its own, which the storage completes. Nothing for another err, or a file
+// that does not give one.
+func localTopology(ctx context.Context, pair Pair, err error) []string {
+	_, isStorage := errors.AsType[*cluster.StorageError](err)
+	if !isStorage {
+		return nil
 	}
 
+	names, err := cluster.LocalInstances(ctx, pair.ConfigFile)
 	if err != nil {
-		return nil, failf("cannot look for the instances that have run: %w", err)
+		return nil
 	}
 
+	return names
+}
+
+// ranInstances returns the names of the instances of the application at loc
+// that have a run or a data directory under the root of its scope,
+// <root>/var/run/<app>/<inst>/ or <root>/var/lib/<app>/<inst>/, sorted:
+// those that run or have run there, since the directories outlive the
+// instance. Without the config of the pair these are what "*" stands for to
+// a command that acts on the processes of the instances, besides the
+// instances the description names. A root without the directories has
+// none; one that cannot be read is an error, so that a command does not
+// report success while it leaves some of the instances meant out.
+func ranInstances(loc location) ([]string, error) {
 	var names []string
 
-	for _, entry := range entries {
-		if entry.IsDir() && validName(entry.Name()) {
-			names = append(names, entry.Name())
+	// The data directory outlives a run directory removed by hand, or by a
+	// reboot that cleans a run directory on a tmpfs.
+	for _, kind := range []string{scope.RunDirName, scope.DataDirName} {
+		entries, err := os.ReadDir(filepath.Join(loc.root, kind, loc.name))
+		if isAbsent(err) {
+			continue
+		}
+
+		if err != nil {
+			return nil, failf("cannot look for the instances that have run: %w", err)
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() && validName(entry.Name()) {
+				names = append(names, entry.Name())
+			}
 		}
 	}
 
-	return names, nil
+	slices.Sort(names)
+
+	return slices.Compact(names), nil
 }
 
 // runningInstances returns the names of those of ranInstances whose run

@@ -17,6 +17,23 @@ var (
 	errAConfigurationFileMustBeSet = errors.New("a configuration file must be set")
 )
 
+// LocalInstances returns the instances of the topology the cluster config
+// file at path declares by itself, without the config storage it may point
+// to: what is known of the topology here while that storage cannot be read
+// (StorageError).
+func LocalInstances(ctx context.Context, path string) ([]string, error) {
+	mut, err := gcttarantool.New().
+		WithoutValidation().
+		WithEnvIgnore("TT_*_DEFAULT").
+		WithConfigFile(path).
+		BuildMutable(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load config from %q: %w", path, err)
+	}
+
+	return Instances(mut.Snapshot())
+}
+
 // GetClusterConfig returns a cluster configuration loaded from a path to
 // a config file. It uses a config file, etcd and default environment
 // variables as sources. The function returns a cluster config as is, without

@@ -246,9 +246,11 @@ def instances_rc(total, failed):
 
 
 def status(tt, *args):
-    rc, out = tt.exec("instance", "status", *args)
-    assert rc == 0
-    return utils.extract_status(out)
+    # The table alone: a warning, such as one for a cluster config that
+    # cannot be read, goes to the standard error.
+    p = tt.run("instance", "status", *args, stderr=subprocess.PIPE)
+    assert p.returncode == 0, p.stdout + p.stderr
+    return utils.extract_status(p.stdout)
 
 
 def pid_files(tt_app, instances):

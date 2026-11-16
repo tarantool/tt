@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/app"
+	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -282,7 +283,8 @@ func TestWildcardBestEffort(t *testing.T) {
 			runDirs(t, root, "myapp", "storage-3", "storage-2", "worker-1", "storage-1")
 			// Neither a file nor the directory of another application is an
 			// instance that has run; a pid file makes no difference, and
-			// storage-3 without one counts all the same.
+			// storage-3 without one counts all the same. A data directory
+			// counts as well, storage-8; a log directory does not.
 			writeTree(t, root, map[string]string{
 				"var/run/myapp/storage-1/tt.pid":   "",
 				"var/run/myapp/notes.txt":          "",
@@ -304,11 +306,12 @@ func TestWildcardBestEffort(t *testing.T) {
 				require.ErrorIs(t, got.ConfigError, test.err)
 			}
 
-			assert.Equal(t, []string{"worker-1", "storage-1", "storage-3", "storage-2"},
+			assert.Equal(t,
+				[]string{"worker-1", "storage-1", "storage-3", "storage-8", "storage-2"},
 				names(got.Instances))
 			assert.Equal(t, instances.RestartAlways, got.Instances[1].Restart,
 				"the instances that have run get the fields of \"*\"")
-			assert.Equal(t, instances.RestartNo, got.Instances[3].Restart)
+			assert.Equal(t, instances.RestartNo, got.Instances[4].Restart)
 			assert.True(t, got.HasClusterInstances())
 		})
 	}
@@ -330,9 +333,55 @@ func TestWildcardBestEffort(t *testing.T) {
 		_, err = app.Resolve(context.Background(), nil,
 			app.Options{Start: tree, BestEffortConfig: true})
 		requireFailure(t, err, app.ErrNoInstances)
-		require.ErrorContains(t, err, `"*" stands for those that have run in `+
-			filepath.Join(tree, ".tarantool", "var", "run", "myapp")+
-			", as the cluster config cannot be read, and none has")
+		require.ErrorContains(t, err, `describes no instances but "*", which stands for those `+
+			"of the topology of "+filepath.Join(tree, ".templates", "default", "config.yaml")+
+			", and that cannot be read")
+		require.ErrorContains(t, err, "nor is any instance known on this host, with state "+
+			"under "+filepath.Join(tree, ".tarantool", "var", "run", "myapp")+" or "+
+			filepath.Join(tree, ".tarantool", "var", "lib", "myapp"))
+	})
+
+	t.Run("a config storage out of reach", func(t *testing.T) {
+		roots(t)
+
+		// The file holds a topology of its own, which the storage would
+		// complete: "*" stands for it, and for what has run here.
+		tree := t.TempDir()
+		writeTree(t, tree, map[string]string{
+			"app.manifest.toml":                 manifestOf("myapp"),
+			".templates/default/instances.yaml": "\"*\":\n",
+			".templates/default/config.yaml": unreachableConfig(t) +
+				topology("storage-2", "storage-1"),
+		})
+		runDirs(t, filepath.Join(tree, ".tarantool"), "myapp", "storage-5")
+
+		got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
+		require.NoError(t, err)
+
+		var storageErr *cluster.StorageError
+
+		require.ErrorAs(t, got.ConfigError, &storageErr)
+		assert.Contains(t, storageErr.Storage, `etcd http://`)
+		assert.Contains(t, storageErr.Storage, `prefix "/myapp"`)
+		require.ErrorContains(t, got.ConfigError, "the config storage etcd http://")
+		assert.Equal(t, []string{"storage-1", "storage-2", "storage-5"}, names(got.Instances))
+
+		// The start, which needs the config, fails naming the storage.
+		_, err = load(t, "", app.Options{Start: tree})
+		require.ErrorAs(t, err, &storageErr)
+		require.ErrorContains(t, err, `the config storage etcd http://`)
+
+		// Without a topology in the file, nothing has run: the error names
+		// the storage.
+		writeTree(t, tree, map[string]string{
+			".templates/default/config.yaml": unreachableConfig(t),
+		})
+		require.NoError(t, os.RemoveAll(filepath.Join(tree, ".tarantool")))
+
+		_, err = app.Resolve(context.Background(), nil,
+			app.Options{Start: tree, BestEffortConfig: true})
+		requireFailure(t, err, app.ErrNoInstances)
+		require.ErrorContains(t, err, "the config storage etcd http://")
 	})
 
 	t.Run("a config that can be read", func(t *testing.T) {

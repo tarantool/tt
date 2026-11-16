@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
@@ -79,8 +80,27 @@ func Resolve(ctx context.Context, targets []Target, opts Options) ([]Selection, 
 }
 
 // selectAll selects every instance of the description of app.
+//
+// With "*" in a description whose config could not be read by the best
+// effort, such as a config storage that is out of reach, "*" stands for the
+// instances known on this host alone: those the description names, those
+// the config file declares by itself (localTopology) and those with a run
+// or data directory (ranInstances). The selection may lack some,
+// and a warning says so, naming why the config cannot be read; with none at
+// all, the error does.
 func selectAll(app *App) ([]instances.Instance, error) {
+	localWildcard := app.wildcard && app.Config == nil && app.ConfigError != nil
+
 	if len(app.Instances) > 0 {
+		if localWildcard {
+			log.Warnf("%s; %q stands for the instances known on this host, which the "+
+				"description or %s by itself names or which have state under %s or %s, "+
+				"and the list may be incomplete", app.ConfigError, instances.WildcardName,
+				app.Pair.ConfigFile,
+				filepath.Join(app.Root, scope.RunDirName, app.Name),
+				filepath.Join(app.Root, scope.DataDirName, app.Name))
+		}
+
 		return slices.Clone(app.Instances), nil
 	}
 
@@ -96,10 +116,13 @@ func selectAll(app *App) ([]instances.Instance, error) {
 			pair.DescriptionFile(), instances.WildcardName, pair.ConfigFile)
 	default:
 		// Read by the best effort, the config could not be read.
-		return nil, failf("%w: %s describes no instances, and %q stands for those that "+
-			"have run in %s, as the cluster config cannot be read, and none has: %w",
+		return nil, failf("%w: %s describes no instances but %q, which stands for "+
+			"those of the topology of %s, and that cannot be read: %w; nor is any "+
+			"instance known on this host, with state under %s or %s",
 			ErrNoInstances, pair.DescriptionFile(), instances.WildcardName,
-			filepath.Join(app.Root, scope.RunDirName, app.Name), app.ConfigError)
+			pair.ConfigFile, app.ConfigError,
+			filepath.Join(app.Root, scope.RunDirName, app.Name),
+			filepath.Join(app.Root, scope.DataDirName, app.Name))
 	}
 }
 

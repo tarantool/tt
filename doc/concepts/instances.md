@@ -65,6 +65,21 @@ A description of script instances and external processes alone needs no
 `config.yaml`. A `config.yaml` that holds only `config.etcd` or
 `config.storage` brings the rest of the cluster config from that storage.
 
+When that storage is out of reach, `start`, `restart` and `check` fail,
+naming the storage. `status`, `stop`, `kill`, `logs` and `logrotate` go on
+with what is known on this host: `"*"` stands for the instances the
+description names, those the topology of `config.yaml` itself declares and
+those with state under `var/run/<app>/` or `var/lib/<app>/`. tt warns that
+the list may be incomplete, naming the storage:
+
+```console
+$ tt instance status
+   ⚠ application "app": the config storage etcd http://127.0.0.1:2379, prefix "/app" cannot be read: …; "*" stands for the instances known on this host, … and the list may be incomplete
+ INSTANCE       STATUS       PID  MODE  CONFIG  BOX  UPSTREAM
+ app:legacy     NOT RUNNING
+ app:storage-3  NOT RUNNING
+```
+
 Every field is in the [reference](../reference/instances-yaml.md).
 
 ## Targets

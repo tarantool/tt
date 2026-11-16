@@ -49,7 +49,10 @@ type Options struct {
 	// rather than failing the load, and the description is not checked
 	// against the topology. The description is read and checked as always;
 	// its "*" stands, without the config, for the instances that have run in
-	// the scope, those with a directory in <root>/var/run/<app>/. With the
+	// the scope, those with a directory in <root>/var/run/<app>/ or
+	// <root>/var/lib/<app>/, and, when it is a config storage that cannot be
+	// read, for those the config file declares by itself, with a warning
+	// that the list may be incomplete (selectAll). With the
 	// config, it stands for the topology, and for the instances whose
 	// directory there holds the pid file of the watchdog, tt.pid, as well:
 	// an instance dropped from the topology while it runs is still found,

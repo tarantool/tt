@@ -394,8 +394,8 @@ def test_stop_wildcard_broken_config(tt, tt_app):
     # does not keep tt instance status and stop from a-master, while
     # b-master, which never ran, is not there to act on.
     #
-    # A watchdog reads the pair anew before it starts its instance, so the
-    # config breaks only once every instance runs.
+    # tarantool reads config.yaml at every start, so the config breaks only
+    # once every instance runs.
     assert utils.wait_event(
         5,
         lambda: (
