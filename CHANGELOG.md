@@ -1387,6 +1387,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   instance that start with the letters after the backslash, along with those
   letters themselves; the bare word the instance gives back as the common
   start of its completions is no longer offered for Lua either.
+- `tt connect` to an instance that is not running says so in one line and
+  exits 1, the code of a request the caller has to fix:
+  `instance demo:instance001 is not running (no control socket at …); start
+  it with tt instance start demo:instance001`. It used to print a chain of
+  five errors that ended in the dial of the socket, and exit 2, the code of a
+  failure of the system. The same holds for `-f` and for `--binary`, and for
+  a socket left behind by an instance that died. An instance that tt runs but
+  whose socket does not answer, and a URI, still get the error of the dial.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version
