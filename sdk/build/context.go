@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -204,6 +205,17 @@ type Context struct {
 	// inputs of an incremental build: a build with other Args is not
 	// skipped.
 	Args []string
+	// Jobs is the most jobs the build runs at once - the compiles of a
+	// compiler, the jobs of the tool it runs - as tt package build --jobs
+	// sets it; 0 leaves it to the backend, which runs one a CPU. A backend
+	// that runs a tool hands it the option of the tool, cmake --build
+	// --parallel or cargo -j, only when Jobs is set, so that the tool's own
+	// default stays when it is not; a script reads TT_BUILD_JOBS, Jobs or
+	// the number of CPUs when it is 0 ([Context.JobsOrCPUs]). It says how
+	// fast the build is made, not what it makes: it is no input of an
+	// incremental build, and a build with other Jobs is skipped as one with
+	// the same would be.
+	Jobs int
 	// Hook is set for the build of a lifecycle hook ([Backend.Hook]), which
 	// runs around the builds of all the components rather than for one:
 	// Component is the zero one, Dirs has no Component, Work, Modules, Share
@@ -268,6 +280,16 @@ func (c *Context) LookPath(name string) (string, error) {
 // when the lock is stale or missing: the build will resolve it.
 func (c *Context) LockedVersion(rock string) (string, bool) {
 	return c.mustHost().LockedVersion(rock)
+}
+
+// JobsOrCPUs returns the number of jobs the build runs at once: Jobs, or
+// one a CPU when it is 0, as TT_BUILD_JOBS has it.
+func (c *Context) JobsOrCPUs() int {
+	if c.Jobs > 0 {
+		return c.Jobs
+	}
+
+	return runtime.NumCPU()
 }
 
 // LookupEnv returns the value of key in environ, a list of key=value pairs
