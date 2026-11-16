@@ -592,8 +592,21 @@ func changedBuild(t *testing.T, harness *buildtest.Harness, rest map[string]any,
 func writeTool(t *testing.T, harness *buildtest.Harness, name, body string) {
 	t.Helper()
 
-	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Tools, name),
-		[]byte(body), 0o700))
+	writeProgram(t, filepath.Join(harness.Context.Dirs.Tools, name), body)
+}
+
+// writeProgram writes the program of body at path. It is copied into place
+// with no fork of the parallel tests in between (build.CopyFile): a fork
+// would hold it open for writing, and its first run, a probe of the
+// compiler say, would fail with "text file busy" - and the probe that
+// failed would make another compiler of the one of the next build.
+func writeProgram(t *testing.T, path, body string) {
+	t.Helper()
+
+	script := filepath.Join(t.TempDir(), filepath.Base(path))
+
+	require.NoError(t, os.WriteFile(script, []byte(body), 0o700))
+	require.NoError(t, build.CopyFile(path, script))
 }
 
 // TestCacheCompilerChanged checks that a compiler that changed, its program

@@ -344,8 +344,7 @@ func fakeHarness(t *testing.T, backend build.Backend, rest map[string]any,
 	harness := buildtest.New(t, backend, component())
 
 	for _, name := range []string{"fakecc", "fakec++"} {
-		require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Tools, name),
-			[]byte(fakeCC), 0o700))
+		writeTool(t, harness, name, fakeCC)
 	}
 
 	harness.SetTarantool(build.Tarantool{
@@ -537,8 +536,7 @@ func TestRunFailedCompile(t *testing.T) {
 	harness, bld := fakeHarness(t, C(), map[string]any{"module": "m", "sources": []any{"a.c"}},
 		map[string]string{"CC": "failingcc"})
 
-	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Tools, "failingcc"),
-		[]byte(failingCC), 0o700))
+	writeTool(t, harness, "failingcc", failingCC)
 
 	err := harness.Run(t.Context(), bld)
 	require.Error(t, err)
