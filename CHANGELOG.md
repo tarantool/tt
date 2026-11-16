@@ -905,6 +905,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `luatest` `tt test` installs for a project that declares none. A tree
   built by an earlier tt has no record yet, so its first build with this one
   removes nothing the lock dropped before.
+- `tt binary install tt` without a version installs the latest release of
+  tt 3, not tt 2.15.2. The latest release on GitHub is the newest stable
+  one of any major version, and every tt 3 release so far is a
+  pre-release. The latest is now the newest release of the major version
+  of the tt that installs it: the newest stable one, or the newest
+  pre-release while that major version has no stable release, as the
+  install script chooses it. When the page of the latest release names
+  another major version, tt lists the releases with the GitHub API, with
+  `GITHUB_TOKEN` when it is set; without a source of tt, or when the
+  releases cannot be listed, the newest tag of tt 3 is taken by the same
+  rule. tt 2 is installed only by its version, `tt binary install tt
+  2.15.0`. A tt release is installed as `versions/tt/tt_3.0.0/`, as
+  `tt binary list` shows it and the documentation names it, no longer as
+  `tt_v3.0.0`; a release installed before as `tt_v<version>` is used as it
+  is rather than installed again.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in

@@ -58,7 +58,12 @@ scope; without a version, `uninstall` removes the only installed one.
 ## Choose a version
 
 - Community Edition: `3`, `3.8` or `3.8.1` select the latest matching
-  release; no version selects the latest one.
+  release; no version selects the latest one. For tt, the latest is the
+  newest release of tt 3, the major version of the tt that installs it:
+  the newest stable one, or the newest pre-release while tt 3 has no stable
+  release; tt 2 is installed only by its version, `2.15.0`. A tt release is
+  installed as `versions/tt/tt_<version>/`, `tt_3.0.0`, without the `v` of
+  its tag; one installed before as `tt_v<version>` is used as it is.
 - Enterprise Edition: append `ee` - `3ee`, `3.8ee`, `3.8.1ee` - to
   `tt binary install tarantool` or `tt binary install tt`. This selects the
   latest matching stable build; Tarantool Enterprise is a `gc64` one by

@@ -1,7 +1,9 @@
 package version
 
 import (
+	"reflect"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -330,4 +332,11 @@ func TestFlavourName(t *testing.T) {
 	assert.False(t, Flavour{Title: "Tarantool CLI"}.Custom())
 	assert.Equal(t, "Tarantool CLI EE", Flavour{Title: "Tarantool CLI EE"}.Name())
 	assert.True(t, Flavour{Title: "Tarantool CLI EE"}.Custom())
+}
+
+// TestMajor keeps Major the major version of the module path: a new major
+// version of tt changes both.
+func TestMajor(t *testing.T) {
+	assert.Equal(t, "github.com/tarantool/tt/v"+strconv.Itoa(Major)+"/cli/version",
+		reflect.TypeFor[Version]().PkgPath())
 }

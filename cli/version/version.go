@@ -17,6 +17,11 @@ const (
 
 	// DefaultTitle is the name tt presents itself under.
 	DefaultTitle = "Tarantool CLI"
+
+	// Major is the major version of this tt: that of its module path,
+	// github.com/tarantool/tt/v3, whatever tag a build is made from. tt
+	// binary install takes the latest release of tt of this major version.
+	Major = 3
 )
 
 // Get the value of this variables at build time.

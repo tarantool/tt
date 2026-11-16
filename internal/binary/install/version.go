@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/version"
@@ -77,6 +78,17 @@ func resolveInstallVersion(installCtx InstallCtx) (resolvedInstallVersion, error
 	}
 }
 
+// tagInstallVersion describes a release tag. The installation is named by
+// the version without the v of a tt tag, as Tarantool is: tt_3.0.0, the
+// version tt binary list shows and tt binary switch takes.
+func tagInstallVersion(tag string) resolvedInstallVersion {
+	return resolvedInstallVersion{
+		kind: versionKindTag,
+		ref:  tag,
+		name: strings.TrimPrefix(tag, "v"),
+	}
+}
+
 // masterInstallVersion describes the explicitly supported master revision.
 func masterInstallVersion() resolvedInstallVersion {
 	return resolvedInstallVersion{
@@ -95,7 +107,7 @@ func resolveLatestVersion(installCtx InstallCtx) (resolvedInstallVersion, error)
 		installCtx.LocalRepo == "" {
 		tag, err := latestPrebuiltTt(context.Background())
 		if err == nil {
-			return resolvedInstallVersion{kind: versionKindTag, ref: tag, name: tag}, nil
+			return tagInstallVersion(tag), nil
 		}
 
 		log.Debugf("Latest tt release is unavailable, using the newest tag: %v", err)
@@ -111,10 +123,13 @@ func resolveLatestVersion(installCtx InstallCtx) (resolvedInstallVersion, error)
 		return resolvedInstallVersion{}, err
 	}
 
-	return resolvedInstallVersion{kind: versionKindTag, ref: tag, name: tag}, nil
+	return tagInstallVersion(tag), nil
 }
 
-// defaultInstallTag selects the latest stable CE release or the latest tt tag.
+// defaultInstallTag selects the latest stable CE release or the latest tt
+// tag of the major version of this tt: the newest stable one, or the newest
+// pre-release while the major version has no stable one, as the latest
+// release of tt is chosen.
 func defaultInstallTag(program binary.Program, versions []version.Version) (string, error) {
 	switch program {
 	case binary.ProgramCe:
@@ -125,11 +140,24 @@ func defaultInstallTag(program binary.Program, versions []version.Version) (stri
 
 		return latest, nil
 	case binary.ProgramTt:
-		if len(versions) == 0 {
-			return "", errNoVersionsWereFetched
+		var ownMajor []version.Version
+
+		for _, candidate := range versions {
+			if candidate.Major == version.Major {
+				ownMajor = append(ownMajor, candidate)
+			}
 		}
 
-		return versions[len(versions)-1].Str, nil
+		if len(ownMajor) == 0 {
+			return "", fmt.Errorf("%w: no tag of tt %d", errNoVersionsWereFetched, version.Major)
+		}
+
+		latest := getLatestRelease(ownMajor)
+		if latest == "" {
+			latest = ownMajor[len(ownMajor)-1].Str
+		}
+
+		return latest, nil
 	default:
 		return "", fmt.Errorf("%w%s", binary.ErrUnknownApplication, program)
 	}
@@ -149,7 +177,7 @@ func resolveTagVersion(installCtx InstallCtx) (resolvedInstallVersion, error) {
 		return resolvedInstallVersion{}, err
 	}
 
-	return resolvedInstallVersion{kind: versionKindTag, ref: tag, name: tag}, nil
+	return tagInstallVersion(tag), nil
 }
 
 // resolvePullRequestVersion verifies a pull request and assigns its installation name.

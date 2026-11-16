@@ -6,7 +6,8 @@
 // checksums.txt of the same release. There is no listing, so the source
 // answers a query for a release tag only, with the archive the release
 // would have; Fetch reports the one a release does not have with
-// bundle.ErrNotFound.
+// bundle.ErrNotFound. Only Latest may ask the GitHub API, for the releases
+// of a major version of tt (see Source.Latest).
 package ghrelease
 
 import (
@@ -14,11 +15,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -26,6 +29,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary/download"
 )
 
@@ -34,6 +38,21 @@ const (
 	ReleasesURL = "https://github.com/tarantool/tt/releases/download/"
 	// LatestURL redirects to the latest release of tt.
 	LatestURL = "https://github.com/tarantool/tt/releases/latest"
+	// APIReleasesURL lists the releases of tt, newest first, in the GitHub API.
+	APIReleasesURL = "https://api.github.com/repos/tarantool/tt/releases"
+
+	// releasesPerPage is the size of a page of the API listing, its maximum.
+	releasesPerPage = 100
+	// maxReleasePages bounds the pages of the listing Latest reads, as
+	// install.sh does.
+	maxReleasePages = 10
+	// tokenVariable names the GitHub token the API is asked with, if set: it
+	// lifts the rate limit of anonymous requests.
+	tokenVariable = "GITHUB_TOKEN" //nolint:gosec // The name of a variable, not a credential.
+
+	// firstDarwinARM64Major is the first major version of tt whose macOS
+	// archives are arm64 ones; those of the earlier ones are amd64 ones.
+	firstDarwinARM64Major = 3
 
 	checksumsName = "checksums.txt"
 
@@ -52,6 +71,7 @@ var (
 	errUnknownProduct      = errors.New("unknown product")
 	errUnsupportedPlatform = errors.New("unsupported platform")
 	errPackageContents     = errors.New("invalid package contents")
+	errNoRelease           = errors.New("no release")
 )
 
 // Source is the releases of tt on GitHub.
@@ -59,13 +79,20 @@ type Source struct {
 	client      download.Client
 	releasesURL string
 	latestURL   string
+	apiURL      string
+	// major is the major version of tt Latest looks for.
+	major uint64
 }
 
 var _ bundle.Source = (*Source)(nil)
 
-// New returns the releases of tt on GitHub.
+// New returns the releases of tt on GitHub. Its latest release is that of
+// the major version of this tt.
 func New() *Source {
-	return &Source{client: download.New(), releasesURL: ReleasesURL, latestURL: LatestURL}
+	return &Source{
+		client: download.New(), releasesURL: ReleasesURL, latestURL: LatestURL,
+		apiURL: APIReleasesURL, major: version.Major,
+	}
 }
 
 // Name implements bundle.Source.
@@ -154,12 +181,39 @@ func (s *Source) Fetch(ctx context.Context, artifact bundle.Artifact, dst io.Wri
 	return nil
 }
 
-// Latest returns the tag of the latest published release of tt. A pushed
-// tag may still have no release, so the newest tag is not a reliable choice
-// for prebuilt delivery. The tag is read from the redirect of the page of
-// the latest release, without the GitHub API; GitHub skips drafts and
-// pre-releases there.
+// Latest returns the tag of the latest published release of tt of the major
+// version of the source: the newest stable one, or, while that major
+// version has none, the newest pre-release. Another major version is never
+// the latest: tt 3 does not install tt 2 unless asked to. A pushed tag may
+// still have no release, so the newest tag is not a reliable choice for
+// prebuilt delivery.
+//
+// The page of the latest release is asked first, without the GitHub API and
+// its rate limits: it names the newest stable release of any major version,
+// and serves when that is of the one wanted. Otherwise the releases are
+// listed with the GitHub API, newest first, and the first stable release of
+// the major version is the latest, as install.sh chooses it; with
+// GITHUB_TOKEN set, the API is asked with it.
 func (s *Source) Latest(ctx context.Context) (string, error) {
+	tag, err := s.latestRedirect(ctx)
+
+	switch {
+	case err != nil:
+		log.Debugf("%s: %v; listing the releases of tt", s.Name(), err)
+	case tagMajor(tag) == s.major:
+		return tag, nil
+	default:
+		log.Debugf("%s: the latest release of tt, %s, is not of tt %d; "+
+			"listing the releases of tt", s.Name(), tag, s.major)
+	}
+
+	return s.latestListed(ctx)
+}
+
+// latestRedirect returns the tag of the latest release of tt, of any major
+// version, from the redirect of the page of the latest release. GitHub skips
+// drafts and pre-releases there.
+func (s *Source) latestRedirect(ctx context.Context) (string, error) {
 	httpClient := *s.client.HTTP
 
 	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
@@ -190,6 +244,118 @@ func (s *Source) Latest(ctx context.Context) (string, error) {
 	}
 
 	return tag, nil
+}
+
+// apiRelease is what the GitHub API tells of a release that Latest reads.
+type apiRelease struct {
+	TagName    string `json:"tag_name"`
+	Draft      bool   `json:"draft"`
+	Prerelease bool   `json:"prerelease"`
+}
+
+// latestListed returns the tag of the latest release of tt of the major
+// version of the source from the listing of the GitHub API: the first stable
+// one, the listing being newest first, or the first pre-release when there
+// is no stable one. Every page is read until a stable release shows up, so
+// a stable release is not missed behind a page of the releases of another
+// major version.
+func (s *Source) latestListed(ctx context.Context) (string, error) {
+	prerelease := ""
+
+	for page := 1; page <= maxReleasePages; page++ {
+		releases, err := s.releasesPage(ctx, page)
+		if err != nil {
+			return "", err
+		}
+
+		for _, release := range releases {
+			if release.Draft || !versionPattern.MatchString(release.TagName) ||
+				tagMajor(release.TagName) != s.major {
+				continue
+			}
+
+			if !release.Prerelease {
+				return release.TagName, nil
+			}
+
+			if prerelease == "" {
+				prerelease = release.TagName
+			}
+		}
+
+		if len(releases) < releasesPerPage {
+			break
+		}
+	}
+
+	if prerelease == "" {
+		return "", fmt.Errorf("%w of tt %d in %s", errNoRelease, s.major, s.apiURL)
+	}
+
+	return prerelease, nil
+}
+
+// releasesPage returns a page, numbered from 1, of the releases of tt the
+// GitHub API lists.
+func (s *Source) releasesPage(ctx context.Context, page int) ([]apiRelease, error) {
+	address := fmt.Sprintf("%s?per_page=%d&page=%d", s.apiURL, releasesPerPage, page)
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("list tt releases: %w", err)
+	}
+
+	request.Header.Set("Accept", "application/vnd.github+json")
+
+	token := os.Getenv(tokenVariable)
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	client := s.client.HTTP
+	if client == nil {
+		client = &http.Client{Timeout: download.Timeout}
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("list tt releases %s: %w", address, err)
+	}
+
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode != http.StatusOK {
+		hint := ""
+		if response.StatusCode == http.StatusForbidden ||
+			response.StatusCode == http.StatusTooManyRequests {
+			hint = "; the rate limit of the GitHub API may be exceeded: set " + tokenVariable
+		}
+
+		return nil, fmt.Errorf("%w: list tt releases %s: HTTP %d %s%s", download.ErrHTTPStatus,
+			address, response.StatusCode, http.StatusText(response.StatusCode), hint)
+	}
+
+	var releases []apiRelease
+
+	err = json.NewDecoder(io.LimitReader(response.Body, download.IndexLimit)).Decode(&releases)
+	if err != nil {
+		return nil, fmt.Errorf("%w: tt releases %s: %w", errPackageContents, address, err)
+	}
+
+	return releases, nil
+}
+
+// tagMajor returns the major version of a release tag, v3.0.0 or 3.0.0, or
+// 0 for a tag that names none.
+func tagMajor(tag string) uint64 {
+	number, _, _ := strings.Cut(strings.TrimPrefix(tag, "v"), ".")
+
+	major, err := strconv.ParseUint(number, 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	return major
 }
 
 // checksum returns the SHA-256 of the file name checksums.txt at address
@@ -250,13 +416,10 @@ func findChecksum(checksums io.Reader, name string) (string, bool, error) {
 
 // checkPlatform recognizes the platforms published in GitHub Releases.
 // tt 2 publishes macOS archives for amd64, tt 3 for arm64.
-func checkPlatform(version, goos, goarch string) error {
+func checkPlatform(tag, goos, goarch string) error {
 	darwinArch := goarchARM64
 
-	majorVersion, _, _ := strings.Cut(strings.TrimPrefix(version, "v"), ".")
-
-	major, err := strconv.Atoi(majorVersion)
-	if err == nil && major < 3 {
+	if tagMajor(tag) < firstDarwinARM64Major {
 		darwinArch = goarchAMD64
 	}
 
@@ -264,7 +427,7 @@ func checkPlatform(version, goos, goarch string) error {
 		goos == goosDarwin && goarch == darwinArch
 	if !supported {
 		return fmt.Errorf("%w: no prebuilt tt %s for %s/%s",
-			errUnsupportedPlatform, version, goos, goarch)
+			errUnsupportedPlatform, tag, goos, goarch)
 	}
 
 	return nil

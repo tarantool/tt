@@ -623,7 +623,7 @@ def test_install_community_prebuilt_release(
     assert f"Building {product}..." not in output
     root = tmp_path / ".tarantool"
     executable = root / "bin" / product
-    directory = f"tt_v{version}" if product == "tt" else f"tarantool_{version}"
+    directory = f"{product}_{version}"
     installed = root / "versions" / product / directory
     assert executable.resolve(strict=True) == installed / product
     if product == "tt":

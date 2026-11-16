@@ -22,7 +22,7 @@ func activationTestContext(t *testing.T, program binary.Program, delivery string
 	case "prebuilt":
 		mockTtPrebuiltRepository(t)
 
-		ctx.requestedVersion = "2.15.0"
+		ctx.requestedVersion = "3.0.0"
 	case "source":
 		ctx.requestedVersion = masterVersion
 		ctx.SourceBuild = true

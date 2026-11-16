@@ -25,7 +25,9 @@ func prepareTtInstallation(installCtx InstallCtx) (installationActivation, error
 		return nil, err
 	}
 
-	selected := binary.Selection{Program: binary.ProgramTt, ID: resolved.name}
+	selected := binary.Selection{
+		Program: binary.ProgramTt, ID: ttInstallationID(artifactRoot, resolved),
+	}
 	directory := binary.InstallationPath(artifactRoot, selected.Program, selected.ID)
 	executable := filepath.Join(directory, selected.Program.Exec())
 
@@ -66,6 +68,28 @@ func prepareTtInstallation(installCtx InstallCtx) (installationActivation, error
 	}
 
 	return activate, nil
+}
+
+// ttInstallationID returns the installation of the tt resolved in root: the
+// name of the version, or, for a release installed before as tt_v<version>
+// and not as tt_<version>, that older name, so the release is not
+// installed twice.
+func ttInstallationID(root string, resolved resolvedInstallVersion) string {
+	if resolved.kind != versionKindTag {
+		return resolved.name
+	}
+
+	installed := func(selected string) bool {
+		return binary.IsRegularFile(filepath.Join(
+			binary.InstallationPath(root, binary.ProgramTt, selected), binary.ProgramTt.Exec()))
+	}
+
+	legacy := "v" + resolved.name
+	if !installed(resolved.name) && installed(legacy) {
+		return legacy
+	}
+
+	return resolved.name
 }
 
 func prepareTtArtifact(installCtx InstallCtx, temporary string,

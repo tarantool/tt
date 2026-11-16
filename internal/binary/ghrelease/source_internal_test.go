@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -57,6 +58,8 @@ func packageTestSource(client *http.Client) *Source {
 		client:      download.Client{HTTP: client, FileLimit: download.FileLimit},
 		releasesURL: packageTestURL + "/releases/download/",
 		latestURL:   packageTestURL + "/releases/latest",
+		apiURL:      packageTestURL + "/api/releases",
+		major:       3,
 	}
 }
 
@@ -340,7 +343,7 @@ func TestFetchUnverified(t *testing.T) {
 		records[0].Message)
 }
 
-func TestLatest(t *testing.T) {
+func TestLatestRedirect(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		location string
@@ -372,7 +375,7 @@ func TestLatest(t *testing.T) {
 				writer.WriteHeader(test.status)
 			})
 
-			tag, err := packageTestSource(client).Latest(t.Context())
+			tag, err := packageTestSource(client).latestRedirect(t.Context())
 
 			assert.Equal(t, []string{"/releases/latest"}, requests,
 				"the redirect target must not be requested")
@@ -386,5 +389,185 @@ func TestLatest(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, test.want, tag)
 		})
+	}
+}
+
+// packageTestReleases is a page of the API listing of releases: stable
+// ones, "-pre" ones, "-draft" ones.
+func packageTestReleases(tags ...string) string {
+	releases := make([]string, 0, len(tags))
+
+	for _, tag := range tags {
+		name, kind, _ := strings.Cut(tag, "/")
+
+		releases = append(releases, fmt.Sprintf(
+			`{"tag_name": %q, "draft": %t, "prerelease": %t, "assets": []}`,
+			name, kind == "draft", kind == "pre"))
+	}
+
+	return "[" + strings.Join(releases, ",") + "]"
+}
+
+func TestLatest(t *testing.T) {
+	// A page full of the releases of tt 2, the API listing being newest first.
+	fullPage := make([]string, 0, releasesPerPage)
+	for patch := range releasesPerPage - 1 {
+		fullPage = append(fullPage, fmt.Sprintf("v2.%d.0", 200-patch))
+	}
+
+	fullPage = append(fullPage, "v3.1.0-alpha.1/pre")
+
+	for _, test := range []struct {
+		name string
+		// latest is the tag the page of the latest release redirects to,
+		// none for a failure.
+		latest string
+		// pages are the pages of the listing; nil for a listing that fails.
+		pages  [][]string
+		status int
+		want   string
+		// listed is whether the listing is asked.
+		listed  bool
+		wantErr error
+	}{
+		{name: "the latest release is of tt 3", latest: "v3.1.0", want: "v3.1.0"},
+		{
+			name: "tt 3 has pre-releases only", latest: "v2.15.2", listed: true,
+			pages: [][]string{{
+				"v2.15.2", "v3.0.0-alpha.3/pre", "v2.15.1", "v3.0.0-alpha.2/pre",
+			}},
+			want: "v3.0.0-alpha.3",
+		},
+		{
+			name: "a stable tt 3 beats a newer pre-release", latest: "v2.16.0", listed: true,
+			pages: [][]string{{
+				"v2.16.0", "v3.1.0-rc1/pre", "v3.0.0", "v3.0.0-alpha.3/pre",
+			}},
+			want: "v3.0.0",
+		},
+		{
+			name: "drafts and other tags are skipped", latest: "v2.15.2", listed: true,
+			pages: [][]string{{"v3.1.0/draft", "nightly", "v3.0.0-alpha.1/pre", "v4.0.0"}},
+			want:  "v3.0.0-alpha.1",
+		},
+		{
+			name: "a stable release behind a full page", latest: "v2.15.2", listed: true,
+			pages: [][]string{fullPage, {"v3.0.0", "v2.0.0"}}, want: "v3.0.0",
+		},
+		{
+			name: "a pre-release on a full page", latest: "v2.15.2", listed: true,
+			pages: [][]string{fullPage, {"v2.0.0"}}, want: "v3.1.0-alpha.1",
+		},
+		{
+			name: "the redirect fails", listed: true,
+			pages: [][]string{{"v3.0.0-alpha.2/pre"}}, want: "v3.0.0-alpha.2",
+		},
+		{
+			name: "no release of tt 3", latest: "v2.15.2", listed: true,
+			pages: [][]string{{"v2.15.2", "v2.15.1"}}, wantErr: errNoRelease,
+		},
+		{
+			name: "rate limit", latest: "v2.15.2", listed: true, status: http.StatusForbidden,
+			wantErr: download.ErrHTTPStatus,
+		},
+		{
+			name: "malformed listing", latest: "v2.15.2", listed: true,
+			pages: [][]string{{"{"}}, wantErr: errPackageContents,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(tokenVariable, "")
+
+			listed := false
+
+			client := packageTestClient(t, func(writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				switch request.URL.Path {
+				case "/releases/latest":
+					if test.latest == "" {
+						writer.WriteHeader(http.StatusInternalServerError)
+
+						return
+					}
+
+					http.Redirect(writer, request, "/releases/tag/"+test.latest, http.StatusFound)
+				case "/api/releases":
+					listed = true
+
+					assert.Equal(t, "application/vnd.github+json", request.Header.Get("Accept"))
+					assert.Empty(t, request.Header.Get("Authorization"))
+					assert.Equal(t, "100", request.URL.Query().Get("per_page"))
+
+					if test.status != 0 {
+						writer.WriteHeader(test.status)
+
+						return
+					}
+
+					page, err := strconv.Atoi(request.URL.Query().Get("page"))
+					if !assert.NoError(t, err) || page > len(test.pages) {
+						_, _ = writer.Write([]byte("[]"))
+
+						return
+					}
+
+					body := packageTestReleases(test.pages[page-1]...)
+					if test.pages[page-1][0] == "{" {
+						body = "{"
+					}
+
+					_, _ = writer.Write([]byte(body))
+				default:
+					t.Errorf("unexpected request: %s", request.URL.Path)
+					writer.WriteHeader(http.StatusNotFound)
+				}
+			})
+
+			tag, err := packageTestSource(client).Latest(t.Context())
+
+			assert.Equal(t, test.listed, listed)
+
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+
+				if test.status == http.StatusForbidden {
+					require.ErrorContains(t, err, tokenVariable)
+				}
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, test.want, tag)
+		})
+	}
+}
+
+func TestLatestToken(t *testing.T) {
+	t.Setenv(tokenVariable, "secret")
+
+	client := packageTestClient(t, func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/releases/latest" {
+			http.Redirect(writer, request, "/releases/tag/v2.15.2", http.StatusFound)
+
+			return
+		}
+
+		assert.Equal(t, "Bearer secret", request.Header.Get("Authorization"))
+
+		_, _ = writer.Write([]byte(packageTestReleases("v3.0.0-alpha.2/pre")))
+	})
+
+	tag, err := packageTestSource(client).Latest(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "v3.0.0-alpha.2", tag)
+}
+
+func TestTagMajor(t *testing.T) {
+	for tag, want := range map[string]uint64{
+		"v3.0.0": 3, "3.0.0-alpha.2": 3, "v2.15.2": 2, "v10.1.0": 10, "nightly": 0, "": 0,
+	} {
+		assert.Equal(t, want, tagMajor(tag), tag)
 	}
 }

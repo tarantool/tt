@@ -1296,9 +1296,10 @@ Use --source-build to always compile Community releases from source.
 
 Bare versions select Community Edition: 2, 2.15, or 2.15.0. Append ce or ee to
 select an edition explicitly: 2ce, 2.15ce, 2.15.0ce, 2ee, 2.15ee, or 2.15.0ee.
-Omitting the version selects the latest Community release. Git commits, master,
-and pull requests also select Community Edition. Use pr/<number> for a pull
-request.
+Omitting the version selects the latest Community release of tt 3: the newest
+stable one, or the newest pre-release while tt 3 has none; tt 2 is installed
+only by its version. Git commits, master, and pull requests also select
+Community Edition. Use pr/<number> for a pull request.
 Git commits, master, pull requests, and --local-repo select source builds
 automatically.
 

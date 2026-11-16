@@ -21,7 +21,9 @@ def local_tt_build(tmp_path, monkeypatch):
         ["init", "--initial-branch=master"],
         ["add", "README"],
         ["-c", "user.name=Scope Test", "-c", "user.email=scope@example.com", "commit", "-m", "tt"],
-        ["tag", "v1.2.3"],
+        ["tag", "v2.15.0"],
+        ["tag", "v3.1.2"],
+        ["tag", "v3.2.0-rc1"],
     ]:
         subprocess.run(["git", *args], cwd=repository, check=True, capture_output=True)
 
@@ -46,7 +48,7 @@ def local_tt_build(tmp_path, monkeypatch):
     return built_binary, build_log
 
 
-def install_tt(tt_cmd, tmp_path, flags=(), force=True, version="1.2.3"):
+def install_tt(tt_cmd, tmp_path, flags=(), force=True, version="3.1.2"):
     return run_command_and_get_output(
         [
             tt_cmd,
@@ -63,14 +65,14 @@ def install_tt(tt_cmd, tmp_path, flags=(), force=True, version="1.2.3"):
     )
 
 
-@pytest.mark.parametrize("requested", ["1", "1.2", "1.2.3", "1ce", "1.2ce", "1.2.3ce"])
+@pytest.mark.parametrize("requested", ["3", "3.1", "3.1.2", "3ce", "3.1ce", "3.1.2ce"])
 def test_install_tt_community_selector(tt_cmd, tmp_path, local_tt_build, requested):
     built_binary, build_log = local_tt_build
     rc, output = install_tt(tt_cmd, tmp_path, version=requested)
 
     assert rc == 0, output
     root = tmp_path / ".tarantool"
-    installed = root / "versions" / "tt" / "tt_v1.2.3" / "tt"
+    installed = root / "versions" / "tt" / "tt_3.1.2" / "tt"
     assert installed.read_bytes() == built_binary.read_bytes()
     assert (root / "bin" / "tt").resolve() == installed
     assert build_log.read_text() == "build\n"
@@ -97,7 +99,7 @@ def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):
     else:
         root = tmp_path / ".tarantool"
 
-    binary = root / "versions" / "tt" / "tt_v1.2.3" / "tt"
+    binary = root / "versions" / "tt" / "tt_3.1.2" / "tt"
     assert binary.read_bytes() == built_binary.read_bytes()
     assert os.access(binary, os.X_OK)
     assert (root / "bin" / "tt").readlink() == binary
@@ -116,10 +118,12 @@ def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):
 
 
 @pytest.mark.parametrize("with_symlink", [False, True])
-def test_install_tt_existing_version(tt_cmd, tmp_path, local_tt_build, with_symlink):
+# tt_v3.1.2 is how tt named the installation of a release before.
+@pytest.mark.parametrize("directory", ["tt_3.1.2", "tt_v3.1.2"])
+def test_install_tt_existing_version(tt_cmd, tmp_path, local_tt_build, with_symlink, directory):
     built_binary, build_log = local_tt_build
     root = tmp_path / ".tarantool"
-    binary = root / "versions" / "tt" / "tt_v1.2.3" / "tt"
+    binary = root / "versions" / "tt" / directory / "tt"
     binary.parent.mkdir(parents=True)
     binary.write_bytes(built_binary.read_bytes())
     binary.chmod(0o755)
@@ -135,6 +139,7 @@ def test_install_tt_existing_version(tt_cmd, tmp_path, local_tt_build, with_syml
     assert (tmp_path / ".env" / "activate.sh").is_file()
     assert (tmp_path / ".env" / "deactivate.sh").is_file()
     assert output.count("source .env/activate.sh") == 1
+    assert [path.name for path in (root / "versions" / "tt").iterdir()] == [directory]
 
 
 def test_install_tt_reinstall(tt_cmd, tmp_path, local_tt_build):
@@ -153,7 +158,7 @@ def test_install_tt_reinstall(tt_cmd, tmp_path, local_tt_build):
 @pytest.mark.parametrize("failure", ["version", "tmp", "build"])
 def test_install_tt_failure_leaves_no_scope(tt_cmd, tmp_path, local_tt_build, monkeypatch, failure):
     _, build_log = local_tt_build
-    version = "1.2.3"
+    version = "3.1.2"
     if failure == "version":
         version = "0" * 40
     elif failure == "tmp":
@@ -222,7 +227,7 @@ def test_install_tt_remote_revision(tt_cmd, tmp_path, monkeypatch, revision):
     (tmp_path / "tools" / "mage").write_text("#!/bin/sh\nset -e\ncp README tt\nchmod 755 tt\n")
 
     revisions = {
-        "release": ("1.2.3", "local tt sources\n"),
+        "release": ("3.1.2", "local tt sources\n"),
         "commit": (release_commit, "local tt sources\n"),
         "master": ("master", "master sources\n"),
         "pull-request": ("pr/42", "pull request sources\n"),
@@ -273,9 +278,42 @@ def test_install_tt_existing_master(tt_cmd, tmp_path, local_tt_build, update):
 
 @pytest.mark.usefixtures("local_tt_build")
 def test_install_tt_latest_release(tt_cmd, tmp_path):
+    # The latest is the newest stable tt 3: neither tt 2 nor a newer tt 3 rc.
     rc, output = install_tt(tt_cmd, tmp_path, version=None)
     assert rc == 0, output
-    assert (tmp_path / ".tarantool/versions/tt/tt_v1.2.3/tt").is_file()
+    versions = tmp_path / ".tarantool/versions/tt"
+    assert [path.name for path in versions.iterdir()] == ["tt_3.1.2"]
+
+
+@pytest.mark.usefixtures("local_tt_build")
+def test_install_tt_latest_prerelease(tt_cmd, tmp_path):
+    repository = tmp_path / "distfiles" / "tt"
+    subprocess.run(["git", "tag", "-d", "v3.1.2"], cwd=repository, check=True, capture_output=True)
+
+    rc, output = install_tt(tt_cmd, tmp_path, version=None)
+    assert rc == 0, output
+    versions = tmp_path / ".tarantool/versions/tt"
+    assert [path.name for path in versions.iterdir()] == ["tt_3.2.0-rc1"]
+
+
+@pytest.mark.usefixtures("local_tt_build")
+def test_install_tt_latest_is_never_tt_2(tt_cmd, tmp_path):
+    repository = tmp_path / "distfiles" / "tt"
+    for tag in ["v3.1.2", "v3.2.0-rc1"]:
+        subprocess.run(["git", "tag", "-d", tag], cwd=repository, check=True, capture_output=True)
+
+    rc, output = install_tt(tt_cmd, tmp_path, version=None)
+    assert rc != 0, output
+    assert "no tag of tt 3" in output
+    assert not (tmp_path / ".tarantool").exists()
+
+
+def test_install_tt_2_by_version(tt_cmd, tmp_path, local_tt_build):
+    built_binary, _ = local_tt_build
+    rc, output = install_tt(tt_cmd, tmp_path, version="2.15.0")
+    assert rc == 0, output
+    installed = tmp_path / ".tarantool/versions/tt/tt_2.15.0/tt"
+    assert installed.read_bytes() == built_binary.read_bytes()
 
 
 @pytest.mark.usefixtures("local_tt_build")
