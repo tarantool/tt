@@ -98,6 +98,11 @@ type PrefixQuery struct {
 	Env string
 	// Executable is the tarantool, as it was found: a link of a scope, say.
 	Executable string
+	// System is the prefix of the Tarantool of the system packages, the
+	// last guess of where the headers are; DefaultPrefix when empty. Tests
+	// point it at a directory of their own, so that the headers a host has
+	// in /usr, of whatever version, change nothing.
+	System string
 }
 
 // Prefix is the install prefix of a tarantool ResolvePrefix found.
@@ -186,7 +191,12 @@ func ResolvePrefix(query PrefixQuery) (Prefix, error) {
 		res.Dir, res.Origin = query.Env, PrefixOriginEnv
 		lookForHeaders(&res, query.Env)
 	default:
-		err := searchPrefix(&res, banner, bannerErr)
+		system := query.System
+		if system == "" {
+			system = DefaultPrefix
+		}
+
+		err := searchPrefix(&res, banner, bannerErr, system)
 		if err != nil {
 			return Prefix{}, err
 		}
@@ -245,8 +255,8 @@ func (p Prefix) triedDirs() string {
 
 // searchPrefix looks for the prefix of the executable of res with banner,
 // its tarantool --version, or bannerErr, the error of running it: steps 2
-// and 3 of ResolvePrefix.
-func searchPrefix(res *Prefix, banner []string, bannerErr error) error {
+// and 3 of ResolvePrefix, system being the prefix of the system packages.
+func searchPrefix(res *Prefix, banner []string, bannerErr error, system string) error {
 	found := slices.ContainsFunc(executableDirs(res.Executable), func(dir string) bool {
 		return lookForHeaders(res, dir)
 	})
@@ -268,23 +278,23 @@ func searchPrefix(res *Prefix, banner []string, bannerErr error) error {
 	switch {
 	case lookForOwnHeaders(res, built):
 		res.Origin = PrefixOriginBuild
-	case lookForOwnHeaders(res, DefaultPrefix):
+	case lookForOwnHeaders(res, system):
 		res.Origin = PrefixOriginDefault
 	default:
 		res.Origin = PrefixOriginGuess
-		res.Dir = guessPrefix(res, built)
+		res.Dir = guessPrefix(res, built, system)
 	}
 
 	return nil
 }
 
 // guessPrefix is the prefix of PrefixOriginGuess: built when it exists,
-// else DefaultPrefix, else the directory above the executable. A prefix is
-// passed over when its headers were rejected, since a build is given
-// <prefix>/include/tarantool, and a compile would take the headers of
-// another Tarantool from there.
-func guessPrefix(res *Prefix, built string) string {
-	candidates := append([]string{built, DefaultPrefix}, executableDirs(res.Executable)...)
+// else system, the prefix of the system packages, else the directory above
+// the executable. A prefix is passed over when its headers were rejected,
+// since a build is given <prefix>/include/tarantool, and a compile would
+// take the headers of another Tarantool from there.
+func guessPrefix(res *Prefix, built, system string) string {
+	candidates := append([]string{built, system}, executableDirs(res.Executable)...)
 	for _, dir := range candidates {
 		if _, rejected := res.Rejected[filepath.Join(dir, "include", "tarantool")]; rejected {
 			continue
@@ -296,7 +306,7 @@ func guessPrefix(res *Prefix, built string) string {
 		}
 	}
 
-	return DefaultPrefix
+	return system
 }
 
 // lookForHeaders adds <dir>/include/tarantool to the tried directories of
