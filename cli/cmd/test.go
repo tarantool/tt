@@ -127,8 +127,12 @@ func runTest(subPaths, luatestArgs []string) error {
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
-		Check:      nil,
-		Backends:   buildreg.Process(),
+
+		// The output of tt test is the runner's: what the build removed goes
+		// to the log, beside the warnings.
+		Removed:  func(msg string) { log.Info(msg) },
+		Check:    nil,
+		Backends: buildreg.Process(),
 	}
 
 	// The build of tt test runs build tools as tt package build does, and

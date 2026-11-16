@@ -875,6 +875,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   manifest was fixed by hand. The manifest is now written only once the lock
   is resolved, and a write of the lock that fails puts the manifest back. The
   same holds for `AddDependency()` and `RemoveDependency()` of the SDK.
+- `tt package build` and `tt package fetch` remove from `.rocks/` the rocks
+  the lock no longer holds: a dependency `tt package remove` dropped, or a
+  rock that another one no longer pulls in once `tt package update` moved it
+  to a new version. They stayed in the tree, files and all, and `require`
+  still loaded them.
+  Each is removed by the files its `rock_manifest` lists and dropped from the
+  manifest of the tree, as `tt package uninstall` removes a dependency, and
+  the command prints `removed unused dependency <rock> <version>`; a version
+  of a rock the lock moved away from is reported as `removed <rock>
+  <version>, the lock pins <version>`. The rocks the lock pinned at the last
+  build or fetch are recorded in `.rocks/manifests/.materialized`, so only
+  what the lock held is ever removed: a guest package installed with
+  `tt package install` and the rocks its lock pins stay, as do the package's
+  own rock, the dev dependencies and a rock the lock never held, such as the
+  `luatest` `tt test` installs for a project that declares none. A tree
+  built by an earlier tt has no record yet, so its first build with this one
+  removes nothing the lock dropped before.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in
@@ -917,7 +934,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   builds of that component made as well.
 - `tt -V package build` no longer says `library=go-luarocks` of what tt
   itself logs: `component is up to date component=<name>` of an incremental
-  build skipped, and `removed <rock> <version>, which the lock does not pin`.
+  build skipped, and `removed <rock> <version>, a rock dir the tree manifest
+  does not list`.
   The logger of a build backend is tt's too, with `backend=<name>`.
 - `tt binary install tarantool` builds a Tarantool commit of 2024 or older
   from source with CMake 4, and `tt rocks`, `tt package` and `tt test` build

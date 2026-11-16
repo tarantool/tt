@@ -413,6 +413,7 @@ func ComponentContext(opts sdk.BuildContextOptions) (*sdkbuild.Context, sdkbuild
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
+		Removed:    nil,
 		Check:      nil,
 		Backends:   buildreg.Process(),
 	}, opts.Component)

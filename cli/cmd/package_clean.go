@@ -107,6 +107,7 @@ func cleanProjectIn(ctx context.Context, projectDir string, clean build.CleanOpt
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
+		Removed:    nil,
 		Check:      nil,
 		Backends:   buildreg.Process(),
 	}, clean)

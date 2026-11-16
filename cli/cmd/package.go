@@ -970,8 +970,11 @@ func runPackagePack() error {
 			Now:        time.Time{},
 			Logger:     luarocksLogger(),
 			Warn:       nil,
-			Check:      nil,
-			Backends:   buildreg.Process(),
+			// The output of pack is the paths of what it packed: what the
+			// build removed goes to the log.
+			Removed:  func(msg string) { log.Info(msg) },
+			Check:    nil,
+			Backends: buildreg.Process(),
 		},
 		Runtime:   runtimeRequest(ctx, projectDir, tntInfo),
 		Warn:      func(msg string) { log.Warn(msg) },
@@ -1156,9 +1159,17 @@ func buildPackageResult(ctx context.Context, projectDir string, run packageRun) 
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
+		Removed:    printRemoved,
 		Check:      nil,
 		Backends:   buildreg.Process(),
 	})
+}
+
+// printRemoved prints a line of what a build or a fetch removed from the
+// tree of the project (build.Options.Removed), as tt package uninstall prints
+// the dependencies it removes.
+func printRemoved(msg string) {
+	_, _ = fmt.Fprintln(os.Stdout, msg)
 }
 
 // addRegistryFlag declares --registry on a command that queries rock servers,

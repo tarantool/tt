@@ -114,6 +114,12 @@ type Options struct {
 	// warnings). The library never logs directly; the CLI sets this to route
 	// them through tt's logger. Nil drops them.
 	Warn func(string)
+	// Removed is told, a line each, of the rocks the run removes from the
+	// tree once the lock's closure is in it: one the lock held when the tree
+	// was last materialized and holds no more, and a version of a rock other
+	// than the one the lock pins. The CLI prints them. Nil logs them at the
+	// debug level instead.
+	Removed func(string)
 	// Check, when set, is given the manifest and the name of the product
 	// selected, the default one for an empty Product, as soon as they are
 	// known: before a hook, the resolution or a backend runs. Its error fails
@@ -426,7 +432,8 @@ func runFetch(
 
 // materializeLock materializes the closure of the product prod of lock and the
 // lock's dev closure into the tree of adapter (materialize), then removes from
-// the tree what the lock does not pin (pruneTree). The rock of a path
+// the tree the rocks the lock no longer holds and the versions of a rock it
+// does not pin (pruneTree). The rock of a path
 // dependency holding a manifest declares its dependencies at the versions the
 // lock pins.
 func materializeLock(
@@ -468,7 +475,8 @@ func materializeLock(
 		return err
 	}
 
-	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil, logPruned)
+	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil,
+		pruneReport{removed: opts.Removed}.report)
 }
 
 // runBuild runs the full build cycle.
