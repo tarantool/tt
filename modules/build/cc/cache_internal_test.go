@@ -352,7 +352,7 @@ func TestCache(t *testing.T) {
 
 	harness, bld := cachedHarness(t, "a.c", "b.c", "sub/c.cpp")
 	work := harness.Context.Dirs.Work
-	module := filepath.Join(harness.Context.Dirs.Modules, "m.so")
+	module := filepath.Join(harness.Context.Dirs.Modules, "m"+harness.Context.Target.ModuleExt())
 
 	sources, linked := rebuild(t, harness, bld)
 	assert.Equal(t, []string{"a.c", "b.c", "sub/c.cpp"}, sources)
