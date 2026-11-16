@@ -120,7 +120,9 @@ component.
 `tt package build` resolves the lock, installs the dependencies into
 `.rocks/`, runs the build backends of the components and lays the
 components out, with `version.lua` of the package. `tt package fetch` only
-installs `.rocks/` from the lock, with no build.
+installs `.rocks/` from the lock, with no build. `-j N` runs at most `N`
+jobs at once in each component build, one a CPU by default; see
+[Jobs](../reference/app-manifest.md#jobs).
 
 The components are laid out in `_build/rock/<product>/` and installed into
 `.rocks/` as a rock of the package's name, at its version: the manifest of
@@ -231,6 +233,9 @@ Some files are not inputs:
 
 What a build writes and git does not keep - its output, its bindings - is
 so not an input, and the hash stays the same from one build to the next.
+Nor is the number of jobs, `-j` (see
+[Jobs](../reference/app-manifest.md#jobs)): a build with other jobs is
+skipped as well.
 
 The build is skipped when the hash is the one its last successful build
 recorded, in `_build/cache/<component>.json`, and what that build left is

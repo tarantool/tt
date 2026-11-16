@@ -746,7 +746,10 @@ project.
   the code of `tt package build`: `Build(ctx, sdk.BuildOptions{Components:
   []string{"calc"}})` is `tt package build calc`, its hooks, lock, layout
   and checks included. `Args` are passed through to the build of the one
-  component, as `Context.Args`, for its tool. The result says what each
+  component, as `Context.Args`, for its tool. `Jobs` is `-j` of
+  `tt package build`, `Context.Jobs` of every build: a command declares the
+  flag with `sdk.AddJobsFlag(cmd, &jobs)`, which refuses a negative number,
+  with the help `tt package build` has. The result says what each
   component made, by type, where it was installed in `.rocks`, and whether
   an incremental build was up to date. `BuildContext` gives the
   `build.Context` a build of a component runs in, and the build its backend

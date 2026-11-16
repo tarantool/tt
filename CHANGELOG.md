@@ -514,6 +514,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `strip -S` on macOS - in the `.tt` archive and in the rock; the bundled
   runtime, the dependencies and the files of the project are left as they
   are. `keep` is the default.
+- `-j N`, `--jobs N` of `tt package build`, `tt package pack` and `tt test`
+  runs at most `N` jobs at once in each component build: the compiles of
+  `c` and `lua-c`, `cmake --build --parallel N`, which wins over
+  `CMAKE_BUILD_PARALLEL_LEVEL`, `cargo -j N`, `go build -p N` and
+  `zig build -jN`; every build and hook gets `TT_BUILD_JOBS`, for
+  `make -j"$TT_BUILD_JOBS"` of a script. Without it, or with `0`, the
+  builds run as before, one job a CPU, and `TT_BUILD_JOBS` is the number of
+  CPUs. The jobs are not an input of an incremental build: other ones build
+  nothing again. A module passes them as `sdk.BuildOptions.Jobs`, which a
+  backend reads as `build.Context.Jobs`, and declares the flag with
+  `sdk.AddJobsFlag`.
 
 ### Changed
 

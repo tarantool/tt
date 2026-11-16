@@ -32,7 +32,9 @@ See [Projects and scopes](../concepts/projects-and-scopes.md) and
 | `TT_PROJECT_LOCK` | set by tt while it holds the lock of a project, `_build/tt.lock`, for the commands it runs: a tt among them works on that project under the lock rather than wait for it; a value naming a lock nobody holds is ignored. Not to be set by hand |
 
 A component build and a hook get `TT_PROJECT_ROOT`, `TT_PACKAGE`,
-`TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`, and, when tt knows
+`TT_VERSION`, `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_JOBS`,
+the number of jobs a build may run at once - that of `-j`, `--jobs`, or the
+number of CPUs - for `make -j"$TT_BUILD_JOBS"` of a script, and, when tt knows
 the Tarantool it builds for, `TT_TARANTOOL_PREFIX` and
 `TT_TARANTOOL_INCLUDE_DIR`, the directory of its `module.h` and `lua.h`; see
 [app.manifest.toml](app-manifest.md#componentsnamebuild). `.tarantool/bin`
