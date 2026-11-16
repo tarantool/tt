@@ -131,9 +131,11 @@ What the checks take away with the environment stays away, as it did in tt
 2:
 
 - No iproto address by default: an instance listens on what `iproto.listen`
-  of its config names, and `tt connect --binary` and `tt data play` dial
-  its first address there; `tt connect` over the console socket works
-  without one.
+  of its config names, and `tt connect --binary`, `tt data play` and the
+  `tt backup` commands dial `iproto.advertise.client`, else the first TCP
+  address there, else its first unix socket (see
+  [Over iproto](../concepts/instances.md#over-iproto)); `tt connect` over
+  the console socket works without one.
 - The log goes to the standard error of the instance, which tt writes into
   `tt.log` of the layout, where `tt instance logs` reads it; `log.to: file`
   writes `tarantool.log` next to it.

@@ -69,6 +69,8 @@ var (
 	backupFinalizeDir   string
 
 	// Shared by every backup subcommand that dials an instance.
+	backupUsername        string
+	backupPassword        string
 	backupSslKeyFile      string
 	backupSslCertFile     string
 	backupSslCaFile       string
@@ -382,8 +384,7 @@ anything is opened. It is refused together with --from-vclock.
 --dir writes both artifacts directly into the given directory, which is created
 if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.
 
---sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
-whose iproto listener has TLS enabled.`,
+` + backupTargetHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: backupRunE(runBackupStart),
 	}
@@ -423,8 +424,7 @@ $TMPDIR/tt-backup/<backup-id>/, which is removed once it is empty.
 --backup-id, for when the id that opened it is unknown or not trusted. It
 only runs box.backup.stop(): no local archive or fragment is removed.
 
---sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
-whose iproto listener has TLS enabled.`,
+` + backupTargetHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: backupRunE(runBackupFinalize),
 	}
@@ -1404,10 +1404,23 @@ func printBackupGcTable(plan *gc.Plan, result *gc.Result) {
 	}
 }
 
+// backupTargetHelp says how a backup subcommand that dials an instance
+// reaches its target, as instanceBinaryConnOpts does.
+const backupTargetHelp = `<APP:INSTANCE> is reached as tt connect --binary reaches it: at
+iproto.advertise.client of its config, else at the first TCP address of its
+iproto.listen, else at its binary port, with TLS and the TLS files of the
+iproto.listen entry there. --sslkeyfile, --sslcertfile, --sslcafile and
+--sslciphers take precedence over those files, and reach a <URI> whose
+listener has TLS enabled. The credentials are those of --username and
+--password, and for a <URI> without any those of TT_CLI_USERNAME and
+TT_CLI_PASSWORD.`
+
 // addBackupConnectFlags registers the connection flags on a backup subcommand
 // that dials an instance. The names match the ones `tt connect` takes.
 func addBackupConnectFlags(cmd *cobra.Command) {
 	addInstanceFlags(cmd)
+	cmd.Flags().StringVarP(&backupUsername, "username", "u", "", "username")
+	cmd.Flags().StringVarP(&backupPassword, "password", "p", "", "password")
 	cmd.Flags().StringVar(&backupSslKeyFile, "sslkeyfile", "",
 		"path to a private SSL key file")
 	cmd.Flags().StringVar(&backupSslCertFile, "sslcertfile", "",
@@ -1426,12 +1439,13 @@ func addBackupConnectFlags(cmd *cobra.Command) {
 }
 
 // backupConnectCtx describes the connection a backup subcommand makes: the
-// binary port, with TLS when the --ssl* flags name the material for it. Any
-// non-empty SSL field makes the dial a TLS one.
+// binary port, as the user of --username and --password, with TLS when the
+// --ssl* flags name the material for it. Any non-empty SSL field makes the
+// dial a TLS one.
 func backupConnectCtx() connect.ConnectCtx {
 	return connect.ConnectCtx{
-		Username:        "",
-		Password:        "",
+		Username:        backupUsername,
+		Password:        backupPassword,
 		SrcFile:         "",
 		Language:        0,
 		Format:          formatter.DefaultFormat,

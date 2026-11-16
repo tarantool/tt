@@ -98,11 +98,15 @@ See [Run WebAssembly components](../how-to/wasm-components.md).
 
 | Variable | |
 | --- | --- |
-| `TT_CLI_USERNAME`, `TT_CLI_PASSWORD` | the user and the password tt connects to Tarantool instances and config storages with |
+| `TT_CLI_USERNAME`, `TT_CLI_PASSWORD` | the user and the password tt connects to Tarantool instances by URI and config storages with |
 | `TT_CLI_ETCD_USERNAME`, `TT_CLI_ETCD_PASSWORD` | the user and the password tt connects to etcd with |
 
 Credentials in a URI win over the flags of a command, which win over these
-variables.
+variables. An instance of an application, `<app>:<instance>`, takes the
+credentials of the flags only: `tt connect --binary`, `tt data play` and the
+`tt backup` commands log in to it as guest without them, whatever
+`TT_CLI_USERNAME` says (see
+[Over iproto](../concepts/instances.md#over-iproto)).
 
 ## Modules and distributions
 
@@ -136,7 +140,11 @@ option of the cluster config from the path of the option in uppercase with
 `_` for `.`, such as `TT_IPROTO_LISTEN`, and a `box.cfg` parameter of a
 script instance from its name, such as `TT_MEMTX_MEMORY`. tt adds nothing
 to that; set them in `env` of the record in
-[instances.yaml](instances-yaml.md).
+[instances.yaml](instances-yaml.md). tt reads them, those of the record and
+of its own environment, into the config it dials an instance by:
+`TT_IPROTO_ADVERTISE_CLIENT` in the environment of `tt connect --binary`
+makes it dial that address (see
+[Over iproto](../concepts/instances.md#over-iproto)).
 
 <!-- TODO(writers): the full list of TT_*_DEFAULT variables tt sets; see
 cli/running/instance_spec.go. -->

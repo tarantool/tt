@@ -150,8 +150,14 @@ $TMPDIR/tt-backup/<backup-id>/, which is removed once it is empty.
 --backup-id, for when the id that opened it is unknown or not trusted. It
 only runs box.backup.stop(): no local archive or fragment is removed.
 
---sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
-whose iproto listener has TLS enabled.
+<APP:INSTANCE> is reached as tt connect --binary reaches it: at
+iproto.advertise.client of its config, else at the first TCP address of its
+iproto.listen, else at its binary port, with TLS and the TLS files of the
+iproto.listen entry there. --sslkeyfile, --sslcertfile, --sslcafile and
+--sslciphers take precedence over those files, and reach a <URI> whose
+listener has TLS enabled. The credentials are those of --username and
+--password, and for a <URI> without any those of TT_CLI_USERNAME and
+TT_CLI_PASSWORD.
 
 USAGE
   tt backup finalize (<APP:INSTANCE>|<URI>) [flags]
@@ -169,6 +175,7 @@ FLAGS
       --force                      close whatever backup is open on the
                                    instance; removes no local file
   -h, --help                       help for finalize
+  -p, --password string            password
       --scope string               scope the application is looked for in:
                                    project, user or system
       --sslcafile string           path to a trusted certificate authorities
@@ -182,6 +189,7 @@ FLAGS
                                    decrypting the private SSL key file
       --template string            template of the application the instances are
                                    described in (default "default")
+  -u, --username string            username
 
 === tt backup gc --help
 Delete backups the retention rules no longer cover, and clean up archives
@@ -609,8 +617,14 @@ anything is opened. It is refused together with --from-vclock.
 --dir writes both artifacts directly into the given directory, which is created
 if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.
 
---sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
-whose iproto listener has TLS enabled.
+<APP:INSTANCE> is reached as tt connect --binary reaches it: at
+iproto.advertise.client of its config, else at the first TCP address of its
+iproto.listen, else at its binary port, with TLS and the TLS files of the
+iproto.listen entry there. --sslkeyfile, --sslcertfile, --sslcafile and
+--sslciphers take precedence over those files, and reach a <URI> whose
+listener has TLS enabled. The credentials are those of --username and
+--password, and for a <URI> without any those of TT_CLI_USERNAME and
+TT_CLI_PASSWORD.
 
 USAGE
   tt backup start (<APP:INSTANCE>|<URI>) [flags]
@@ -629,6 +643,7 @@ FLAGS
       --from-vclock string         vclock of the last manifest (JSON object,
                                    e.g. '{"1":1500}'); incremental only
   -h, --help                       help for start
+  -p, --password string            password
       --scope string               scope the application is looked for in:
                                    project, user or system
       --snapshot                   take a new checkpoint with box.snapshot()
@@ -646,6 +661,7 @@ FLAGS
                                    described in (default "default")
       --ttl duration               force the backup to complete after this
                                    duration (default 1h0m0s)
+  -u, --username string            username
 
 === tt backup upload --help
 Run on the manager host after the orchestrator collected .tar.zst archives
@@ -2702,9 +2718,17 @@ EXAMPLES
 === tt connect --help
 Connect to the tarantool instance.
 
+An instance of an application is reached at its console socket, and with
+--binary at iproto.advertise.client of its config, else at the first TCP
+address of its iproto.listen, 0.0.0.0 and [::] dialed as 127.0.0.1 and
+[::1], else at its binary port, with TLS and the TLS files of the
+iproto.listen entry there unless the flags give them. Over iproto it is
+logged in to with the credentials of --username and --password only.
+
 The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies the Tarantool username
 * TT_CLI_PASSWORD - specifies the Tarantool password
+They apply to a URI without credentials.
 
 You could pass command line arguments to the interpreted SCRIPT or COMMAND
 passed via -f flag:
@@ -3069,9 +3093,10 @@ EXAMPLES
 Apply the data changes of snapshots and write-ahead logs to an instance, over
 its binary port, transaction by transaction, in their order. No local
 Tarantool is needed. The target is an instance of an application, reached at
-the first address of iproto.listen of its config when that lists TCP
-addresses only, as the built-in templates do, or else at its binary port, or
-a URI: [tcp://][username:password@]host:port or
+iproto.advertise.client of its config, else at the first TCP address of its
+iproto.listen, 0.0.0.0 and [::] dialed as 127.0.0.1 and [::1], else at its
+binary port, with TLS and the TLS files of the iproto.listen entry there
+unless the flags give them, or a URI: [tcp://][username:password@]host:port or
 [unix://][username:password@]socketpath, with the TLS settings in the flags or
 in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=..., and the
 authentication method in --auth-type or ?auth_type=auto|chap-sha1|pap-sha256.
@@ -3140,9 +3165,10 @@ run. Exit codes: 0 - every transaction was applied; 3 - some were, and the
 target refused others; 1 - the target refused the first one it was given, or
 the request is invalid; 2 - the connection failed.
 
-The command supports the TT_CLI_USERNAME and TT_CLI_PASSWORD environment
-variables for a target without credentials: without any, the
-connection is guest's.
+An instance of an application is logged in to with the credentials of
+--username and --password only. The command supports the TT_CLI_USERNAME
+and TT_CLI_PASSWORD environment variables for a URI without credentials.
+Without any credentials, the connection is guest's.
 
 USAGE
   tt data play (<APP>:<INSTANCE> | <URI>) <FILE|DIR>... [flags]
@@ -3678,9 +3704,17 @@ FLAGS
 === tt instance connect --help
 Connect to the tarantool instance.
 
+An instance of an application is reached at its console socket, and with
+--binary at iproto.advertise.client of its config, else at the first TCP
+address of its iproto.listen, 0.0.0.0 and [::] dialed as 127.0.0.1 and
+[::1], else at its binary port, with TLS and the TLS files of the
+iproto.listen entry there unless the flags give them. Over iproto it is
+logged in to with the credentials of --username and --password only.
+
 The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies the Tarantool username
 * TT_CLI_PASSWORD - specifies the Tarantool password
+They apply to a URI without credentials.
 
 You could pass command line arguments to the interpreted SCRIPT or COMMAND
 passed via -f flag:

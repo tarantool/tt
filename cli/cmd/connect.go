@@ -131,7 +131,14 @@ func newConnectCmd(path string) *cobra.Command {
 			"  * \\quit - quit interactive console",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
-			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n" +
+			"An instance of an application is reached at its console socket, and with\n" +
+			"--binary at iproto.advertise.client of its config, else at the first TCP\n" +
+			"address of its iproto.listen, 0.0.0.0 and [::] dialed as 127.0.0.1 and\n" +
+			"[::1], else at its binary port, with TLS and the TLS files of the\n" +
+			"iproto.listen entry there unless the flags give them. Over iproto it is\n" +
+			"logged in to with the credentials of --username and --password only.\n\n" +
+			sdkconnect.EnvTarantoolCredentialsHelp + "\n" +
+			"They apply to a URI without credentials.\n\n" +
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
 			`echo "print(...)" | tt ` + path + ` user:pass@localhost:3013 -f- 1, 2, 3`,
@@ -361,21 +368,20 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 	return connOpts, err
 }
 
-// instanceBinaryConnOpts returns how to reach an instance of an application
-// over iproto: at its binary port, the unix socket tt has it listen on or the
-// one its config names, or, when the config has it listen on TCP only, as the
-// built-in templates do, at the first address of its iproto.listen, with TLS
-// when that entry has transport ssl. The credentials are those of the flags,
-// or else of TT_CLI_USERNAME and TT_CLI_PASSWORD, as for a URI.
+// instanceBinaryConnOpts returns how tt data play, tt connect --binary and
+// the tt backup commands reach an instance of an application over iproto,
+// by its config (running.ClientIprotoAddress): at iproto.advertise.client,
+// else at the first TCP address of iproto.listen, an address of every
+// interface being the loopback one, else at its binary port, the unix socket
+// of iproto.listen or the one tt has it listen on. The entry of
+// iproto.listen at the address gives the transport and the TLS settings
+// (applyIprotoParams). The credentials are those of the flags only:
+// TT_CLI_USERNAME and TT_CLI_PASSWORD are for a URI, and a user of the
+// environment meant for one does not log in to an instance of this host.
 func instanceBinaryConnOpts(inst *running.InstanceCtx,
 	connectCtx *connect.ConnectCtx,
 ) (connector.ConnectOpts, error) {
-	if connectCtx.Username == "" && connectCtx.Password == "" {
-		connectCtx.Username = os.Getenv(sdkconnect.TarantoolUsernameEnv)
-		connectCtx.Password = os.Getenv(sdkconnect.TarantoolPasswordEnv)
-	}
-
-	listen, found, err := running.ConfigTCPListen(inst)
+	address, found, err := running.ClientIprotoAddress(inst)
 	if err != nil {
 		return connector.ConnectOpts{}, err
 	}
@@ -384,11 +390,45 @@ func instanceBinaryConnOpts(inst *running.InstanceCtx,
 		return makeConnOpts(connector.UnixNetwork, inst.BinaryPort, *connectCtx), nil
 	}
 
-	if listen.TLS && connectCtx.Transport == dial.TransportDefault {
-		connectCtx.Transport = dial.TransportSsl
+	applyIprotoParams(connectCtx, address.Params)
+
+	network := connector.TCPNetwork
+	if address.Unix {
+		network = connector.UnixNetwork
 	}
 
-	return makeConnOpts(connector.TCPNetwork, listen.Address, *connectCtx), nil
+	return makeConnOpts(network, address.Address, *connectCtx), nil
+}
+
+// applyIprotoParams makes the connection of connectCtx a TLS one when params,
+// those of the entry of iproto.listen it goes to, have transport ssl, and
+// fills the TLS settings the flags leave unset with theirs, as Tarantool
+// fills the params of a peer URI it makes of iproto.listen with those of
+// the listener: its key and certificate are the ones the client presents.
+func applyIprotoParams(connectCtx *connect.ConnectCtx, params running.IprotoParams) {
+	if !params.TLS() || connectCtx.Transport != dial.TransportDefault {
+		return
+	}
+
+	connectCtx.Transport = dial.TransportSsl
+
+	for _, setting := range []struct {
+		dest  *string
+		value string
+	}{
+		{&connectCtx.SslKeyFile, params.SslKeyFile},
+		{&connectCtx.SslCertFile, params.SslCertFile},
+		{&connectCtx.SslCaFile, params.SslCaFile},
+		{&connectCtx.SslCiphers, params.SslCiphers},
+		{&connectCtx.SslPassword, params.SslPassword},
+		{&connectCtx.SslPasswordFile, params.SslPasswordFile},
+	} {
+		if *setting.dest == "" {
+			*setting.dest = setting.value
+		}
+	}
+
+	log.RegisterSecret(connectCtx.SslPassword)
 }
 
 // unresolvedTargetErr returns the error of a target that is no instance and

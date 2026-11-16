@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from integration.connect import iproto_project
 from integration.connect.test_connect import start_app, stop_app, try_execute_on_instance
 from integration.data.test_cat import JOURNALS
 from integration.replicaset.replicaset_helpers import (
@@ -566,8 +567,8 @@ def test_play_to_instance_of_cluster_template(tt_cmd, tmp_path):
     """The built-in templates have their instances listen for iproto on TCP
     only, so <APP>:<INSTANCE> is reached at the address of iproto.listen of
     the config, as tt connect --binary reaches it, with the credentials of the
-    flags or of TT_CLI_USERNAME and TT_CLI_PASSWORD; without them tt data play
-    connects as guest and says how to give them."""
+    flags only; without them tt data play connects as guest, even with
+    TT_CLI_USERNAME and TT_CLI_PASSWORD set, and says how to give them."""
     app_dir = create_template_project(tt_cmd, tmp_path, "cluster", "pc", "377", "num_replicasets=1")
     leader = "pc:replicaset-001-a"
     shutil.copy(TEST_FILES / "test.xlog", app_dir)
@@ -589,6 +590,7 @@ def test_play_to_instance_of_cluster_template(tt_cmd, tmp_path):
         assert "denied for user 'guest'" in out
         assert "connected as guest" in out
         assert "binary port" not in out
+        assert "TT_CLI_USERNAME" not in out
 
         rc, out = run_command_and_get_output(
             [tt_cmd, "data", "play", leader, "test.xlog", "-u", "client", "-p", "secret"],
@@ -597,11 +599,20 @@ def test_play_to_instance_of_cluster_template(tt_cmd, tmp_path):
         assert rc == 0, out
         assert "Applied 3 of 3 transactions" in out
 
-        # Played again as the user of the environment, the rows are there.
+        # The user of the environment is for a URI: the instance is still
+        # played into as guest.
         rc, out = run_command_and_get_output(
             [tt_cmd, "data", "play", leader, "test.xlog"],
             cwd=app_dir,
             env=dict(os.environ, TT_CLI_USERNAME="client", TT_CLI_PASSWORD="secret"),
+        )
+        assert rc == 1
+        assert "denied for user 'guest'" in out
+
+        # Played again as the user of the flags, the rows are there.
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "data", "play", leader, "test.xlog", "-u", "client", "-p", "secret"],
+            cwd=app_dir,
         )
         assert rc == 1
         assert "Duplicate key exists" in out
@@ -616,3 +627,75 @@ def test_play_to_instance_of_cluster_template(tt_cmd, tmp_path):
         assert "- 3" in out
     finally:
         stop_template_project(tt_cmd, app_dir)
+
+
+def create_bands_space(tt_cmd, app_dir):
+    """Create the space test.xlog changes on the instance of the iproto
+    project, over its console."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "connect", iproto_project.TARGET, "-f-"],
+        cwd=app_dir,
+        input="box.schema.space.create('bands', {id = 999}):create_index('pk')",
+    )
+    assert rc == 0, out
+    shutil.copy(TEST_FILES / "test.xlog", app_dir)
+
+
+def play_into_iproto_project(tt_cmd, app_dir, *flags, target=iproto_project.TARGET, env=None):
+    """Play test.xlog into target with flags from the directory of the iproto
+    project: (rc, output)."""
+    return run_command_and_get_output(
+        [tt_cmd, "data", "play", target, "test.xlog", *flags],
+        cwd=app_dir,
+        env=env,
+    )
+
+
+def test_play_to_instance_at_advertise_client(tt_cmd):
+    """An instance is reached at iproto.advertise.client of its config, here
+    the second address it listens on, not the first one of iproto.listen.
+    It is logged in to with the credentials of the flags only: a user of
+    TT_CLI_USERNAME, which does not exist, is not used for it, while a URI
+    without credentials still takes them."""
+    section = {
+        "listen": [{"uri": "127.0.0.1:3531"}, {"uri": "127.0.0.1:3532"}],
+        "advertise": {"client": "127.0.0.1:3532"},
+    }
+    env = iproto_project.env_with(**iproto_project.ENV_CREDENTIALS)
+    with iproto_project.running_iproto_project(tt_cmd, section) as app_dir:
+        create_bands_space(tt_cmd, app_dir)
+
+        rc, out = play_into_iproto_project(tt_cmd, app_dir, env=env)
+        assert rc == 1, out
+        assert "denied for user 'guest'" in out
+        hint = (
+            "connected as guest: give the credentials of a user that may write "
+            "with --username and --password\n"
+        )
+        assert hint in out
+        assert "TT_CLI_USERNAME" not in out
+        assert iproto_project.ENV_USER not in out
+
+        rc, out = play_into_iproto_project(tt_cmd, app_dir, *iproto_project.USER_FLAGS, env=env)
+        assert rc == 0, out
+        assert "Applied 3 of 3 transactions" in out
+        assert set(iproto_project.iproto_listeners(tt_cmd, app_dir)) == {"3532"}
+
+        # A URI without credentials takes those of the environment.
+        rc, out = play_into_iproto_project(tt_cmd, app_dir, target="127.0.0.1:3531", env=env)
+        assert rc != 0, out
+        assert "credentials are invalid" in out
+        assert "guest" not in out
+
+
+def test_play_to_instance_on_every_interface(tt_cmd):
+    """An instance that listens on 0.0.0.0 is reached at the loopback
+    address, over TCP although it also listens on a unix socket."""
+    section = {"listen": [{"uri": "unix/:./iproto.sock"}, {"uri": "0.0.0.0:3533"}]}
+    with iproto_project.running_iproto_project(tt_cmd, section) as app_dir:
+        create_bands_space(tt_cmd, app_dir)
+
+        rc, out = play_into_iproto_project(tt_cmd, app_dir, *iproto_project.USER_FLAGS)
+        assert rc == 0, out
+        assert "Applied 3 of 3 transactions" in out
+        assert set(iproto_project.iproto_listeners(tt_cmd, app_dir)) == {"3533"}

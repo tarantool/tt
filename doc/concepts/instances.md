@@ -4,12 +4,9 @@ The instance commands - `tt instance start`, `stop`, `restart`, `kill`,
 `status`, `logs`, `logrotate`, `check`, `clean` and `connect` - act on the
 instances of an application on this host. `tt connect` is
 `tt instance connect`, and `tt data play` takes the same targets. `tt data
-play` and `tt connect --binary` reach an instance over iproto: at the first
-address of `iproto.listen` of its config when that lists TCP addresses only,
-as the built-in templates do, or else at its binary port, a unix socket. The
-credentials come from `--username` and `--password`, or from
-`TT_CLI_USERNAME` and `TT_CLI_PASSWORD`; without them the connection is
-guest's.
+play`, `tt connect --binary` and the `tt backup` commands reach an instance
+over iproto, at the address its config gives (see
+[Over iproto](#over-iproto)).
 
 ## The pair
 
@@ -163,6 +160,58 @@ $ tt instance start myapp:storage-001 --scope user
 $ tt instance stop myapp:* --yes
 $ tt instance logs myapp:storage-001 --follow
 ```
+
+## Over iproto
+
+`tt data play`, `tt connect --binary`, `tt backup start` and
+`tt backup finalize` reach `<app>:<instance>` over iproto at the address of
+its effective config: the `TT_*` variables of its record and of the
+environment, the file and the config storage, ranked as Tarantool ranks
+them.
+
+1. `iproto.advertise.client`, the URI Tarantool advertises to clients:
+   `host:port`, a port, or a unix socket `unix/:<path>`, a relative path
+   being relative to the application directory, where the instance runs.
+   Tarantool refuses a login, URI parameters, an address of every interface
+   and port 0 there, and does not start with such a config; tt refuses them
+   too.
+2. Otherwise the first TCP address of `iproto.listen`, unix sockets listed
+   or not. `0.0.0.0`, `[::]` and a bare port mean every interface of this
+   host, and tt dials `127.0.0.1`, `[::1]` and `127.0.0.1` for them. An
+   entry of port 0 is skipped: its port is unknown until the instance
+   binds it.
+3. Otherwise the binary port: the first unix socket of `iproto.listen`, or
+   the `tarantool.sock` tt has the instance listen on in its run directory.
+
+The entry of `iproto.listen` at the address gives the transport. With
+`transport: ssl` the connection is a TLS one, with the `ssl_*` files of the
+entry, relative to the application directory: Tarantool connects a member of
+a replica set to a peer with them too, when it takes the URI of the peer
+from `iproto.listen`. The `--ssl*` flags take precedence over the files.
+`iproto.advertise.client` is a bare URI: it takes the params of the entry at
+the same socket, or at the same port of the same host or of every interface.
+In the config below `tt connect --binary myapp:storage-001` dials
+`db1.example.com:3302` with TLS:
+
+```yaml
+iproto:
+  listen:
+  - uri: 127.0.0.1:3301
+  - uri: 0.0.0.0:3302
+    params:
+      transport: ssl
+      ssl_key_file: localhost.key
+      ssl_cert_file: localhost.crt
+      ssl_ca_file: ca.crt
+  advertise:
+    client: db1.example.com:3302
+```
+
+The credentials are those of `--username` and `--password` only:
+`TT_CLI_USERNAME` and `TT_CLI_PASSWORD` are for a URI without credentials,
+and a user of the environment meant for one never logs in to an instance of
+this host. Without credentials the connection is guest's, and `tt data play`
+refused as guest says how to give them.
 
 ## Running
 

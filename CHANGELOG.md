@@ -1234,15 +1234,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   leaves a hole in the replica ids of the others, and the members whose ids
   come after it were left out of the topology: the status showed a running
   replica as gone, and a command that targets it could not find it.
-- `tt data play <APP>:<INSTANCE>` reaches an instance whose config has it
-  listen for iproto on TCP only, as every built-in template does, at the
-  first address of its `iproto.listen`, with TLS when that entry has
-  `transport: ssl`; `tt connect --binary` and the `tt backup` commands reach
-  it the same way. They needed the unix socket of the binary port, which such
-  an instance does not open, and failed with `the binary port of ... does
-  not exist`. The credentials are those of `--username` and `--password`, or
-  else of `TT_CLI_USERNAME` and `TT_CLI_PASSWORD`, for an instance as for a
-  URI, and a play refused to guest says how to give them.
+- `tt data play <APP>:<INSTANCE>` reaches an instance at the address its
+  effective config gives a client, as every built-in template needs:
+  `iproto.advertise.client`, or else the first TCP address of
+  `iproto.listen`, unix sockets listed or not, with `0.0.0.0` and `[::]`
+  dialed at the loopback address, or else the binary port.
+  `tt connect --binary`, `tt backup start` and `tt backup finalize` reach it
+  the same way. They needed the unix socket of the binary port, which an
+  instance that listens on TCP does not open, and failed with `the binary
+  port of ... does not exist`. The entry of `iproto.listen` at the address
+  gives the transport: with `transport: ssl` the connection is a TLS one with
+  the `ssl_*` files of the entry, as Tarantool connects to a peer, and the
+  `--ssl*` flags take precedence over them. A value of
+  `iproto.advertise.client` that Tarantool refuses - with a login, URI
+  parameters, an address of every interface or port 0 - is an error. The
+  credentials are those of `--username` and `--password` only, which
+  `tt backup start` and `tt backup finalize` now take as well:
+  `TT_CLI_USERNAME` and `TT_CLI_PASSWORD` are for a URI, and without
+  credentials the connection is guest's. A play refused to guest says to
+  give `--username` and `--password`.
 - The `app.manifest.toml` of `tt create vshard_cluster` needs `tt =
   '>=3.0.0'`, as the manifest of `tt new` does, where it said `>=2.11.0`:
   tt 2 does not read the manifest at all. It is the only built-in template

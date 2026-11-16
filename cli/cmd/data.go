@@ -410,9 +410,10 @@ func newDataPlayCmd() *cobra.Command {
 		Long: `Apply the data changes of snapshots and write-ahead logs to an instance, over
 its binary port, transaction by transaction, in their order. No local
 Tarantool is needed. The target is an instance of an application, reached at
-the first address of iproto.listen of its config when that lists TCP
-addresses only, as the built-in templates do, or else at its binary port, or
-a URI: [tcp://][username:password@]host:port or
+iproto.advertise.client of its config, else at the first TCP address of its
+iproto.listen, 0.0.0.0 and [::] dialed as 127.0.0.1 and [::1], else at its
+binary port, with TLS and the TLS files of the iproto.listen entry there
+unless the flags give them, or a URI: [tcp://][username:password@]host:port or
 [unix://][username:password@]socketpath, with the TLS settings in the flags or
 in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=..., and the
 authentication method in --auth-type or ?auth_type=auto|chap-sha1|pap-sha256.
@@ -451,9 +452,10 @@ run. Exit codes: 0 - every transaction was applied; 3 - some were, and the
 target refused others; 1 - the target refused the first one it was given, or
 the request is invalid; 2 - the connection failed.
 
-` + "The command supports the TT_CLI_USERNAME and TT_CLI_PASSWORD environment\n" +
-			"variables for a target without credentials: without any, the\n" +
-			"connection is guest's.",
+An instance of an application is logged in to with the credentials of
+--username and --password only. ` + "The command supports the TT_CLI_USERNAME\n" +
+			"and TT_CLI_PASSWORD environment variables for a URI without credentials.\n" +
+			"Without any credentials, the connection is guest's.",
 		Example: `# Replay a snapshot and the write-ahead logs after it into an instance.
   $ tt data play myapp:instance-001 ./backup
 
@@ -544,7 +546,7 @@ func runDataPlay(cmd *cobra.Command, flags *dataFilterFlags, play *dataPlayFlags
 		return err
 	}
 
-	opts, err := dataPlayTarget(play, args[0])
+	opts, instance, err := dataPlayTarget(play, args[0])
 	if err != nil {
 		return err
 	}
@@ -594,20 +596,32 @@ func runDataPlay(cmd *cobra.Command, flags *dataFilterFlags, play *dataPlayFlags
 	}
 
 	if opts.Username == "" && err != nil && strings.Contains(err.Error(), guestDenied) {
-		log.Warnf("tt data play connected as guest: give the credentials of a user " +
-			"that may write with --username and --password, or with TT_CLI_USERNAME " +
-			"and TT_CLI_PASSWORD")
+		log.Warn(guestDeniedHint(instance))
 	}
 
 	return dataPlayError(summary, err)
 }
 
+// guestDeniedHint says how to give tt data play the credentials of a user
+// that may write, when it has played into a target as guest: an instance of
+// an application takes those of the flags only, and a URI those of the URI
+// and of the environment as well.
+func guestDeniedHint(instance bool) string {
+	hint := "tt data play connected as guest: give the credentials of a user " +
+		"that may write with --username and --password"
+	if instance {
+		return hint
+	}
+
+	return hint + ", in the URI, or with TT_CLI_USERNAME and TT_CLI_PASSWORD"
+}
+
 // guestDenied ends the error of a request that guest may not make.
 const guestDenied = "denied for user 'guest'"
 
-// dataPlayTarget returns how to connect to the target of tt data play: the
-// binary port of an instance of an application, or a URI.
-func dataPlayTarget(play *dataPlayFlags, target string) (connector.ConnectOpts, error) {
+// dataPlayTarget returns how to connect to the target of tt data play, an
+// instance of an application or a URI, and whether it is an instance.
+func dataPlayTarget(play *dataPlayFlags, target string) (connector.ConnectOpts, bool, error) {
 	connectCtx := play.connectCtx
 
 	connectCtx.Username = play.username
@@ -615,32 +629,36 @@ func dataPlayTarget(play *dataPlayFlags, target string) (connector.ConnectOpts, 
 	connectCtx.Binary = true
 	connectCtx.Transport = dial.TransportDefault
 
-	// An instance of an application is reached as tt connect --binary
-	// reaches it: at the TCP address of iproto.listen of its config, or at
-	// its binary port, which it opens only when it is started with one.
 	instances, resolveErr := resolveInstances(&cmdCtx, []string{target})
-	if resolveErr == nil && len(instances) == 1 {
-		err := running.RequireTarantool(&instances[0])
-		if err != nil {
-			return connector.ConnectOpts{}, err
-		}
+	if resolveErr != nil || len(instances) != 1 {
+		opts, err := resolveConnectOpts(&cmdCtx, &connectCtx, target)
 
-		_, tcp, err := running.ConfigTCPListen(&instances[0])
-		if err != nil {
-			return connector.ConnectOpts{}, err
-		}
+		return opts, false, err
+	}
 
-		if !tcp {
-			_, err = os.Stat(instances[0].BinaryPort)
-			if err != nil {
-				return connector.ConnectOpts{}, fmt.Errorf(
-					"the binary port of %s does not exist: %w; is the instance running?",
-					target, err)
-			}
+	// An instance of an application is reached as tt connect --binary
+	// reaches it (instanceBinaryConnOpts). A unix socket, its binary port
+	// above all, exists only while the instance is running.
+	err := running.RequireTarantool(&instances[0])
+	if err != nil {
+		return connector.ConnectOpts{}, true, err
+	}
+
+	opts, err := instanceBinaryConnOpts(&instances[0], &connectCtx)
+	if err != nil {
+		return connector.ConnectOpts{}, true, err
+	}
+
+	if opts.Network == connector.UnixNetwork {
+		_, err = os.Stat(opts.Address)
+		if err != nil {
+			return connector.ConnectOpts{}, true, fmt.Errorf(
+				"the binary port of %s does not exist: %w; is the instance running?",
+				target, err)
 		}
 	}
 
-	return resolveConnectOpts(&cmdCtx, &connectCtx, target)
+	return opts, true, nil
 }
 
 // reportDataPlay logs the summary of a play.

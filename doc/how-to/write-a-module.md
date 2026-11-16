@@ -296,8 +296,8 @@ func (f *connFlags) connect(
 
 // dialOpts returns the options of a dialer to target. The credentials are
 // the ones a URI carries, which exclude -u and -p; otherwise -u and -p, and
-// an empty one is taken from TT_CLI_USERNAME or TT_CLI_PASSWORD, as tt
-// connect takes them.
+// for a URI an empty one is taken from TT_CLI_USERNAME or TT_CLI_PASSWORD,
+// as tt connect takes them.
 func (f *connFlags) dialOpts(
 	ctx context.Context, services sdk.Services, target string,
 ) (dial.Opts, error) {
@@ -313,6 +313,13 @@ func (f *connFlags) dialOpts(
 
 		uri, opts.User, opts.Password = connect.ParseCredentialsURI(target)
 	case connect.IsBaseURI(target):
+		if opts.User == "" {
+			opts.User = os.Getenv(connect.TarantoolUsernameEnv)
+		}
+
+		if opts.Password == "" {
+			opts.Password = os.Getenv(connect.TarantoolPasswordEnv)
+		}
 	default:
 		entry, err := f.instanceListen(ctx, services, target)
 		if err != nil {
@@ -320,14 +327,6 @@ func (f *connFlags) dialOpts(
 		}
 
 		uri, params = entry.URI, entry.Params
-	}
-
-	if opts.User == "" {
-		opts.User = os.Getenv(connect.TarantoolUsernameEnv)
-	}
-
-	if opts.Password == "" {
-		opts.Password = os.Getenv(connect.TarantoolPasswordEnv)
 	}
 
 	log.RegisterSecret(opts.Password)
@@ -414,12 +413,17 @@ included:
 2. Anything else is `APP:INSTANCE` here: the URI is the first one of
    `iproto.listen` of the instance, and `Dir` makes the SSL files of its
    parameters absolute. The example takes the URI as written; it does not
-   expand `{{ instance_name }}` or make a relative socket path absolute.
+   expand `{{ instance_name }}` or make a relative socket path absolute, and
+   it does not look at `iproto.advertise.client`, which `tt connect
+   --binary` dials first (see
+   [Over iproto](../concepts/instances.md#over-iproto)).
 3. The precedence of the credentials is the module's choice, and the SDK
    applies none. The example follows `tt connect`: credentials in the URI
-   exclude `-u` and `-p`; otherwise `-u` and `-p`, and an empty one is taken
-   from `TT_CLI_USERNAME` or `TT_CLI_PASSWORD`
-   (`connect.TarantoolUsernameEnv`, `connect.TarantoolPasswordEnv`).
+   exclude `-u` and `-p`; otherwise `-u` and `-p`, and for a URI without
+   credentials an empty one is taken from `TT_CLI_USERNAME` or
+   `TT_CLI_PASSWORD` (`connect.TarantoolUsernameEnv`,
+   `connect.TarantoolPasswordEnv`). `APP:INSTANCE` takes `-u` and `-p`
+   only.
    `connect.EnvTarantoolCredentialsHelp` describes the two variables in the
    help of a command.
 4. `connect.SplitURIQuery` splits the query off a URI, where `transport` and

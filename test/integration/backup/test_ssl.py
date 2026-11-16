@@ -22,8 +22,9 @@ from utils import (
 
 STORAGE_1_A = "storage-001-a"
 
-# The port must match ssl_app/config.yaml. The instance listens with TLS only,
-# and the backup commands address it by <URI>, which the TLS flags apply to.
+# The port must match ssl_app/config.yaml. The instance listens with TLS only:
+# the backup commands address it by <URI>, which the TLS flags apply to, or by
+# <APP:INSTANCE>, which takes the TLS of the listener from the config.
 SSL_APP_URI = "localhost:3344"
 SSL_APP_CREDENTIALS_URI = f"client:secret@{SSL_APP_URI}"
 
@@ -96,6 +97,32 @@ def test_ssl_start_and_finalize_with_uri_credentials(tt, tt_app, tmp_path):
 
     assert rc == 0, f"tt backup finalize over TLS failed:\n{out}"
     assert get_backup_info_app(tt, console_target) is None
+    assert not target_dir.exists()
+
+
+@pytest.mark.tt_app(**TT_BACKUP_SSL_APP)
+def test_ssl_start_and_finalize_app_target_takes_tls_of_config(tt, tt_app, tmp_path):
+    """<APP:INSTANCE> is dialed with the TLS of its entry of iproto.listen:
+    transport ssl and the files of the listener, resolved against the
+    application directory, so no --ssl* flag is needed. The credentials are
+    those of --username and --password, and without them the dial is
+    guest's, which the config lets back up."""
+    target = app_instance(tt_app, STORAGE_1_A)
+    backup_id = "itest-ssl-app"
+    target_dir = Path(backup_dir(backup_id))
+
+    rc, out = start_backup(tt, target, backup_id, extra_args=["-u", "client", "-p", "secret"])
+    assert rc == 0, f"tt backup start over TLS failed:\n{out}"
+
+    try:
+        archive_path = archive_path_from_output(out)
+        inspect_backup_artifact(archive_path, tmp_path / "unpacked", backup_id)
+        assert get_backup_info_app(tt, target) is not None
+    finally:
+        rc, out = finalize_backup(tt, target, backup_id)
+
+    assert rc == 0, f"tt backup finalize over TLS failed:\n{out}"
+    assert get_backup_info_app(tt, target) is None
     assert not target_dir.exists()
 
 

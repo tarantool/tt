@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from integration.connect import iproto_project
 
 from utils import (
     BINARY_PORT_NAME,
@@ -3348,3 +3349,100 @@ def test_connect_refused_exits_2(tt_cmd, tmp_path):
     assert result.returncode == 2, result.stderr
     assert result.stderr.count("connection refused") == 1, result.stderr
     assert result.stdout == ""
+
+
+def binary_eval(tt_cmd, app_dir, expr, *flags, target=iproto_project.TARGET, env=None):
+    """Evaluate expr on target with tt connect --binary and flags from the
+    directory of the iproto project: (rc, output)."""
+    return run_command_and_get_output(
+        [tt_cmd, "connect", target, "--binary", *flags, "-f-"],
+        cwd=app_dir,
+        input=expr,
+        env=env,
+    )
+
+
+def test_connect_binary_at_advertise_client(tt_cmd):
+    """tt connect --binary reaches an instance at iproto.advertise.client of
+    its config, here the second address it listens on, and
+    TT_IPROTO_ADVERTISE_CLIENT of the environment of tt overrides the file.
+    The instance is logged in to with the credentials of the flags only:
+    without them it is guest's, although TT_CLI_USERNAME names a user, who
+    does not exist, while a URI without credentials takes them."""
+    section = {
+        "listen": [{"uri": "127.0.0.1:3551"}, {"uri": "127.0.0.1:3552"}],
+        "advertise": {"client": "127.0.0.1:3552"},
+    }
+    user = "box.session.user()"
+    flags = iproto_project.USER_FLAGS
+    env = iproto_project.env_with(**iproto_project.ENV_CREDENTIALS)
+    with iproto_project.running_iproto_project(tt_cmd, section) as app_dir:
+        rc, out = binary_eval(tt_cmd, app_dir, user, *flags, env=env)
+        assert rc == 0, out
+        assert f"- {iproto_project.USER}\n" in out
+
+        # Guest may not evaluate: the refusal names the user logged in as.
+        rc, out = binary_eval(tt_cmd, app_dir, user, env=env)
+        assert rc != 0, out
+        assert "denied for user 'guest'" in out
+        assert set(iproto_project.iproto_listeners(tt_cmd, app_dir)) == {"3552"}
+
+        advertised = iproto_project.env_with(TT_IPROTO_ADVERTISE_CLIENT="127.0.0.1:3551")
+        rc, out = binary_eval(tt_cmd, app_dir, user, *flags, env=advertised)
+        assert rc == 0, out
+        assert iproto_project.iproto_listeners(tt_cmd, app_dir)[-1] == "3551"
+
+        rc, out = binary_eval(tt_cmd, app_dir, user, target="127.0.0.1:3552", env=env)
+        assert rc != 0, out
+        assert "credentials are invalid" in out
+
+
+def test_connect_binary_at_advertise_client_unix_socket(tt_cmd):
+    """iproto.advertise.client may be a unix socket, resolved against the
+    application directory, where the instance runs."""
+    section = {
+        "listen": [{"uri": "127.0.0.1:3553"}, {"uri": "unix/:./client.sock"}],
+        "advertise": {"client": "unix/:./client.sock"},
+    }
+    with iproto_project.running_iproto_project(tt_cmd, section) as app_dir:
+        rc, out = binary_eval(tt_cmd, app_dir, "box.session.user()", *iproto_project.USER_FLAGS)
+        assert rc == 0, out
+        assert f"- {iproto_project.USER}\n" in out
+        assert set(iproto_project.iproto_listeners(tt_cmd, app_dir)) == {"./client.sock"}
+
+
+@pytest.mark.parametrize(
+    "listen, loopback",
+    [
+        pytest.param("0.0.0.0:3554", "127.0.0.1", id="ipv4"),
+        pytest.param("[::]:3555", "::1", id="ipv6"),
+    ],
+)
+def test_connect_binary_on_every_interface(tt_cmd, listen, loopback):
+    """An instance that listens on an address of every interface is reached
+    at the loopback address of its family, over TCP although it also listens
+    on a unix socket."""
+    if loopback == "::1" and not iproto_project.has_ipv6_loopback():
+        pytest.skip("no IPv6 loopback address")
+
+    section = {"listen": [{"uri": "unix/:./iproto.sock"}, {"uri": listen}]}
+    with iproto_project.running_iproto_project(tt_cmd, section) as app_dir:
+        rc, out = binary_eval(tt_cmd, app_dir, "box.session.peer()", *iproto_project.USER_FLAGS)
+        assert rc == 0, out
+        assert loopback in out
+        port = listen.rsplit(":", 1)[1]
+        assert set(iproto_project.iproto_listeners(tt_cmd, app_dir)) == {port}
+
+
+def test_connect_binary_advertise_client_with_login(tt_cmd, tmp_path):
+    """Tarantool refuses a login in iproto.advertise.client, and so does tt,
+    rather than log in with it: the credentials are those of the flags. The
+    password is not shown."""
+    section = {"advertise": {"client": "admin:topsecret@127.0.0.1:3556"}}
+    app_dir = iproto_project.write_iproto_project(tmp_path, section)
+    rc, out = binary_eval(tt_cmd, app_dir, "box.session.user()")
+    assert rc != 0, out
+    assert "iproto.advertise.client" in out
+    assert "has a login" in out
+    assert "--username and --password" in out
+    assert "topsecret" not in out
