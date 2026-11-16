@@ -899,18 +899,18 @@ linters:
             - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
+        # tt tcm init: the record of TCM in instances.yaml, and the version
+        # of TCM installed in the scopes.
         dir-cli-tcm:
           files:
             - "**/cli/tcm/**"
           allow:
             - $gostd
-            - "github.com/fatih/color"
-            - "github.com/pmezard/go-difflib"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/tail"
             - "github.com/tarantool/tt/v3/cli/tcm"
-            - "github.com/tarantool/tt/v3/internal/supervisor"
+            - "github.com/tarantool/tt/v3/cli/version"
+            - "github.com/tarantool/tt/v3/internal/binary"
+            - "github.com/tarantool/tt/v3/internal/instances"
         dir-cli-templates:
           files:
             - "**/cli/templates/**"

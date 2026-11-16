@@ -30,7 +30,7 @@ COMMANDS
   rocks       LuaRocks package manager
   run         Run the Tarantool of the current project
   service     Integrate with the service manager of the system
-  tcm         Manage tcm application
+  tcm         Declare TCM, the Tarantool Cluster Manager, in a project
   test        Build the current package and run its tests
   version     Show Tarantool CLI EE version information
 
@@ -64,11 +64,12 @@ record says.
 In the background tt waits until every instance it starts is up, all of them at
 once, for --timeout at most: a Tarantool instance once its box runs and its
 config is applied, as tt instance status shows them in BOX and CONFIG, an
-external process once it has run for a second. An instance that exits before
-that has failed, also when its restart policy has its watchdog start it again,
-and so has one that is not up in time, which is left to its watchdog: tt says
-what happened, quotes the end of its tt.log and exits with an error. --no-wait
-starts the watchdogs and returns at once.
+external process once it has run for a second, TCM once its HTTP address
+answers. An instance that exits before that has failed, also when its restart
+policy has its watchdog start it again, and so has one that is not up in time,
+which is left to its watchdog: tt says what happened, quotes the end of its
+tt.log and exits with an error. --no-wait starts the watchdogs and returns at
+once.
 
 What an instance runs - its binary or tarantool, its script or cluster config,
 its arguments, environment, restart policy and paths - is resolved here, before

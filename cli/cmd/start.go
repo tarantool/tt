@@ -111,7 +111,8 @@ func NewStartCmd() *cobra.Command {
 const waitHelp = "In the background tt waits until every instance it starts is up, " +
 	"all of them at once, for --timeout at most: a Tarantool instance once its box " +
 	"runs and its config is applied, as tt instance status shows them in BOX and " +
-	"CONFIG, an external process once it has run for a second. An instance that " +
+	"CONFIG, an external process once it has run for a second, TCM once its HTTP " +
+	"address answers. An instance that " +
 	"exits before that has failed, also when its restart policy has its watchdog " +
 	"start it again, and so has one that is not up in time, which is left to its " +
 	"watchdog: tt says what happened, quotes the end of its tt.log and exits with " +

@@ -30,7 +30,7 @@ COMMANDS
   rocks       LuaRocks package manager
   run         Run the Tarantool of the current project
   service     Integrate with the service manager of the system
-  tcm         Manage tcm application
+  tcm         Declare TCM, the Tarantool Cluster Manager, in a project
   test        Build the current package and run its tests
   version     Show Tarantool CLI EE version information
 

@@ -18,7 +18,10 @@ func NewCheckCmd() *cobra.Command {
 		Short: "Check an application file for syntax errors",
 		Long: "Check the Lua file each instance runs, its script or app.file of its\n" +
 			"config, for syntax errors, with the tarantool the instance runs on, and\n" +
-			"that the binary of each external process is found.",
+			"that the binary of each external process is found. TCM, a record with\n" +
+			"kind: tcm, is checked as its start checks it: its binary is found, its\n" +
+			"config and password file are read, and the project runs on Tarantool\n" +
+			"Enterprise.",
 		RunE: internalRunE(internalCheckModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
