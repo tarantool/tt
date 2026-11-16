@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-prompt"
+	"github.com/tarantool/tt/sdk/formatter"
 )
 
 // historyConsole makes a console whose history holds count commands,
@@ -143,4 +144,34 @@ func TestHelpText(t *testing.T) {
 		"\n  tt connect runs the backslash commands itself and adds some of its own.\n")
 	assert.NotContains(t, help, "is using.")
 	assert.Contains(t, help, "\n  \\help, ?")
+
+	// The formats come from formats(), as in the help of tt connect.
+	assert.Contains(t, help,
+		"-- set output format yaml (default), lua, table or ttable\n")
+	assert.Contains(t, help,
+		"\n  \\x[y,l,t,T]                     -- set output format yaml, lua, table or ttable\n")
+}
+
+func TestFormatsText(t *testing.T) {
+	assert.Equal(t, "yaml, lua, table or ttable", FormatsText(false))
+	assert.Equal(t, "yaml (default), lua, table or ttable", FormatsText(true))
+
+	// Every format has its name, and \x[...] sets each of them.
+	for _, format := range formats() {
+		name := format.String()
+		assert.NotEmpty(t, name)
+		assert.Contains(t, FormatsText(false), name)
+
+		parsed, ok := formatter.ParseFormat(name)
+		require.True(t, ok, name)
+		assert.Equal(t, format, parsed)
+
+		console := &Console{format: formatter.FormatsAmount}
+		assert.True(t, newCmdExecutor().Execute(console, formatShortcuts[format]))
+		assert.Equal(t, format, console.format)
+
+		console = &Console{format: formatter.FormatsAmount}
+		assert.True(t, newCmdExecutor().Execute(console, "\\set output "+name))
+		assert.Equal(t, format, console.format)
+	}
 }

@@ -1395,6 +1395,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   failure of the system. The same holds for `-f` and for `--binary`, and for
   a socket left behind by an instance that died. An instance that tt runs but
   whose socket does not answer, and a URI, still get the error of the dial.
+- The help texts of `tt connect` agree on the output formats: `--help`,
+  `-x` and `\help` in the console all list yaml (the default), lua, table and
+  ttable, from the formats the console has. `tt connect --help` used to offer
+  `lua[,line|block] or yaml`, and `\help` listed them in another order. The
+  help of `--sslciphers` ends its sentence: the cipher suites "the connection
+  can use".
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

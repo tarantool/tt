@@ -214,14 +214,14 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
 
   \\help, ?                        -- show this screen
   \\set language <language>        -- set language lua (default) or sql
-  \\set output <format>            -- set format lua, table, ttable or yaml (default)
+  \\set output <format>            -- set output format yaml (default), lua, table or ttable
   \\set table_format <format>      -- set table format default, jira or markdown
   \\set graphics <false/true>      -- disables/enables pseudographics for table modes
   \\set table_column_width <width> -- set max column width for table/ttable
   \\set delimiter <marker>         -- set expression delimiter
   \\xw <width>                     -- set max column width for table/ttable
   \\x                              -- switches output format cyclically
-  \\x[l,t,T,y]                     -- set output format lua, table, ttable or yaml
+  \\x[y,l,t,T]                     -- set output format yaml, lua, table or ttable
   \\x[g,G]                         -- disables/enables pseudographics for table modes
   \\shortcuts                      -- show available hotkeys and shortcuts
   \\history [<count>]              -- show the last <count> executed commands (default 10)
