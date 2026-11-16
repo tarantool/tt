@@ -954,6 +954,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- JSON that tt prints writes `<`, `>` and `&` as they are: `tt package
+  deps -o json` gave a constraint as `">=3.0.0"`, the escape Go makes
+  for JSON embedded in HTML. This holds for every `-o json` and JSON Lines
+  output, `tt package search` and `tt data cat` among them, and for
+  `tt instance status`, `tt backup`, `tt restore plan`, `tt cluster
+  topology` and the logs of `tt tcm`.
 - `tt package add NAME` of a name the table declares already keeps the
   constraint of the declaration and says so, `checks is already declared in
   [dependencies] as >=3.0.0`, as `cargo add` keeps the version requirement

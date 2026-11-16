@@ -109,13 +109,23 @@ func (l *logPrinter) format(str string) string {
 
 	resultLines = append(resultLines, headerLines...)
 
-	json, err := json.MarshalIndent(record, "", indentSpaces)
+	// The fields as they are, not escaped as for HTML: a message "a < b"
+	// reads so.
+	var encoded strings.Builder
+
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", indentSpaces)
+
+	err = encoder.Encode(record)
 	if err != nil {
 		return str
 	}
 
-	if len(json) > emptyJSONObjectLength { // If the JSON contains more than empty `{}`.
-		lines := strings.Split(string(json), "\n")
+	text := strings.TrimSuffix(encoded.String(), "\n")
+
+	if len(text) > emptyJSONObjectLength { // If the JSON contains more than empty `{}`.
+		lines := strings.Split(text, "\n")
 
 		lines = lines[1 : len(lines)-1]
 		resultLines = append(resultLines, colorizeJSONLines(lines, color, colorFaint)...)

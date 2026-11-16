@@ -26,6 +26,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (
@@ -998,7 +999,7 @@ func runBackupLast(cmd *cobra.Command, args []string) error {
 
 	switch backupLastFormat {
 	case formatJSON:
-		data, err := json.MarshalIndent(manifest, "", "  ")
+		data, err := util.MarshalJSON(manifest, "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal manifest: %w", err)
 		}
@@ -1156,7 +1157,7 @@ func runBackupVerifyInner() (bool, error) {
 
 	switch backupVerifyFormat {
 	case formatJSON:
-		data, err := json.MarshalIndent(report, "", "  ")
+		data, err := util.MarshalJSON(report, "  ")
 		if err != nil {
 			return false, fmt.Errorf("failed to marshal verification report: %w", err)
 		}
@@ -1346,11 +1347,11 @@ type backupGcOutput struct {
 // reportBackupGc prints the plan and, for a real run, what was deleted.
 func reportBackupGc(plan *gc.Plan, result *gc.Result) error {
 	if backupGcFormat == formatJSON {
-		data, err := json.MarshalIndent(backupGcOutput{
+		data, err := util.MarshalJSON(backupGcOutput{
 			DryRun: result == nil,
 			Plan:   plan,
 			Result: result,
-		}, "", "  ")
+		}, "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal cleanup report: %w", err)
 		}
@@ -1740,7 +1741,7 @@ func getLastFromChain(
 func printPlan(plan *backup.BackupPlan) error {
 	switch backupPlanFormat {
 	case formatJSON:
-		data, err := json.MarshalIndent(plan, "", "  ")
+		data, err := util.MarshalJSON(plan, "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal plan: %w", err)
 		}

@@ -2,7 +2,6 @@ package registry
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,6 +11,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // rocksDirName is the tree the adapter is bound to. Neither search nor
@@ -96,7 +96,7 @@ type SearchResult struct {
 
 // MarshalJSON encodes the matches as a JSON list.
 func (r SearchResult) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal(r.Matches)
+	data, err := util.MarshalJSON(r.Matches, "")
 	if err != nil {
 		return nil, fmt.Errorf("encoding matches: %w", err)
 	}

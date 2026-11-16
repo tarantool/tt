@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -17,6 +16,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/util"
 
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/v3/cli/restore"
@@ -979,7 +979,7 @@ func restorePlanExitCode(status restore.Status) int {
 func printRestorePlan(result *restore.PlanResult) error {
 	switch restorePlanFormat {
 	case formatJSON:
-		data, err := json.MarshalIndent(result, "", "  ")
+		data, err := util.MarshalJSON(result, "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal the restore plan: %w", err)
 		}

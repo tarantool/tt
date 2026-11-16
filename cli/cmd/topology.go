@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -29,6 +28,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/v3/cli/replicaset/cmd"
 	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (
@@ -540,7 +540,7 @@ func formatMode(mode replicaset.Mode) string {
 }
 
 func printTopologyJSON(topology topologyOutput) error {
-	data, err := json.MarshalIndent(topology, "", "  ")
+	data, err := util.MarshalJSON(topology, "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal topology: %w", err)
 	}

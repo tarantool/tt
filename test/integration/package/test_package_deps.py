@@ -325,6 +325,17 @@ def test_add_without_a_constraint_keeps_the_declaration(tree, run_tt, rock_serve
     assert locked_versions(root) == {"stat": "0.3.1-1"}
 
 
+def test_deps_json_writes_constraints_as_they_are(tree, run_tt):
+    """`deps -o json` writes `>=` as it is, not as an HTML escape."""
+    root = tree.root
+    write_manifest(root, "\n[dependencies]\nstat = '>=0.3.1'\n")
+
+    result = run_tt("package", "deps", "-o", "json")
+    assert result.returncode == 0, result.stderr
+    assert '"constraint": ">=0.3.1"' in result.stdout
+    assert "\\u003e" not in result.stdout
+
+
 def test_remove_touches_one_table(tree, run_tt, rock_server):
     """`remove` drops [dependencies] only, `remove --dev` [dev_dependencies] only."""
     root = tree.root

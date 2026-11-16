@@ -494,6 +494,11 @@ func TestEmitJSONNormalizes(t *testing.T) {
 			want:  "{\n  \"tuple\": {\n    \"2.5\": 2,\n    \"true\": 1\n  }\n}\n",
 		},
 		{
+			name:  "no HTML escapes",
+			tuple: []any{">=3.0.0 & <4"},
+			want:  "{\n  \"tuple\": [\n    \">=3.0.0 & <4\"\n  ]\n}\n",
+		},
+		{
 			name:  "bytes as base64",
 			tuple: []any{[]byte("hi\x00\xff")},
 			want:  "{\n  \"tuple\": [\n    \"aGkA/w==\"\n  ]\n}\n",

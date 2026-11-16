@@ -251,10 +251,10 @@ func TestStreamJSONLinesBytes(t *testing.T) {
 	}}))
 	require.NoError(t, stream.Close())
 
-	// "<b>" is HTML-escaped as in the one-shot JSON: backslash-u escapes.
+	// "<b>" is written as it is, as in the one-shot JSON: not HTML-escaped.
 	assert.Equal(t, //nolint:testifylint // Byte-exact JSON lines, not one JSON value.
 		`{"lsn":7,"tuple":[300,"AA==",null]}`+"\n"+
-			`{"lsn":8,"tuple":{"true":"`+"\x5cu003cb\x5cu003e"+`"}}`+"\n"+
+			`{"lsn":8,"tuple":{"true":"<b>"}}`+"\n"+
 			`{"lsn":9,"tuple":{"-Infinity":"NaN","r":["NaN","Infinity",0.5]}}`+"\n",
 		stdout.String())
 

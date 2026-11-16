@@ -172,7 +172,10 @@ type jsonLines struct {
 }
 
 func newJSONLines(w io.Writer) StreamEncoder {
-	return jsonLines{encoder: json.NewEncoder(w)}
+	encoder := json.NewEncoder(w)
+	encoder.SetEscapeHTML(false)
+
+	return jsonLines{encoder: encoder}
 }
 
 // Encode writes item as one line of JSON.

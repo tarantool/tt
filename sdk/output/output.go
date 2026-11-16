@@ -363,7 +363,8 @@ func (p *Printer) idle() error {
 }
 
 // encodeJSON writes value, normalised, as JSON indented by two spaces with a
-// trailing newline, readable both directly and piped into jq.
+// trailing newline, readable both directly and piped into jq. <, > and & are
+// written as they are, not escaped as for HTML: a constraint reads ">=3.0.0".
 func encodeJSON(writer io.Writer, value any) error {
 	normalized, err := Normalize(value)
 	if err != nil {
@@ -371,6 +372,7 @@ func encodeJSON(writer io.Writer, value any) error {
 	}
 
 	encoder := json.NewEncoder(writer)
+	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
 
 	err = encoder.Encode(normalized)
