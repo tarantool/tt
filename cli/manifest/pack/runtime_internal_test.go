@@ -461,6 +461,47 @@ func TestBundleRuntimeWarnsWithoutTarantoolLicense(t *testing.T) {
 	assert.Contains(t, warnings[0], "bundling Tarantool without a license")
 }
 
+// TestBundleRuntimeFallbackFollowsLink: the active tarantool of a project is
+// the link .tarantool/bin/tarantool to the executable of a tt binary
+// installation, and its prefix .tarantool. The fallback bundles the LICENSE
+// and the share/tarantool the installation keeps beside the executable, found
+// through the link, without the warning about a missing license.
+func TestBundleRuntimeFallbackFollowsLink(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".tarantool")
+	installation := binary.InstallationPath(root, binary.ProgramCe, "3.8.1")
+	writeTree(t, installation, map[string]string{
+		"tarantool":             "#!/bin/sh\n",
+		"LICENSE":               "BSD\n",
+		"share/tarantool/x.lua": "return 1\n",
+	})
+	activate(t, root, binary.ProgramCe, "3.8.1")
+
+	var warnings []string
+
+	stage := t.TempDir()
+	_, err := bundleRuntime(stage, RuntimeOptions{
+		CacheDir: fakeCache(t, map[string][]string{runtimeTt: {"2.0.0"}}),
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(root, binary.BinDirName, "tarantool"),
+		ActiveTarantoolVersion: "3.8.1-0-ge643f88a5e0c",
+		ActiveTarantoolFlavor:  flavorCE,
+		ActiveTarantoolPrefix:  root,
+		Warn:                   func(msg string) { warnings = append(warnings, msg) },
+	})
+	require.NoError(t, err)
+
+	bundled := filepath.Join(stage, runtimeDirName, runtimeTarantool)
+	assert.FileExists(t, filepath.Join(bundled, "LICENSE"))
+	assert.FileExists(t, filepath.Join(bundled, "share", "tarantool", "x.lua"))
+
+	for _, warning := range warnings {
+		assert.NotContains(t, warning, "without a license")
+	}
+}
+
 func TestPlaceRuntimeKeepsExecutableBit(t *testing.T) {
 	src := t.TempDir()
 	binPath := filepath.Join(src, "bin", "tt")

@@ -1285,6 +1285,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   so after `cannot find package foo`. tt gives the run a stand-in for zip
   as LuaRocks' `ZIP` variable, which records that LuaRocks ran it and
   fails as no zip does, and gives the hint when it ran.
+- `tt package pack` that bundles the active `tarantool` of a project, the
+  link `.tarantool/bin/tarantool` to a tt binary installation, bundles the
+  `LICENSE` and `share/tarantool/` the installation keeps beside the
+  executable: they were looked for beside the link and in `.tarantool/`,
+  and the pack warned that it bundled Tarantool without a license.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

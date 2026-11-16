@@ -731,9 +731,24 @@ func placeBinaryRuntime(dst string, src runtimeSource) error {
 // layout of the Enterprise SDK, where tarantool sits beside env.sh with no
 // bin/ in between). Duplicates are dropped so a caller prefix that equals
 // one of the guesses is not searched twice.
+//
+// A binary that is a link is guessed from where it points first, then from
+// where the link is: the active tarantool of a project is the link
+// .tarantool/bin/tarantool to the executable of a tt binary installation,
+// which keeps the LICENSE and share/tarantool of its Tarantool beside it, and
+// the prefix tt resolved for it is .tarantool, which has neither.
 func binaryPrefixes(src runtimeSource) []string {
 	binDir := filepath.Dir(src.Binary)
-	candidates := []string{src.Prefix, filepath.Dir(binDir), binDir}
+	candidates := []string{src.Prefix}
+
+	resolved, err := filepath.EvalSymlinks(src.Binary)
+	if err == nil {
+		target := filepath.Dir(resolved)
+
+		candidates = append(candidates, filepath.Dir(target), target)
+	}
+
+	candidates = append(candidates, filepath.Dir(binDir), binDir)
 
 	prefixes := make([]string, 0, len(candidates))
 	for _, c := range candidates {
