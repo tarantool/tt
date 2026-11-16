@@ -54,16 +54,11 @@ field_mappings = {
 
 
 def start_application(cmd, workdir, app_name, instances):
-    instance_process = subprocess.Popen(
-        cmd,
-        cwd=workdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    start_output = instance_process.stdout.read()
+    rc, start_output = run_command_and_get_output(cmd, cwd=workdir)
+    # The start returns once every instance is up.
+    assert rc == 0, start_output
     for inst in instances:
-        assert f"Starting an instance [{app_name}:{inst}]" in start_output
+        assert f"The instance {app_name}:{inst} is up." in start_output
 
 
 def stop_application(tt_cmd, app_name, workdir):
@@ -213,19 +208,10 @@ def test_t3_instances_without_console(tt_cmd):
 
         try:
             # Start the instances: no target is every instance of the project.
+            # The start returns once they are up, which it asks over their
+            # consoles: they are removed below only after that.
             start_cmd = [tt_cmd, "instance", "start"]
-            instance_process = subprocess.Popen(
-                start_cmd,
-                cwd=test_app_path,
-                stderr=subprocess.STDOUT,
-                stdout=subprocess.PIPE,
-                text=True,
-            )
-            start_output = instance_process.stdout.readline()
-            assert re.search(
-                r"Starting an instance \[app:(router|master|replica)\]",
-                start_output,
-            )
+            start_application(start_cmd, test_app_path, "app", instances)
 
             # Check status.
             for instName in instances:
@@ -300,8 +286,8 @@ def test_status_external_process(tt_cmd, tmp_path):
 
     try:
         rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
-        assert rc == 0
-        assert f"Starting an instance [{worker}]" in out
+        assert rc == 0, out
+        assert f"The instance {worker} is up." in out
         for inst in ["master", "worker"]:
             assert wait_file(inst_run_dir(app_path, app_name, inst), pid_file, []) != ""
         assert wait_file(inst_run_dir(app_path, app_name, "worker"), "process.pid", []) != ""
@@ -356,8 +342,8 @@ def test_status_script_instance(tt_cmd, tmp_path):
             [tt_cmd, "instance", "start", f"{app_name}:*"],
             cwd=app_path,
         )
-        assert rc == 0
-        assert f"Starting an instance [{inst}]" in out
+        assert rc == 0, out
+        assert f"The instance {inst} is up." in out
         run_dir = inst_run_dir(app_path, app_name, app_name)
         assert wait_file(run_dir, pid_file, []) != ""
         assert wait_file(run_dir, control_socket, []) != ""

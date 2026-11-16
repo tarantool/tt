@@ -310,9 +310,11 @@ def tt_post_start(request):
 def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
     app = tt_helper.TtApp(tt, tt_path, tt_instances)
     tt.work_dir = app.work_dir
-    for target in tt_running_targets:
-        p = tt.run("instance", "start", target)
-        assert p.returncode == 0
+    if tt_running_targets:
+        # One start for all the targets: it waits for its instances to be
+        # up, and the instances of a replica set bootstrap together.
+        p = tt.run("instance", "start", *tt_running_targets)
+        assert p.returncode == 0, p.stdout
     app.running_instances = app.instances_of(*tt_running_targets)
     assert tt_helper.wait_status(5, app, app.running_instances, ["RUNNING"])
     if tt_post_start is not None:

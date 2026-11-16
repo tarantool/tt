@@ -81,7 +81,8 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
                     print("=============================")
                     assert False
             assert status[inst]["STATUS"] == "RUNNING"
-            assert f"Starting an instance [{inst}]" in out
+            # The restart returns once the instance is up.
+            assert f"The instance {inst} is up." in out
             if was_running:
                 orig_pid = orig_status[inst]["PID"]
                 assert status[inst]["PID"] != orig_pid
@@ -275,6 +276,25 @@ tt_cluster_app = dict(
 )
 
 
+def replica_without_leader(tt_app, target):
+    """Tell whether target is the replica alone while its bootstrap leader,
+    the master, does not run."""
+    return target == "app:storage-replica" and "app:storage-master" not in tt_app.running_instances
+
+
+def check_restart_replica_without_leader(tt, input, *args):
+    """Restart the replica while its bootstrap leader does not run: it cannot
+    bootstrap and fails as it starts, and the restart, which waits for it,
+    fails and says so."""
+    if input is None:
+        rc, out = tt.exec("instance", "restart", "app:storage-replica", *args)
+    else:
+        rc, out = tt.exec_tty("instance", "restart", "app:storage-replica", *args, tty_input=input)
+    assert rc == 1, out
+    assert "instance app:storage-replica did not start" in out
+    assert "failed to connect to the bootstrap leader" in out
+
+
 # Auto-confirmation (short option).
 @pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app)
@@ -296,6 +316,9 @@ tt_cluster_app = dict(
     ],
 )
 def test_restart_cluster_auto_y(tt, tt_app, target):
+    if replica_without_leader(tt_app, target):
+        check_restart_replica_without_leader(tt, None, "-y")
+        return
     check_restart(tt, tt_app, target, None, True, "-y")
 
 
@@ -326,4 +349,7 @@ def test_restart_cluster_auto_yes(tt, tt_app):
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
 def test_restart_cluster_input(tt, tt_app, target, input, is_confirmed):
+    if is_confirmed and replica_without_leader(tt_app, target):
+        check_restart_replica_without_leader(tt, input)
+        return
     check_restart(tt, tt_app, target, input, is_confirmed)

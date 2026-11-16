@@ -338,8 +338,8 @@ def test_play_to_single_instance_app(tt_cmd):
         )
     target = f"{app_name}:instance001"
 
-    start_app(tt_cmd, tmp_path, app_name, start_binary_port=True)
     try:
+        start_app(tt_cmd, tmp_path, app_name, start_binary_port=True)
         file = wait_file(inst_run_dir(app_dir, app_name, "instance001"), control_socket, [])
         assert file != ""
 
@@ -395,23 +395,28 @@ def test_play_scope(tt_cmd, tmp_path):
     assert '"myapp" is not installed in the system scope' in out
 
 
-def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
+def test_play_to_single_instance_without_binary_port(tt_cmd, tmp_path):
     test_xlog_name = "test.xlog"
     app_name = "remote_instance_cfg"
-    app_dir = test_instance._tmpdir / app_name
+    app_dir = tmp_path / app_name
     app_dir.mkdir()
     shutil.copy(TEST_FILES / test_xlog_name, app_dir)
-    shutil.copy(test_instance._tmpdir / INSTANCE_NAME, app_dir)
-    shutil.copy(test_instance._tmpdir / "utils.lua", app_dir)
+    # The app file moves iproto off the binary port tt gives the instance.
+    # The script of TarantoolTestInstance does so as well, but then writes
+    # the port into <arg[0]>.port, and arg[0] of an instance of the cluster
+    # config is the tarantool binary: /usr/bin/tarantool.port is not
+    # writable, and the instance fails as it starts.
+    (app_dir / f"{app_name}.lua").write_text("box.cfg({listen = '127.0.0.1:0'})\n")
 
-    start_app(tt_cmd, test_instance._tmpdir, app_name, start_binary_port=False)
+    try:
+        start_app(tt_cmd, tmp_path, app_name, start_binary_port=False)
 
-    cmd = [tt_cmd, "data", "play", f"{app_name}:{app_name}", test_xlog_name]
-    rc, cmd_output = run_command_and_get_output(cmd, cwd=app_dir)
-    assert rc == 1
-    assert "binary port of remote_instance_cfg:remote_instance_cfg does not exist" in cmd_output
-
-    stop_app(tt_cmd, test_instance._tmpdir, app_name)
+        cmd = [tt_cmd, "data", "play", f"{app_name}:{app_name}", test_xlog_name]
+        rc, cmd_output = run_command_and_get_output(cmd, cwd=app_dir)
+        assert rc == 1
+        assert "binary port of remote_instance_cfg:remote_instance_cfg does not exist" in cmd_output
+    finally:
+        stop_app(tt_cmd, tmp_path, app_name)
 
 
 def test_play_to_cluster_app(tt_cmd):
@@ -430,8 +435,8 @@ def test_play_to_cluster_app(tt_cmd):
     for item in (TEST_FILES / empty_file, TEST_FILES / test_xlog_name):
         shutil.copy(item, tmp_app_path)
 
-    start_app(tt_cmd, tmp_app_path, app_name, True)
     try:
+        start_app(tt_cmd, tmp_app_path, app_name, True)
         master_run_path = inst_run_dir(tmp_app_path, app_name, "master")
         file = wait_file(master_run_path, control_socket, [])
         assert file != ""

@@ -232,7 +232,9 @@ def vshard_cconfig_app_timeout_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
     )
 
     # Start a cluster: every instance of the pair in .templates/default/.
-    start_cmd = [tt_cmd, "instance", "start", f"{vshard_cconfig_app_name_timeout}:*"]
+    # --no-wait returns before the instances are up: the bootstrap with a
+    # timeout too short for them is to find their config not applied yet.
+    start_cmd = [tt_cmd, "instance", "start", "--no-wait", f"{vshard_cconfig_app_name_timeout}:*"]
     rc, _ = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
 

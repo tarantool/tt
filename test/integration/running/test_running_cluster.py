@@ -23,17 +23,17 @@ from utils import (
 )
 
 
-def start_application(cmd, workdir, app_name, instances):
-    instance_process = subprocess.Popen(
-        cmd,
-        cwd=workdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    start_output = instance_process.stdout.read()
+def check_instances_up(rc, output, app_name, instances):
+    """Check that tt instance start or restart, which returns once its
+    instances are up, brought every one of instances up."""
+    assert rc == 0, output
     for inst in instances:
-        assert f"Starting an instance [{app_name}:{inst}]" in start_output
+        assert f"The instance {app_name}:{inst} is up." in output
+
+
+def start_application(cmd, workdir, app_name, instances):
+    rc, start_output = run_command_and_get_output(cmd, cwd=workdir)
+    check_instances_up(rc, start_output, app_name, instances)
 
 
 def stop_application(tt_cmd, workdir, app_name, instances):
@@ -137,14 +137,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
 
         # Restart an application.
         restart_cmd = [tt_cmd, "instance", "restart", f"{app_name}:*", "-y"]
-        instance_process = subprocess.Popen(
-            restart_cmd,
-            cwd=app_path,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-        start_output = instance_process.stdout.read()
+        rc, restart_output = run_command_and_get_output(restart_cmd, cwd=app_path)
 
         # Need to wait for all instances to stop before start.
         for inst in instances:
@@ -154,8 +147,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
                 pidByInstanceName.get(inst),
             )
 
-        for inst in instances:
-            assert f"Starting an instance [{app_name}:{inst}]" in start_output
+        check_instances_up(rc, restart_output, app_name, instances)
 
         wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 

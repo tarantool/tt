@@ -20,7 +20,6 @@ from utils import (
     rocks_mirror_env,
     run_command_and_get_output,
     wait_event,
-    wait_file,
     wait_files,
     wait_string_in_file,
 )
@@ -756,26 +755,28 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     tt_process.wait()
     assert tt_process.returncode == 0
 
-    # Start every instance of the project, as the follow-up message says.
-    start_cmd = [tt_cmd, "instance", "start"]
-    instance_process = subprocess.Popen(
-        start_cmd,
-        cwd=app_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    start_output = instance_process.stdout.readlines()
-    for line in start_output:
-        assert "Starting an instance" in line
     instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
+    try:
+        check_vshard_cluster_works(tt_cmd, app_path, instances)
+    finally:
+        # Stop the vshard_cluster app, also when a check failed.
+        stop_cmd = [tt_cmd, "instance", "stop", "--yes"]
+        stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_path)
+    assert stop_rc == 0
     for inst in instances:
-        file = wait_file(
-            inst_run_dir(app_path, "app1", inst),
-            pid_file,
-            [],
-        )
-        assert file != ""
+        assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.", stop_out)
+
+
+def check_vshard_cluster_works(tt_cmd, app_path, instances):
+    """Start every instance of the vshard_cluster project app_path, as the
+    follow-up message of tt create says, and check that the cluster stores
+    and returns data."""
+    start_cmd = [tt_cmd, "instance", "start"]
+    start_rc, start_output = run_command_and_get_output(start_cmd, cwd=app_path)
+    # The start returns once every instance is up.
+    assert start_rc == 0, start_output
+    for inst in instances:
+        assert f"The instance app1:{inst} is up." in start_output
 
     # Check status.
     status_cmd = [tt_cmd, "instance", "status", "app1:*"]
@@ -819,16 +820,6 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         with open(os.path.join(inst_log_dir(app_path, "app1", inst), log_file)) as f:
             print(inst, f.read())
 
-    # Stop the vshard_cluster app.
-    stop_cmd = [tt_cmd, "instance", "stop", "--yes"]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_path)
-    assert stop_rc == 0
-    for inst in instances:
-        assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.", stop_out)
-
-    with open(os.path.join(inst_log_dir(app_path, "app1", "router-001-a"), log_file)) as f:
-        print("\n".join(f.readlines()))
-    # Assert here to be sure that instances are stopped.
     assert can_insert, "can not insert data into the vshard cluster"
     assert can_select, "can not select data from the vshard cluster"
 

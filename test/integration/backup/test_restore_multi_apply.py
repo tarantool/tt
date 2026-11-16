@@ -212,19 +212,30 @@ def peer_view(tt, target, peer_id):
 
 
 def wait_replicaset_connected(tt, tt_app, timeout=60):
-    """Wait until the leader feeds the replica and the replica follows it.
+    """Wait until each member feeds the other and follows it: the config
+    makes the replicaset a full mesh, so the leader has an upstream from the
+    replica as well.
 
     A member appears in box.info.replication only once it subscribes, so this
     is also the wait for the replicaset being whole again after a restart.
+    Both ways count for the vclocks: the member subscribed to records the
+    subscriber in its local _gc_consumers, which moves its vclock[0]. A
+    member started once the other is up, as tt instance start waits for,
+    follows it at once, but is subscribed to only when the other retries
+    the connection, up to replication.reconnect_timeout later.
     """
+    leader = app_instance(tt_app, STORAGE_1_A)
+    replica = app_instance(tt_app, STORAGE_1_B)
     deadline = time.monotonic() + timeout
     last = None
     while time.monotonic() < deadline:
         last = (
-            peer_status(tt, app_instance(tt_app, STORAGE_1_A), "downstream"),
-            peer_status(tt, app_instance(tt_app, STORAGE_1_B), "upstream"),
+            peer_status(tt, leader, "downstream"),
+            peer_status(tt, replica, "upstream"),
+            peer_status(tt, replica, "downstream"),
+            peer_status(tt, leader, "upstream"),
         )
-        if last == ("follow", "follow"):
+        if last == ("follow",) * 4:
             return
         time.sleep(0.5)
     raise AssertionError(f"the replicaset did not reconnect; last seen: {last}")

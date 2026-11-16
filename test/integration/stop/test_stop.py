@@ -26,8 +26,9 @@ def test_stop_no_prompt(tt_cmd, tmp_path):
 
     start_cmd = [tt_cmd, "instance", "start", target]
     rc, out = utils.run_command_and_get_output(start_cmd, cwd=app_path)
-    assert rc == 0
-    assert "Starting an instance" in out
+    assert rc == 0, out
+    # The start returns once the instance is up.
+    assert f"The instance {target} is up." in out
     assert utils.wait_files(5, [pid_path])
 
     try:

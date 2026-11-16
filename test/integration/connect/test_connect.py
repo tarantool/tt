@@ -109,16 +109,10 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
 
     # Start the instances.
     start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
-    instance_process = subprocess.Popen(
-        start_cmd,
-        cwd=app_dir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-        env=test_env,
-    )
-    start_output = instance_process.stdout.readline()
-    assert re.search(r"Starting an instance", start_output)
+    rc, start_output = run_command_and_get_output(start_cmd, cwd=app_dir, env=test_env)
+    # The start returns once the instances are up.
+    assert rc == 0, start_output
+    assert re.search(r"The instance \S+ is up\.", start_output)
 
 
 def stop_app(tt_cmd, tmpdir, app_name):
