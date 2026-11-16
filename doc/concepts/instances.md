@@ -134,7 +134,8 @@ container or a terminal. Every instance still runs under a watchdog of its
 own, which does not restart it, so `tt instance stop`, `kill`, `logrotate`
 and `status` work on it from another terminal. The output of the instances
 goes to their logs and to the standard output of tt, prefixed with the
-instance when there are several. SIGINT, SIGTERM and SIGQUIT sent to tt stop
+instance when there are several, `<app>:<instance>: `, as `tt instance logs`
+prefixes the lines of every instance. SIGINT, SIGTERM and SIGQUIT sent to tt stop
 every instance. tt exits once all of them have ended: with 0 when they were
 stopped in time, with 137 when one did not stop within its `stop_timeout`
 and was killed, and otherwise with the exit code of the first instance that

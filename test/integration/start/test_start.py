@@ -459,10 +459,18 @@ def test_start_foreground_several(tt_cmd, tmp_path):
 
     p = start_foreground(tt_cmd, app_path)
     assert p.returncode == 5, p.stderr
-    assert "fg:failing failing says hi\n" in p.stdout
+    # The prefix is that of tt instance logs.
+    assert "fg:failing: failing says hi\n" in p.stdout
     failed = p.stdout.index("fg:failing exited with code 5\n")
-    assert p.stdout.index("fg:lasting lasting is done\n") > failed
+    assert p.stdout.index("fg:lasting: lasting is done\n") > failed
     assert p.stdout.index("fg:lasting exited with code 0\n") > failed
+
+    rc, out = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "logs", "fg:failing", "-n", "100"],
+        cwd=app_path,
+    )
+    assert rc == 0, out
+    assert "fg:failing: failing says hi\n" in out
 
     # Every instance exits with 0: so does tt.
     write_project(
@@ -513,7 +521,7 @@ def test_start_foreground_stop_one(tt_cmd, tmp_path):
 
     process = popen_foreground(tt_cmd, app_path)
     try:
-        utils.wait_for_lines_in_output(process.stdout, ["fg:a a is up", "fg:b b is up"])
+        utils.wait_for_lines_in_output(process.stdout, ["fg:a: a is up", "fg:b: b is up"])
 
         status = status_of(tt_cmd, app_path)
         assert status["fg:a"]["STATUS"] == "RUNNING"

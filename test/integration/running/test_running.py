@@ -809,10 +809,10 @@ def test_start_foreground(tt_cmd, tmp_path):
         wait_for_lines_in_output(
             instance_process.stdout,
             [
-                "multi_inst_app:router custom init file...",
-                "multi_inst_app:router multi_inst_app:router",
-                "multi_inst_app:master multi_inst_app:master",
-                "multi_inst_app:replica multi_inst_app:replica",
+                "multi_inst_app:router: custom init file...",
+                "multi_inst_app:router: multi_inst_app:router",
+                "multi_inst_app:master: multi_inst_app:master",
+                "multi_inst_app:replica: multi_inst_app:replica",
             ],
         )
 
@@ -830,9 +830,9 @@ def test_start_foreground(tt_cmd, tmp_path):
         wait_for_lines_in_output(
             instance_process.stdout,
             [
-                "multi_inst_app:router stopped",
-                "multi_inst_app:master stopped",
-                "multi_inst_app:replica stopped",
+                "multi_inst_app:router: stopped",
+                "multi_inst_app:master: stopped",
+                "multi_inst_app:replica: stopped",
             ],
         )
         assert instance_process.wait(30) == 0

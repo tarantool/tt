@@ -9,6 +9,11 @@ import (
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
+func TestOutputPrefix(t *testing.T) {
+	// The prefix of tt instance logs and tt instance start --foreground.
+	assert.Equal(t, "app:inst: ", running.OutputPrefix("app:inst"))
+}
+
 func TestNewColorizedPrefixWriter(t *testing.T) {
 	var buf bytes.Buffer
 

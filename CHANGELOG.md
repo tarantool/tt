@@ -1034,6 +1034,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   script, as for an external process: such an instance configures itself
   with `box.cfg` and does not use the cluster config, and the
   `uninitialized` it showed read like a problem.
+- `tt instance start --foreground` with several instances prefixes the
+  lines of each with `<app>:<instance>: `, as `tt instance logs` does, so
+  that the lines of an instance read and grep the same in both. It wrote
+  the instance and a space, with no colon.
 - A rock server that cannot be reached or read is one line: what was being
   done, the server, where it is configured and why, `resolving "checks":
   cannot reach rock server http://no-such-host.invalid/ (from

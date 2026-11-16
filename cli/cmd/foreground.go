@@ -230,7 +230,7 @@ func foregroundOutput(total int, name string, nextColor tail.ColorPicker) (io.Wr
 	}
 
 	clr := nextColor()
-	prefix := name + " "
+	prefix := running.OutputPrefix(name)
 
 	return running.NewColorizedPrefixWriter(os.Stdout, clr, prefix),
 		running.NewColorizedPrefixWriter(os.Stderr, clr, prefix)

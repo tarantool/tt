@@ -787,6 +787,14 @@ func GetAppInstanceName(instance InstanceCtx) string {
 	return instance.AppName + string(InstanceDelimiter) + instance.InstName
 }
 
+// OutputPrefix is the prefix of a line of the output of the instance name,
+// <app>:<instance> (GetAppInstanceName), when the lines of several instances
+// are shown together: tt instance logs and tt instance start --foreground
+// prefix them alike, so that the lines of one read and grep the same.
+func OutputPrefix(name string) string {
+	return name + ": "
+}
+
 // IsAbleToStartInstances checks if it is possible to start instances: each
 // passes the checks before a start and its application has a tarantool,
 // whose warnings are logged once per application, and which can run it

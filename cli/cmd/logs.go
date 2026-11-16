@@ -136,7 +136,7 @@ func follow(instances []running.InstanceCtx, lineCount int) error {
 		rootCtx := getLogRootContext(ctx, root, rootContexts)
 
 		err := tail.Follow(rootCtx, logLines,
-			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color),
+			tail.NewLogFormatter(running.OutputPrefix(running.GetAppInstanceName(inst)), color),
 			inst.Log, lineCount, &waitGroup)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -174,7 +174,8 @@ func printLastN(instances []running.InstanceCtx, lineCount int) error {
 
 	for _, inst := range instances {
 		logLines, err := tail.TailN(ctx,
-			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color), inst.Log, lineCount)
+			tail.NewLogFormatter(running.OutputPrefix(running.GetAppInstanceName(inst)), color),
+			inst.Log, lineCount)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
