@@ -954,6 +954,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- `tt package search` reports each version of a server once and in order:
+  the rock searched for first, then the others by name, the versions of
+  each newest first and `scm-1` after the releases. It listed a row for
+  every file of a version - the rockspec, the source rock, a rock of each
+  platform - in the order the servers listed them.
 - `tt test test/nosuch_test.lua` says `no such test file or directory:
   test/nosuch_test.lua in <project>`, where it said `no test directory` of
   a path that was a file.

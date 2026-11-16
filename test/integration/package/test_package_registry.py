@@ -17,6 +17,8 @@ from pathlib import Path
 
 import yaml
 
+ROCKS_REPO = Path(__file__).parent.parent / "rocks" / "repo"
+
 MANIFEST = """manifest_version = '0.1'
 
 [package]
@@ -57,6 +59,26 @@ def test_search_reports_every_offered_version(run_tt, rock_server):
     matches = json.loads(result.stdout)
     assert {match["version"] for match in matches} == {"0.3.1-1", "0.3.2-1"}
     assert {match["name"] for match in matches} == {"stat"}
+
+
+def test_search_sorts_and_dedupes(run_tt, rock_server):
+    """One row per version and server, the newest version first."""
+    result = run_tt(
+        "package",
+        "search",
+        "stat",
+        "--registry",
+        rock_server,
+        "--registry",
+        str(ROCKS_REPO),
+        "-o",
+        "json",
+    )
+    assert result.returncode == 0, result.stderr
+
+    rows = [(match["version"], match["server"]) for match in json.loads(result.stdout)]
+    assert len(rows) == len(set(rows)), rows
+    assert [version for version, _ in rows] == ["0.3.2-1", "0.3.2-1", "0.3.1-1", "0.3.1-1"]
 
 
 def test_search_without_a_match_succeeds(run_tt, rock_server):

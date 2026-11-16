@@ -1524,7 +1524,10 @@ func newPackageSearchCmd() *cobra.Command {
 		Long: "Search the rock servers for rocks whose name contains TERM, " +
 			"reporting every version each server offers. Unlike resolution, " +
 			"which stops at the first server that has a rock, a search asks all " +
-			"of them: the point is to see what exists. Nothing is downloaded " +
+			"of them: the point is to see what exists. Each version of a server " +
+			"is one row; the rock named TERM comes first, then the others by " +
+			"name, the versions of each newest first and scm or dev versions " +
+			"after the releases. Nothing is downloaded " +
 			"and nothing is written. A term nothing matches is not an error.",
 		Args: cobra.ExactArgs(1),
 	}

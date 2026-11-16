@@ -6,8 +6,12 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"sort"
+	"strings"
 
+	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
@@ -69,15 +73,100 @@ func Search(ctx context.Context, opts SearchOptions) ([]Match, error) {
 	}
 
 	matches := make([]Match, 0, len(results))
+	seen := make(map[Match]bool, len(results))
+
 	for _, result := range results {
-		matches = append(matches, Match{
+		match := Match{
 			Name:    result.Name,
 			Version: result.Version,
 			Server:  result.Server,
-		})
+		}
+
+		// A server lists a version once per file - its rockspec, its source
+		// rock, a rock of each platform - and a search names versions.
+		if seen[match] {
+			continue
+		}
+
+		seen[match] = true
+		matches = append(matches, match)
 	}
 
+	sortMatches(matches, opts.Term)
+
 	return matches, nil
+}
+
+// sortMatches orders matches as a search reports them: the rock named term
+// first, then the others by name; the versions of a rock newest first, the
+// releases ahead of scm and dev versions (rocks.Moving), which LuaRocks
+// counts as newer than any release; one version of several servers in the
+// order the servers were asked.
+func sortMatches(matches []Match, term string) {
+	order := make(map[Match]int, len(matches))
+	parsed := make(map[string]luarocks.Version, len(matches))
+
+	for idx, match := range matches {
+		order[match] = idx
+
+		if _, ok := parsed[match.Version]; !ok {
+			version, err := deps.ParseVersion(match.Version)
+			if err == nil {
+				parsed[match.Version] = version
+			}
+		}
+	}
+
+	sort.SliceStable(matches, func(i, j int) bool {
+		left, right := matches[i], matches[j]
+
+		if left.Name != right.Name {
+			if (left.Name == term) != (right.Name == term) {
+				return left.Name == term
+			}
+
+			return left.Name < right.Name
+		}
+
+		if left.Version != right.Version {
+			if cmp := compareVersions(parsed, left.Version, right.Version); cmp != 0 {
+				return cmp > 0
+			}
+		}
+
+		return order[left] < order[right]
+	})
+}
+
+// compareVersions compares the versions first and second as sortMatches
+// orders them, a release above a moving version: 1 when first goes first,
+// -1 when second does. A version that does not parse goes after every one
+// that does, and two such by their text.
+func compareVersions(parsed map[string]luarocks.Version, first, second string) int {
+	left, leftOK := parsed[first]
+	right, rightOK := parsed[second]
+
+	switch {
+	case !leftOK || !rightOK:
+		if leftOK != rightOK {
+			return boolOrder(leftOK)
+		}
+
+		return strings.Compare(second, first)
+	case rocks.Moving(left) != rocks.Moving(right):
+		return boolOrder(!rocks.Moving(left))
+	}
+
+	return deps.Compare(left, right)
+}
+
+// boolOrder is 1 for true, -1 for false.
+func boolOrder(first bool) int {
+	if first {
+		return 1
+	}
+
+	return -1
 }
 
 // SearchResult is what tt package search reports: the matches for a term.
@@ -90,7 +179,8 @@ func Search(ctx context.Context, opts SearchOptions) ([]Match, error) {
 type SearchResult struct {
 	// Term is the substring that was searched for.
 	Term string
-	// Matches are the rocks found, in the order the servers reported them.
+	// Matches are the rocks found, one per version and server, in the order
+	// Search sorts them.
 	Matches []Match
 }
 
