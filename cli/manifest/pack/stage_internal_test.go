@@ -310,6 +310,9 @@ func TestStageEntryRejections(t *testing.T) {
 		{"reserved directory", ".rocks", errReservedName},
 		{"escaping path", "../outside.txt", errEscapingPath},
 		{"absolute path", "/etc/passwd", errEscapingPath},
+		{"scope root of the project", ".tarantool", errProjectState},
+		{"data of the project", ".tarantool/var/lib/my-app/tcm/admin.secret", errProjectState},
+		{"scope root in another case", ".Tarantool/var", errProjectState},
 	}
 
 	for _, tt := range tests {

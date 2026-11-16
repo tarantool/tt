@@ -12,6 +12,7 @@ import (
 	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/sdk/execfile"
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -45,7 +46,7 @@ func stage(ctx context.Context, stageDir string, req stageRequest) error {
 		return err
 	}
 
-	err = stageTemplates(ctx, stageDir, req.ProjectDir)
+	err = stageTemplates(ctx, stageDir, req.ProjectDir, req.Manifest.Platform)
 	if err != nil {
 		return err
 	}
@@ -163,6 +164,13 @@ func checkEntry(projectDir, entry, field string) (string, os.FileInfo, error) {
 		return "", nil, stateErrorf("%s entry %q: %w", field, entry, errReservedName)
 	}
 
+	if isProjectState(clean) {
+		return "", nil, stateErrorf("%s entry %q: %w: %s/ holds the binaries, the data, "+
+			"the logs and the secrets of the instances of the project on this host, such "+
+			"as the password tt generates for TCM", field, entry, errProjectState,
+			scope.ProjectDirName)
+	}
+
 	info, err := os.Stat(filepath.Join(projectDir, clean))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -173,6 +181,16 @@ func checkEntry(projectDir, entry, field string) (string, os.FileInfo, error) {
 	}
 
 	return clean, info, nil
+}
+
+// isProjectState reports whether name, a path relative to the project, is in
+// the scope root of the project, .tarantool/, or is the scope root itself.
+// The comparison is case-insensitive, as isReservedName's is, for a
+// case-insensitive file system.
+func isProjectState(name string) bool {
+	top, _, _ := strings.Cut(filepath.ToSlash(name), "/")
+
+	return strings.EqualFold(top, scope.ProjectDirName)
 }
 
 // stageRocks grafts the rocks of the project's .rocks/ tree into the .rocks/

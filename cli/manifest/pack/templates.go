@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/app"
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -28,7 +29,9 @@ import (
 // Checking at pack time is what keeps a broken template from reaching a host,
 // where it would surface only at the first start of an instance, far from the
 // author who could fix it.
-func stageTemplates(ctx context.Context, stageDir, projectDir string) error {
+func stageTemplates(ctx context.Context, stageDir, projectDir string,
+	platform manifest.Platform,
+) error {
 	src := filepath.Join(projectDir, templatesDirName)
 
 	// Lstat first, so a dangling .templates link is reported rather than
@@ -47,7 +50,7 @@ func stageTemplates(ctx context.Context, stageDir, projectDir string) error {
 		return stateErrorf("%s: %w: not a directory", templatesDirName, errBadTemplate)
 	}
 
-	err = checkTemplates(ctx, src, projectDir)
+	err = checkTemplates(ctx, src, projectDir, platform)
 	if err != nil {
 		return err
 	}
@@ -75,7 +78,9 @@ func isHiddenTemplateEntry(rel string) bool {
 // would read it, and a file where a template was meant (an instances.yaml one
 // level too high, say) is better caught here than shipped. Hidden entries
 // (.gitkeep) are skipped: they are how git keeps a directory, not templates.
-func checkTemplates(ctx context.Context, dir, projectDir string) error {
+func checkTemplates(ctx context.Context, dir, projectDir string,
+	platform manifest.Platform,
+) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return stateErrorf("reading %s: %w", templatesDirName, err)
@@ -88,7 +93,8 @@ func checkTemplates(ctx context.Context, dir, projectDir string) error {
 			continue
 		}
 
-		problems = append(problems, checkTemplate(ctx, dir, entry.Name(), projectDir))
+		problems = append(problems, checkTemplate(ctx, dir, entry.Name(), projectDir,
+			platform))
 	}
 
 	joined := errors.Join(problems...)
@@ -116,7 +122,13 @@ func checkTemplates(ctx context.Context, dir, projectDir string) error {
 //
 // A config without a description is a template too: it runs every instance
 // of its topology, as a description of "*" alone would.
-func checkTemplate(ctx context.Context, dir, name, projectDir string) error {
+//
+// A description with TCM (kind: tcm) is refused in a package of Tarantool
+// Community Edition, by platform, its [platform] (manifest.CheckTCM): TCM is
+// Enterprise only, and would fail to start on every host.
+func checkTemplate(ctx context.Context, dir, name, projectDir string,
+	platform manifest.Platform,
+) error {
 	label := templatesDirName + "/" + name
 	path := filepath.Join(dir, name)
 
@@ -169,6 +181,23 @@ func checkTemplate(ctx context.Context, dir, name, projectDir string) error {
 		return templateParseError(label, err)
 	}
 
+	for _, record := range desc.Instances {
+		if record.Kind() != instances.KindTCM {
+			continue
+		}
+
+		err = manifest.CheckTCM(platform)
+		if err != nil {
+			return fmt.Errorf("%s: %w: instance %q is TCM: %w", label, errBadTemplate,
+				record.Name, err)
+		}
+
+		err = checkTCMSecret(path, label, record)
+		if err != nil {
+			return err
+		}
+	}
+
 	configured := clusterRecords(desc)
 
 	switch {
@@ -186,6 +215,36 @@ func checkTemplate(ctx context.Context, dir, name, projectDir string) error {
 	}
 
 	return nil
+}
+
+// checkTCMSecret refuses the record of TCM record of the template in dir,
+// named label, whose password_file is a file of the template: the template
+// goes into the package whole, and the password of the admin user of TCM
+// with it. The file belongs next to the pair of the host, or outside of the
+// project.
+func checkTCMSecret(dir, label string, record instances.Instance) error {
+	secret := record.TCM.PasswordFile
+	if secret == "" {
+		return nil
+	}
+
+	if !filepath.IsAbs(secret) {
+		secret = filepath.Join(dir, secret)
+	}
+
+	if !within(secret, dir) {
+		return nil
+	}
+
+	_, err := os.Lstat(secret)
+	if err != nil {
+		return nil //nolint:nilerr // A file that is not there is not packed.
+	}
+
+	return fmt.Errorf("%s: %w: instance %q is TCM, whose password_file %s is in the "+
+		"template, and would go into the package with it; keep the password outside of the "+
+		"project, or leave password_file out for tt to generate one on the host",
+		label, errBadTemplate, record.Name, record.TCM.PasswordFile)
 }
 
 // clusterRecords returns the quoted names of the records of desc that need

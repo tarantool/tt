@@ -49,6 +49,12 @@ var (
 	// errEscapingPath reports an include or license_files entry that resolves
 	// outside the project directory.
 	errEscapingPath = errors.New("path escapes the project directory")
+	// errProjectState reports an include or license_files entry in the scope
+	// root of the project, .tarantool/, which holds the binaries, the data,
+	// the logs and the secrets of the project on this host: the password of
+	// TCM tt generates among them. None of it goes into a package.
+	errProjectState = errors.New("entry is in the scope root of the project, which is " +
+		"never packed")
 	// errBadTemplate reports an entry of .templates/ that is not a complete
 	// template with a valid instance description.
 	errBadTemplate = errors.New("invalid instance template")
