@@ -422,7 +422,8 @@ A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
 puts the modules it makes, which exists when the build starts - the
 programs, for a component of `kind = "executable"` - `TT_PROJECT_ROOT`,
 `TT_PACKAGE`, `TT_COMPONENT_NAME`,
-`TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. When tt knows the
+`TT_VERSION`, `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_JOBS` (see
+[Jobs](#jobs)). When tt knows the
 Tarantool it builds for, a build also gets `TT_TARANTOOL_PREFIX`, the
 install prefix of that Tarantool, and `TT_TARANTOOL_INCLUDE_DIR`, the
 directory of its `module.h` and `lua.h`, `<prefix>/include/tarantool`, which
@@ -816,7 +817,7 @@ out of the source, in `TT_BUILD_DIR`:
 ```console
 cmake -S <cwd> -B _build/component/<component> -DCMAKE_BUILD_TYPE=<build_type> \
     -D<name>=<value>... -DCMAKE_PREFIX_PATH=<prefix of Tarantool>
-cmake --build _build/component/<component> --config <build_type> --parallel <CPUs> \
+cmake --build _build/component/<component> --config <build_type> --parallel <jobs> \
     --target <targets>...
 ```
 
@@ -826,8 +827,10 @@ Tarantool comes after the prefixes `variables` gives `CMAKE_PREFIX_PATH`, so
 `find_path(... tarantool/module.h)` of the usual `FindTarantool.cmake` finds
 its headers. The build tree stays between builds, and cmake rebuilds what
 changed in it; `--rebuild` configures a new one, and so does a build of a
-project that was moved. `CMAKE_BUILD_PARALLEL_LEVEL`, if set, is the number
-of jobs, and `CMAKE_GENERATOR` in `env` picks another generator. On macOS a
+project that was moved. `<jobs>` is that of `-j` (see [Jobs](#jobs)), or
+the number of CPUs; without `-j`, a `CMAKE_BUILD_PARALLEL_LEVEL` that is set
+is the number of jobs instead. `CMAKE_GENERATOR` in `env` picks another
+generator. On macOS a
 `.so` module is copied as `.dylib`, which Tarantool loads there. A program
 of the build is an entry of `output` with `to = "bin"`. CMake 3.15 or newer
 must be on `PATH`. The component is configured with the policy version its
@@ -952,6 +955,32 @@ program only tt's own `PATH` has is not found.
 directory it runs in, before running it, and shows what the command
 prints; without `-V` that is shown, with the command, when the command
 fails.
+
+#### Jobs
+
+`-j N`, `--jobs N`, of `tt package build`, `tt package pack` and `tt test`
+runs at most `N` jobs at once in each component build; `0`, the default,
+is one a CPU. Each backend hands it to its tool:
+
+| Backend | With `-j N` | Without |
+| --- | --- | --- |
+| `c`, `lua-c` | at most `N` compiles at once | one a CPU |
+| `cmake` | `cmake --build --parallel N`, whatever `CMAKE_BUILD_PARALLEL_LEVEL` says | `--parallel` with the number of CPUs, or no `--parallel` when `CMAKE_BUILD_PARALLEL_LEVEL` is set: cmake reads it then |
+| `cargo` | `cargo build -j N`, `cargo rustc -j N` | no `-j`: cargo's own default, `build.jobs` or `CARGO_BUILD_JOBS` |
+| `go` | `go build -p N` | no `-p`: go's own default |
+| `zig` | `zig build -jN` | no `-j`: zig's own default |
+| `make`, `shell` | `TT_BUILD_JOBS=N` | `TT_BUILD_JOBS`, the number of CPUs |
+
+Every build and hook gets `TT_BUILD_JOBS`, which is never `0`. tt gives
+`make` no `-j` of its own, since not every Makefile builds right in
+parallel: a build that does runs it itself, with the `shell` backend
+`command = 'sh'` and `args = ['-c', 'make -j"$TT_BUILD_JOBS"']`, or a
+Makefile that runs `$(MAKE) -j$(TT_BUILD_JOBS)` for its parts. The path
+dependencies are built with the same jobs.
+
+The jobs say how fast a component is built, not what is built: they are
+not an input of an `incremental` build, nor of the objects of `c` and
+`lua-c`, and a build with other jobs skips what the build before made.
 
 ## `[products.NAME]`
 

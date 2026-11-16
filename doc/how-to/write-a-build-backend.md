@@ -295,6 +295,7 @@ component and build.
 | `Locked` | set by `--locked`: a tool of the build must not move a version either; `LockedVersion` returns the version the lock pins a rock at |
 | `Static` | `static` of the block |
 | `Args` | the arguments a command of the module passed through to this build, for its tool (`sdk.BuildOptions.Args`: `tt wasm build calc -- -opt=2`); none in a build of `tt package build`. They are an input of an incremental build |
+| `Jobs` | the most jobs the build runs at once, set by `-j`, `--jobs` (`sdk.BuildOptions.Jobs`); `0` leaves it to the backend, one a CPU. Hand it to the tool only when it is set, `cargo -j`, so that the tool's own default stays otherwise; `JobsOrCPUs` is `Jobs`, or the number of CPUs when it is `0`, as `TT_BUILD_JOBS` has it. It is not an input of an incremental build: a build with other `Jobs` is skipped all the same |
 | `Hook` | set for the build of a lifecycle hook |
 | `Log`, `Warn` | the logger of the build, tt's with `backend=<name>`, whose debug records `tt -V` shows, and a function that shows a warning |
 
@@ -347,8 +348,9 @@ variables, so that the block cannot change them. The backend may append to
 
 The `TT_*` variables are `TT_OUTPUT_DIR`, `TT_BUILD_DIR`,
 `TT_COMPONENT_NAME`, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_VERSION`,
-`TT_PLATFORM_OS`, `TT_PLATFORM_ARCH`, and `TT_TARANTOOL_PREFIX` and
-`TT_TARANTOOL_INCLUDE_DIR` when tt knows them. A template of the example
+`TT_PLATFORM_OS`, `TT_PLATFORM_ARCH`, `TT_BUILD_JOBS` (`JobsOrCPUs`, never
+`0`), and `TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR` when tt
+knows them. A template of the example
 can use them: `${TT_PACKAGE}`, `${TT_VERSION}`. `envsubst` replaces every
 variable it is given, tt's environment included, and a variable that is
 not set with nothing.
@@ -1003,11 +1005,14 @@ ok  	example.com/tt-template	0.010s
   and no Tarantool is known. `Env` has the
   `TT_*` variables of the core: `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
   `TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION` (`buildtest.Version`,
-  `0.0.0-dev.0`), `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_DIR`.
+  `0.0.0-dev.0`), `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH`, `TT_BUILD_DIR` and
+  `TT_BUILD_JOBS`, the number of CPUs.
   A test may change the Context before it runs the build: `TestNoEnvsubst`
-  empties `PATH`, `Env["TT_VERSION"]` sets another version, and
+  empties `PATH`, `Env["TT_VERSION"]` sets another version,
   `harness.SetTarantool` tells the build a Tarantool as the core does, in
-  `Tarantool` and in `TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR`.
+  `Tarantool` and in `TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR`,
+  and `harness.SetJobs(n)` the jobs of `-j n`, in `Jobs` and in
+  `TT_BUILD_JOBS`.
 - `harness.Run` runs `Preflight`, when the build has one, with `TT_VERSION`
   empty as the core has it there, then `Run`, and
   fails, as the core does, when `Run` left a file in the directory of a
