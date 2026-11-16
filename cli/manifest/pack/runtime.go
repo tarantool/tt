@@ -1,10 +1,10 @@
 package pack
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -167,8 +167,9 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 		}
 
 		// A prerelease satisfies the constraint here on its core version alone
-		// (see coreVersion), so say so rather than letting a development build
-		// end up in a release archive unremarked.
+		// (see manifest.RuntimeSatisfies), as tt package install checks it, so
+		// say so rather than letting a development build end up in a release
+		// archive unremarked.
 		if isPrerelease(src.Version) && req.Warn != nil {
 			req.Warn(fmt.Sprintf(
 				"bundling %s %s, a prerelease build, to satisfy %q",
@@ -193,10 +194,6 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 	return bundled, nil
 }
 
-// releaseBuild matches the version a Community tarantool built from a release
-// tag reports: the release, zero commits after the tag and the commit hash.
-var releaseBuild = regexp.MustCompile(`^(\d+\.\d+\.\d+)-0-g[0-9a-f]+$`)
-
 // lockedTarantoolVersion is the version the lock records for the bundled
 // tarantool (decision 26). A Community build of a release tag,
 // 3.8.1-0-ge643f88a5e0c, is recorded as the release, 3.8.1: the name
@@ -211,12 +208,12 @@ func lockedTarantoolVersion(src runtimeSource) string {
 		return src.Version
 	}
 
-	match := releaseBuild.FindStringSubmatch(src.Version)
-	if match == nil {
+	release, ok := manifest.RuntimeRelease(src.Version)
+	if !ok {
 		return src.Version
 	}
 
-	return match[1]
+	return release
 }
 
 // activeBinary describes the running tt environment's copy of one component,
@@ -620,77 +617,34 @@ func sortVersionsDesc(versions []string) {
 // a literal comparison would quietly bundle the wrong runtime, or nothing at
 // all, off a typo. An unparseable *version* is only a miss — cache directories
 // are user-created and a stray name should be skipped, not fatal.
+//
+// The rule is manifest.RuntimeSatisfies, the one tt package install checks a
+// bundled runtime by: a prerelease meets a range by its major.minor.patch
+// core, and bundleRuntime warns when what it bundles is one.
 func satisfies(ver string, constraint manifest.Constraint) (bool, error) {
-	// An unknown version satisfies nothing, checked before the empty-spec case:
-	// a flavor-only constraint ("[ee]" with no range) otherwise accepted an
-	// undetermined version and stamped an empty bundled_*_version into the lock.
-	if strings.TrimSpace(ver) == "" {
-		return false, nil
-	}
+	ok, err := manifest.RuntimeSatisfies(ver, constraint.Version)
 
-	spec := strings.TrimSpace(constraint.Version)
-	if spec == "" {
-		return true, nil
-	}
-
-	constraints, err := version.NewConstraint(spec)
-	if err != nil {
-		return false, stateErrorf(
-			"%w: %q (expected a comma-separated range like %q)",
-			errBadConstraint, spec, ">=3.0.0,<4.0.0")
-	}
-
-	parsed, err := version.NewVersion(coreVersion(ver))
-	if err != nil {
+	switch {
+	case errors.Is(err, manifest.ErrRuntimeConstraint):
+		return false, stateErrorf("%w: %w", errBadConstraint, err)
+	case errors.Is(err, manifest.ErrRuntimeVersion):
 		// Cache directories are user-created; a stray name that is not a version
 		// is skipped rather than failing the whole pack.
-		return false, nil //nolint:nilerr // An unparseable version is a miss.
+		return false, nil
+	default:
+		return ok, err
 	}
-
-	return constraints.Check(parsed), nil
-}
-
-// coreVersion reduces a reported runtime version to its major.minor.patch core,
-// dropping any prerelease or build-metadata suffix.
-//
-// This is deliberately looser than semver's own rule, which excludes a
-// prerelease from a range that does not itself name one. That rule exists for
-// resolving dependencies, where an unreleased version is a hazard. Here the
-// version describes a binary the user already has installed, and every
-// Tarantool development build reports one - "3.8.0-entrypoint-49-g97a3b38040".
-// Under the strict rule such a build satisfies no ordinary constraint at all,
-// so [platform].tarantool = ">=3.0.0,<4.0.0" would reject a perfectly usable
-// 3.8.0. Matching on the core version treats that build as the 3.8.0 it is;
-// bundleRuntime warns separately when what it bundles is a prerelease.
-func coreVersion(ver string) string {
-	ver = normalizeVersion(ver)
-
-	// Cut build metadata first, then the prerelease: "3.8.0-rc1+deadbeef".
-	ver, _, _ = strings.Cut(ver, "+")
-	ver, _, _ = strings.Cut(ver, "-")
-
-	return ver
 }
 
 // isPrerelease reports whether a reported version carries a prerelease or
-// build-metadata suffix, i.e. whether coreVersion had to drop anything.
-//
-// A build of a release tag, 3.8.1-0-ge643f88a5e0c, is the release itself
-// (decision 26, lockedTarantoolVersion): the zero commits after the tag and
-// the commit git describe adds make no prerelease of it. A build that is
-// commits past its tag, or one of an -rc or -beta tag, is still one.
+// build-metadata suffix (manifest.IsRuntimePrerelease).
 func isPrerelease(ver string) bool {
-	ver = normalizeVersion(ver)
-	if releaseBuild.MatchString(ver) {
-		return false
-	}
-
-	return coreVersion(ver) != ver
+	return manifest.IsRuntimePrerelease(ver)
 }
 
 // normalizeVersion strips a leading "v" and surrounding whitespace, leaving the
 // version otherwise intact - the prerelease suffix is meaningful and is only
-// dropped for constraint checking, by coreVersion.
+// dropped for constraint checking, by manifest.RuntimeCoreVersion.
 func normalizeVersion(ver string) string {
 	return strings.TrimPrefix(strings.TrimSpace(ver), "v")
 }

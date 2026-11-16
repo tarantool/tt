@@ -117,7 +117,8 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 	}
 
 	if matches["release"] != "" {
-		version.Release, err = newRelease(matches["release"], matches["releaseNum"])
+		version.Release, err = newRelease(matches["release"], matches["releaseSep"],
+			matches["releaseNum"])
 		if err != nil {
 			return version, fields, fmt.Errorf("can't parse Release: %w", err)
 		}

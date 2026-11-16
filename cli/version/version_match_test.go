@@ -126,6 +126,37 @@ func TestMatchVersion(t *testing.T) {
 	}
 }
 
+// TestMatchVersionTtPrerelease: the tags of tt name a prerelease the way
+// semver does, v3.0.0-alpha.2; tt binary install tt 3.0.0-alpha.2 selects
+// that tag, and 3.0.0-alpha the latest alpha, as for the tags of Tarantool.
+func TestMatchVersionTtPrerelease(t *testing.T) {
+	tags := []string{"v2.11.5", "v3.0.0-alpha.1", "v3.0.0-alpha.2", "v3.0.0-alpha.10"}
+	sorted := parseVersions(t, tags)
+	slices.SortStableFunc(sorted, func(left, right version.Version) int {
+		switch {
+		case version.IsLess(left, right):
+			return -1
+		case version.IsLess(right, left):
+			return 1
+		default:
+			return 0
+		}
+	})
+
+	for requested, want := range map[string]string{
+		"3.0.0-alpha.2": "v3.0.0-alpha.2",
+		"3.0.0-alpha.1": "v3.0.0-alpha.1",
+		"3.0.0-alpha":   "v3.0.0-alpha.10",
+		"2":             "v2.11.5",
+	} {
+		assert.True(t, version.IsVersion(requested), requested)
+
+		got, err := version.MatchVersion(requested, sorted)
+		require.NoError(t, err, requested)
+		assert.Equal(t, want, got, requested)
+	}
+}
+
 func TestMatchVersion_NotFoundError(t *testing.T) {
 	data := []string{
 		"",

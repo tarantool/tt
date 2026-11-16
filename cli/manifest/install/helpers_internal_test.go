@@ -38,8 +38,11 @@ type archiveSpec struct {
 	lockDeps []manifest.LockDependency
 	// withRuntime bundles a fake _runtime/ and stamps bundled_* into the lock,
 	// marking the archive as with-deps. Bundled tarantool version; "" means
-	// --without-deps. The bundled tt is always 3.2.0.
+	// --without-deps. The bundled tt is bundledTt.
 	withRuntime string
+	// bundledTt is the version of the bundled tt of a with-deps archive;
+	// empty is 3.2.0.
+	bundledTt string
 	// runtime replaces the default _runtime/ entries of a with-deps archive
 	// (defaultRuntime): archive-relative slash path -> content.
 	runtime map[string]string
@@ -120,6 +123,10 @@ func (s archiveSpec) lockBytes(t *testing.T) []byte {
 	if s.withRuntime != "" {
 		lock.BundledTarantool = s.withRuntime
 		lock.BundledTt = "3.2.0"
+
+		if s.bundledTt != "" {
+			lock.BundledTt = s.bundledTt
+		}
 	}
 
 	data, err := lock.Marshal()

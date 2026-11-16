@@ -1250,6 +1250,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the version, and the change counted as an uncommitted one. The build
   directory of the project, tt's own, is left out of the check, and the
   version is derived before the build writes anything else.
+- `tt package install` of a with-deps archive accepts the runtime that
+  `tt package pack` bundled for the same `[platform]` requirement: pack takes
+  a prerelease, tt 3.0.0-alpha.2 say, for `tt = ">=3.0.0"` by its
+  major.minor.patch, with a warning, and install refused the archive with
+  `bundled tt 3.0.0-alpha.2 does not satisfy the project's requirement
+  ">=3.0.0"`. Install checks the bundled runtime by the same rule now and
+  warns the same way. The bundled prerelease tt is laid as the tt binary
+  installation `tt_3.0.0-alpha.2` instead of being skipped as one that
+  `cannot name a tt binary installation`: `tt binary list`, `switch` and
+  `install` read a prerelease of tt named the way its tags are,
+  `3.0.0-alpha.2`, where `tt binary list` failed with `failed to parse
+  version "3.0.0-alpha.2"` on such an installation.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

@@ -96,6 +96,21 @@ def archive_names(archive: Path) -> list[str]:
                 return tar.getnames()
 
 
+def archive_member(archive: Path, member: str) -> str:
+    """Read one file of a .tt archive as text (see archive_names)."""
+    if zstandard is None:
+        with tarfile.open(archive, mode="r:zst") as tar:
+            return tar.extractfile(member).read().decode()
+
+    with archive.open("rb") as raw:
+        with zstandard.ZstdDecompressor().stream_reader(raw) as stream:
+            with tarfile.open(fileobj=stream, mode="r|") as tar:
+                for info in tar:
+                    if info.name == member:
+                        return tar.extractfile(info).read().decode()
+    raise KeyError(member)
+
+
 def make_project(root: Path, dependency: bool = True) -> Path:
     """Write the smallest project the whole cycle can run on.
 
@@ -631,6 +646,57 @@ def test_pack_of_a_tagged_commit_is_clean(tt_cmd, tmp_path, lock_tracked, with_d
     assert archives[0].name.startswith("my-app-1.0.0-"), archives[0].name
     assert "+dirty" not in archives[0].name
     assert "bundled_" not in (project / "app.manifest.lock").read_text()
+
+
+@pytest.mark.skipif(shutil.which("tarantool") is None, reason="bundles the tarantool on PATH")
+def test_install_takes_the_tt_pack_bundled(tt_cmd, tmp_path):
+    """What pack bundles to satisfy [platform].tt, install accepts for the same
+    requirement of the project it installs into, and lays it as a tt binary
+    installation tt binary lists.
+
+    The tt under test is bundled, since no runtime cache holds one. A tt
+    built from a prerelease tag, 3.0.0-alpha.2, satisfies ">=3.0.0" by its
+    core version, with a warning on both sides: pack bundled it and install
+    refused it, and once allowed in, it named no installation tt binary list
+    could read.
+    """
+    project = make_project(tmp_path / "project", dependency=False)
+    manifest = project / "app.manifest.toml"
+    manifest.write_text(manifest.read_text().replace("tt = '>=3.1.0'", "tt = '>=3.0.0'"))
+
+    result = run(tt_cmd, project, "package", "pack", "--registry", str(ROCKS_REPO))
+    assert result.returncode == 0, result.stderr
+    archives = list((project / "_build" / "pack").glob("*.tt"))
+    assert len(archives) == 1, archives
+
+    lock = archive_member(archives[0], "app.manifest.lock")
+    match = re.search(r"^bundled_tt_version = '([^']+)'$", lock, re.MULTILINE)
+    assert match, lock
+    bundled = match[1]
+    prerelease = "-" in bundled or "+" in bundled
+    assert ("a prerelease build" in result.stderr) == prerelease, result.stderr
+
+    host = tmp_path / "host"
+    host.mkdir()
+    (host / "app.manifest.toml").write_text(
+        MANIFEST.replace("name = 'my-app'", "name = 'host'")
+        .replace("tt = '>=3.1.0'", "tt = '>=3.0.0'")
+        .replace("include = ['README.md']\n", "")
+        .replace("[dependencies]\nstat = '>=0.3.0'\n", ""),
+    )
+
+    result = run(tt_cmd, host, "package", "install", str(archives[0]))
+    assert result.returncode == 0, result.stderr
+    assert "does not satisfy" not in result.stderr
+    assert "cannot name a tt binary installation" not in result.stderr
+    assert ("a prerelease build" in result.stderr) == prerelease, result.stderr
+
+    installation = host / ".tarantool" / "versions" / "tt" / f"tt_{bundled}"
+    assert (installation / "tt").is_file()
+
+    listed = run(tt_cmd, host, "binary", "list")
+    assert listed.returncode == 0, listed.stderr
+    assert bundled in listed.stdout
 
 
 def make_template_project(root: Path, name: str, instances: str) -> Path:

@@ -48,8 +48,10 @@ type Release struct {
 	str  string
 }
 
-// newRelease create new Release base on passed data.
-func newRelease(release, releaseNum string) (Release, error) {
+// newRelease create new Release base on passed data. sep is what separates
+// the type from the number: "" in Tarantool's rc2, "." in semver's alpha.2;
+// the string of the release keeps it.
+func newRelease(release, sep, releaseNum string) (Release, error) {
 	newRelease := Release{Type: TypeRelease, Num: 0, str: release}
 	if release != "" {
 		switch release {
@@ -73,7 +75,7 @@ func newRelease(release, releaseNum string) (Release, error) {
 				return newRelease, fmt.Errorf("bad release number format %q: %w", releaseNum, err)
 			}
 
-			newRelease.str += releaseNum
+			newRelease.str += sep + releaseNum
 		}
 	}
 
@@ -101,13 +103,15 @@ func createVersionRegexp(isStrict bool) *regexp.Regexp {
 	// Part 1 (optional) -> custom build name, started with letter (not digit)
 	// Part 2 (optional) -> gc suffix,
 	// Part 3            -> major.minor.patch version number,
-	// Part 4 (optional) -> release type and number (e.g: rc2),
+	// Part 4 (optional) -> release type and number, as Tarantool names it (rc2)
+	//                      or as semver does, the way tt tags are (alpha.2),
 	// Part 5 (optional) -> additional commits,
 	// Part 6 (optional) -> commit hash and revision.
 	// GC suffix is not saved, since it is not part of version.
 	matchString := `^((?P<buildName>[^\d\.\+-].*)-)?` +
 		`v?(?:(?P<major>\d+)){1}(?:\.(?P<minor>\d+)){1}(?:\.(?P<patch>\d+)){1}` +
-		`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
+		`(?:-(?P<release>entrypoint|rc|alpha|beta)` +
+		`(?:(?P<releaseSep>\.)?(?P<releaseNum>\d+))?)?` +
 		`(?:-(?P<additional>\d+))?` +
 		`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(-gc64|-nogc64)?$`
 	if !isStrict {
@@ -156,7 +160,8 @@ func Parse(verStr string) (Version, error) {
 		return version, err
 	}
 
-	version.Release, err = newRelease(matches["release"], matches["releaseNum"])
+	version.Release, err = newRelease(matches["release"], matches["releaseSep"],
+		matches["releaseNum"])
 	if err != nil {
 		return version, err
 	}

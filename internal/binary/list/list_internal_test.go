@@ -48,6 +48,21 @@ func TestInstalledVersionsOrdering(t *testing.T) {
 	}, versionNames(versions))
 }
 
+// TestInstalledVersionsTtPrerelease: a tt installation of a prerelease tag,
+// as tt binary install and tt package install of a bundled tt name it, is
+// listed in its order rather than failing the list.
+func TestInstalledVersionsTtPrerelease(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"2.11.5", "3.0.0-alpha.2", "v3.0.0-alpha.10", "3.0.0"} {
+		listExecutable(t, root, binary.ProgramTt, name)
+	}
+
+	versions, err := installedVersions(root, binary.ProgramTt)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"3.0.0", "v3.0.0-alpha.10", "3.0.0-alpha.2", "2.11.5"},
+		versionNames(versions))
+}
+
 func TestInstalledVersionsWithLocalBuild(t *testing.T) {
 	for _, dangling := range []bool{false, true} {
 		t.Run(map[bool]string{false: "existing", true: "dangling"}[dangling], func(t *testing.T) {

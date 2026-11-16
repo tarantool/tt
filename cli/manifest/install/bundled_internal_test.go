@@ -188,6 +188,53 @@ func TestInstallRuntimeSkipsWhatItCannotLay(t *testing.T) {
 	assert.Contains(t, warned[1], "tt binary install")
 }
 
+// TestInstallPrereleaseTt: a prerelease tt that pack bundled to satisfy
+// [platform].tt = ">=3.0.0" by its core version satisfies the same
+// requirement of the project it is installed into, with a warning, and is
+// laid as the tt binary installation tt_3.0.0-alpha.2, which tt binary lists.
+func TestInstallPrereleaseTt(t *testing.T) {
+	t.Setenv(tarantool.UseSystemEnv, "")
+
+	project := t.TempDir()
+	host := archiveSpec{name: "host", ttConstraint: ">=3.0.0"}
+	require.NoError(t, os.WriteFile(filepath.Join(project, manifestFileName),
+		[]byte(host.manifestTOML()), 0o600))
+
+	spec := withRuntimeSpec("my-app", "1.0.0")
+
+	spec.ttConstraint = ">=3.0.0"
+	spec.bundledTt = "3.0.0-alpha.2"
+
+	var warned warnings
+
+	_, err := installInto(t, project, Options{Scope: ScopeProject, Warn: warned.add},
+		spec.build(t))
+	require.NoError(t, err)
+
+	root := filepath.Join(project, ".tarantool")
+	assert.FileExists(t, filepath.Join(root, "versions", "tt", "tt_3.0.0-alpha.2", "tt"))
+
+	listed, err := binary.InstalledVersions(root, binary.ProgramTt)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"3.0.0-alpha.2"}, listed)
+
+	require.Len(t, warned, 1)
+	assert.Contains(t, warned[0], "tt 3.0.0-alpha.2, a prerelease build")
+	assert.Contains(t, warned[0], `">=3.0.0" (from host)`)
+
+	// A requirement the core version does not meet is still refused.
+	other := t.TempDir()
+
+	host.ttConstraint = ">=3.1.0"
+	require.NoError(t, os.WriteFile(filepath.Join(other, manifestFileName),
+		[]byte(host.manifestTOML()), 0o600))
+
+	_, err = installInto(t, other, Options{Scope: ScopeProject}, spec.build(t))
+	require.ErrorIs(t, err, errRuntimeMismatch)
+	assert.Contains(t, err.Error(), `bundled tt 3.0.0-alpha.2 does not satisfy the `+
+		`project's requirement ">=3.1.0"`)
+}
+
 // TestInstallProjectLaysRuntimeIntoDotTarantool is decision 17 for the project
 // scope: _runtime/ goes to <project>/.tarantool/versions/, there is no
 // <project>/_runtime/, and a project that selects no tarantool yet gets the

@@ -1,6 +1,9 @@
 package install
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/tarantool/go-luarocks/deps"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -94,23 +97,30 @@ func checkRuntime(opts Options, header *Header, installed []state.Package) error
 				errRuntimeMismatch, check.name, check.bundled, check.constraint.Version,
 				primary.Name)
 		}
+
+		if manifest.IsRuntimePrerelease(check.bundled) {
+			opts.warn(fmt.Sprintf("the archive bundles %s %s, a prerelease build, to "+
+				"satisfy the project's requirement %q (from %s)", check.name, check.bundled,
+				check.constraint.Version, primary.Name))
+		}
 	}
 
 	return nil
 }
 
 // runtimeSatisfies reports whether a concrete bundled version satisfies a
-// constraint expression.
+// constraint expression, by the rule tt package pack picked it by
+// (manifest.RuntimeSatisfies): a prerelease satisfies a range by its
+// major.minor.patch core.
 func runtimeSatisfies(version, constraint string) (bool, error) {
-	parsed, err := deps.ParseVersion(version)
-	if err != nil {
+	ok, err := manifest.RuntimeSatisfies(version, constraint)
+
+	switch {
+	case errors.Is(err, manifest.ErrRuntimeVersion):
 		return false, stateErrorf("unparseable bundled version %q: %w", version, err)
-	}
-
-	constraints, err := deps.ParseConstraints(constraint)
-	if err != nil {
+	case errors.Is(err, manifest.ErrRuntimeConstraint):
 		return false, stateErrorf("unparseable platform constraint %q: %w", constraint, err)
+	default:
+		return ok, err
 	}
-
-	return deps.Match(parsed, constraints), nil
 }

@@ -27,6 +27,53 @@ func TestParseVersion(t *testing.T) {
 	}
 }
 
+// TestParseSemverPrerelease checks that Parse reads a prerelease the way
+// semver writes it and tt tags are named, 3.0.0-alpha.2, as it reads
+// Tarantool's 3.0.0-alpha2, keeping the spelling: a tt binary installation
+// of such a tt, tt_3.0.0-alpha.2, is one tt binary list can show and tt
+// package install can lay a bundled tt as. Tarantool names no version so,
+// and these cases are kept out of the cases the SDK is checked against.
+func TestParseSemverPrerelease(t *testing.T) {
+	t.Parallel()
+
+	for input, want := range map[string]Version{
+		"3.0.0-alpha.2": {
+			Major: 3, Release: Release{Type: TypeAlpha, Num: 2, str: "alpha.2"},
+			Str: "3.0.0-alpha.2",
+		},
+		"v3.1.0-rc.10": {
+			Major: 3, Minor: 1, Release: Release{Type: TypeRC, Num: 10, str: "rc.10"},
+			Str: "v3.1.0-rc.10",
+		},
+		"3.0.0-beta.1-5-gabc1234": {
+			Major: 3, Release: Release{Type: TypeBeta, Num: 1, str: "beta.1"},
+			Additional: 5, Hash: "gabc1234", Str: "3.0.0-beta.1-5-gabc1234",
+		},
+	} {
+		got, err := Parse(input)
+		require.NoError(t, err, input)
+		assert.Equal(t, want, got, input)
+		assert.True(t, IsVersion(input), input)
+	}
+
+	for _, input := range []string{"3.0.0-alpha.", "3.0.0-alpha..2", "3.0.0-gamma.1"} {
+		_, err := Parse(input)
+		require.Error(t, err, input)
+	}
+
+	older, err := Parse("3.0.0-alpha.2")
+	require.NoError(t, err)
+
+	newer, err := Parse("3.0.0-alpha.10")
+	require.NoError(t, err)
+
+	release, err := Parse("3.0.0")
+	require.NoError(t, err)
+
+	assert.True(t, IsLess(older, newer))
+	assert.True(t, IsLess(newer, release))
+}
+
 // parseVersionCases returns version strings and what Parse makes of them.
 func parseVersionCases() map[string]returnValueParseVersion {
 	testCases := make(map[string]returnValueParseVersion)
