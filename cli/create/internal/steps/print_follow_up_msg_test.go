@@ -32,6 +32,26 @@ func TestPrintFollowUpMessage(t *testing.T) {
 	require.Equal(t, "App name is app1\n", msg)
 }
 
+func TestPrintFollowUpMessageNonInteractive(t *testing.T) {
+	var buffer bytes.Buffer
+
+	printFollowUpMsgStep := steps.PrintFollowUpMessage{
+		Writer: &buffer,
+	}
+	err := printFollowUpMsgStep.Run(&create_ctx.CreateCtx{SilentMode: true},
+		&app_template.TemplateCtx{
+			Vars: map[string]string{
+				"name": "app1",
+			},
+			Manifest: app_template.TemplateManifest{
+				FollowUpMessage: "What's next? cd {{.name}}",
+			},
+			IsManifestPresent: true,
+		})
+	require.NoError(t, err)
+	require.Equal(t, "What's next? cd app1\n", buffer.String())
+}
+
 func TestPrintFollowUpMessageError(t *testing.T) {
 	var buffer bytes.Buffer
 

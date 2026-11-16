@@ -1329,6 +1329,30 @@ def test_create_builtin_template_bad_var(tt_cmd, tmp_path, template, var, value,
     assert os.listdir(tmp_path) == []
 
 
+@pytest.mark.parametrize(
+    "template, next_step",
+    [
+        ("single_instance", "$ tt instance start"),
+        ("cluster", "$ tt instance start"),
+        ("vshard_cluster", "$ tt package build"),
+        ("config_storage", "$ tt instance start"),
+    ],
+)
+def test_create_non_interactive_follow_up(tt_cmd, tmp_path, template, next_step):
+    """-s only stops asking for the variables: the follow-up message of the
+    template, which tells the next step, is printed as without it."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "create", template, "--name", "app", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 0
+    assert "Application 'app' created successfully" in out
+    assert "What's next?" in out
+    assert "$ cd app" in out
+    assert next_step in out
+    assert out.index("created successfully") < out.index("What's next?")
+
+
 def test_create_builtin_template_bad_var_interactive(tt_cmd, tmp_path):
     """Asked for a value, tt create says why one is refused and asks again."""
     p = subprocess.run(

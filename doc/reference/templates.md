@@ -155,3 +155,6 @@ variable before anything is rendered. A value given in advance that does
 not pass fails the command with the reason, such as
 `invalid format of num_replicas variable: "3abc" is not an integer >= 2`;
 a value typed in is asked for again.
+
+The follow-up message of the template is printed after the application is
+created, with `-s` as well.

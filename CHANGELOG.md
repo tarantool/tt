@@ -1115,6 +1115,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installed in the user scope: …`, naming the constraint and the
   `tt binary install tarantool <version> --scope user` that satisfies it.
   The install succeeded silently, and the first `tt instance start` failed.
+- `tt create -s` prints the follow-up message of the template, the "What's
+  next?" that tells to enter the project and run `tt instance start`, as
+  `tt create` without `-s` does. The non-interactive mode, which every
+  example of the docs uses, left it out.
 - `tt create cluster` and `tt create vshard_cluster` refuse a count that is
   not a number, such as `--var num_replicas=3abc`, before rendering the
   template, as they refuse `1`, and say what is expected:
