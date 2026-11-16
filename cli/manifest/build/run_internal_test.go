@@ -443,6 +443,30 @@ args = ['-c', 'touch post-build-ran']
 	assert.True(t, exists(t, filepath.Join(dir, "post-build-ran")))
 }
 
+// TestRun_failedHookNamesItOnce pins the message of a hook that fails: the
+// name of the hook once, not "pre_build hook: pre_build hook: ...".
+func TestRun_failedHookNamesItOnce(t *testing.T) {
+	t.Parallel()
+
+	for _, hook := range []string{"pre_build", "post_build"} {
+		manifest := baseManifest + `
+[hooks.` + hook + `]
+command = 'sh'
+args = ['-c', 'exit 7']
+`
+
+		dir := setupProject(t, manifest, map[string]string{
+			"init.lua":           "-- init",
+			"native/fast_hash.c": "int x;",
+		})
+
+		err := Run(context.Background(), dryOptions(dir))
+		require.Error(t, err)
+		assert.Equal(t, 1, strings.Count(err.Error(), hook+" hook"), err.Error())
+		assert.True(t, strings.HasPrefix(err.Error(), hook+" hook: "), err.Error())
+	}
+}
+
 func TestRun_fetchMaterializesWithoutBackends(t *testing.T) {
 	t.Parallel()
 

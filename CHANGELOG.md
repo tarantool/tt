@@ -954,6 +954,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- A `pre_build`, `post_build` or `clean` hook that fails names itself once:
+  the error read `pre_build hook: pre_build hook: failed to run ...`.
 - JSON that tt prints writes `<`, `>` and `&` as they are: `tt package
   deps -o json` gave a constraint as `">=3.0.0"`, the escape Go makes
   for JSON embedded in HTML. This holds for every `-o json` and JSON Lines

@@ -307,7 +307,7 @@ func (p *projectCleaner) runHook(ctx context.Context, dryRun bool, result *Clean
 	//nolint:contextcheck // The version of the package asks git, which takes no context.
 	err := p.builder(product).runHook(ctx, hookClean)
 	if err != nil {
-		return sdk.Errorf(sdk.ExitSystem, "clean hook: %w", err)
+		return sdk.Errorf(sdk.ExitSystem, "%w", err) // runHook names the hook.
 	}
 
 	return nil

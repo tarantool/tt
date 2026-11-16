@@ -531,7 +531,8 @@ func runBuild(
 
 	preErr := newBuilder(opts, proj, stage, ver).runHook(ctx, hookPreBuild)
 	if preErr != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "pre_build hook: %w", preErr)
+		// runHook names the hook already.
+		return nil, sdk.Errorf(sdk.ExitSystem, "%w", preErr)
 	}
 
 	engine := resolve.NewEngine(adapter, opts.ProjectDir, opts.TtVersion)
@@ -570,7 +571,7 @@ func runBuild(
 
 	postErr := newBuilder(opts, proj, stage, ver).runHook(ctx, hookPostBuild)
 	if postErr != nil {
-		return nil, sdk.Errorf(sdk.ExitSystem, "post_build hook: %w", postErr)
+		return nil, sdk.Errorf(sdk.ExitSystem, "%w", postErr)
 	}
 
 	return &Result{
