@@ -196,7 +196,12 @@ func describeExit(exit supervisor.Exit) string {
 			status.Signal())
 	}
 
-	return fmt.Sprintf("it exited with code %d", exit.State.ExitCode())
+	return describeExitCode(exit.State.ExitCode())
+}
+
+// describeExitCode tells of a process that exited with code.
+func describeExitCode(code int) string {
+	return fmt.Sprintf("it exited with code %d", code)
 }
 
 // StartedWatchdog is a watchdog StartWatchdog started in the background.
@@ -403,8 +408,13 @@ func isUp(inst *InstanceCtx, startedAt, deadline time.Time, probe Prober) (bool,
 	return up, state
 }
 
-// logTail returns the last lines of the log at path, at most lines of
+// LogTail returns the last lines of the log at path, at most lines of
 // them, each indented, or an empty string for a log that cannot be read.
+func LogTail(path string, lines int) string {
+	return logTail(path, lines)
+}
+
+// logTail is LogTail.
 func logTail(path string, lines int) string {
 	file, err := os.Open(path)
 	if err != nil {

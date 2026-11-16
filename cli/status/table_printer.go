@@ -178,6 +178,11 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		_, _ = fmt.Fprintln(os.Stdout, msg)
 	}
 
+	if !t.details && endedUnstopped(instances) {
+		_, _ = fmt.Fprintln(os.Stdout, "\nSome instances are not running and were not stopped.\n"+
+			"Rerun the command with the --details flag to see how they ended")
+	}
+
 	if !t.details && restartPending(instances) {
 		_, _ = fmt.Fprintln(os.Stdout, "\nSome instances do not run the active version "+
 			"of their application yet: tt instance restart moves them to it.\n"+
@@ -185,6 +190,19 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	}
 
 	return nil
+}
+
+// endedUnstopped reports whether any instance that does not run ended other
+// than by a clean stop, as its watchdog recorded it.
+func endedUnstopped(instances map[string]*instanceStatus) bool {
+	for _, instStatus := range instances {
+		last := instStatus.LastExit
+		if instStatus.PID == nil && last != nil && !last.Clean() {
+			return true
+		}
+	}
+
+	return false
 }
 
 // restartPending reports whether any instance runs another version of its
@@ -227,6 +245,10 @@ func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 			printed = true
 		}
 
+		if printLastExit(name, instStatus) {
+			printed = true
+		}
+
 		if instStatus.tarantool == "" {
 			continue
 		}
@@ -246,6 +268,48 @@ func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 	for _, name := range names {
 		t.printInstanceAlerts(name, instances[name])
 	}
+}
+
+// detailsLogLines is how many lines of tt.log the details of an instance that
+// does not run quote.
+const detailsLogLines = 5
+
+// printLastExit prints why the instance name does not run, if it has run:
+// how its last process ended, and when, as its watchdog recorded it, and,
+// unless it was stopped cleanly, the last lines of its tt.log, where the
+// instance and its watchdog said why. It reports whether it printed anything.
+func printLastExit(name string, instStatus *instanceStatus) bool {
+	if instStatus.PID != nil {
+		return false
+	}
+
+	last := instStatus.LastExit
+	if last != nil && last.Clean() {
+		_, _ = fmt.Fprintf(os.Stdout, "Last exit of %s: %s\n", name, last.Describe())
+
+		return true
+	}
+
+	tail := ""
+	if instStatus.log != "" {
+		tail = running.LogTail(instStatus.log, detailsLogLines)
+	}
+
+	switch {
+	case last != nil:
+		_, _ = fmt.Fprintf(os.Stdout, "Last exit of %s: %s\n", name, printRed(last.Describe()))
+	case tail != "":
+		_, _ = fmt.Fprintf(os.Stdout, "Last exit of %s: not recorded\n", name)
+	default:
+		return false
+	}
+
+	if tail != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "  The last lines of %s:\n%s\n", instStatus.log, tail)
+		_, _ = fmt.Fprintf(os.Stdout, "  tt instance logs %s prints more.\n", name)
+	}
+
+	return true
 }
 
 // printTCM prints how TCM, the instance name, is reached, and what it works

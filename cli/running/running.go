@@ -317,15 +317,22 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer
 	rep *reporter,
 ) (supervisionEnd, error) {
 	inst := &launch.Instance
+	exits := newExitRecorder(inst)
 
 	err := createInstanceDataDirectories(*inst)
 	if err != nil {
-		return supervisionEnd{}, fmt.Errorf("failed to create a directory: %w", err)
+		err = fmt.Errorf("failed to create a directory: %w", err)
+		exits.end(err)
+
+		return supervisionEnd{}, err
 	}
 
 	logger, err := createLogger(inst)
 	if err != nil {
-		return supervisionEnd{}, fmt.Errorf("cannot create a logger: %w", err)
+		err = fmt.Errorf("cannot create a logger: %w", err)
+		exits.end(err)
+
+		return supervisionEnd{}, err
 	}
 
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
@@ -351,6 +358,7 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer
 	opts.OnEvent = func(event supervisor.Event) {
 		end.record(event)
 		onEvent(event)
+		exits.onEvent(event)
 		// Reported once tt.log has it, which the report quotes.
 		rep.onEvent(&src.ran, event)
 	}
@@ -362,6 +370,7 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer
 
 	end.err = engine.Run(context.Background())
 	src.log.onEnd(end.err)
+	exits.end(end.err)
 	rep.end(end.err)
 
 	return end, nil
@@ -574,7 +583,10 @@ func Kill(run InstanceCtx) error {
 	}
 
 	killProcess(&run, killCleanupTimeout)
-	cleanupAfterKill(&run, pid, killCleanupTimeout, removeSockets)
+	cleanupAfterKill(&run, pid, killCleanupTimeout, func(run *InstanceCtx) {
+		removeSockets(run)
+		recordKilled(run)
+	})
 
 	log.Infof("The instance %s (PID = %v) has been killed.", fullInstanceName, pid)
 

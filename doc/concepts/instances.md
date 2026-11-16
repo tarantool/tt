@@ -177,6 +177,26 @@ $ tt instance start
 that never returns keeps the config of its instance from being applied:
 start its endless work in a fiber of its own.
 
+The watchdog records how the last process of its instance ended, and when,
+in `last_exit.json` in the run directory. `tt instance status --details`
+shows it for an instance that does not run, with the last lines of its
+`tt.log` unless it was stopped cleanly; without `--details`, the status says
+when some instances ended without a stop. `-o json` and `-o yaml` give the
+record as `last_exit`:
+
+```console
+$ tt instance status --details
+Last exit of demo:instance001: it exited with code 1, at 2026-11-17 00:39:27
+  The last lines of /…/demo/.tarantool/var/log/demo/instance001/tt.log:
+    … E> init.lua:1: boom on start
+    Watchdog … (WARN): "exit status 1".
+    Watchdog … (INFO): the Instance has shutdown.
+  tt instance logs demo:instance001 prints more.
+…
+ INSTANCE          STATUS       PID  MODE  CONFIG  BOX  UPSTREAM
+ demo:instance001  NOT RUNNING
+```
+
 ## Where the files go
 
 An instance of the application `<app>` keeps its files under the root of

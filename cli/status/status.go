@@ -122,6 +122,12 @@ type instanceStatus struct {
 	// TCM is how TCM is reached and what it works with, for TCM alone
 	// (running.DescribeTCM): where its password is, never the password.
 	TCM *running.TCMAccess `json:"tcm,omitempty" yaml:"tcm,omitempty"`
+	// LastExit is how the last process of an instance that does not run
+	// ended, as its watchdog recorded it, nil for none (running.ReadLastExit).
+	LastExit *running.LastExit `json:"last_exit,omitempty" yaml:"last_exit,omitempty"`
+	// log is the tt.log of an instance that does not run, whose last lines
+	// the details quote.
+	log string `json:"-" yaml:"-"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -149,7 +155,20 @@ func newInstanceStatus() instanceStatus {
 		tarantoolWarnings:  nil,
 		activeVersion:      "",
 		TCM:                nil,
+		LastExit:           nil,
+		log:                "",
 	}
+}
+
+// setLastExit sets how the last process of the instance run, which does not
+// run, ended, and its log, in instStatus.
+func setLastExit(instStatus *instanceStatus, run *running.InstanceCtx) {
+	last, ok := running.ReadLastExit(run)
+	if ok {
+		instStatus.LastExit = &last
+	}
+
+	instStatus.log = run.Log
 }
 
 // setTCM sets how TCM run is reached in instStatus, or an alert that says
@@ -392,6 +411,8 @@ func processStatusForInstance(instance running.InstanceCtx,
 		instStatus.PID = &instStatus.procStatus.PID
 
 		setVersion(&instStatus, &instance)
+	} else {
+		setLastExit(&instStatus, &instance)
 	}
 
 	name := running.GetAppInstanceName(instance)

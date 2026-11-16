@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt instance status --details` of an instance that does not run tells how
+  its last process ended and when: `it exited with code 1, at 2026-11-17
+  00:39:27`, `stopped, it exited with code 0`, `it was killed by tt
+  instance kill`, or the failure its watchdog ended with, and, unless it was
+  stopped cleanly, the last lines of its `tt.log`. The watchdog records the
+  exit in `var/run/<app>/<inst>/last_exit.json`, and forgets it when it
+  starts the instance again; `-o json` and `-o yaml` give it as `last_exit`,
+  and the plain status says when some instances ended without a stop. A
+  crashed instance showed a bare `NOT RUNNING`, the same as one never
+  started.
 - `tt package switch NAME VERSION --scope user|system` makes another
   installed version of an application active, as `tt binary switch` does for
   a binary, so a rollback no longer needs the old archive, `--force` and a

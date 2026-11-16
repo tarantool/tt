@@ -32,13 +32,15 @@ the system scope.
     ├── lib/<app>/<instance>/             # data; working directory of an external process
     ├── log/<app>/<instance>/tt.log       # the output of the instance and its watchdog
     └── run/<app>/<instance>/             # tt.pid, tarantool.pid, tarantool.control,
-                                          # tarantool.sock, process.pid, launch.json
+                                          # tarantool.sock, process.pid, launch.json,
+                                          # last_exit.json
 ```
 
 | File | |
 | --- | --- |
 | `run/.../tt.pid` | the pid of the watchdog of the instance |
 | `run/.../launch.json` | what the watchdog runs, as `tt instance start` resolved it, while the watchdog runs |
+| `run/.../last_exit.json` | how the last process of the instance ended and when, left by its watchdog for `tt instance status --details` |
 | `run/.../tarantool.pid` | the pid file Tarantool writes |
 | `run/.../tarantool.control` | the console socket `tt connect <app>:<instance>` uses |
 | `run/.../tarantool.sock` | the binary port, unless the cluster config or the script listens elsewhere |

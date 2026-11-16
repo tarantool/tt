@@ -67,7 +67,10 @@ Columns:
 MODE, CONFIG, BOX and UPSTREAM are what a running Tarantool instance tells
 over its console socket; an external process shows the state of its process
 alone. --details prints the alerts of the instances, and the tarantool each
-Tarantool instance starts on and where it comes from.
+Tarantool instance starts on and where it comes from. For an instance that
+does not run it prints how its last process ended and when, as its watchdog
+recorded it, and the last lines of its tt.log unless it was stopped cleanly;
+-o json and -o yaml give that record as last_exit.
 
 The status reads the cluster config as far as it can. When "*" stands for
 a topology in a config storage that is out of reach, it stands for the

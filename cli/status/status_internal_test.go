@@ -657,6 +657,68 @@ func TestStatusVersion(t *testing.T) {
 	assert.NotContains(t, table, "Version of")
 }
 
+func TestStatusDetailsLastExit(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "tt.log")
+	require.NoError(t, os.WriteFile(logFile,
+		[]byte("a\nb\nc\nd\nF> can't initialize storage\nWatchdog (WARN): \"exit status 1\".\n"),
+		0o644))
+
+	exitedAt := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
+
+	failed := newInstanceStatus()
+
+	failed.LastExit = &running.LastExit{At: exitedAt, Exited: "it exited with code 1"}
+	failed.log = logFile
+
+	stopped := newInstanceStatus()
+
+	stopped.LastExit = &running.LastExit{
+		At: exitedAt, Exited: "it exited with code 0", Stopped: true,
+	}
+	stopped.log = logFile
+
+	never := newInstanceStatus()
+
+	never.log = filepath.Join(dir, "none.log")
+
+	instances := map[string]*instanceStatus{
+		"app:failed": &failed, "app:stopped": &stopped, "app:never": &never,
+	}
+	for _, instStatus := range instances {
+		instStatus.procStatus = process_utils.ProcStateStopped
+	}
+
+	out := captureStdout(t, func() error {
+		return NewTablePrinter(WithDetails(true)).Print(instances)
+	})
+
+	assert.Contains(t, out,
+		"Last exit of app:failed: it exited with code 1, at 2026-11-17 10:00:00\n")
+	assert.Contains(t, out, "  The last lines of "+logFile+":\n")
+	assert.Contains(t, out, "    F> can't initialize storage\n")
+	assert.NotContains(t, out, "    a\n", "five lines are quoted")
+	assert.Contains(t, out, "  tt instance logs app:failed prints more.\n")
+	// A clean stop needs no log.
+	assert.Contains(t, out,
+		"Last exit of app:stopped: stopped, it exited with code 0, at 2026-11-17 10:00:00\n")
+	assert.NotContains(t, out, "tt instance logs app:stopped")
+	assert.NotContains(t, out, "app:never:")
+
+	out = captureStdout(t, func() error {
+		return NewTablePrinter().Print(instances)
+	})
+	assert.NotContains(t, out, "Last exit")
+	assert.Contains(t, out, "Some instances are not running and were not stopped.")
+
+	delete(instances, "app:failed")
+
+	out = captureStdout(t, func() error {
+		return NewTablePrinter().Print(instances)
+	})
+	assert.NotContains(t, out, "were not stopped")
+}
+
 func TestConfigStatus(t *testing.T) {
 	script := running.InstanceCtx{Kind: instances.KindScript}
 	cluster := running.InstanceCtx{Kind: instances.KindCluster}

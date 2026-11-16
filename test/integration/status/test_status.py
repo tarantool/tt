@@ -393,6 +393,84 @@ def test_status_script_instance(tt_cmd, tmp_path):
     assert extract_status(out)[inst]["STATUS"] == "NOT RUNNING"
 
 
+def test_status_details_last_exit(tt_cmd, tmp_path):
+    # tt instance status --details of an instance that does not run tells
+    # how its last process ended, and when, as its watchdog recorded it, and,
+    # but for a clean stop, the last lines of its tt.log.
+    app_name = "app"
+    app_path = tmp_path / app_name
+    os.makedirs(os.path.dirname(app_path / instances_file))
+    with open(app_path / instances_file, "w") as f:
+        f.write("app:\n  script: init.lua\n")
+    init = app_path / "init.lua"
+    init.write_text("error('boom on start')\n")
+    inst = f"{app_name}:{app_name}"
+
+    def details():
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "status", inst, "--details"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        return out
+
+    # Never started: nothing to tell.
+    assert "Last exit" not in details()
+
+    try:
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
+        assert rc == 1, out
+        assert "it exited with code 1" in out
+
+        out = details()
+        assert re.search(rf"Last exit of {inst}: it exited with code 1, at \d{{4}}-", out), out
+        assert "The last lines of " in out
+        assert "boom on start" in out
+        assert f"tt instance logs {inst} prints more." in out
+
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "status"], cwd=app_path)
+        assert rc == 0, out
+        assert "Some instances are not running and were not stopped." in out
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "status", "-o", "json"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        last_exit = extract_status_from_json(out)[inst]["last_exit"]
+        assert last_exit["exited"] == "it exited with code 1"
+        assert "stopped" not in last_exit
+
+        # Started again, the instance forgets its last exit, and a stop is
+        # told as a stop, with no log.
+        init.write_text("box.cfg{}\n")
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
+        assert rc == 0, out
+        assert "Last exit" not in details()
+
+        stop_application(tt_cmd, app_name, app_path)
+        out = details()
+        assert re.search(rf"Last exit of {inst}: stopped, it exited with code 0, at ", out), out
+        assert "The last lines of " not in out
+
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "status"], cwd=app_path)
+        assert rc == 0, out
+        assert "were not stopped" not in out
+
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
+        assert rc == 0, out
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "kill", "--yes"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        out = details()
+        assert f"Last exit of {inst}: it was killed by tt instance kill, at " in out
+        assert "The last lines of " in out
+    finally:
+        stop_application(tt_cmd, app_name, app_path)
+
+
 def closed_address():
     """Return an address on the loopback nobody listens on."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
