@@ -87,6 +87,7 @@ func ResolveTarantoolPrefix(cli *cmdcontext.CliCtx) (tarantool.Prefix, error) {
 		Project:    cli.TarantoolPrefix,
 		Env:        os.Getenv(tarantool.PrefixEnv),
 		Executable: cli.TarantoolCli.Executable,
+		System:     "",
 	})
 	if err != nil {
 		return tarantool.Prefix{}, err

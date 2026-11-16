@@ -59,6 +59,10 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 	}
 }
 
+// resolvedGuess stands, in the cases of TestSetupTarantoolPrefix, for the
+// guess tarantool.ResolvePrefix makes of the executable of the case.
+const resolvedGuess = "<the guess of tarantool.ResolvePrefix>"
+
 func TestSetupTarantoolPrefix(t *testing.T) {
 	type prefixInput struct {
 		cli          cmdcontext.CliCtx
@@ -89,10 +93,15 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		"Target: Linux-x86_64-RelWithDebInfo\n" +
 		"Build options: cmake . -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_BACKTRACE=yes'")
 
+	// With no headers beside the executable the prefix is a guess: /usr, or,
+	// on a host whose /usr has the headers of another Tarantool, as a CI
+	// runner has, the directory above the executable. Which one is the
+	// business of tarantool.ResolvePrefix, tested there; here the guess is
+	// to be the one it makes.
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntOkData}] = prefixOutput{
-		prefix: "/usr",
+		prefix: resolvedGuess,
 		err:    nil,
 	}
 
@@ -165,8 +174,17 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		_ = os.Unsetenv(tarantool.PrefixEnv)
 
 		if err == nil {
-			require.NoError(t, err)
-			assert.Equal(output.prefix, tarantoolPrefix)
+			want := output.prefix
+			if want == resolvedGuess {
+				guess, guessErr := tarantool.ResolvePrefix(tarantool.PrefixQuery{
+					Project: "", Env: "", Executable: tntBinPath, System: "",
+				})
+				require.NoError(t, guessErr)
+
+				want = guess.Dir
+			}
+
+			assert.Equal(want, tarantoolPrefix)
 		} else {
 			assert.Equal(output.err, err)
 		}

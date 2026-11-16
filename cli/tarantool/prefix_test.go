@@ -66,24 +66,23 @@ func writeHeaders(t *testing.T, prefix, version string) string {
 	return include
 }
 
-// skipSystemHeaders skips a test that wants no headers of version anywhere
-// on a host whose DefaultPrefix has some: those of another version are not
-// taken.
-func skipSystemHeaders(t *testing.T, version string) {
-	t.Helper()
-
-	header, err := os.ReadFile(
-		filepath.Join(tarantool.DefaultPrefix, "include", "tarantool", "module.h"))
-	if err == nil && strings.Contains(string(header), "\""+version) {
-		t.Skipf("%s has the headers of Tarantool %s", tarantool.DefaultPrefix, version)
-	}
-}
-
-// resolve resolves the prefix of executable with no prefix named.
+// resolve resolves the prefix of executable with no prefix named, and an
+// empty directory of its own as the prefix of the system packages, so that
+// the headers the host has in /usr change nothing.
 func resolve(t *testing.T, executable string) tarantool.Prefix {
 	t.Helper()
 
-	prefix, err := tarantool.ResolvePrefix(tarantool.PrefixQuery{Executable: executable})
+	return resolveWith(t, executable, tempDir(t))
+}
+
+// resolveWith resolves the prefix of executable with no prefix named, system
+// being the prefix of the system packages.
+func resolveWith(t *testing.T, executable, system string) tarantool.Prefix {
+	t.Helper()
+
+	prefix, err := tarantool.ResolvePrefix(tarantool.PrefixQuery{
+		Project: "", Env: "", Executable: executable, System: system,
+	})
 	require.NoError(t, err)
 
 	return prefix
@@ -205,8 +204,6 @@ func TestResolvePrefixBuild(t *testing.T) {
 }
 
 func TestResolvePrefixBuildOtherVersion(t *testing.T) {
-	skipSystemHeaders(t, "3.3.5")
-
 	// Another Tarantool installed into the prefix the build names, or into
 	// /usr, is not the tarantool run: its headers are passed over.
 	built := tempDir(t)
@@ -248,16 +245,15 @@ func TestResolvePrefixBuildOtherVersion(t *testing.T) {
 }
 
 func TestResolvePrefixBuildWithoutHeaders(t *testing.T) {
-	skipSystemHeaders(t, "3.3.5")
-
 	built := tempDir(t)
 	dir := tempDir(t)
+	system := tempDir(t)
 	exe := filepath.Join(dir, "bin", "tarantool")
 	stubTarantool(t, exe, "3.3.5-0-gabcdef", built)
 
 	// The prefix the build names exists, but has no headers: it is only the
 	// guess, which builds what compiles no C.
-	prefix := resolve(t, exe)
+	prefix := resolveWith(t, exe, system)
 	assert.Equal(t, built, prefix.Dir)
 	assert.Empty(t, prefix.IncludeDir)
 	assert.Equal(t, tarantool.PrefixOriginGuess, prefix.Origin)
@@ -265,8 +261,38 @@ func TestResolvePrefixBuildWithoutHeaders(t *testing.T) {
 		filepath.Join(dir, "include", "tarantool"),
 		filepath.Join(dir, "bin", "include", "tarantool"),
 		filepath.Join(built, "include", "tarantool"),
-		filepath.Join(tarantool.DefaultPrefix, "include", "tarantool"),
+		filepath.Join(system, "include", "tarantool"),
 	}, prefix.Tried)
+}
+
+func TestResolvePrefixSystemOtherVersion(t *testing.T) {
+	// The headers of the system packages, as a CI runner has in /usr, are of
+	// another Tarantool than the one run: they are passed over, and so is
+	// their prefix as the guess, which a build would compile against.
+	system := tempDir(t)
+	include := writeHeaders(t, system, "3.9.0")
+
+	dir := tempDir(t)
+	exe := filepath.Join(dir, "tarantool")
+	stubTarantool(t, exe, "3.8.1-0-ge643f88a5e0c", "/tarantool/static-build/tarantool-prefix")
+
+	prefix := resolveWith(t, exe, system)
+	assert.Empty(t, prefix.IncludeDir)
+	assert.Equal(t, tarantool.PrefixOriginGuess, prefix.Origin)
+	assert.Equal(t, filepath.Dir(dir), prefix.Dir,
+		"the guess is the directory above the executable, not the system prefix")
+	assert.Equal(t, "headers of 3.9.0-0-gabcdef, the tarantool is 3.8.1-0-ge643f88a5e0c",
+		prefix.Rejected[include])
+	assert.Contains(t, prefix.MissingHeaders(),
+		include+": headers of 3.9.0-0-gabcdef, the tarantool is 3.8.1-0-ge643f88a5e0c")
+
+	// Of the version of the executable, they are taken.
+	writeHeaders(t, system, "3.8.1")
+
+	prefix = resolveWith(t, exe, system)
+	assert.Equal(t, system, prefix.Dir)
+	assert.Equal(t, include, prefix.IncludeDir)
+	assert.Equal(t, tarantool.PrefixOriginDefault, prefix.Origin)
 }
 
 func TestResolvePrefixRelocated(t *testing.T) {
@@ -282,15 +308,14 @@ func TestResolvePrefixRelocated(t *testing.T) {
 }
 
 func TestResolvePrefixNothingFound(t *testing.T) {
-	skipSystemHeaders(t, "3.8.1")
-
 	dir := tempDir(t)
+	system := tempDir(t)
 	exe := filepath.Join(dir, "tarantool")
 	stubTarantool(t, exe, "3.8.1-0-ge643f88a5e0c", "/tarantool/static-build/tarantool-prefix")
 
-	prefix := resolve(t, exe)
-	assert.Equal(t, tarantool.DefaultPrefix, prefix.Dir,
-		"a prefix that does not exist is replaced with the default")
+	prefix := resolveWith(t, exe, system)
+	assert.Equal(t, system, prefix.Dir,
+		"a prefix that does not exist is replaced with the prefix of the system packages")
 	assert.Empty(t, prefix.IncludeDir)
 	assert.Equal(t, tarantool.PrefixOriginGuess, prefix.Origin)
 
@@ -298,7 +323,7 @@ func TestResolvePrefixNothingFound(t *testing.T) {
 		filepath.Join(filepath.Dir(dir), "include", "tarantool"),
 		filepath.Join(dir, "include", "tarantool"),
 		"/tarantool/static-build/tarantool-prefix/include/tarantool",
-		filepath.Join(tarantool.DefaultPrefix, "include", "tarantool"),
+		filepath.Join(system, "include", "tarantool"),
 	}
 	assert.Equal(t, tried, prefix.Tried)
 
