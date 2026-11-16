@@ -3957,16 +3957,18 @@ Use "tt package <command> --help" for more information about a command.
 === tt package add --help
 Add NAME to [dependencies] — or, with --dev, to [dev_dependencies] — at the
 given version constraint, then re-resolve app.manifest.lock around it. Without a
-constraint the dependency is declared as '*': whatever the registry serves. A
-name the table already declares has its constraint rewritten in place; the rest
-of the declaration, and every comment and blank line in the file, is left
-exactly as it was. Every version the lock already holds is kept: only the new
-dependency and whatever it requires can move, because an edit to one dependency
-is not a request to upgrade the others — that is what tt package update is for.
-The manifest and the lock are written only once the resolution succeeded: when
-it fails — an unknown rock, a constraint no version satisfies, a rock server
-that does not answer — both are left exactly as they were. Nothing is fetched
-into .rocks/; the next tt package build picks the new lock up.
+constraint a new dependency is declared as '*': whatever the registry serves. A
+name the table already declares keeps its declaration when no constraint is
+given, and the lock is resolved only if it is missing or stale; with a
+constraint, the constraint is rewritten in place, and the rest of the
+declaration, and every comment and blank line in the file, is left exactly as it
+was. Every version the lock already holds is kept: only the new dependency and
+whatever it requires can move, because an edit to one dependency is not a
+request to upgrade the others — that is what tt package update is for. The
+manifest and the lock are written only once the resolution succeeded: when it
+fails — an unknown rock, a constraint no version satisfies, a rock server that
+does not answer — both are left exactly as they were. Nothing is fetched into
+.rocks/; the next tt package build picks the new lock up.
 
 USAGE
   tt package add NAME [CONSTRAINT] [flags]
@@ -4328,12 +4330,14 @@ GLOBAL FLAGS
                            current directory is in
 
 === tt package remove --help
-Remove NAME from [dependencies] and [dev_dependencies], then re-resolve
-app.manifest.lock without it. The rocks that were only there to satisfy it drop
-out of the closure with it; every other version is held. A name the manifest
-does not declare is an error rather than a silent success — it is almost always
-a typo — and so is a name only a component declares, since which component owns
-a dependency is not this command's decision to unmake. As with tt package add, a
+Remove NAME from [dependencies] — or, with --dev, from [dev_dependencies] — then
+re-resolve app.manifest.lock without it. A declaration of NAME in the other
+table is left as it is, and a name only the other table declares is an error
+that says so. The rocks that were only there to satisfy it drop out of the
+closure with it; every other version is held. A name the manifest does not
+declare is an error rather than a silent success — it is almost always a typo —
+and so is a name only a component declares, since which component owns a
+dependency is not this command's decision to unmake. As with tt package add, a
 resolution that fails leaves the manifest and the lock exactly as they were.
 Nothing is deleted from .rocks/; tt package uninstall is what removes files.
 
@@ -4341,6 +4345,8 @@ USAGE
   tt package remove NAME [flags]
 
 FLAGS
+      --dev                    remove the dependency from [dev_dependencies]
+                               instead of [dependencies]
   -h, --help                   help for remove
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat

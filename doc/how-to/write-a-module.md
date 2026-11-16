@@ -730,12 +730,15 @@ project.
   as `tt package build` does without one. `ReadLock` returns what the lock
   pins, by product, and whether it is fresh, resolving nothing.
 - `AddDependency` declares a rock in `[dependencies]`, or with `Dev` in
-  `[dev_dependencies]`, as `tt package add` does: a declaration there gets
-  the constraint given, and the registry, when the dependency has one, and
-  the change says what it had. A command that keeps a declaration someone
+  `[dev_dependencies]`, as `tt package add` does with a constraint: a
+  declaration there gets the constraint given, `*` for none, and the
+  registry, when the dependency has one, and the change says what it had.
+  (`tt package add` given no constraint keeps a declaration that is there.)
+  A command that keeps a declaration someone
   wrote reads `Manifest` first and calls `Resolve` instead, as
-  `tt wasm prepare` does. `RemoveDependency` removes one, as
-  `tt package remove` does, and `Install` fills `.rocks/` from the lock, as
+  `tt wasm prepare` does. `RemoveDependency` removes one from both tables,
+  as `tt package remove` and `tt package remove --dev` do together, and
+  `Install` fills `.rocks/` from the lock, as
   `tt package fetch` does. They and `Resolve` take the rock servers a
   `--registry` of the command would give: a module declares the flag
   itself, with the help `tt package` gives it, `sdk.RegistryFlagUsage`.

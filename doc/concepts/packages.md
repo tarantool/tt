@@ -30,7 +30,10 @@ path = "kv"
 ```
 
 `tt new` writes a skeleton; `tt package add` and `tt package remove` edit
-`[dependencies]` in place, keeping comments and order. An unknown field is an
+`[dependencies]` in place, keeping comments and order, and with `--dev`
+`[dev_dependencies]`. `tt package add NAME` of a name declared already
+keeps its constraint; `tt package add NAME CONSTRAINT` changes it. An
+unknown field is an
 error, so a typo does not go unnoticed. Every field is in the
 [reference](../reference/app-manifest.md).
 

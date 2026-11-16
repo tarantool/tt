@@ -592,6 +592,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   writes neither `app.manifest.toml` nor an `instances.yaml` or a
   `config.yaml`, and creates nothing: the directory it made was one no
   other command of tt worked on (`not inside a project`).
+- Breaking: `tt package remove NAME` removes the declaration from
+  `[dependencies]` only, and the new `tt package remove --dev NAME` from
+  `[dev_dependencies]` only, as `cargo remove` and `cargo remove --dev`
+  choose the table; it used to remove both, so undoing an `add` that forgot
+  `--dev` dropped the dev declaration too. A declaration in the other table
+  is kept with a warning, and a name only the other table declares fails
+  with the command that removes it there, `"luatest" is not declared in
+  [dependencies] but in [dev_dependencies]; tt package remove --dev luatest
+  removes it from there`. The output names the table, `removed luatest *
+  from [dependencies]`. `RemoveDependency()` of the SDK still removes both.
 - A `c` or `lua-c` build compiles with `-O2 -g` when `CFLAGS` (`CXXFLAGS`
   for C++) is unset, where it had `-O2` alone, as the `cmake` backend builds
   `RelWithDebInfo`: a module that crashes Tarantool has a backtrace with
@@ -944,6 +954,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- `tt package add NAME` of a name the table declares already keeps the
+  constraint of the declaration and says so, `checks is already declared in
+  [dependencies] as >=3.0.0`, as `cargo add` keeps the version requirement
+  of a dependency it is given again. It used to rewrite the constraint to
+  `*`, so running the command twice, to make sure a dependency is there,
+  threw the constraint away. Nothing is written unless the lock is missing
+  or stale, which is then resolved, every version it holds kept; only
+  `tt package add NAME CONSTRAINT` changes a declaration.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

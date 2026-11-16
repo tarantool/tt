@@ -85,6 +85,9 @@ var packageTree bool
 // Flags specific to `tt package add`.
 var packageDev bool
 
+// packageRemoveDev is --dev of `tt package remove`.
+var packageRemoveDev bool
+
 // packageRegistries collects --registry, the highest-precedence rock-server
 // list: it replaces TT_REGISTRIES, [platform].registries and the defaults.
 var packageRegistries []string
@@ -160,9 +163,11 @@ func newPackageAddCmd() *cobra.Command {
 		Short: "Declare a dependency and re-resolve the lock",
 		Long: "Add NAME to [dependencies] — or, with --dev, to " +
 			"[dev_dependencies] — at the given version constraint, then " +
-			"re-resolve app.manifest.lock around it. Without a constraint the " +
+			"re-resolve app.manifest.lock around it. Without a constraint a new " +
 			"dependency is declared as '*': whatever the registry serves. A name " +
-			"the table already declares has its constraint rewritten in place; " +
+			"the table already declares keeps its declaration when no constraint " +
+			"is given, and the lock is resolved only if it is missing or stale; " +
+			"with a constraint, the constraint is rewritten in place, and " +
 			"the rest of the declaration, and every comment and blank line in the " +
 			"file, is left exactly as it was. Every version the lock already " +
 			"holds is kept: only the new dependency and whatever it requires can " +
@@ -201,7 +206,7 @@ func runPackageAdd(name, constraint string) error {
 		return err
 	}
 
-	result, err := deps.Add(ctx, opts, name, constraint, packageDev)
+	result, err := deps.Declare(ctx, opts, name, constraint, packageDev)
 	if err != nil {
 		return err
 	}
@@ -209,6 +214,13 @@ func runPackageAdd(name, constraint string) error {
 	table := "dependencies"
 	if packageDev {
 		table = "dev_dependencies"
+	}
+
+	if result.Kept {
+		printKept(name, table, result.Change.Previous)
+		printResolution(result, "the lock is up to date")
+
+		return nil
 	}
 
 	declared := result.Manifest.Dependencies[name].Version
@@ -228,13 +240,31 @@ func runPackageAdd(name, constraint string) error {
 	return nil
 }
 
+// printKept reports a declaration tt package add kept, given no constraint
+// for a name the table declares already.
+func printKept(name, table, constraint string) {
+	if constraint == "" {
+		_, _ = fmt.Fprintf(os.Stdout,
+			"%s is already declared in [%s]; the declaration is left as it is\n", name, table)
+
+		return
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout,
+		"%s is already declared in [%s] as %s; the declaration is left as it is"+
+			" (give a constraint to change it)\n", name, table, constraint)
+}
+
 // newPackageRemoveCmd wires `tt package remove NAME`.
 func newPackageRemoveCmd() *cobra.Command {
 	removeCmd := &cobra.Command{
 		Use:   "remove NAME",
 		Short: "Drop a declared dependency and re-resolve the lock",
-		Long: "Remove NAME from [dependencies] and [dev_dependencies], then " +
-			"re-resolve app.manifest.lock without it. The rocks that were only " +
+		Long: "Remove NAME from [dependencies] — or, with --dev, from " +
+			"[dev_dependencies] — then " +
+			"re-resolve app.manifest.lock without it. A declaration of NAME in " +
+			"the other table is left as it is, and a name only the other table " +
+			"declares is an error that says so. The rocks that were only " +
 			"there to satisfy it drop out of the closure with it; every other " +
 			"version is held. A name the manifest does not declare is an error " +
 			"rather than a silent success — it is almost always a typo — and so " +
@@ -249,6 +279,8 @@ func newPackageRemoveCmd() *cobra.Command {
 		},
 	}
 
+	removeCmd.Flags().BoolVar(&packageRemoveDev, "dev", false,
+		"remove the dependency from [dev_dependencies] instead of [dependencies]")
 	addRegistryFlag(removeCmd)
 
 	return removeCmd
@@ -264,12 +296,23 @@ func runPackageRemove(name string) error {
 		return err
 	}
 
-	result, err := deps.Remove(ctx, opts, name)
+	result, err := deps.RemoveFrom(ctx, opts, name, packageRemoveDev)
 	if err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "removed %s %s\n", name, result.Change.Previous)
+	table := "dependencies"
+	if packageRemoveDev {
+		table = "dev_dependencies"
+	}
+
+	declared := name
+	if result.Change.Previous != "" {
+		declared += " " + result.Change.Previous
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "removed %s from [%s]\n", declared, table)
+
 	printMoves(result.Moves)
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -33,9 +34,46 @@ func Add(
 	return addWith(ctx, opts, engine, name, constraint, dev)
 }
 
+// Declare is Add as tt package add runs it, which differs in one case: with
+// no constraint, a name the table declares already keeps the declaration it
+// has, as cargo add keeps the version requirement of a dependency it is
+// given again without one. Only an explicit constraint rewrites a
+// declaration. Result.Kept reports the case, and Result.Change carries the
+// constraint kept.
+//
+// A kept declaration edits nothing. The lock is resolved only when it needs
+// it: a project with no lock, or a lock stale for the manifest, is resolved
+// as Resolve resolves it, every version it holds kept; a lock that is
+// current is left as it is, and the run is a no-op.
+func Declare(
+	ctx context.Context, opts Options, name, constraint string, dev bool,
+) (*Result, error) {
+	engine, err := engineFor(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return declareWith(ctx, opts, engine, name, constraint, dev)
+}
+
+// declareWith is Declare against an injected resolver.
+func declareWith(
+	ctx context.Context, opts Options, res resolver, name, constraint string, dev bool,
+) (*Result, error) {
+	return addOrDeclare(ctx, opts, res, name, constraint, dev, true)
+}
+
 // addWith is Add against an injected resolver.
 func addWith(
 	ctx context.Context, opts Options, res resolver, name, constraint string, dev bool,
+) (*Result, error) {
+	return addOrDeclare(ctx, opts, res, name, constraint, dev, false)
+}
+
+// addOrDeclare is Add, or with keep Declare, against an injected resolver.
+func addOrDeclare(
+	ctx context.Context, opts Options, res resolver,
+	name, constraint string, dev, keep bool,
 ) (*Result, error) {
 	ctx, release, err := lockProject(ctx, opts)
 	if err != nil {
@@ -49,15 +87,6 @@ func addWith(
 		return nil, err
 	}
 
-	if constraint == "" {
-		constraint = defaultConstraint
-	}
-
-	constraintErr := resolve.ValidateConstraint(constraint)
-	if constraintErr != nil {
-		return nil, stateErrorf("%w", constraintErr)
-	}
-
 	table := manifest.TableDependencies
 	if dev {
 		table = manifest.TableDevDependencies
@@ -66,6 +95,21 @@ func addWith(
 	editor, err := manifest.NewEditor(proj.source)
 	if err != nil {
 		return nil, stateErrorf("reading %s for editing: %w", manifestFileName, err)
+	}
+
+	if keep && constraint == "" && slices.Contains(editor.Locate(name), table) {
+		warnOtherTable(opts, editor, table, name)
+
+		return keepDeclaration(ctx, opts, res, proj, table, name)
+	}
+
+	if constraint == "" {
+		constraint = defaultConstraint
+	}
+
+	constraintErr := resolve.ValidateConstraint(constraint)
+	if constraintErr != nil {
+		return nil, stateErrorf("%w", constraintErr)
 	}
 
 	warnOtherTable(opts, editor, table, name)
@@ -78,6 +122,49 @@ func addWith(
 	// Hold every version the lock already chose: an edit to one dependency is
 	// not a request to move the others.
 	return apply(ctx, opts, res, proj, editor.Bytes(), resolve.PinsFromLock(proj.lock), change)
+}
+
+// keepDeclaration is the run of Declare for a name table declares already
+// and no constraint: the declaration is kept, and the lock is resolved, as
+// Resolve resolves it, only when there is none or it is stale.
+func keepDeclaration(
+	ctx context.Context, opts Options, res resolver,
+	proj *project, table manifest.DepTable, name string,
+) (*Result, error) {
+	declaration := proj.manifest.Dependencies[name]
+	if table == manifest.TableDevDependencies {
+		declaration = proj.manifest.DevDependencies[name]
+	}
+
+	change := manifest.Change{
+		Existed:          true,
+		Previous:         declaration.Version,
+		PreviousRegistry: declaration.Registry,
+	}
+
+	if proj.lock != nil {
+		//nolint:contextcheck // The check reads files and asks git, as a build's does.
+		stale, _, err := resolve.IsStale(opts.ProjectDir, proj.manifest, proj.lock)
+		if err == nil && !stale {
+			return &Result{
+				Manifest: proj.manifest,
+				Lock:     proj.lock,
+				Moves:    []Move{},
+				Rewrites: nil,
+				Change:   change,
+				Kept:     true,
+			}, nil
+		}
+	}
+
+	result, err := apply(ctx, opts, res, proj, nil, resolve.PinsFromLock(proj.lock), change)
+	if err != nil {
+		return nil, err
+	}
+
+	result.Kept = true
+
+	return result, nil
 }
 
 // AddFromRegistry declares name in [dependencies] - or, with dev, in
@@ -178,9 +265,44 @@ func Remove(ctx context.Context, opts Options, name string) (*Result, error) {
 	return removeWith(ctx, opts, engine, name)
 }
 
+// RemoveFrom is Remove as tt package remove runs it: name is dropped from
+// [dependencies] only, or, with dev, from [dev_dependencies] only, the way
+// cargo remove and cargo remove --dev choose the table. A declaration in the
+// other table stays. A name only the other table declares is refused with
+// ErrNotDeclared, and the error names the table that declares it and the
+// flag that removes it there.
+func RemoveFrom(ctx context.Context, opts Options, name string, dev bool) (*Result, error) {
+	engine, err := engineFor(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return removeFromWith(ctx, opts, engine, name, dev)
+}
+
+// removeFromWith is RemoveFrom against an injected resolver.
+func removeFromWith(
+	ctx context.Context, opts Options, res resolver, name string, dev bool,
+) (*Result, error) {
+	table := manifest.TableDependencies
+	if dev {
+		table = manifest.TableDevDependencies
+	}
+
+	return removeIn(ctx, opts, res, name, []manifest.DepTable{table})
+}
+
 // removeWith is Remove against an injected resolver.
 func removeWith(
 	ctx context.Context, opts Options, res resolver, name string,
+) (*Result, error) {
+	return removeIn(ctx, opts, res, name, nil)
+}
+
+// removeIn removes name from the tables of only, or from every table that
+// declares it when only is nil, against an injected resolver.
+func removeIn(
+	ctx context.Context, opts Options, res resolver, name string, only []manifest.DepTable,
 ) (*Result, error) {
 	ctx, release, err := lockProject(ctx, opts)
 	if err != nil {
@@ -199,15 +321,36 @@ func removeWith(
 		return nil, stateErrorf("reading %s for editing: %w", manifestFileName, err)
 	}
 
-	tables := editor.Locate(name)
+	located := editor.Locate(name)
+	tables := located
+
+	if only != nil {
+		tables = nil
+
+		for _, table := range located {
+			if slices.Contains(only, table) {
+				tables = append(tables, table)
+			}
+		}
+	}
+
 	if len(tables) == 0 {
+		if len(located) > 0 {
+			return nil, inOtherTable(name, only, located)
+		}
+
 		return nil, notDeclared(proj.manifest, name)
+	}
+
+	if len(only) == 1 {
+		warnOtherTable(opts, editor, only[0], name)
 	}
 
 	var change manifest.Change
 
-	// A name in both tables is removed from both: after the command the manifest
-	// must not declare it at all, which is what the user asked for.
+	// With no table chosen, a name in both tables is removed from both: after
+	// the call the manifest must not declare it at all, which is what was
+	// asked for.
 	for _, table := range tables {
 		one, removeErr := editor.RemoveDependency(table, name)
 		if removeErr != nil {
@@ -340,6 +483,43 @@ func resolveWith(ctx context.Context, opts Options, res resolver) (*Result, erro
 	return apply(ctx, opts, res, proj, nil, resolve.PinsFromLock(proj.lock),
 		manifest.Change{Existed: false, Previous: ""})
 }
+
+// inOtherTable builds the error of RemoveFrom for a name the tables of want
+// do not declare and the tables of located do: where it is, and how to
+// remove it there.
+func inOtherTable(name string, want, located []manifest.DepTable) error {
+	places := make([]string, 0, len(located))
+	for _, table := range located {
+		places = append(places, "["+string(table)+"]")
+	}
+
+	wanted := make([]string, 0, len(want))
+	for _, table := range want {
+		wanted = append(wanted, "["+string(table)+"]")
+	}
+
+	hint := "tt package remove --dev " + name
+	if slices.Contains(located, manifest.TableDependencies) {
+		hint = "tt package remove " + name
+	}
+
+	return stateErrorf("%w", notInTableError{
+		msg: fmt.Sprintf("%q is not declared in %s but in %s; %s removes it from there",
+			name, strings.Join(wanted, ", "), strings.Join(places, ", "), hint),
+	})
+}
+
+// notInTableError is the error of inOtherTable. It is ErrNotDeclared for
+// errors.Is without saying "not declared in the manifest", which it is.
+type notInTableError struct {
+	msg string
+}
+
+// Error returns the message.
+func (e notInTableError) Error() string { return e.msg }
+
+// Is reports ErrNotDeclared.
+func (e notInTableError) Is(target error) bool { return target == ErrNotDeclared }
 
 // notDeclared builds the error for a name the manifest does not declare, naming
 // the component tables that do declare it when any do — the difference between

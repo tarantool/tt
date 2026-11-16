@@ -547,3 +547,178 @@ func TestAdd_warnsAboutTheOtherTable(t *testing.T) {
 	require.Len(t, warnings, 1)
 	assert.Contains(t, warnings[0], "[dependencies]")
 }
+
+// TestDeclare_keepsADeclarationGivenNoConstraint: tt package add of a name
+// declared already, with no constraint, leaves the declaration as it is
+// instead of loosening it to "*", and with a current lock does nothing.
+func TestDeclare_keepsADeclarationGivenNoConstraint(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, nil)
+	res := &fakeResolver{}
+
+	// The first lock: a project with none is resolved, the declaration kept.
+	result, err := declareWith(context.Background(), optsFor(dir), res, "checks", "", false)
+	require.NoError(t, err)
+	assert.True(t, result.Kept)
+	assert.True(t, result.Change.Existed)
+	assert.Equal(t, ">=3.0.0", result.Change.Previous)
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+	require.Len(t, res.pins, 1)
+
+	lock := lockBytes(t, dir)
+	require.NotNil(t, lock)
+
+	// A current lock: a no-op, nothing resolved and nothing written.
+	result, err = declareWith(context.Background(), optsFor(dir), res, "checks", "", false)
+	require.NoError(t, err)
+	assert.True(t, result.Kept)
+	assert.Equal(t, ">=3.0.0", result.Change.Previous)
+	assert.Empty(t, result.Moves)
+	assert.Empty(t, result.Rewrites)
+	assert.Len(t, res.pins, 1, "a current lock is not resolved again")
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+	assert.Equal(t, lock, lockBytes(t, dir))
+}
+
+// TestDeclare_resolvesAStaleLock: a kept declaration still brings a stale
+// lock in step, holding the versions it has.
+func TestDeclare_resolvesAStaleLock(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, lockOf(map[string]string{"checks": "3.1.0-1"}))
+	res := &fakeResolver{}
+
+	result, err := declareWith(context.Background(), optsFor(dir), res, "checks", "", false)
+	require.NoError(t, err)
+	assert.True(t, result.Kept)
+	require.Len(t, res.pins, 1)
+	assert.Equal(t, resolve.Pins{"checks": "3.1.0-1"}, res.pins[0])
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+}
+
+// TestDeclare_constraintStillRewrites: an explicit constraint rewrites the
+// declaration, and a name new to the table is declared as "*".
+func TestDeclare_constraintStillRewrites(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, nil)
+	res := &fakeResolver{}
+
+	result, err := declareWith(context.Background(), optsFor(dir), res, "checks", ">=3.2.0", false)
+	require.NoError(t, err)
+	assert.False(t, result.Kept)
+	assert.Equal(t, ">=3.0.0", result.Change.Previous)
+	assert.Contains(t, manifestOnDisk(t, dir), `checks = ">=3.2.0"`)
+
+	// checks is declared in [dependencies], not in [dev_dependencies]: an add
+	// to the dev table is a new declaration there.
+	result, err = declareWith(context.Background(), optsFor(dir), res, "checks", "", true)
+	require.NoError(t, err)
+	assert.False(t, result.Kept)
+	assert.False(t, result.Change.Existed)
+	assert.Equal(t, "*", result.Manifest.DevDependencies["checks"].Version)
+}
+
+// bothTablesManifest declares luatest as a runtime and as a dev dependency.
+const bothTablesManifest = `manifest_version = '0.1'
+
+[package]
+name = 'my-app'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[dependencies]
+checks = '>=3.0.0'
+luatest = '>=1.0.0'
+
+[dev_dependencies]
+luatest = '>=1.1.0'
+
+[products.default]
+components = ['lua']
+default = true
+
+[components.lua]
+path = '.'
+`
+
+// TestRemoveFrom_touchesOneTable: tt package remove drops the runtime
+// declaration only, --dev the dev one only, the other kept with a warning.
+func TestRemoveFrom_touchesOneTable(t *testing.T) {
+	t.Parallel()
+
+	for _, dev := range []bool{false, true} {
+		dir := writeProject(t, bothTablesManifest, nil)
+		res := &fakeResolver{}
+
+		var warnings []string
+
+		opts := optsFor(dir)
+
+		opts.Warn = func(msg string) { warnings = append(warnings, msg) }
+
+		result, err := removeFromWith(context.Background(), opts, res, "luatest", dev)
+		require.NoError(t, err)
+
+		if dev {
+			assert.Equal(t, ">=1.1.0", result.Change.Previous)
+			assert.Contains(t, result.Manifest.Dependencies, "luatest")
+			assert.NotContains(t, result.Manifest.DevDependencies, "luatest")
+			require.Len(t, warnings, 1)
+			assert.Contains(t, warnings[0], "[dependencies]")
+		} else {
+			assert.Equal(t, ">=1.0.0", result.Change.Previous)
+			assert.NotContains(t, result.Manifest.Dependencies, "luatest")
+			assert.Contains(t, result.Manifest.DevDependencies, "luatest")
+			require.Len(t, warnings, 1)
+			assert.Contains(t, warnings[0], "[dev_dependencies]")
+		}
+	}
+}
+
+// TestRemoveFrom_otherTableSuggestsTheFlag: a name only the other table
+// declares is refused, nothing written, and the error says how to remove it.
+func TestRemoveFrom_otherTableSuggestsTheFlag(t *testing.T) {
+	t.Parallel()
+
+	const devOnly = `manifest_version = '0.1'
+
+[package]
+name = 'my-app'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[dev_dependencies]
+luatest = '>=1.1.0'
+
+[products.default]
+components = ['lua']
+default = true
+
+[components.lua]
+path = '.'
+`
+
+	dir := writeProject(t, devOnly, nil)
+	res := &fakeResolver{}
+
+	_, err := removeFromWith(context.Background(), optsFor(dir), res, "luatest", false)
+	require.ErrorIs(t, err, ErrNotDeclared)
+	assert.Equal(t, 1, exitcode.Code(err))
+	assert.Contains(t, err.Error(), "not declared in [dependencies] but in [dev_dependencies]")
+	assert.Contains(t, err.Error(), "tt package remove --dev luatest")
+	assert.Empty(t, res.pins)
+	assert.Equal(t, devOnly, manifestOnDisk(t, dir))
+
+	dir = writeProject(t, baseManifest, nil)
+
+	_, err = removeFromWith(context.Background(), optsFor(dir), res, "checks", true)
+	require.ErrorIs(t, err, ErrNotDeclared)
+	assert.Contains(t, err.Error(), "tt package remove checks")
+	assert.NotContains(t, err.Error(), "--dev")
+}

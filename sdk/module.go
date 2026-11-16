@@ -248,7 +248,8 @@ type Project interface {
 	// When the table dep goes to declares the name already, the change
 	// reports Existed and the constraint and the registry the declaration
 	// had, and the declaration is set to dep: its constraint is rewritten to
-	// dep's, "*" for none; for a dep with a Registry its registry is set
+	// dep's, "*" for none (tt package add, given no constraint, keeps the
+	// declaration instead); for a dep with a Registry its registry is set
 	// too, a short declaration becoming the long form; for a dep without one
 	// a registry it names is kept. The other fields of the declaration, a
 	// source say, are kept, and so is a declaration that says what dep says
@@ -268,7 +269,8 @@ type Project interface {
 	AddDependency(ctx context.Context, dep Dependency) (DependencyChange, error)
 	// RemoveDependency removes the rock name from [dependencies] and
 	// [dev_dependencies] of the manifest of Root and re-resolves the lock
-	// without it, as tt package remove does: every other version is held,
+	// without it, as tt package remove and tt package remove --dev do
+	// together: every other version is held,
 	// and the rocks only it required drop out of the closure. Nothing is
 	// removed from .rocks. The change reports the constraint and the
 	// registry of the declaration removed, and the moves. A name the

@@ -296,6 +296,67 @@ def test_remove_of_an_undeclared_name_fails(tree, run_tt):
     assert not (root / "app.manifest.lock").exists()
 
 
+def test_add_without_a_constraint_keeps_the_declaration(tree, run_tt, rock_server):
+    """`add NAME` of a declared name keeps its constraint instead of `*`.
+
+    With a current lock it is a no-op: neither file is written. A constraint
+    given still rewrites the declaration.
+    """
+    root = tree.root
+    env = {**os.environ, "TT_REGISTRIES": rock_server}
+    write_manifest(root, "")
+
+    added = run_tt("package", "add", "stat", ">=0.3.1", env=env)
+    assert added.returncode == 0, added.stderr
+    manifest_before = (root / "app.manifest.toml").read_bytes()
+    lock_before = (root / "app.manifest.lock").read_bytes()
+
+    again = run_tt("package", "add", "stat", env=env)
+    assert again.returncode == 0, again.stderr
+    assert "stat is already declared in [dependencies] as >=0.3.1" in again.stdout
+    assert "the lock is up to date" in again.stdout
+    assert "changed" not in again.stdout
+    assert (root / "app.manifest.toml").read_bytes() == manifest_before
+    assert (root / "app.manifest.lock").read_bytes() == lock_before
+
+    changed = run_tt("package", "add", "stat", "==0.3.1", env=env)
+    assert changed.returncode == 0, changed.stderr
+    assert "changed stat in [dependencies]: >=0.3.1 -> ==0.3.1" in changed.stdout
+    assert locked_versions(root) == {"stat": "0.3.1-1"}
+
+
+def test_remove_touches_one_table(tree, run_tt, rock_server):
+    """`remove` drops [dependencies] only, `remove --dev` [dev_dependencies] only."""
+    root = tree.root
+    env = {**os.environ, "TT_REGISTRIES": rock_server}
+    write_manifest(root, "\n[dependencies]\nstat = '>=0.3.1'\n\n[dev_dependencies]\nstat = '*'\n")
+
+    removed = run_tt("package", "remove", "stat", env=env)
+    assert removed.returncode == 0, removed.stderr
+    assert "removed stat >=0.3.1 from [dependencies]" in removed.stdout
+    assert "also declared in [dev_dependencies]" in removed.stderr
+
+    with (root / "app.manifest.toml").open("rb") as handle:
+        parsed = tomllib.load(handle)
+    assert "stat" not in parsed.get("dependencies", {})
+    assert parsed["dev_dependencies"]["stat"] == "*"
+
+    # Only [dev_dependencies] declares it now: a plain remove says where it is.
+    text = (root / "app.manifest.toml").read_text()
+    refused = run_tt("package", "remove", "stat", env=env)
+    assert refused.returncode == 1
+    assert "not declared in [dependencies] but in [dev_dependencies]" in refused.stderr
+    assert "tt package remove --dev stat" in refused.stderr
+    assert (root / "app.manifest.toml").read_text() == text
+
+    dev = run_tt("package", "remove", "--dev", "stat", env=env)
+    assert dev.returncode == 0, dev.stderr
+    assert "removed stat * from [dev_dependencies]" in dev.stdout
+    with (root / "app.manifest.toml").open("rb") as handle:
+        parsed = tomllib.load(handle)
+    assert "stat" not in parsed.get("dev_dependencies", {})
+
+
 def test_update_pulls_a_newer_version(tree, run_tt, rock_server):
     """A bare `update` takes the newest version the constraint allows."""
     root = tree.root

@@ -185,6 +185,12 @@ type Result struct {
 	// distinction the moves cannot carry — they are versions, not constraints.
 	// A zero Change means the run declared nothing (tt package update).
 	Change manifest.Change
+	// Kept reports a run of Declare that left the declaration it found as it
+	// was: no constraint was given for a name the table declares already.
+	// Change.Previous is then the constraint kept. The lock was resolved
+	// only when it was missing or stale; Moves and Rewrites say what that
+	// changed.
+	Kept bool
 }
 
 // resolver is the slice of resolve.Engine these commands drive: re-resolve a
@@ -404,6 +410,7 @@ func apply(
 		Moves:    moves,
 		Rewrites: lockRewrites(proj.lock, proj.lockSource, lock, written, moves),
 		Change:   change,
+		Kept:     false,
 	}, nil
 }
 
