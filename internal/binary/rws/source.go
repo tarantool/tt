@@ -29,6 +29,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/download"
 )
 
@@ -270,7 +271,13 @@ func (s *Source) Fetch(ctx context.Context, artifact bundle.Artifact, dst io.Wri
 		return fmt.Errorf("create package extraction directory: %w", err)
 	}
 
-	defer func() { _ = os.RemoveAll(extractDir) }()
+	forget := binary.RemoveOnInterrupt(extractDir)
+
+	defer func() {
+		_ = os.RemoveAll(extractDir)
+
+		forget()
+	}()
 
 	for _, item := range []struct{ address, directory string }{
 		{packages.Runtime, "runtime"}, {packages.Headers, "headers"},

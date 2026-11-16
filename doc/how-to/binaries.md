@@ -78,6 +78,10 @@ source. A commit,
 from source, and `--source-build` builds a release from source too.
 Enterprise search and installation of tt is available on Linux amd64 only.
 
+A source build works in a temporary directory of `TMPDIR`. Ctrl-C or
+`SIGTERM` stops the build and removes the directory and the build log
+before tt exits; `--no-clean` keeps them and names them.
+
 Uninstalling the active version selects the latest remaining one in the same
 scope; without a version, `uninstall` removes the only installed one.
 

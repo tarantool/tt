@@ -38,9 +38,13 @@ func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
 		return programArtifact{}, fmt.Errorf("failed to create log file: %w", err)
 	}
 
+	forget := binary.RemoveOnInterrupt(logFile.Name())
+
 	defer func() {
 		_ = logFile.Close()
 		_ = os.Remove(logFile.Name())
+
+		forget()
 	}()
 
 	err = downloadTarantoolSource(installCtx, tempDir, resolved, logFile)

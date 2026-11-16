@@ -1626,6 +1626,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   source build of minutes to install. `--all` lists them too, and
   `tt binary install tarantool 3.5.0-entrypoint` warns that it is a
   development tag built from source.
+- An interrupted `tt binary install` leaves nothing in `TMPDIR`: a source
+  build of Tarantool stopped by Ctrl-C or `SIGTERM` left its clone and
+  build directory, about 800 MB, and its log behind, as the cleanup ran
+  only when the installation returned. tt now stops the build commands
+  (`git`, `cmake`, `make`, `mage`), removes the temporary directories, the
+  logs and a version half-copied into the scope, and then ends by the
+  signal; `--no-clean` keeps the files and names them.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

@@ -36,6 +36,11 @@ func Install(installCtx InstallCtx) error {
 		installCtx.LocalRepo = localRepo
 	}
 
+	// SIGINT and SIGTERM stop the build and remove the temporary files:
+	// the deferred cleanups below do not run when a signal ends tt.
+	stop := binary.WatchInterrupts(installCtx.KeepTemp)
+	defer stop()
+
 	var (
 		activate installationActivation
 		err      error
@@ -107,12 +112,15 @@ func prepareInstallDirectory(installCtx InstallCtx) (string, func(), error) {
 		return "", nil, fmt.Errorf("failed to create a temporary directory: %w", err)
 	}
 
+	forget := binary.RemoveOnInterrupt(directory)
 	cleanup := func() {
 		if installCtx.KeepTemp {
 			log.Infof("Artifacts can be found at: %s", directory)
 		} else {
 			_ = os.RemoveAll(directory)
 		}
+
+		forget()
 	}
 
 	err = os.Chmod(directory, defaultDirPermissions)

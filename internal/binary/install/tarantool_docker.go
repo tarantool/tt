@@ -27,6 +27,8 @@ func installTarantoolInDocker(tntVersion, artifactRoot string, installCtx Instal
 		return fmt.Errorf("failed to create a temporary directory: %w", err)
 	}
 
+	binary.RemoveOnInterrupt(tmpDir)
+
 	defer func() {
 		_ = os.RemoveAll(tmpDir)
 	}()

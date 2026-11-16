@@ -1,6 +1,9 @@
 import os
 import platform
+import signal
 import subprocess
+import time
+from pathlib import Path
 
 import pytest
 
@@ -172,6 +175,57 @@ def test_install_tt_failure_leaves_no_scope(tt_cmd, tmp_path, local_tt_build, mo
     assert not (tmp_path / ".env").exists()
     assert "source .env/activate.sh" not in output
     assert not build_log.exists()
+
+
+@pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize("keep", [False, True])
+@pytest.mark.usefixtures("local_tt_build")
+def test_install_tt_interrupted_build_cleans_up(tt_cmd, tmp_path, monkeypatch, sig, keep):
+    """A signal during a source build stops the build and leaves nothing in
+    TMPDIR, unless --no-clean keeps it; nothing goes into the scope."""
+    temporary = tmp_path / "tmp"
+    temporary.mkdir()
+    monkeypatch.setenv("TMPDIR", str(temporary))
+    started = tmp_path / "build-started"
+    (tmp_path / "tools" / "mage").write_text(
+        f'#!/bin/sh\npwd > "{started}.part" && mv "{started}.part" "{started}"\nexec sleep 60\n',
+    )
+    cmd = [tt_cmd, "binary", "install", "tt", "3.1.2", "--force", "--local-repo", "distfiles"]
+    if keep:
+        cmd.append("--no-clean")
+    process = subprocess.Popen(
+        cmd,
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 30
+        while not started.exists():
+            assert process.poll() is None, process.stdout.read()
+            assert time.monotonic() < deadline, "the build did not start"
+            time.sleep(0.1)
+        build_dir = Path(started.read_text().strip())
+        assert build_dir.is_relative_to(temporary)
+        assert build_dir.is_dir()
+
+        process.send_signal(sig)
+        output, _ = process.communicate(timeout=30)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+
+    assert process.returncode == -sig, output
+    assert "stopping and removing temporary files" in output
+    if keep:
+        assert build_dir.is_dir()
+        assert f"Temporary files kept at: {build_dir}" in output
+    else:
+        assert list(temporary.iterdir()) == [], output
+    assert not (tmp_path / ".tarantool" / "versions" / "tt" / "tt_3.1.2").exists()
+    assert not (tmp_path / ".tarantool" / "bin").exists()
 
 
 def test_install_tt_ignores_config_destinations(tt_cmd, tmp_path, local_tt_build):

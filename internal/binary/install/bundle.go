@@ -106,12 +106,15 @@ func prepareTemporaryDirs(params *bundleParams) error {
 	}
 
 	_ = os.Chmod(params.tmpDir, defaultDirPermissions)
+	binary.RemoveOnInterrupt(params.tmpDir)
 
 	params.logFile, err = os.CreateTemp("", params.inst.Program.String()+"_install_log_*")
 	if err != nil {
 		_ = os.RemoveAll(params.tmpDir)
 		return fmt.Errorf("failed to create temporary log file: %w", err)
 	}
+
+	binary.RemoveOnInterrupt(params.logFile.Name())
 
 	log.Debugf("Created temporary install directory: %s", params.tmpDir)
 	log.Debugf("Created temporary log file: %s", params.logFile.Name())

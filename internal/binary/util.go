@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log"
@@ -176,8 +177,17 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 func ExecuteCommandEnv(program string, environ []string, isVerbose bool, writer io.Writer,
 	workDir string, args ...string,
 ) error {
-	cmd := exec.CommandContext(context.Background(), program, args...)
+	ctx, done := commandContext()
+	defer done()
 
+	cmd := exec.CommandContext(ctx, program, args...)
+
+	// An interrupt stops the command with SIGTERM, which a make passes on to
+	// the compilers it runs, and kills it if it does not exit in time.
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGTERM)
+	}
+	cmd.WaitDelay = commandWaitDelay
 	cmd.Env = environ
 
 	if isVerbose {

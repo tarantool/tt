@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 type stagedBundleDirectory struct {
@@ -52,6 +54,9 @@ func stageBundleDirectory(destination string) (stagedBundleDirectory, error) {
 	}
 
 	staged.prepared = prepared
+
+	// An interrupt leaves no half-staged version in the scope.
+	binary.RemoveOnInterrupt(prepared)
 
 	err = os.Chmod(prepared, defaultDirPermissions)
 	if err != nil {
