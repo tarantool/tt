@@ -3454,6 +3454,36 @@ def test_connect_binary_advertise_client_with_login(tt_cmd, tmp_path):
     assert "topsecret" not in out
 
 
+@pytest.mark.tt_app(app_path="test_single_app", app_name="test_app", instances=["test_app"])
+@pytest.mark.parametrize(
+    "args, socket",
+    [
+        pytest.param([], "control socket", id="console"),
+        pytest.param(["-f-"], "control socket", id="stdin"),
+        pytest.param(["--binary", "-f-"], "binary port", id="binary"),
+    ],
+)
+@pytest.mark.usefixtures("tt_app")
+def test_connect_to_stopped_instance(tt, args, socket):
+    """An instance that is not running is the user's to start: one line says
+    so, and tt exits 1."""
+    result = tt.run(
+        "connect",
+        "test_app:test_app",
+        *args,
+        input="return 1",
+        stderr=subprocess.PIPE,
+    )
+    assert result.returncode == 1, result.stderr
+    lines = [line for line in result.stderr.splitlines() if "⨯" in line]
+    assert len(lines) == 1, result.stderr
+    assert re.search(
+        rf"⨯ instance test_app:test_app is not running \(no {socket} at /\S+\); "
+        r"start it with tt instance start test_app:test_app$",
+        lines[0],
+    ), lines[0]
+
+
 def read_pty_until(fd, wants, timeout=10):
     """Read what is written to the terminal fd until it holds each of wants,
     or the timeout passes, and return it. With no wants, it reads until the

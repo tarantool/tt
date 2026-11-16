@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"os"
 	"slices"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 	terminal "golang.org/x/term"
@@ -574,7 +576,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if connectFile != "" {
 		res, err := connect.Eval(connectCtx, connOpts, args[1:])
 		if err != nil {
-			return err
+			return notRunningErr(cmdCtx, args[0], connOpts, err)
 		}
 
 		// "Println" is used instead of "log..." to print the result without
@@ -592,5 +594,61 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		log.Info("Connecting to the instance...")
 	}
 
-	return connect.Connect(connectCtx, connOpts)
+	return notRunningErr(cmdCtx, args[0], connOpts, connect.Connect(connectCtx, connOpts))
+}
+
+// notRunningErr returns the error of a connection to the target that failed
+// with err: if the target is an instance that tt does not run (its pid file,
+// running.Status), and nothing was there to dial at the address of
+// connOpts, a socket that is missing or a socket or a port that refuses
+// connections, the instance is not running, which is the user's to fix, by
+// starting it. The error says so in one line, without the dial error, which
+// would make it a failure of the system. Any other error is err itself.
+func notRunningErr(cmdCtx *cmdcontext.CmdCtx, target string, connOpts connector.ConnectOpts,
+	err error,
+) error {
+	var opErr *net.OpError
+
+	if !errors.As(err, &opErr) || opErr.Op != "dial" {
+		return err
+	}
+
+	missing := errors.Is(err, syscall.ENOENT)
+	if !missing && !errors.Is(err, syscall.ECONNREFUSED) {
+		return err
+	}
+
+	// Only now, as a URI that fits <app>:<instance> may be no instance.
+	instances, resolveErr := resolveInstances(cmdCtx, []string{target})
+	if resolveErr != nil || len(instances) != 1 {
+		return err
+	}
+
+	// A running instance whose socket is gone, or not there yet, is not
+	// for the user to start.
+	if running.Status(&instances[0]).Code == process_utils.ProcessRunningCode {
+		return err
+	}
+
+	name := running.GetAppInstanceName(instances[0])
+
+	socket := "control socket"
+	if connectBinary {
+		socket = "binary port"
+	}
+
+	var reason string
+
+	switch {
+	case connOpts.Network != connector.UnixNetwork:
+		reason = "nothing listens on " + connOpts.Address
+	case missing:
+		reason = "no " + socket + " at " + connOpts.Address
+	default:
+		reason = "its " + socket + " at " + connOpts.Address + " refuses connections"
+	}
+
+	return sdk.Errorf(sdk.ExitFailure,
+		"instance %s is not running (%s); start it with tt instance start %s",
+		name, reason, name)
 }
