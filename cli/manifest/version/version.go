@@ -41,6 +41,10 @@ const versionFileName = "VERSION"
 // otherwise clean release commit must not spuriously mark the version .dirty.
 const lockFileName = "app.manifest.lock"
 
+// buildDirName is the build directory of a project, excluded from the dirty
+// check (isDirty).
+const buildDirName = "_build"
+
 // porcelainPrefix is the width of the two status columns plus a space that
 // "git status --porcelain" prints in front of every path.
 const porcelainPrefix = 3
@@ -522,11 +526,28 @@ func shortSHA(sha string) string {
 // isDirty reports whether the working tree has uncommitted changes in
 // pathspec, the directory of the project below the root of the repository and
 // all of it at the root, ignoring the manifest lock so a regenerated lock
-// alone does not mark a clean release.
+// alone does not mark a clean release, and the build directory of the
+// project.
+//
+// The build directory is tt's own: tt keeps its state there, the lock of the
+// project above all, which every command that builds writes its pid into
+// before the version is derived (projectlock), and the archives it packs. A
+// project that committed it, as one does whose first commit came before its
+// .gitignore, would otherwise be dirty in every build tt runs, whatever the
+// commit holds.
 func isDirty(dir string, pathspec []string) bool {
+	// The pathspec "." is dir, git running in it; at the root of the
+	// repository it is all of it, as no pathspec is.
+	args := []string{"status", "--porcelain", "-z", "--", "."}
+	if len(pathspec) > 0 {
+		args = append([]string{"status", "--porcelain", "-z"}, pathspec...)
+	}
+
+	args = append(args, ":(exclude)"+buildDirName)
+
 	// -z: no path is quoted, and the leading blank of the status of a change
 	// not staged (" M app.manifest.lock") is not trimmed off with the output.
-	out, err := gitOutput(dir, append([]string{"status", "--porcelain", "-z"}, pathspec...)...)
+	out, err := gitOutput(dir, args...)
 	if err != nil {
 		return false
 	}

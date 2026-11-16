@@ -265,16 +265,34 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 		Logger:     opts.Logger,
 	}))
 
+	if opts.FetchOnly {
+		err = repairTree(ctx, adapter.Config(), opts.Warn)
+		if err != nil {
+			return nil, err
+		}
+
+		return runFetch(ctx, opts, adapter, man, tree, productName)
+	}
+
+	// The version is derived before the build writes anything: before the
+	// tree is repaired, the lock gated and pre_build run, so that nothing tt
+	// or a hook writes marks it dirty, and so that pre_build sees TT_VERSION.
+	// The lock of the project, written before it, is in the build directory,
+	// which the dirty check leaves out. version.Derive spawns git internally
+	// and takes no context.
+	ver, err := version.Derive(opts.ProjectDir) //nolint:contextcheck // Derive has no ctx.
+	if err != nil {
+		return nil, fmt.Errorf("deriving version: %w", err)
+	}
+
+	ver.Flavor = man.Platform.Tarantool.EffectiveFlavor()
+
 	err = repairTree(ctx, adapter.Config(), opts.Warn)
 	if err != nil {
 		return nil, err
 	}
 
-	if opts.FetchOnly {
-		return runFetch(ctx, opts, adapter, man, tree, productName)
-	}
-
-	return runBuild(ctx, opts, man, adapter, tree, productName, product)
+	return runBuild(ctx, opts, man, adapter, tree, productName, product, ver)
 }
 
 // Prepare is RunResult with nothing built: it reads and checks the manifest,
@@ -483,6 +501,7 @@ func materializeLock(
 func runBuild(
 	ctx context.Context, opts Options, man *manifest.Manifest,
 	adapter *rocks.Adapter, tree, productName string, product manifest.Product,
+	ver version.Version,
 ) (*Result, error) {
 	components, err := selectComponents(product, append(slices.Clone(opts.Components),
 		opts.Component)...)
@@ -509,16 +528,6 @@ func runBuild(
 	if err != nil {
 		return nil, err
 	}
-
-	// Version is derived before pre_build so the hook sees TT_VERSION, and
-	// before the tree is touched so a hook-generated file does not flip .dirty.
-	// version.Derive spawns git internally and takes no context.
-	ver, err := version.Derive(opts.ProjectDir) //nolint:contextcheck // Derive has no ctx.
-	if err != nil {
-		return nil, fmt.Errorf("deriving version: %w", err)
-	}
-
-	ver.Flavor = man.Platform.Tarantool.EffectiveFlavor()
 
 	preErr := newBuilder(opts, proj, stage, ver).runHook(ctx, hookPreBuild)
 	if preErr != nil {

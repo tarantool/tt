@@ -511,6 +511,52 @@ func TestDeriveSubtreeDirty(t *testing.T) {
 	assert.Empty(t, ver.Tag)
 }
 
+// TestDeriveIgnoresBuildDir pins that a change in the build directory of the
+// project does not mark it dirty, at the root of a repository and below it,
+// committed or not: tt writes its pid into _build/tt.lock before it derives
+// the version, and a project whose first commit came before its .gitignore
+// has that file tracked. A change outside the build directory still counts,
+// and so does a build directory of another project of the repository.
+func TestDeriveIgnoresBuildDir(t *testing.T) {
+	t.Parallel()
+
+	root := initRepo(t)
+	writeFile(t, root, "init.lua", "return 1\n")
+	writeFile(t, root, "_build/tt.lock", "")
+	commitAll(t, root, "init")
+	git(t, root, "tag", "v1.0.0")
+
+	writeFile(t, root, "_build/tt.lock", "12345\n")
+	writeFile(t, root, "_build/pack/kv-1.0.0.tt", "archive\n")
+
+	ver, err := version.Derive(root)
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", ver.SemVer)
+	assert.False(t, ver.Dirty)
+	assert.Equal(t, "v1.0.0", ver.Tag)
+
+	writeFile(t, root, "init.lua", "return 2\n")
+
+	ver, err = version.Derive(root)
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0+dirty", ver.SemVer)
+
+	monoRoot, proj := monorepo(t)
+	writeFile(t, monoRoot, "proj/_build/tt.lock", "")
+	commitAll(t, monoRoot, "build dir")
+	git(t, monoRoot, "tag", "v2.0.0")
+	writeFile(t, monoRoot, "proj/_build/tt.lock", "12345\n")
+
+	ver, err = version.Derive(proj)
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0", ver.SemVer)
+
+	whole, err := version.Derive(monoRoot)
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0+dirty", whole.SemVer,
+		"the build directory of a project below is not that of the root")
+}
+
 // TestDeriveSubtreeTag pins which tags count for a project in a
 // subdirectory: one on the last commit that changed it, however many commits
 // came after it elsewhere, and none on a commit after that one.

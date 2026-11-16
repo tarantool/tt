@@ -557,6 +557,82 @@ def test_install_refuses_a_collision_without_a_flag(tt_cmd, tmp_path):
     assert forced.returncode == 0, forced.stderr
 
 
+def git(cwd: Path, *args: str) -> str:
+    result = subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "tag.gpgsign=false",
+            *args,
+        ],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+@pytest.mark.parametrize("lock_tracked", [False, True], ids=["ignored", "tracked"])
+@pytest.mark.parametrize("with_deps", [False, True], ids=["without-deps", "with-deps"])
+def test_pack_of_a_tagged_commit_is_clean(tt_cmd, tmp_path, lock_tracked, with_deps):
+    """Packing a committed and tagged project leaves its tree as it was and
+    names the archive by the tag.
+
+    The dependency is added with tt package add, so the lock is current. The
+    project lock of tt, _build/tt.lock, which every command that builds
+    writes its pid into, is committed in the tracked case, as it is in a
+    project whose first commit came before its .gitignore: that used to mark
+    every version of the project +dirty. A with-deps archive stamps the
+    bundled runtime versions into its own copy of the lock, never into the
+    lock of the project.
+    """
+    if with_deps and shutil.which("tarantool") is None:
+        pytest.skip("a with-deps archive bundles the tarantool on PATH")
+
+    project = make_project(tmp_path / "kv", dependency=False)
+    manifest = project / "app.manifest.toml"
+    manifest.write_text(manifest.read_text().replace("tt = '>=3.1.0'", "tt = '>=3.0.0'"))
+
+    git(project, "init", "-q")
+    ignored = ".rocks/\n_build/\n.tarantool/\n"
+    if not lock_tracked:
+        (project / ".gitignore").write_text(ignored)
+
+    added = run(tt_cmd, project, "package", "add", DEPENDENCY, "--registry", str(ROCKS_REPO))
+    assert added.returncode == 0, added.stderr
+    assert (project / "app.manifest.lock").is_file()
+
+    if lock_tracked:
+        assert (project / "_build" / "tt.lock").is_file()
+        git(project, "add", "app.manifest.toml", "app.manifest.lock", "src", "README.md")
+        git(project, "add", "-f", "_build/tt.lock")
+        (project / ".gitignore").write_text(ignored)
+    git(project, "add", "-A")
+    git(project, "commit", "-q", "-m", "kv")
+    git(project, "tag", "v1.0.0")
+    assert git(project, "status", "--porcelain") == ""
+
+    args = ["package", "pack", "--registry", str(ROCKS_REPO)]
+    if not with_deps:
+        args.append("--without-deps")
+    result = run(tt_cmd, project, *args)
+    assert result.returncode == 0, result.stderr
+
+    assert git(project, "status", "--porcelain") == ""
+    archives = list((project / "_build" / "pack").glob("*.tt"))
+    assert len(archives) == 1, archives
+    assert archives[0].name.startswith("my-app-1.0.0-"), archives[0].name
+    assert "+dirty" not in archives[0].name
+    assert "bundled_" not in (project / "app.manifest.lock").read_text()
+
+
 def make_template_project(root: Path, name: str, instances: str) -> Path:
     """Write a project without dependencies, which packs offline, whose
     template name has the instance description instances and no config."""

@@ -1243,6 +1243,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   dependency at the version the lock pins, and the lock pins such a
   dependency at none. The dependency installs no rock, and the rock of the
   project no longer declares it.
+- `tt package build` and `tt package pack` of a committed and tagged project
+  no longer version it `1.0.0+dirty` when the project has `_build/tt.lock`
+  in git, as one has whose first commit came before its `.gitignore`: tt
+  writes its pid into that file, the lock of the project, before it derives
+  the version, and the change counted as an uncommitted one. The build
+  directory of the project, tt's own, is left out of the check, and the
+  version is derived before the build writes anything else.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
