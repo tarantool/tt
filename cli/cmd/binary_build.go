@@ -51,10 +51,6 @@ func newBinaryBuildCmd(base *binary.BinaryContext) *cobra.Command {
 
 tt binary build tt builds a distribution of tt: a tt binary made of the tt
 core and the compiled-in tt modules tt.manifest.toml lists.`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 
 	buildCmd.AddCommand(newBuildTtCmd(base))

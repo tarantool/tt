@@ -1014,6 +1014,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   threw the constraint away. Nothing is written unless the lock is missing
   or stale, which is then resolved, every version it holds kept; only
   `tt package add NAME CONSTRAINT` changes a declaration.
+- An unknown subcommand of a command group fails with exit code 1, such as
+  `tt package buidl`, `tt binary instal` or `tt instance strat`: tt says <!-- codespell:ignore buidl,instal,strat -->
+  `unknown command "buidl" for "tt package"`, suggests the subcommands of a <!-- codespell:ignore buidl -->
+  close name (`build`) and where the usage is. Such a command printed the
+  help of the group and exited 0, so a mistyped command passed a script
+  unnoticed. Every group behaves so, the groups of compiled-in modules
+  included, and the group alone still prints its help.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

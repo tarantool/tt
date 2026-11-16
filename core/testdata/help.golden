@@ -918,8 +918,6 @@ tt binary build tt builds a distribution of tt: a tt binary made of the tt
 core and the compiled-in tt modules tt.manifest.toml lists.
 
 USAGE
-  tt binary build [flags]
-
   tt binary build [flags] <command> [command flags]
 
 COMMANDS
@@ -1091,8 +1089,6 @@ Source them to use the project binaries and headers or restore your shell
 environment.
 
 USAGE
-  tt binary install [flags]
-
   tt binary install [flags] <command> [command flags]
 
 COMMANDS
@@ -2327,8 +2323,14 @@ EXAMPLES
   roles.metrics-export --instance_name master
 
 === tt cluster show --help
-Show a cluster configuration for an application, instance, from etcd URI or from
-tarantool config storage URI.
+Show a cluster configuration for an application, instance, from a cluster
+configuration file, from etcd URI or from tarantool config storage URI.
+
+The configuration of an application or a file is shown as Tarantool reads it:
+merged with the TT_* environment variables and with the config storage the file
+points to with config.etcd or config.storage. A target is a file when it has a
+slash or ends in .yaml or .yml, such as ./config.yaml or
+/etc/app/config.yaml:instance_name.
 
 The URL specifies a etcd or tarantool config storage connection settings in the
 following format:
@@ -2372,7 +2374,8 @@ HTTPS connection behavior:
   endpoint uses https://, TLS is enabled for all endpoints.
 
 USAGE
-  tt cluster show (<APP> | <APP>:<INSTANCE> | <URI>) [flags]
+  tt cluster show (<APP> | <APP>:<INSTANCE> | <FILE> | <FILE>:<INSTANCE> |
+  <URI>) [flags]
 
 FLAGS
   -h, --help              help for show
@@ -2387,6 +2390,8 @@ FLAGS
 EXAMPLES
   tt cluster show application_name
   tt cluster show application_name:instance_name
+  tt cluster show ./config.yaml
+  tt cluster show ./config.yaml:instance_name
   tt cluster show https://user:pass@localhost:2379/tt
   tt cluster show https://user:pass@localhost:2379/tt?name=instance
 

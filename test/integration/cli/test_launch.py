@@ -262,6 +262,44 @@ def test_unknown_command_exit_code(tt_cmd):
     assert "unknown command" in out
 
 
+@pytest.mark.parametrize(
+    "group, typed, meant",
+    [
+        ("package", "buidl", "build"),  # codespell:ignore buidl
+        ("binary", "instal", "install"),  # codespell:ignore instal
+        ("binary install", "tarantol", "tarantool"),
+        ("instance", "strat", "start"),  # codespell:ignore strat
+        ("cluster", "shw", "show"),
+        ("replicaset", "statu", "status"),  # codespell:ignore statu
+        ("service", "sytemd", "systemd"),  # codespell:ignore sytemd
+        ("emmylua", "chek", "check"),  # codespell:ignore chek
+        ("data", "ca", "cat"),
+    ],
+)
+def test_unknown_subcommand_of_group(tt_cmd, tmp_path, group, typed, meant):
+    # A mistyped subcommand fails a script rather than passing as the help.
+    rc, stdout, stderr = run_command_and_get_streams(
+        [tt_cmd, *group.split(), typed],
+        cwd=tmp_path,
+    )
+
+    assert rc == 1
+    assert stdout == ""
+    assert f'unknown command "{typed}" for "tt {group}"' in stderr
+    assert f"Did you mean this?\n         {meant}\n" in stderr
+    assert f"Run 'tt {group} --help' for usage." in stderr
+    assert "USAGE" not in stderr
+
+
+@pytest.mark.parametrize("group", ["package", "binary", "instance", "data"])
+def test_group_alone_prints_help(tt_cmd, tmp_path, group):
+    rc, stdout, stderr = run_command_and_get_streams([tt_cmd, group], cwd=tmp_path)
+
+    assert rc == 0
+    assert "COMMANDS" in stdout
+    assert stderr == ""
+
+
 def test_unknown_flag_exit_code(tt_cmd):
     cmd = [tt_cmd, "--unknown-flag"]
     rc, out = run_command_and_get_output(cmd)

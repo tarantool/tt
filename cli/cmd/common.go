@@ -51,19 +51,23 @@ func commandError(cmd *cobra.Command, err error) error {
 // An error cobra detected itself - an unknown flag, a wrong number of
 // arguments - has already been printed by cobra, with the usage, so it is
 // not printed again. An error from the command's own code is logged once;
-// an ArgError or an sdk.UsageError is logged by its own message and followed
-// by cmd's usage. An error marked as reported (sdk.Reported, exitcode.Silent)
-// prints nothing, not even the usage of a usage error it wraps: the user has
-// seen it already.
+// an unknown command is logged with the commands meant and where the usage
+// is, without the usage itself; an ArgError or an sdk.UsageError is logged
+// by its own message and followed by cmd's usage. An error marked as
+// reported (sdk.Reported, exitcode.Silent) prints nothing, not even the
+// usage of a usage error it wraps: the user has seen it already.
 func reportError(cmd *cobra.Command, err error) int {
 	var (
 		argError   *util.ArgError
 		usageError *sdk.UsageError
+		unknown    *unknownCommandError
 	)
 
 	switch {
 	case !cmd.SilenceErrors:
 	case sdk.IsReported(err):
+	case errors.As(err, &unknown):
+		log.Error(unknown.report())
 	case errors.As(err, &argError):
 		log.Error(argError.Error())
 

@@ -148,10 +148,6 @@ Source them to use the project binaries and headers or restore your shell enviro
   # Install a local Enterprise archive system-wide.
   $ sudo tt binary install tarantool gc64-3.4.0-0-r60 \
       --scope system --local-dir ./bundles`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	installCmd.PersistentFlags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"Skip dependency checks")

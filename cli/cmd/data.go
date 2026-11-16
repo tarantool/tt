@@ -91,10 +91,6 @@ Tarantool.
 
   cat   prints the rows of the files as YAML, JSON Lines or Lua.
   play  applies the data changes of the journals to an instance.`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 
 	dataCmd.AddCommand(newDataCatCmd(), newDataPlayCmd())

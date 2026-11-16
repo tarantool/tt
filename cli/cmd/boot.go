@@ -164,10 +164,12 @@ func Configure() error {
 
 // ConfigureHelp sets up the help of the tree: the help command, which
 // completes the names of the top-level commands, and the help templates.
-// The root help lists external under EXTERNAL COMMANDS. The command tree
-// must be complete.
+// The root help lists external under EXTERNAL COMMANDS. A command that only
+// groups subcommands fails on an unknown one. The command tree must be
+// complete.
 func ConfigureHelp(external []ExternalCommand) {
 	configureHelpCommand(rootCmd, external)
+	rejectUnknownSubcommands(rootCmd)
 }
 
 // Run executes the command line on the root Boot created and returns the

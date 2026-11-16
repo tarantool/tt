@@ -61,6 +61,7 @@ func configureHelpCommand(rootCmd *cobra.Command, external []ExternalCommand) {
 	})
 	cobra.AddTemplateFunc("heading", helpHeading)
 	cobra.AddTemplateFunc("usage", usageOf)
+	cobra.AddTemplateFunc("runs", runsItself)
 	// The modules describe themselves only for the usage of the root, the
 	// one that lists them.
 	cobra.AddTemplateFunc("externalCommands", func(cmd *cobra.Command) string {
@@ -240,7 +241,7 @@ func textWidth(text string) int {
 // describe themselves, and that gives their commands the descriptions the
 // list of COMMANDS shows.
 const usageTemplate = `{{$external := externalCommands .}}{{heading . "USAGE"}}
-{{- if (and .Runnable (or .HasAvailableInheritedFlags (not .HasAvailableSubCommands)))}}
+{{- if (and (runs .) (or .HasAvailableInheritedFlags (not .HasAvailableSubCommands)))}}
   {{.UseLine}}
 {{end -}}
 
