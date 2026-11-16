@@ -450,6 +450,8 @@ linters:
             - "github.com/ulikunitz/xz"
             - "golang.org/x/net/html"
             - "golang.org/x/sys"
+            # The menus of tt binary switch are shown on a terminal only.
+            - "golang.org/x/term"
             - "gopkg.in/yaml.v2"
         dir-cli-backup:
           files:

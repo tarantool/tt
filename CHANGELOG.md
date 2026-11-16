@@ -1601,6 +1601,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   only on a terminal and not with `NO_COLOR`. A local build is listed by
   its path, and one whose executable is gone is marked `missing`. `-o json`
   and `-o yaml` print the same data.
+- `tt binary switch` with no version shows no menu off a terminal: it
+  drew one into the pipe and failed with `failed to choose program: ^D`.
+  When stdin or stdout is not a terminal, it fails with `a version is
+  required off a terminal: tt binary switch tarantool <version>; installed:
+  3.9.0, 3.8.2, 3.8.1ee`, changing nothing. On a terminal, `tt binary
+  switch tarantool` and `tt binary switch tt` no longer ask for the edition
+  of the product they name: the menu lists the installed versions of both
+  editions, the Enterprise ones as `3.8.1ee`, with the cursor on the active
+  one.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

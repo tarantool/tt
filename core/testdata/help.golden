@@ -1539,9 +1539,10 @@ GLOBAL FLAGS
 === tt binary switch --help
 Switch to an installed version in the selected scope.
 Without arguments, choose the program and version interactively. With only
-a program, choose its version. For tarantool and tt, choose the edition first,
-then
-one of its installed versions. CE and EE share the active Tarantool binary
+a program, choose its version; for tarantool and tt the menu lists the
+installed versions of both editions, Enterprise ones with the ee suffix.
+The menus need a terminal: off one, a missing version is an error that lists
+the installed versions. CE and EE share the active Tarantool binary
 and headers. tt and tt-ee share the active tt executable.
 
 Bare Tarantool and tt versions select CE; append ce or ee to choose an edition

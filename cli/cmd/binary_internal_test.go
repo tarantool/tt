@@ -730,6 +730,36 @@ func TestBinaryScopedAdaptersDoNotFindParent(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(parent, ".tarantool", "bin"))
 }
 
+// TestBinarySwitchOffTerminal: switch with no version off a terminal fails
+// naming the command and the installed versions, and changes nothing.
+func TestBinarySwitchOffTerminal(t *testing.T) {
+	restoreProcessState(t)
+
+	interactive := switcher.Interactive
+
+	switcher.Interactive = func() bool { return false }
+
+	t.Cleanup(func() { switcher.Interactive = interactive })
+
+	project := t.TempDir()
+	installed := filepath.Join(project, ".tarantool", "versions", "tt", "tt_3.0.0", "tt")
+	require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+	require.NoError(t, os.WriteFile(installed, nil, 0o755))
+	t.Chdir(project)
+
+	base := binary.BinaryContext{Scope: binary.ScopeProject}
+	ctx := &cmdcontext.CmdCtx{}
+
+	err := internalSwitchModule(base, switcher.SwitchCtx{}, ctx, []string{"tt"})
+	require.ErrorIs(t, err, switcher.ErrVersionRequired)
+	require.ErrorContains(t, err, "tt binary switch tt <version>; installed: 3.0.0")
+
+	err = internalSwitchModule(base, switcher.SwitchCtx{}, ctx, nil)
+	require.ErrorIs(t, err, switcher.ErrVersionRequired)
+	require.ErrorContains(t, err, "installed: tt 3.0.0")
+	assert.NoDirExists(t, filepath.Join(project, ".tarantool", "bin"))
+}
+
 // TestBinaryScopedAdaptersFindProject runs the project-scope commands from a
 // subdirectory of a project: they work on the project's .tarantool.
 func TestBinaryScopedAdaptersFindProject(t *testing.T) {

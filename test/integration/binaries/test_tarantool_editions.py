@@ -89,13 +89,15 @@ def test_switch_and_uninstall_edition(tt_cmd, tmp_path, requested, program, stor
 @pytest.mark.parametrize("family", ["tarantool", "tt"])
 @pytest.mark.parametrize("enterprise", [False, True])
 @pytest.mark.parametrize("choose_program", [False, True])
-def test_switch_selects_edition_then_version(
+def test_switch_selects_version_of_either_edition(
     tt_cmd,
     tmp_path,
     family,
     enterprise,
     choose_program,
 ):
+    """The version menu of tarantool and tt lists both editions, Community
+    first and Enterprise with the ee suffix; no edition is asked for."""
     root = tmp_path / ".tarantool"
     installed = {
         edition: install_version(root, edition, "3.8.0") for edition in [family, family + "-ee"]
@@ -110,11 +112,13 @@ def test_switch_selects_edition_then_version(
     else:
         cmd.append(family)
     keys = "\x1b[B\n" if enterprise else "\n"
-    answers.extend([("Select " + family + " edition", keys), ("Select version", "\n")])
+    answers.append(("Select " + family + " version", keys))
 
     rc, output = run_interactive_switch(cmd, tmp_path, answers)
 
     assert rc == 0, output
+    assert "edition" not in output
+    assert "3.8.0ee" in output
     assert_active(root, selected, program)
 
 
@@ -125,7 +129,7 @@ def test_switch_displays_full_dev_version(tt_cmd, tmp_path):
     rc, output = run_interactive_switch(
         [tt_cmd, "binary", "switch", "tarantool"],
         tmp_path,
-        [("Select tarantool edition", "\x1b[B\n"), ("Select version", "\n")],
+        [("Select tarantool version", "\n")],
     )
     assert rc == 0, output
     assert dev_version in output
@@ -133,7 +137,7 @@ def test_switch_displays_full_dev_version(tt_cmd, tmp_path):
 
 
 @pytest.mark.parametrize("enterprise", [False, True])
-def test_switch_sdk_only_in_enterprise_menu(tt_cmd, tmp_path, enterprise):
+def test_switch_menu_lists_sdk_components(tt_cmd, tmp_path, enterprise):
     root = tmp_path / ".tarantool"
     community = install_version(root, "tarantool", "3.8.1")
     install_version(root, "tarantool-ee", "3.8.1")
@@ -141,15 +145,16 @@ def test_switch_sdk_only_in_enterprise_menu(tt_cmd, tmp_path, enterprise):
     sdk = install_version(root, "tarantool-ee", sdk_id)
     sdk = sdk.rename(sdk.with_name(f"tarantool_sdk_{sdk_id[4:]}"))
 
-    keys = "\x1b[B\n" if enterprise else "\n"
+    # The menu: 3.8.1, 3.8.1ee, then the SDK component.
+    keys = "\x1b[B\x1b[B\n" if enterprise else "\n"
     rc, output = run_interactive_switch(
         [tt_cmd, "binary", "switch", "tarantool"],
         tmp_path,
-        [("Select tarantool edition", keys), ("Select version", keys)],
+        [("Select tarantool version", keys)],
     )
 
     assert rc == 0, output
-    assert (sdk_id in output) == enterprise
+    assert sdk_id in output
     assert_active(root, sdk if enterprise else community, "tarantool")
 
 

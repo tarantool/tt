@@ -466,33 +466,127 @@ func TestSwitchInvalidContext(t *testing.T) {
 		ctx := switchContext(testCase.scope, testCase.program, "3.0.0")
 		require.ErrorIs(t, Switch(&ctx), testCase.err)
 
-		_, err := ChooseVersion(testCase.scope, testCase.program)
+		_, err := ChooseInstallation(testCase.scope, testCase.program)
+		require.ErrorIs(t, err, testCase.err)
+
+		_, err = Choices(testCase.scope, testCase.program)
 		require.ErrorIs(t, err, testCase.err)
 	}
 }
 
-func TestChooseVersionEmptyScope(t *testing.T) {
+func TestChooseInstallationEmptyScope(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	selected, err := ChooseVersion(binary.ScopeProject, binary.ProgramTt)
+	selected, err := ChooseInstallation(binary.ScopeProject, binary.ProgramTt)
 	require.ErrorContains(t, err, "there are no tt versions installed in the selected scope")
 	assert.Empty(t, selected)
 	assert.NoDirExists(t, ".tarantool")
 }
 
-func TestVersionChoices(t *testing.T) {
-	versions := []version.Version{
-		{Str: "v3.0.0 [active]"},
-		{Str: "master"},
-		{Str: "123abcd"},
+func TestChoiceLabels(t *testing.T) {
+	choices := []Choice{
+		{Selection: binary.Selection{Program: binary.ProgramTt, ID: "v3.0.0"},
+			Argument: "v3.0.0", Active: true},
+		{Selection: binary.Selection{Program: binary.ProgramTt, ID: "master"},
+			Argument: "master", Active: false},
+		{Selection: binary.Selection{Program: binary.ProgramTtEe, ID: "2.15.0"},
+			Argument: "2.15.0ee", Active: false},
 	}
 	expected := []string{
 		binary.Bold(color.GreenString("3.0.0 [active]")),
 		color.YellowString("master"),
-		color.YellowString("123abcd"),
+		color.YellowString("2.15.0ee"),
 	}
-	assert.Equal(t, expected, versionChoices(versions))
-	assert.Equal(t, "v3.0.0 [active]", versions[0].Str)
+	assert.Equal(t, expected, choiceLabels(choices))
+	assert.Equal(t, "v3.0.0", choices[0].Selection.ID)
+}
+
+// TestChoicesBothEditions: tarantool lists the versions of both editions,
+// the Enterprise ones as switch tarantool takes them.
+func TestChoicesBothEditions(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	root, err := binary.ScopeProject.ArtifactPath()
+	require.NoError(t, err)
+
+	installVersion(t, root, binary.ProgramCe, "3.8.2")
+
+	active := installVersion(t, root, binary.ProgramCe, "3.9.0")
+
+	installVersion(t, root, binary.ProgramEe, "3.8.1")
+	installVersion(t, root, binary.ProgramEe, "gc64-3.7.0-0-r1")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, binary.BinDirName), 0o755))
+	require.NoError(t, os.Symlink(active.BinaryPath,
+		filepath.Join(root, binary.BinDirName, "tarantool")))
+
+	choices, err := Choices(binary.ScopeProject, binary.ProgramCe)
+	require.NoError(t, err)
+	assert.Equal(t, []Choice{
+		{binary.Selection{Program: binary.ProgramCe, ID: "3.8.2"}, "3.8.2", false},
+		{binary.Selection{Program: binary.ProgramCe, ID: "3.9.0"}, "3.9.0", true},
+		{binary.Selection{Program: binary.ProgramEe, ID: "3.8.1"}, "3.8.1ee", false},
+		{binary.Selection{Program: binary.ProgramEe, ID: "gc64-3.7.0-0-r1"},
+			"gc64-3.7.0-0-r1", false},
+	}, choices)
+
+	choices, err = Choices(binary.ScopeProject, binary.ProgramEe)
+	require.NoError(t, err)
+	assert.Len(t, choices, 2)
+	assert.Equal(t, "3.8.1", choices[0].Argument)
+}
+
+// TestMenusOffTerminal: off a terminal no menu is drawn; the menus fail
+// with ErrVersionRequired instead.
+func TestMenusOffTerminal(t *testing.T) {
+	interactive := Interactive
+
+	Interactive = func() bool { return false }
+
+	t.Cleanup(func() { Interactive = interactive })
+	t.Chdir(t.TempDir())
+
+	root, err := binary.ScopeProject.ArtifactPath()
+	require.NoError(t, err)
+
+	installVersion(t, root, binary.ProgramCe, "3.8.2")
+
+	_, err = ChooseInstallation(binary.ScopeProject, binary.ProgramCe)
+	require.ErrorIs(t, err, ErrVersionRequired)
+
+	_, err = ChooseProgram([]string{"tarantool"})
+	require.ErrorIs(t, err, ErrVersionRequired)
+
+	_, err = selectVersion("Select version", []string{"1"}, 0)
+	require.ErrorIs(t, err, ErrVersionRequired)
+}
+
+func TestVersionRequired(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	programs := []string{"tt", "tarantool", "tcm"}
+
+	err := VersionRequired(binary.ScopeProject, binary.ProgramCe, programs)
+	require.ErrorContains(t, err, "there are no tarantool versions installed")
+
+	err = VersionRequired(binary.ScopeProject, binary.ProgramUnknown, programs)
+	require.ErrorIs(t, err, ErrVersionRequired)
+	require.ErrorContains(t, err, "nothing is installed in the selected scope")
+
+	root, err := binary.ScopeProject.ArtifactPath()
+	require.NoError(t, err)
+
+	installVersion(t, root, binary.ProgramCe, "3.8.2")
+	installVersion(t, root, binary.ProgramEe, "3.8.1")
+	installVersion(t, root, binary.ProgramTcm, "1.3.1")
+
+	err = VersionRequired(binary.ScopeProject, binary.ProgramCe, programs)
+	require.ErrorIs(t, err, ErrVersionRequired)
+	require.EqualError(t, err, "a version is required off a terminal: "+
+		"tt binary switch tarantool <version>; installed: 3.8.2, 3.8.1ee")
+
+	err = VersionRequired(binary.ScopeProject, binary.ProgramUnknown, programs)
+	require.EqualError(t, err, "a version is required off a terminal: "+
+		"tt binary switch <program> <version>; installed: tarantool 3.8.2, 3.8.1ee; tcm 1.3.1")
 }
 
 func TestSwitchRepairsCyclicActiveLinks(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/list"
+	"golang.org/x/term"
 )
 
 var (
@@ -38,105 +39,181 @@ func ChooseProgram(supportedPrograms []string) (binary.Program, error) {
 	return chooseProgram("Select program", supportedPrograms)
 }
 
-// ChooseInstallation selects a concrete installed version. Unified product entries
-// first select an edition, so their version menus stay edition-specific.
-func ChooseInstallation(scope binary.Scope, program binary.Program) (binary.Selection, error) {
-	var err error
-
-	if enterprise := program.EnterpriseProgram(); enterprise != binary.ProgramUnknown {
-		program, err = chooseProgram("Select "+program.String()+" edition", []string{
-			program.String(), enterprise.String(),
-		})
-		if err != nil {
-			return binary.Selection{}, err
-		}
-	}
-
-	selected, err := ChooseVersion(scope, program)
-	if err != nil {
-		return binary.Selection{}, err
-	}
-
-	return binary.Selection{Program: program, ID: selected}, nil
+// Choice is an installed version tt binary switch can select.
+type Choice struct {
+	// Selection is the product and the installed version.
+	Selection binary.Selection
+	// Argument is the version as tt binary switch <program> takes it for
+	// the program the choices were listed for: 3.8.1ee for a Tarantool
+	// Enterprise 3.8.1 listed for tarantool.
+	Argument string
+	// Active tells the version the active links select.
+	Active bool
 }
 
-func chooseProgram(label string, supportedPrograms []string) (binary.Program, error) {
-	programSelect := promptui.Select{
-		Label:        label,
-		Items:        supportedPrograms,
-		HideSelected: true,
-	}
-
-	var (
-		program string
-		err     error
-	)
-
-	_, program, err = programSelect.Run()
-	if err != nil {
-		return binary.ProgramUnknown, fmt.Errorf("failed to choose program: %w", err)
-	}
-
-	return binary.ParseProgram(program)
-}
-
-// versionChoices formats menu labels without changing installation identities.
-func versionChoices(versions []version.Version) []string {
-	choices := make([]string, 0, len(versions))
-	for _, installed := range versions {
-		label := strings.TrimPrefix(installed.Str, "v")
-		if strings.HasSuffix(installed.Str, " [active]") {
-			choices = append(choices, binary.Bold(color.GreenString(label)))
-			continue
-		}
-
-		choices = append(choices, color.YellowString(label))
-	}
-
-	return choices
-}
-
-// ChooseVersion shows a menu of versions installed in the selected scope.
-func ChooseVersion(scope binary.Scope, program binary.Program) (string, error) {
+// Choices lists the versions of program installed in the scope; for
+// tarantool and tt, the versions of their Enterprise Edition follow, as
+// tt binary switch tarantool selects either.
+func Choices(scope binary.Scope, program binary.Program) ([]Choice, error) {
 	err := validateProgram(program)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	root, err := scope.ArtifactPath()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	directory := filepath.Join(root, binary.VersionsDirName, program.String())
-	entries, err := os.ReadDir(directory)
-
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("error reading directory %q: %w", directory, err)
+	programs := []binary.Program{program}
+	if enterprise := program.EnterpriseProgram(); enterprise != binary.ProgramUnknown {
+		programs = append(programs, enterprise)
 	}
 
-	versions, err := list.ParseBinaries(entries, program, root)
+	var choices []Choice
+
+	for _, edition := range programs {
+		directory := filepath.Join(root, binary.VersionsDirName, edition.String())
+		entries, err := os.ReadDir(directory)
+
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("error reading directory %q: %w", directory, err)
+		}
+
+		versions, err := list.ParseBinaries(entries, edition, root)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, installed := range versions {
+			selected, active := strings.CutSuffix(installed.Str, " [active]")
+
+			argument := selected
+			if edition != program {
+				argument = binary.VersionArgument(edition, selected)
+			}
+
+			choices = append(choices, Choice{
+				Selection: binary.Selection{Program: edition, ID: selected},
+				Argument:  argument,
+				Active:    active,
+			})
+		}
+	}
+
+	return choices, nil
+}
+
+// ErrVersionRequired reports a switch with no version where no menu can be
+// shown: stdin or stdout is not a terminal.
+var ErrVersionRequired = errors.New("a version is required off a terminal")
+
+// VersionRequired is the error of a switch of program with no version off a
+// terminal: it names the command to run and the versions installed in the
+// scope. With no program it names the products that have some.
+func VersionRequired(scope binary.Scope, program binary.Program, programs []string) error {
+	if program == binary.ProgramUnknown {
+		var installed []string
+
+		for _, name := range programs {
+			product, err := binary.ParseProgram(name)
+			if err != nil {
+				return err
+			}
+
+			choices, err := Choices(scope, product)
+			if err != nil {
+				return err
+			}
+
+			if len(choices) > 0 {
+				installed = append(installed, name+" "+joinArguments(choices))
+			}
+		}
+
+		if len(installed) == 0 {
+			return fmt.Errorf("%w: tt binary switch <program> <version>; "+
+				"nothing is installed in the selected scope", ErrVersionRequired)
+		}
+
+		return fmt.Errorf("%w: tt binary switch <program> <version>; installed: %s",
+			ErrVersionRequired, strings.Join(installed, "; "))
+	}
+
+	choices, err := Choices(scope, program)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	if len(versions) == 0 {
-		return "", fmt.Errorf("%w%s versions installed in the selected scope",
+	if len(choices) == 0 {
+		return fmt.Errorf("%w%s versions installed in the selected scope",
 			errNoInstalledVersionsInScope, program)
 	}
 
-	index, err := selectVersion("Select version", versionChoices(versions), 0)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSuffix(versions[index].Str, " [active]"), nil
+	return fmt.Errorf("%w: tt binary switch %s <version>; installed: %s",
+		ErrVersionRequired, program, joinArguments(choices))
 }
 
-// ChooseFrom shows the menu of versions ChooseVersion shows, for versions
-// other than those of a program of tt binary, such as the installed versions
-// of an application tt package switch offers: active, if it is one of them,
-// is marked and selected first.
+// joinArguments lists the versions of choices as switch takes them, the
+// active one marked.
+func joinArguments(choices []Choice) string {
+	arguments := make([]string, 0, len(choices))
+
+	for _, choice := range choices {
+		argument := choice.Argument
+		if choice.Active {
+			argument += " (active)"
+		}
+
+		arguments = append(arguments, argument)
+	}
+
+	return strings.Join(arguments, ", ")
+}
+
+// ChooseInstallation shows a menu of the versions of program installed in
+// the scope and returns the one chosen. For tarantool and tt the menu has
+// the versions of both editions, Enterprise ones as 3.8.1ee: the product is
+// named, so no edition is asked for.
+func ChooseInstallation(scope binary.Scope, program binary.Program) (binary.Selection, error) {
+	choices, err := Choices(scope, program)
+	if err != nil {
+		return binary.Selection{}, err
+	}
+
+	if len(choices) == 0 {
+		return binary.Selection{}, fmt.Errorf("%w%s versions installed in the selected scope",
+			errNoInstalledVersionsInScope, program)
+	}
+
+	cursor := 0
+
+	for i, choice := range choices {
+		if choice.Active {
+			cursor = i
+		}
+	}
+
+	index, err := selectVersion("Select "+program.String()+" version", choiceLabels(choices),
+		cursor)
+	if err != nil {
+		return binary.Selection{}, err
+	}
+
+	return choices[index].Selection, nil
+}
+
+// Interactive reports whether a menu can be shown: stdin, which the menu
+// reads, and stdout, which it draws on, are terminals. A variable for the
+// tests.
+var Interactive = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+// ChooseFrom shows the version menu of tt binary switch for versions other
+// than those of a program of tt binary, such as the installed versions of an
+// application tt package switch offers: active, if it is one of them, is
+// marked and selected first. Off a terminal it fails with ErrVersionRequired.
 func ChooseFrom(label string, versions []string, active string) (string, error) {
 	choices := make([]string, 0, len(versions))
 	cursor := 0
@@ -161,8 +238,14 @@ func ChooseFrom(label string, versions []string, active string) (string, error) 
 }
 
 // selectVersion shows a menu of choices with the cursor at cursor and returns
-// the index of the chosen one.
+// the index of the chosen one. Off a terminal (Interactive) it shows nothing
+// and fails with ErrVersionRequired: a menu drawn into a pipe has no one to
+// answer it.
 func selectVersion(label string, choices []string, cursor int) (int, error) {
+	if !Interactive() {
+		return 0, fmt.Errorf("%w: %s", ErrVersionRequired, strings.ToLower(label))
+	}
+
 	versionSelect := promptui.Select{
 		Label:        label,
 		Items:        choices,
@@ -176,6 +259,49 @@ func selectVersion(label string, choices []string, cursor int) (int, error) {
 	}
 
 	return index, nil
+}
+
+// choiceLabels formats menu labels without changing installation identities.
+func choiceLabels(choices []Choice) []string {
+	labels := make([]string, 0, len(choices))
+
+	for _, choice := range choices {
+		label := strings.TrimPrefix(choice.Argument, "v")
+		if choice.Active {
+			labels = append(labels, binary.Bold(color.GreenString(label+" [active]")))
+
+			continue
+		}
+
+		labels = append(labels, color.YellowString(label))
+	}
+
+	return labels
+}
+
+func chooseProgram(label string, supportedPrograms []string) (binary.Program, error) {
+	if !Interactive() {
+		return binary.ProgramUnknown, fmt.Errorf("%w: %s", ErrVersionRequired,
+			strings.ToLower(label))
+	}
+
+	programSelect := promptui.Select{
+		Label:        label,
+		Items:        supportedPrograms,
+		HideSelected: true,
+	}
+
+	var (
+		program string
+		err     error
+	)
+
+	_, program, err = programSelect.Run()
+	if err != nil {
+		return binary.ProgramUnknown, fmt.Errorf("failed to choose program: %w", err)
+	}
+
+	return binary.ParseProgram(program)
 }
 
 // validateProgram limits switching to products with installed executables.

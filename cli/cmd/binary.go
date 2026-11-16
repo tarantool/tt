@@ -924,8 +924,10 @@ func newBinarySwitchCmd(base *binary.BinaryContext,
 		Short: "Switch the active binary",
 		Long: `Switch to an installed version in the selected scope.
 Without arguments, choose the program and version interactively. With only
-a program, choose its version. For tarantool and tt, choose the edition first, then
-one of its installed versions. CE and EE share the active Tarantool binary
+a program, choose its version; for tarantool and tt the menu lists the
+installed versions of both editions, Enterprise ones with the ee suffix.
+The menus need a terminal: off one, a missing version is an error that lists
+the installed versions. CE and EE share the active Tarantool binary
 and headers. tt and tt-ee share the active tt executable.
 
 Bare Tarantool and tt versions select CE; append ce or ee to choose an edition
@@ -975,7 +977,7 @@ func internalSwitchModule(base binary.BinaryContext, switchCtx switcher.SwitchCt
 	switchCtx.BinaryContext = base
 	switchCtx.ExactVersion = len(args) < binarySwitchMaxArgs
 
-	if !switchCtx.ExactVersion {
+	if len(args) >= binarySwitchMaxArgs {
 		request, err := binary.ParseVersionRequest(args[0], args[1])
 		if err != nil {
 			return fmt.Errorf("failed to switch module: %w", err)
@@ -988,19 +990,29 @@ func internalSwitchModule(base binary.BinaryContext, switchCtx switcher.SwitchCt
 	}
 
 	var (
-		program binary.Program
+		program = binary.ProgramUnknown
 		err     error
 	)
 
-	switch len(args) {
-	case 0:
-		program, err = switcher.ChooseProgram(binarySwitchPrograms)
-	default:
+	if len(args) > 0 {
 		program, err = binary.ParseProgram(args[0])
+		if err != nil {
+			return fmt.Errorf("failed to switch module: %w", err)
+		}
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to switch module: %w", err)
+	// The menus read stdin and draw on stdout: off a terminal there is no
+	// one to answer them, and the version must be on the command line. The
+	// menus refuse by themselves; the error here lists what is installed.
+	if !switcher.Interactive() {
+		return switcher.VersionRequired(base.Scope, program, binarySwitchPrograms)
+	}
+
+	if program == binary.ProgramUnknown {
+		program, err = switcher.ChooseProgram(binarySwitchPrograms)
+		if err != nil {
+			return fmt.Errorf("failed to switch module: %w", err)
+		}
 	}
 
 	selection, err := switcher.ChooseInstallation(base.Scope, program)

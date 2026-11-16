@@ -39,6 +39,11 @@ tarantool-ee  3.8.1
 The list is the only thing on stdout, coloured only on a terminal and not
 with `NO_COLOR` set; `-o json` and `-o yaml` give the same data.
 
+`tt binary switch tarantool` with no version shows a menu of the installed
+versions of both editions, Enterprise ones as `3.8.1ee`, and `tt binary
+switch` alone asks for the product first. The menus need a terminal: in a
+script, a missing version is an error that names the installed ones.
+
 The version installed last becomes the active one: `<root>/bin/tarantool`
 points to it, and `<root>/include/tarantool` to its headers. Each version is
 kept in `<root>/versions/<product>/<product>_<version>/`, with the headers in

@@ -1,4 +1,7 @@
+import os
 import platform
+import pty
+import select
 import subprocess
 from pathlib import Path
 
@@ -29,27 +32,40 @@ def assert_active(root: Path, installation: Path, program: str) -> None:
 
 
 def run_interactive_switch(cmd, cwd, answers):
-    # Each menu owns an input reader; send answers when their own prompts open.
+    """Run cmd on a terminal, its stdin, stdout and stderr, as the menus need
+    one, and type each answer when its prompt is on the screen."""
+    master, slave = pty.openpty()
     output = b""
-    with subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    ) as process:
-        for prompt, answer in answers:
-            screen = b""
-            while prompt.encode() not in screen:
-                char = process.stdout.read(1)
-                assert char, output.decode()
-                screen += char
-                output += char
-            process.stdin.write(answer.encode())
-            process.stdin.flush()
-        remaining, _ = process.communicate(timeout=10)
-        output += remaining
-    return process.returncode, output.decode()
+
+    def read(timeout=10):
+        ready, _, _ = select.select([master], [], [], timeout)
+        if not ready:
+            return b""
+        try:
+            return os.read(master, 1024)
+        except OSError:  # EIO: the process is gone and the terminal closed.
+            return b""
+
+    try:
+        with subprocess.Popen(cmd, cwd=cwd, stdin=slave, stdout=slave, stderr=slave) as process:
+            os.close(slave)
+            slave = None
+            for prompt, answer in answers:
+                screen = b""
+                while prompt.encode() not in screen:
+                    chunk = read()
+                    assert chunk, output.decode(errors="replace")
+                    screen += chunk
+                    output += chunk
+                os.write(master, answer.encode())
+            while chunk := read():
+                output += chunk
+            process.wait(timeout=10)
+    finally:
+        if slave is not None:
+            os.close(slave)
+        os.close(master)
+    return process.returncode, output.decode(errors="replace")
 
 
 @pytest.fixture
@@ -285,34 +301,67 @@ def test_switch_interactive_raw_version(tt_cmd, tmp_path, version):
     root = tmp_path / ".tarantool"
     selected = install_version(root, "tt", version)
     cmd = [tt_cmd, "binary", "switch", "tt"]
-    rc, output = run_interactive_switch(
-        cmd,
-        tmp_path,
-        [("Select tt edition", "\n"), ("Select version", "\n")],
-    )
+    rc, output = run_interactive_switch(cmd, tmp_path, [("Select tt version", "\n")])
 
-    assert rc == 0
+    assert rc == 0, output
+    assert "edition" not in output
     assert f"Switching to tt_{version}" in output
     assert_active(root, selected, "tt")
 
 
 def test_switch_interactive_preserves_colliding_release_identity(tt_cmd, tmp_path):
     root = tmp_path / ".tarantool"
-    install_version(root, "tt", "3.0.0")
-    selected = install_version(root, "tt", "v3.0.0")
+    selected = install_version(root, "tt", "3.0.0")
+    active = install_version(root, "tt", "v3.0.0")
     (root / "bin").mkdir()
-    (root / "bin" / "tt").symlink_to(selected / "tt")
+    (root / "bin" / "tt").symlink_to(active / "tt")
     cmd = [tt_cmd, "binary", "switch", "tt"]
-    rc, output = run_interactive_switch(
-        cmd,
-        tmp_path,
-        [("Select tt edition", "\n"), ("Select version", "\x1b[B\n")],
+    # The cursor starts on the active version, the second; up selects the first.
+    rc, output = run_interactive_switch(cmd, tmp_path, [("Select tt version", "\x1b[A\n")])
+
+    assert rc == 0, output
+    assert "3.0.0 [active]" in output
+    assert "Switching to tt_3.0.0" in output
+    assert_active(root, selected, "tt")
+
+
+def test_switch_interactive_both_editions(tt_cmd, tmp_path):
+    """A named product goes straight to the versions of both editions."""
+    root = tmp_path / ".tarantool"
+    install_version(root, "tarantool", "3.8.2")
+    selected = install_version(root, "tarantool-ee", "3.8.1")
+    cmd = [tt_cmd, "binary", "switch", "tarantool"]
+    rc, output = run_interactive_switch(cmd, tmp_path, [("Select tarantool version", "\x1b[B\n")])
+
+    assert rc == 0, output
+    assert "edition" not in output
+    assert "3.8.1ee" in output
+    assert "Switching to tarantool-ee_3.8.1" in output
+    assert_active(root, selected, "tarantool-ee")
+
+
+@pytest.mark.parametrize("args", [["tarantool"], []], ids=["program", "none"])
+def test_switch_no_version_off_terminal(tt_cmd, tmp_path, args):
+    root = tmp_path / ".tarantool"
+    install_version(root, "tarantool", "3.8.2")
+    install_version(root, "tarantool-ee", "3.8.1")
+    process = subprocess.run(
+        [tt_cmd, "binary", "switch", *args],
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
     )
 
-    assert rc == 0
-    assert "3.0.0 [active]" in output
-    assert "Switching to tt_v3.0.0" in output
-    assert_active(root, selected, "tt")
+    assert process.returncode == 1
+    assert process.stdout == ""
+    assert "\x1b[?25l" not in process.stderr
+    assert "a version is required off a terminal" in process.stderr
+    if args:
+        assert "tt binary switch tarantool <version>; installed: 3.8.2, 3.8.1ee" in process.stderr
+    else:
+        assert "installed: tarantool 3.8.2, 3.8.1ee" in process.stderr
+    assert not (root / "bin").exists()
 
 
 @pytest.mark.parametrize(
@@ -334,7 +383,7 @@ def test_switch_interactive_preserves_numeric_identity(tt_cmd, tmp_path, program
         assert "more than one installed version matches" in output
         assert not (root / "bin").exists()
 
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, input="\n")
+    rc, output = run_interactive_switch(cmd, tmp_path, [(f"Select {program} version", "\n")])
     assert rc == 0, output
     assert f"Switching to {program}_3.8.1" in output
     assert_active(root, selected, program)
