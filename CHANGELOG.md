@@ -1277,6 +1277,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Tarantool merges it: `tt cluster show` printed `labels: null` for
   `labels: {a: x}` of the file. An empty map of an instance, `labels: {}`,
   no longer drops the labels it inherits either.
+- The config of an instance that `tt cluster show <APP>:<INSTANCE>`, the
+  instance commands and `tt cluster topology` read merges its sources as
+  Tarantool does: each source gives a config of the instance, its global,
+  group, replicaset and instance scopes merged, and these merge by the
+  priority `TT_*` > the config file > the config storage > `TT_*_DEFAULT`.
+  A key the config storage or `TT_*_DEFAULT` gave at the global scope won
+  over the same key of the config file at the instance scope, and a key the
+  storage gave at the instance scope over a global `TT_*` variable: with
+  `TT_SNAPSHOT_COUNT_DEFAULT=3`, an instance with `snapshot.count: 9` in the
+  file had 3. A global key of the file now also wins over an instance key of
+  the storage, as in Tarantool.
 
 - `tt create ./tpl` with `instances.yaml` and `config.yaml` at the root of
   the template, or in a directory of it, creates a project: the pair goes

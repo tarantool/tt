@@ -10,6 +10,10 @@ import (
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/go-config/v2/collectors"
 	gcttarantool "github.com/tarantool/go-config/v2/tarantool"
+	"github.com/tarantool/go-storage/v2"
+	"github.com/tarantool/go-storage/v2/driver/dummy"
+	gsintegrity "github.com/tarantool/go-storage/v2/integrity"
+	"github.com/tarantool/go-storage/v2/marshaller"
 	"github.com/tarantool/tt/sdk/integrity"
 )
 
@@ -39,13 +43,17 @@ func LocalInstances(ctx context.Context, path string) ([]string, error) {
 // variables as sources. The function returns a cluster config as is, without
 // merging of settings from scopes: global, group, replicaset, instance.
 //
-// The documented Tarantool config priority is
+// The sources are the layers of the config, in Tarantool's priority:
 // `TT_*` > file > centralized (etcd / config storage) > `TT_*_DEFAULT`.
-// gcttarantool.Builder folds `TT_*_DEFAULT` into its lowest slot, alongside
-// the file pass, and the fill-only merge strategy means a single Build()
-// call would let `TT_*_DEFAULT` block the post-Build centralized merge. To
-// honor the documented order without taking the TT-1011 storage-handle path,
-// the env-default layer is split out via two builds and applied last.
+// Tarantool makes the config of an instance of each source on its own,
+// global, group, replicaset and instance scopes merged, and merges these
+// instance configs by the priority: an instance key of the file wins over
+// a global one of the storage, and so does a global key of the file over
+// an instance one of the storage, and `TT_*` over both. The effective
+// configs of go-config resolve the layers of a build so, and the config
+// storage is a layer of the build, between the file and `TT_*_DEFAULT`.
+// The cluster config as a whole is the layers merged key by key, the file
+// over the storage, as Tarantool merges the cluster configs of its sources.
 func GetClusterConfig(
 	ctx context.Context,
 	path string,
@@ -55,50 +63,80 @@ func GetClusterConfig(
 		return nil, errAConfigurationFileMustBeSet
 	}
 
-	// Phase-1: env (excluding *_DEFAULT) + file → mut.
-	mut, err := gcttarantool.New().
+	// The config storage is the one TT_* and the file point to, as
+	// Tarantool reads it: TT_*_DEFAULT come after the storage.
+	ref, err := gcttarantool.New().
 		WithoutValidation().
 		WithEnvIgnore("TT_*_DEFAULT").
 		WithConfigFile(path).
-		BuildMutable(ctx)
+		Build(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load config from %q: %w", path, err)
 	}
 
 	// Read storage tt-side (etcd or TCS).
-	storageCfg, cleanup, err := readStorageFromConfig(ctx, mut.Snapshot(), integ)
+	storageData, cleanup, err := readStorageFromConfig(ctx, ref, integ)
 	if err != nil {
 		return nil, err
 	}
 
 	if cleanup != nil {
-		defer cleanup()
+		cleanup()
 	}
 
-	// Fill-only merge storage layer (file > storage per Tarantool docs).
-	if _, ok := storageCfg.Lookup(nil); ok {
-		err = fillOnlyMerge(ctx, mut, storageCfg)
-		if err != nil {
-			return nil, fmt.Errorf("unable to merge storage config: %w", err)
-		}
-	}
+	return buildClusterConfig(ctx, path, storageData)
+}
 
-	// Phase-2: build with full env (including *_DEFAULT) for the fill-only
-	// merge of the lowest-priority defaults.
-	def, err := gcttarantool.New().
+// buildClusterConfig builds the cluster config of the file at path with
+// storageData, the YAML of the config storage it points to, if any, as the
+// storage layer, and the TT_* environment.
+func buildClusterConfig(
+	ctx context.Context,
+	path string,
+	storageData []byte,
+) (*goconfig.MutableConfig, error) {
+	builder := gcttarantool.New().
 		WithoutValidation().
-		WithConfigFile(path).
-		BuildMutable(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load config from %q with default env: %w", path, err)
+		WithConfigFile(path)
+
+	if len(bytes.TrimSpace(storageData)) > 0 {
+		store, err := readStore(ctx, storageData)
+		if err != nil {
+			return nil, err
+		}
+
+		builder = builder.WithStorage(store)
 	}
 
-	err = fillOnlyMerge(ctx, mut, def.Snapshot())
+	mut, err := builder.BuildMutable(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to merge default env config: %w", err)
+		return nil, fmt.Errorf("unable to load config from %q: %w", path, err)
 	}
 
 	return mut, nil
+}
+
+// readStore returns a store that holds data, the cluster config tt has read
+// from a config storage, for the builder of go-config to read as the
+// storage layer. tt reads the storage itself, with its integrity checks and
+// its endpoints tried in turn, and the builder takes the storage layer from
+// a store only; one in memory serves the config tt has.
+func readStore(ctx context.Context, data []byte) (*gsintegrity.Store[[]byte], error) {
+	codec, err := gsintegrity.NewCodecBuilder[[]byte]().
+		WithMarshaller(marshaller.NewBytesMarshaller()).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("storage config codec: %w", err)
+	}
+
+	store := codec.Bind(storage.NewStorage(dummy.New()))
+
+	err = store.Put(ctx, "all", data)
+	if err != nil {
+		return nil, fmt.Errorf("storage config: %w", err)
+	}
+
+	return store, nil
 }
 
 // GetInstanceConfig returns a goconfig.Config view for the named instance

@@ -3,6 +3,7 @@ import shutil
 import subprocess
 
 import pytest
+import yaml
 
 from utils import cluster_config_file, run_command_and_get_output
 
@@ -839,3 +840,93 @@ def test_cluster_show_file_env_empty_map(tt_cmd, tmp_path):
         )
         assert rc == 0, out
         assert "labels:\n  a: x\n" in out, out
+
+
+def make_precedence_app(tmp_path, etcd, file_cfg, storage_cfg):
+    """Make the project prec_app in tmp_path whose config.yaml is file_cfg
+    pointing to etcd, with storage_cfg published there, and return the path
+    of the project."""
+    app_path = tmp_path / "prec_app"
+    template = app_path / ".templates" / "default"
+    template.mkdir(parents=True)
+    (template / "instances.yaml").write_text("master:\n")
+    (template / "config.yaml").write_text(
+        f"config:\n  etcd:\n    endpoints:\n      - {etcd.endpoint}\n    prefix: /prefix\n"
+        + file_cfg,
+    )
+    etcd.conn().put("/prefix/config/all", storage_cfg)
+    return app_path
+
+
+def show_instance(tt_cmd, app_path, env):
+    """Return the config tt cluster show prints for prec_app:master."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "show", "prec_app:master"],
+        cwd=app_path,
+        env={**os.environ, **env},
+    )
+    assert rc == 0, out
+    return yaml.safe_load(out)
+
+
+def test_cluster_show_sources_over_scopes(tt_cmd, tmp_path, etcd):
+    # The config of an instance is that of Tarantool 3.9, run with the same
+    # file and environment and a cluster config source put where etcd goes:
+    # it makes the config of the instance of each source, its scopes merged,
+    # and merges these by the priority TT_* > file > storage > TT_*_DEFAULT.
+    # A global key of the file wins over an instance key of the storage, an
+    # instance key of the file over a global one of the storage and over a
+    # default, and TT_* over an instance key of the storage.
+    app_path = make_precedence_app(
+        tmp_path,
+        etcd,
+        """labels:
+  b: file-global
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            labels:
+              a: file-instance
+            snapshot:
+              count: 9
+""",
+        """labels:
+  a: storage-global
+  k: storage-global
+replication:
+  failover: manual
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            labels:
+              b: storage-instance
+              d: storage-instance
+            memtx:
+              memory: 300000000
+""",
+    )
+
+    got = show_instance(
+        tt_cmd,
+        app_path,
+        {
+            "TT_MEMTX_MEMORY": "268435456",
+            "TT_SNAPSHOT_COUNT_DEFAULT": "3",
+            "TT_REPLICATION_FAILOVER_DEFAULT": "off",
+        },
+    )
+    assert got["labels"] == {
+        "a": "file-instance",
+        "b": "file-global",
+        "k": "storage-global",
+        "d": "storage-instance",
+    }
+    assert got["memtx"] == {"memory": 268435456}
+    assert got["snapshot"] == {"count": 9}
+    assert got["replication"] == {"failover": "manual"}

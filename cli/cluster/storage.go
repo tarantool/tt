@@ -309,30 +309,31 @@ func readStorageRef(cfg goconfig.Config) (storageRef, bool, error) {
 	return readTcsRef(cfg)
 }
 
-// readStorageFromConfig extracts etcd or TCS endpoints from cfg, dials, reads
-// the centralized config bytes, and parses them into a goconfig.Config.
+// readStorageFromConfig extracts etcd or TCS endpoints from cfg, dials, and
+// reads the centralized config: the YAML of its keys, merged as
+// CollectDataBytes merges them, and checked to parse.
 //
-// Returns (zero Config{}, nil, nil) if neither etcd nor storage endpoints are
+// Returns (nil, nil, nil) if neither etcd nor storage endpoints are
 // configured. Returns a cleanup func when an etcd client was opened.
 func readStorageFromConfig(
 	ctx context.Context,
 	cfg goconfig.Config,
 	integ integrity.IntegrityCtx,
-) (goconfig.Config, func(), error) {
+) ([]byte, func(), error) {
 	collectorFactory, err := NewCollectorFactory(integ)
 	if err != nil {
-		return goconfig.Config{}, nil, fmt.Errorf("collector factory: %w", err)
+		return nil, nil, fmt.Errorf("collector factory: %w", err)
 	}
 
 	ref, found, err := readStorageRef(cfg)
 	if err != nil || !found {
-		return goconfig.Config{}, nil, err
+		return nil, nil, err
 	}
 
 	if ref.kind == storageEtcd {
 		result, cleanup, err := readEtcd(ctx, ref, collectorFactory)
 		if err != nil {
-			return goconfig.Config{}, nil, ref.unreadable(err)
+			return nil, nil, ref.unreadable(err)
 		}
 
 		return result, cleanup, nil
@@ -340,7 +341,7 @@ func readStorageFromConfig(
 
 	tcsResult, err := readTcs(ctx, ref, collectorFactory)
 	if err != nil {
-		return goconfig.Config{}, nil, ref.unreadable(err)
+		return nil, nil, ref.unreadable(err)
 	}
 
 	return tcsResult, nil, nil
@@ -515,16 +516,17 @@ func readEtcdRef(cfg goconfig.Config) (storageRef, bool, error) {
 	}, true, nil
 }
 
-// readEtcd connects to the etcd ref names, and returns the parsed
-// goconfig.Config plus a cleanup function.
+// readEtcd connects to the etcd ref names, and returns the YAML of the
+// cluster config there, its keys merged by CollectDataBytes, which parses
+// them, plus a cleanup function.
 func readEtcd(
 	ctx context.Context,
 	ref storageRef,
 	collectorFactory sdkcluster.Factory,
-) (goconfig.Config, func(), error) {
+) ([]byte, func(), error) {
 	stor, gsCleanup, err := ref.open(ctx, ref.endpoints[0])
 	if err != nil {
-		return goconfig.Config{}, nil, fmt.Errorf("unable to connect to etcd: %w", err)
+		return nil, nil, fmt.Errorf("unable to connect to etcd: %w", err)
 	}
 
 	cleanup := func() { gsCleanup() }
@@ -534,24 +536,17 @@ func readEtcd(
 	if err != nil {
 		cleanup()
 
-		return goconfig.Config{}, nil, fmt.Errorf("failed to create etcd collector: %w", err)
+		return nil, nil, fmt.Errorf("failed to create etcd collector: %w", err)
 	}
 
 	rawBytes, err := CollectDataBytes(ctx, etcdCollector)
 	if err != nil {
 		cleanup()
 
-		return goconfig.Config{}, nil, fmt.Errorf("unable to get config from etcd: %w", err)
+		return nil, nil, fmt.Errorf("unable to get config from etcd: %w", err)
 	}
 
-	parsedCfg, err := BuildGoConfigFromBytes(ctx, rawBytes)
-	if err != nil {
-		cleanup()
-
-		return goconfig.Config{}, nil, fmt.Errorf("unable to parse etcd config: %w", err)
-	}
-
-	return parsedCfg, cleanup, nil
+	return rawBytes, cleanup, nil
 }
 
 // readTcsRef reads the TCS (Tarantool Config Storage) config.storage of cfg
@@ -694,7 +689,8 @@ func tcsEndpoint(idx int, rawEp any, timeout time.Duration) (storageEndpoint, er
 }
 
 // readTcs connects to the first reachable endpoint of the TCS ref names, and
-// returns the parsed goconfig.Config.
+// returns the YAML of the cluster config there, its keys merged by
+// CollectDataBytes, which parses them.
 //
 // Per TCS semantics: stop on first successful connect, aggregate errors only if
 // all endpoints fail.
@@ -702,7 +698,7 @@ func readTcs(
 	ctx context.Context,
 	ref storageRef,
 	collectorFactory sdkcluster.Factory,
-) (goconfig.Config, error) {
+) ([]byte, error) {
 	connectionErrors := slices.Clone(ref.errs)
 
 	for _, endpoint := range ref.endpoints {
@@ -737,23 +733,15 @@ func readTcs(
 			continue
 		}
 
-		parsedCfg, err := BuildGoConfigFromBytes(ctx, rawBytes)
-		if err != nil {
-			connectionErrors = append(connectionErrors,
-				fmt.Errorf("%s: parse config: %w", endpoint.name, err))
-
-			continue
-		}
-
 		// First reachable endpoint wins.
-		return parsedCfg, nil
+		return rawBytes, nil
 	}
 
 	if len(connectionErrors) > 0 {
-		return goconfig.Config{}, errors.Join(connectionErrors...)
+		return nil, errors.Join(connectionErrors...)
 	}
 
-	return goconfig.Config{}, nil
+	return nil, nil
 }
 
 // ConfigStorage is the config storage a cluster config file points to,
