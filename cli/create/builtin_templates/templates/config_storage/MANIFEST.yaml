@@ -13,12 +13,16 @@ vars:
   - prompt: Storages replicas (odd, >=3)
     name: replicas_count
     default: '3'
-    re: ^([3579]|[1-9]\d*[13579])$
+    type: integer
+    min: 3
+    # Odd: a majority of the replicas makes a quorum.
+    re: ^\d*[13579]$
 
   - prompt: Status check interval
     name: status_check_interval
     default: '5'
-    re: ^[1-9]\d*$
+    type: integer
+    min: 1
 
   - prompt: User name
     name: username

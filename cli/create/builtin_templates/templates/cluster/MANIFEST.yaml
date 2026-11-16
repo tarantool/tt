@@ -13,12 +13,14 @@ vars:
   - prompt: Number of replication sets
     name: num_replicasets
     default: '2'
-    re: ^[1-9]\d*$
+    type: integer
+    min: 1
 
   - prompt: Number of replicas per replication set (>=2)
     name: num_replicas
     default: '2'
-    re: ^[2-9]|[1-9]\d+$
+    type: integer
+    min: 2
 
   - prompt: User name
     name: username

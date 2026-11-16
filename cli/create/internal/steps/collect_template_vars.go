@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
@@ -30,26 +29,28 @@ type CollectTemplateVarsFromUser struct {
 func validateExistingValue(createCtx *create_ctx.CreateCtx, varInfo app_template.UserPrompt,
 	existingValue string, found bool,
 ) (bool, error) {
-	if !found || varInfo.Re == "" {
-		return found, nil
+	if !found {
+		return false, nil
 	}
 
-	matched, err := regexp.MatchString(varInfo.Re, existingValue)
-	if err != nil {
-		return false, fmt.Errorf("failed to validate user input: %w", err)
-	}
-
-	if matched {
+	reason := varInfo.Validate(existingValue)
+	if reason == nil {
 		return true, nil
 	}
 
 	if createCtx.SilentMode {
-		return false, fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
+		return false, invalidVariableError(varInfo, reason)
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "Invalid format of %s variable.\n", varInfo.Name)
+	_, _ = fmt.Fprintf(os.Stdout, "Invalid format of %s variable: %s.\n", varInfo.Name, reason)
 
 	return false, nil
+}
+
+// invalidVariableError tells which variable has a bad value and why:
+// `invalid format of num_replicas variable: "3abc" is not an integer >= 2`.
+func invalidVariableError(varInfo app_template.UserPrompt, reason error) error {
+	return fmt.Errorf("%w%s variable: %w", errInvalidFormatOfVariable, varInfo.Name, reason)
 }
 
 // Run collects template variables from user in interactive mode.
@@ -115,22 +116,15 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				continue
 			}
 
-			if varInfo.Re == "" {
-				matched = true
-				continue
-			}
+			reason := varInfo.Validate(input)
 
-			matched, err = regexp.MatchString(varInfo.Re, input)
-			if err != nil {
-				return fmt.Errorf("failed to validate user input: %w", err)
-			}
-
+			matched = reason == nil
 			if !matched {
 				if createCtx.SilentMode {
-					return fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
+					return invalidVariableError(varInfo, reason)
 				}
 
-				_, _ = fmt.Fprintln(os.Stdout, "Invalid format. Try again.")
+				_, _ = fmt.Fprintf(os.Stdout, "Invalid format: %s. Try again.\n", reason)
 			}
 		}
 

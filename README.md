@@ -1320,7 +1320,9 @@ vars:
     - prompt: Retry count
       default: "3"
       name: retry_count
-      re: ^\d+$
+      type: integer
+      min: 1
+      max: 10
 pre-hook: ./hooks/pre-gen.sh
 post-hook: ./hooks/post-gen.sh
 include:
@@ -1337,7 +1339,11 @@ Where:
   + `prompt` - user prompt for variable value input.
   + `name` - variable name.
   + `default` - default value of the variable.
-  + `re` - regular expression used for value validation.
+  + `re` - regular expression used for value validation. It matches a
+    part of the value unless it is anchored with `^...$`.
+  + `type` - `string` (the default) or `integer`. A value of an `integer`
+    variable is a decimal integer.
+  + `min`, `max` - the bounds of an `integer` variable, both optional.
 - `pre-hook` (string) - executable to run before template
     instantiation.
 - `post-hook` (string) - executable to run after template

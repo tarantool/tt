@@ -1115,6 +1115,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installed in the user scope: …`, naming the constraint and the
   `tt binary install tarantool <version> --scope user` that satisfies it.
   The install succeeded silently, and the first `tt instance start` failed.
+- `tt create cluster` and `tt create vshard_cluster` refuse a count that is
+  not a number, such as `--var num_replicas=3abc`, before rendering the
+  template, as they refuse `1`, and say what is expected:
+  `invalid format of num_replicas variable: "3abc" is not an integer >= 2`.
+  The regular expression of the counts matched a part of the value, so
+  `3abc` or `x10` passed and the template failed with an error of the Go
+  template engine. A variable of `MANIFEST.yaml` declares `type: integer`
+  with optional `min` and `max` bounds, which the built-in templates now use
+  for their counts, and the reason of a refused value, a regular expression
+  it does not match included, is told both with `-s` and when asked.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

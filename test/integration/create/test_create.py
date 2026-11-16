@@ -175,7 +175,8 @@ def test_vars_passed_from_cli(tt_cmd, tmp_path):
     expected_lines = [
         "Creating application in",
         "Using template from",
-        "Cluster cookie (default: cookie): Password: Invalid format of retry_count variable.\n",
+        "Cluster cookie (default: cookie): Password: Invalid format of retry_count variable: "
+        '"number" does not match ^\\d+$.\n',
         "Retry count (default: 3):    • Executing pre-hook ./hooks/pre-gen.sh\n",
         "Executing post-hook ./hooks/post-gen.sh\n",
     ]
@@ -1300,3 +1301,45 @@ def test_create_keeps_the_pair_a_template_lays_out(tt_cmd, tmp_path):
     assert rc == 0, out
     assert (tmp_path / "myapp" / ".templates" / "default" / "instances.yaml").exists()
     assert (tmp_path / "myapp" / "instances.yaml").exists()
+
+
+@pytest.mark.parametrize(
+    "template, var, value, reason",
+    [
+        ("cluster", "num_replicas", "3abc", '"3abc" is not an integer >= 2'),
+        ("cluster", "num_replicas", "x10", '"x10" is not an integer >= 2'),
+        ("cluster", "num_replicas", "1", '"1" is not an integer >= 2'),
+        ("cluster", "num_replicasets", "0", '"0" is not an integer >= 1'),
+        ("vshard_cluster", "replicas_count", "3abc", '"3abc" is not an integer >= 2'),
+        ("vshard_cluster", "bucket_count", "many", '"many" is not an integer >= 1'),
+        ("config_storage", "replicas_count", "4", '"4" does not match ^\\d*[13579]$'),
+    ],
+)
+def test_create_builtin_template_bad_var(tt_cmd, tmp_path, template, var, value, reason):
+    """A value of a variable of a built-in template that is not of its type is
+    refused before anything is rendered, with the type in the message rather
+    than an error of the template engine."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "create", template, "--name", "bad", "-s", "--var", f"{var}={value}"],
+        cwd=tmp_path,
+    )
+    assert rc == 1
+    assert f"invalid format of {var} variable: {reason}" in out
+    assert "template execution failed" not in out
+    assert os.listdir(tmp_path) == []
+
+
+def test_create_builtin_template_bad_var_interactive(tt_cmd, tmp_path):
+    """Asked for a value, tt create says why one is refused and asks again."""
+    p = subprocess.run(
+        [tt_cmd, "create", "cluster", "--name", "app"],
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+        input="2\n3abc\n3\nclient\nsecret\n",
+    )
+    assert p.returncode == 0
+    assert 'Invalid format: "3abc" is not an integer >= 2. Try again.' in p.stdout
+    config = (tmp_path / "app" / cluster_config_file).read_text()
+    assert "replicaset-001-c:" in config

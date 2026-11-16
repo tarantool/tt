@@ -56,7 +56,72 @@ func TestNonInteractiveModeReMismatch(t *testing.T) {
 
 	collectVars := steps.CollectTemplateVarsFromUser{Reader: &bytes.Buffer{}}
 	err := collectVars.Run(&createCtx, &templateCtx)
-	assert.EqualError(t, err, "invalid format of user_name variable")
+	assert.EqualError(t, err,
+		`invalid format of user_name variable: "admin2" does not match ^[a-z]+$`)
+}
+
+func TestNonInteractiveModeIntegerFromCli(t *testing.T) {
+	minReplicas := 2
+
+	for value, errMsg := range map[string]string{
+		"3":    "",
+		"3abc": `invalid format of num_replicas variable: "3abc" is not an integer >= 2`,
+		"1":    `invalid format of num_replicas variable: "1" is not an integer >= 2`,
+	} {
+		t.Run(value, func(t *testing.T) {
+			createCtx := create_ctx.CreateCtx{SilentMode: true}
+			templateCtx := app_template.NewTemplateContext()
+
+			templateCtx.IsManifestPresent = true
+			templateCtx.Manifest.Vars = []app_template.UserPrompt{{
+				Prompt:  "Replicas",
+				Name:    "num_replicas",
+				Default: "2",
+				Type:    app_template.VarTypeInteger,
+				Min:     &minReplicas,
+			}}
+			templateCtx.Vars["num_replicas"] = value
+
+			collectVars := steps.CollectTemplateVarsFromUser{Reader: &bytes.Buffer{}}
+
+			err := collectVars.Run(&createCtx, &templateCtx)
+			if errMsg == "" {
+				require.NoError(t, err)
+				assert.Equal(t, value, templateCtx.Vars["num_replicas"])
+
+				return
+			}
+
+			require.EqualError(t, err, errMsg)
+		})
+	}
+}
+
+func TestInteractiveModeIntegerRetry(t *testing.T) {
+	minReplicas := 2
+
+	var createCtx create_ctx.CreateCtx
+
+	templateCtx := app_template.NewTemplateContext()
+
+	templateCtx.IsManifestPresent = true
+	templateCtx.Manifest.Vars = []app_template.UserPrompt{{
+		Prompt:  "Replicas",
+		Name:    "num_replicas",
+		Default: "2",
+		Type:    app_template.VarTypeInteger,
+		Min:     &minReplicas,
+	}}
+
+	var mockReader bytes.Buffer
+
+	// Neither "3abc" nor "1" is taken; "4" is.
+	mockReader.WriteString("3abc\n1\n4\n")
+
+	collectVars := steps.CollectTemplateVarsFromUser{Reader: &mockReader}
+	require.NoError(t, collectVars.Run(&createCtx, &templateCtx))
+	assert.Equal(t, "4", templateCtx.Vars["num_replicas"])
+	assert.Zero(t, mockReader.Len())
 }
 
 func TestInteractiveMode(t *testing.T) {
