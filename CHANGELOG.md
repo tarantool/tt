@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   and `-o json` and `-o yaml` give it as `version` and `restart_pending`. The
   watchdog records the directory it started the instance from in
   `var/run/<app>/<inst>/app.dir`.
+- The documentation has a how-to page on running an application in a Docker
+  container: an image that installs the archive into the system scope and
+  runs `tt instance start --foreground --scope system`, `docker exec` for
+  the other instance commands, a volume for the data, and the pair of the
+  host that publishes a port and takes a password from the environment.
 - Rock servers that publish a `tt-rocks-index.json`, an index that names
   every file of a rock version by URL with its sha256, so the rocks may live
   on release pages and the index in git. Resolving reads the rockspec the
