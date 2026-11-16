@@ -274,13 +274,17 @@ def test_build_fetch_and_pack_need_no_tarantool(tt_cmd, tmp_path):
 
 
 def stub_tarantool(directory: Path, built: Path) -> Path:
-    """Write a tarantool 3.3.5 into directory whose build names built as its
-    prefix, as a static build and an Enterprise SDK do, and return it."""
+    """Write a tarantool 3.3.99 into directory whose build names built as its
+    prefix, as a static build and an Enterprise SDK do, and return it.
+
+    No Tarantool released is 3.3.99, so the headers of a Tarantool installed
+    on the host, in /usr of a CI runner, are never of its version, and are
+    never taken for its own."""
     directory.mkdir(parents=True, exist_ok=True)
     tarantool = directory / "tarantool"
     tarantool.write_text(
         "#!/bin/sh\n"
-        "echo 'Tarantool 3.3.5-0-gabcdef'\n"
+        "echo 'Tarantool 3.3.99-0-gabcdef'\n"
         "echo 'Target: Linux-x86_64-RelWithDebInfo'\n"
         f"echo 'Build options: cmake . -DCMAKE_INSTALL_PREFIX={built} "
         "-DENABLE_BACKTRACE=TRUE'\n",
@@ -335,7 +339,7 @@ def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
         result.stderr
     )
     assert (
-        f"{system}/include/tarantool: headers of 3.9.0-0-g123456, the tarantool is 3.3.5-0-gabcdef"
+        f"{system}/include/tarantool: headers of 3.9.0-0-g123456, the tarantool is 3.3.99-0-gabcdef"
         in result.stderr
     )
     assert "set TT_CLI_TARANTOOL_PREFIX" in result.stderr
@@ -346,7 +350,7 @@ def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
     (headers / "lua.h").write_text("/* lua.h */\n")
     (headers / "module.h").write_text(
         "#define PACKAGE_VERSION_MAJOR 3\n#define PACKAGE_VERSION_MINOR 3\n"
-        '#define PACKAGE_VERSION_PATCH 5\n#define PACKAGE_VERSION "3.3.5-0-gabcdef"\n',
+        '#define PACKAGE_VERSION_PATCH 99\n#define PACKAGE_VERSION "3.3.99-0-gabcdef"\n',
     )
 
     result = run(tt_cmd, project, "package", "build", *registry, env=env)
