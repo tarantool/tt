@@ -656,3 +656,17 @@ func TestStatusVersion(t *testing.T) {
 	assert.Contains(t, table, "Some instances do not run the active version")
 	assert.NotContains(t, table, "Version of")
 }
+
+func TestConfigStatus(t *testing.T) {
+	script := running.InstanceCtx{Kind: instances.KindScript}
+	cluster := running.InstanceCtx{Kind: instances.KindCluster}
+
+	// The config module of an instance that runs its script is never used.
+	assert.Equal(t, "--", configStatus(&script, "uninitialized"))
+	assert.Equal(t, "--", configStatus(&script, ""))
+	// A script that starts the config module itself shows what it tells.
+	assert.Equal(t, "ready", configStatus(&script, "ready"))
+
+	assert.Equal(t, "uninitialized", configStatus(&cluster, "uninitialized"))
+	assert.Equal(t, "ready", configStatus(&cluster, "ready"))
+}

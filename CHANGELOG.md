@@ -1020,6 +1020,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Ctrl-C on `tt instance logs --follow` ends it quietly with exit code 0, as
   it ends `tail -f` and `tt instance start --foreground`. It printed
   `context canceled` as an error and exited with 1.
+- `tt instance status` shows CONFIG `--` for an instance that runs its
+  script, as for an external process: such an instance configures itself
+  with `box.cfg` and does not use the cluster config, and the
+  `uninitialized` it showed read like a problem.
 - A rock server that cannot be reached or read is one line: what was being
   done, the server, where it is configured and why, `resolving "checks":
   cannot reach rock server http://no-such-host.invalid/ (from

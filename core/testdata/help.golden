@@ -3867,7 +3867,8 @@ Columns:
 - MODE: The mode of the instance, indicating its read/write status:
 	- RO: The instance is in read-only mode.
 	- RW: The instance is in read-write mode.
-- CONFIG: The config info status (for Tarantool 3+).
+- CONFIG: The config info status (for Tarantool 3+); -- for an instance
+  that runs its script, which does not use the cluster config.
 - BOX: The box info status.
 - UPSTREAM: The replication upstream status.
 

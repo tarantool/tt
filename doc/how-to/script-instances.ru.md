@@ -26,8 +26,8 @@ box.schema.space.create('kv', {if_not_exists = true})
 ```console
 $ tt instance start
 $ tt instance status
- INSTANCE           STATUS   PID      MODE  CONFIG         BOX      UPSTREAM
- legacy:legacy-001  RUNNING  1330686  RW    uninitialized  running  --
+ INSTANCE           STATUS   PID      MODE  CONFIG  BOX      UPSTREAM
+ legacy:legacy-001  RUNNING  1330686  RW    --      running  --
 $ echo "return box.cfg.memtx_memory" | tt connect legacy:legacy-001 -f-
 ---
 - 268435456

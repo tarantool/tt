@@ -227,7 +227,7 @@ def check_script_instance(tt, tt_app, inst):
     status = tt_helper.status(tt, inst)
     assert status[inst]["STATUS"] == "RUNNING"
     assert status[inst]["MODE"] == "RW"
-    assert status[inst]["CONFIG"] == "uninitialized"
+    assert status[inst]["CONFIG"] == "--"
     assert status[inst]["BOX"] == "running"
 
 

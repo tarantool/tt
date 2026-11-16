@@ -270,6 +270,19 @@ func processConfigInfo(instStatus *instanceStatus, instanceState rawInstanceStat
 	}
 }
 
+// configStatus is the CONFIG of the Tarantool instance inst whose config
+// module tells status. An instance that runs its script configures itself
+// with box.cfg and never uses the config module, which says "uninitialized"
+// then: that is no state of the instance, and it shows "--", what an external
+// process shows, as for a value that does not apply.
+func configStatus(inst *running.InstanceCtx, status string) string {
+	if running.IsScript(inst) && (status == "" || status == "uninitialized") {
+		return defaultModuleStatus
+	}
+
+	return status
+}
+
 // collectInstanceState connects to an instance and collects its state.
 func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	instStatus *instanceStatus, instanceTimeout time.Duration,
@@ -407,7 +420,7 @@ func processStatusForInstance(instance running.InstanceCtx,
 	processConfigInfo(&instStatus, instanceState)
 
 	instStatus.Mode = instanceState.ReadOnly
-	instStatus.Config = instanceState.ConfigInfo.Status
+	instStatus.Config = configStatus(&instance, instanceState.ConfigInfo.Status)
 	instStatus.Box = instanceState.BoxStatus
 	instStatus.rawReplicationInfo = instanceState.ReplicationInfo
 

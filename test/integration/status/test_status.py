@@ -368,7 +368,8 @@ def test_status_script_instance(tt_cmd, tmp_path):
         assert status_info[inst]["status"] == "RUNNING"
         assert isinstance(status_info[inst]["pid"], int)
         assert status_info[inst]["mode"] == "RW"
-        assert status_info[inst]["config"] == "uninitialized"
+        # The script never uses the config module: CONFIG does not apply.
+        assert status_info[inst]["config"] == "--"
         assert status_info[inst]["box"] == "running"
         assert status_info[inst]["alerts"] is None
 

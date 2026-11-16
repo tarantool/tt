@@ -26,8 +26,8 @@ box.schema.space.create('kv', {if_not_exists = true})
 ```console
 $ tt instance start
 $ tt instance status
- INSTANCE           STATUS   PID      MODE  CONFIG         BOX      UPSTREAM
- legacy:legacy-001  RUNNING  1330686  RW    uninitialized  running  --
+ INSTANCE           STATUS   PID      MODE  CONFIG  BOX      UPSTREAM
+ legacy:legacy-001  RUNNING  1330686  RW    --      running  --
 $ echo "return box.cfg.memtx_memory" | tt connect legacy:legacy-001 -f-
 ---
 - 268435456
@@ -58,7 +58,8 @@ script take the paths from the environment.
 ## What works on it
 
 - `tt connect`, `tt data play`, `tt instance status` and `tt instance logrotate`
-  work as with any Tarantool instance.
+  work as with any Tarantool instance. The CONFIG column of the status is
+  `--`: the script does not use the cluster config.
 - `tt instance check` checks the syntax of the script.
 - `tt instance clean` removes its data and log.
 - `tt cluster show` and `tt cluster publish` refuse it: no cluster config
