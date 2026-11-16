@@ -61,6 +61,7 @@ nav = [
     "how-to/sign-packages.md",
     "how-to/external-modules.md",
     "how-to/rocks.md",
+    "how-to/c-libraries.md",
     "how-to/rust-modules.md",
     "how-to/zig-modules.md",
     "how-to/write-a-module.md",

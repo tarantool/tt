@@ -205,7 +205,7 @@ A `build.Backend` is a value. Its fields tell the core what the backend is:
 | Field | |
 | --- | --- |
 | `Name` | the value of `backend` that selects it: a lowercase letter, then lowercase letters, digits and dashes; no two backends of a tt share one |
-| `Produces` | the types of what its builds make, each once: `build.Module`, `build.Data`, `build.Program` (see [Results](#results)) |
+| `Produces` | the types of what its builds make, each once: `build.Module`, `build.Data`, `build.Program`, `build.Link` (see [Results](#results)) |
 | `Config` | returns a fresh, empty configuration: a pointer to a struct of the fields of the block |
 | `New` | checks a block and returns the build; `build.Typed(newBuild)` makes it of a function that takes the configuration as its own type, `*Config` |
 | `Incremental` | allows `incremental = true` in the block |
@@ -312,8 +312,10 @@ The directories, all absolute, for a component of the package:
 | `State` | `_build/`, the state of the build of the project |
 | `Tools` | `.tarantool/bin/` of the project |
 | `Tree` | `.rocks/`, the rocks tree the dependencies are installed into |
+| `Link` | where libraries for the components built after this one to link go: `_build/link/<product>/<name>/`, emptied before each build of the component, never installed nor packed; `Dirs.LinkOf(name)` is that of another component |
 
-The core creates `Work`, `Modules`, `Share` and `Programs` before `Run`.
+The core creates `Work`, `Modules`, `Share`, `Programs` and `Link` before
+`Run`.
 
 The Context says which Tarantool the build is for, not how to compile for
 it: a backend that compiles C takes the headers from `Tarantool.IncludeDir`
@@ -360,16 +362,20 @@ What a build makes has a type. The type says where it goes:
 | `build.Module`, a compiled module Tarantool loads | `Dirs.Modules` | `.rocks/lib/tarantool/<namespace>/` |
 | `build.Data`, a file beside the Lua sources, such as `.wasm` or a generated Lua file | `Dirs.Share` | `.rocks/share/tarantool/<namespace>/` |
 | `build.Program`, a program the instances run | `Dirs.Programs` | `.rocks/bin/`, where `tt instance` finds it |
+| `build.Link`, a library, or a header of one, for the `c` and `lua-c` components built after it to link (`link` of their block) | `Dirs.Link`, a header into `include/` of it (`Dirs.OutputPath`) | nowhere |
 
-The three types are the places of a rock, `lib`, `share` and `bin`, which
-the core lays out, records and cleans, and which `to` of `output` names.
-The set is the core's: a backend says which of the types it makes and adds
-none of its own, and `Validate` refuses a backend that names another. What
-is no module and no program, a `.wasm` say, is a data file. A type a later
-version of the SDK adds comes with a directory of `Dirs` and an entry of
-`build.Results()`; the values of the types, `module`, `data` and `program`,
-never change, so a backend that handles the types it produces is not
-broken by a new one.
+The first three types are the places of a rock, `lib`, `share` and `bin`,
+which the core lays out, records and cleans, and which `to` of `output`
+names; `build.Link` is the place of a build that is not in the rock,
+`to = "link"`, whose files the core does not record as made. The set is
+the core's: a backend says which of the types it makes and adds none of its
+own, and `Validate` refuses a backend that names another. What is no module
+and no program, a `.wasm` say, is a data file. A type a later version of
+the SDK adds comes with a directory of `Dirs` and an entry of
+`build.Results()`, as `build.Link` came, last; the values of the types,
+`module`, `data`, `program` and `link`, never change, so a backend that
+handles the types it produces is not broken by a new one, and one whose
+`Produces` is `build.Results()` makes the new one at once.
 
 One build may make all three. The core takes as made what `Run` left in
 these three directories, each by its type, and removes from them what no
@@ -407,7 +413,8 @@ directory. A build of one component knows by the record what the others
 made, and `tt instance` tells by it which component makes a program.
 
 A backend whose tool writes elsewhere copies what it built into these
-directories with `build.CopyFile`. It writes the copy with no fork of tt in
+directories with `build.CopyFile`, each file where `Dirs.OutputPath(to,
+name)` says. It writes the copy with no fork of tt in
 between, so that a program it copies can be started at once: Linux refuses
 to run a file that is open for writing, and a process tt forks while it
 writes holds the file open until it runs its own program.
@@ -423,7 +430,8 @@ An error of `Run` fails the build with exit code 2:
 `output` of a build block lists files the build makes, for a backend whose
 tool writes them where it likes rather than into the directories of the
 Context. An entry is a path, or a table with `path` and `to`: `to = "lib"`
-is a module, `to = "share"` a data file, `to = "bin"` a program. One entry
+is a module, `to = "share"` a data file, `to = "bin"` a program,
+`to = "link"` a library for another component to link. One entry
 may be written alone, `output = "dist/banner.txt"` for
 `output = ["dist/banner.txt"]`. An entry with no `to` is of the one type of
 a backend whose `Produces` has one type only - a data file of a backend of
@@ -436,8 +444,9 @@ its type, `To`. `OutputFrom` says whether the backend has the field:
   block with `output` is refused:
   `components.config.build.output: is a field of backend make, shell or cmake, not of "template"`.
 - `build.OutputCwd`: the core copies each file `output` lists, relative to
-  `Cwd`, into the directory of its type under its base name, after `Run`
-  succeeds. `make` and `shell` work so (`modules/build/basic`).
+  `Cwd`, into the directory of its type under its base name
+  (`Dirs.OutputPath`), after `Run` succeeds. `make` and `shell` work so
+  (`modules/build/basic`).
 - `build.OutputBackend`: the backend reads `Common.Output` and copies the
   files itself, from where it built them. `cmake` copies them from its
   build tree (`modules/build/cmake`).
@@ -598,8 +607,8 @@ of the manifest reference has where every `to` is installed.
 
 A build may implement more interfaces. The core asks for each with a type
 assertion, so a method of another signature would never be called: the
-core refuses a build whose `Preflight`, `Produces`, `Programs`, `Inputs` or
-`Clean` is not the method of the interface, or is a method of a pointer while
+core refuses a build whose `Preflight`, `Produces`, `Programs`, `Links`,
+`Inputs` or `Clean` is not the method of the interface, or is a method of a pointer while
 `New` returns a value, when it checks the manifest, with exit code 1:
 
 ```text
@@ -642,6 +651,11 @@ too. The other interfaces:
   components make one program, and `tt instance` finds by it the component
   that makes a program. When the list is not exhaustive, the core adds what
   the build wrote into `Programs`.
+- `build.Linker`: `Links()` names the components of the package whose
+  libraries the build links, from `Dirs.LinkOf` of each. The core checks,
+  with the manifest, that each is a component every product of this one
+  builds before it, and refuses the manifest otherwise, naming both.
+  `c` and `lua-c` are linkers by their `link`.
 - `build.InputHasher`: see the next section.
 - `build.Cleaner`: see [Clean](#clean).
 
@@ -1102,8 +1116,8 @@ starts. It refuses those that are not well formed, naming the module:
 - a `Name` that is not a lowercase letter, then lowercase letters, digits
   and dashes, and a name another module provides too: the modules are added
   in the order of their names, and the later one is refused;
-- `Produces` that is empty, or names a type that is not `module`, `data` or
-  `program`, or one twice;
+- `Produces` that is empty, or names a type that is not `module`, `data`,
+  `program` or `link`, or one twice;
 - an `OutputFrom` that is none of the three, and an empty pattern in
   `Exclude`;
 - no `New`; no `Config`, or a `Config` that does not return a pointer to a
@@ -1148,7 +1162,7 @@ The backends of the standard module `build` show the rest of the contract:
 | Package | Backends | Shows |
 | --- | --- | --- |
 | `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output` |
-| `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh` |
+| `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes |
 | `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
 | `modules/build/gobuild` | `go` | `NoSourceLayout`, `static` |

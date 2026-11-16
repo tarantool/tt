@@ -34,7 +34,12 @@ and its tests run it through `sdk/build/buildtest`.
   checks a module once it is linked: the entry point of a lua-c module
   (`entry.go`), the symbols it exports that the tarantool of the build
   exports too (`exports.go`), and that the module loads into that
-  tarantool (`load.go`).
+  tarantool (`load.go`). The libraries of the link are its own too: the flags pkg-config gives (`pkgconfig.go`), the static
+  library of each under `static = true` and the hint of one not built with
+  `-fPIC` (`libs.go`), the libraries other components of the package made
+  for linking, `Dirs.LinkOf` of the contract (`link.go`), and the shared
+  libraries it copies beside the module, which the module finds by
+  `$ORIGIN` (`bundle.go`).
 - `cargo` - Rust crates: a module, a program or both.
 - `cmake` - CMake projects, built out of the source.
 - `gobuild` - Go programs.
