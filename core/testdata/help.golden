@@ -3763,7 +3763,8 @@ USAGE
   tt instance logs [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 
 FLAGS
-      --follow            Output appended data as the log file grows
+      --follow            Output appended data as the log file grows, until
+                          Ctrl-C
   -h, --help              help for logs
   -n, --lines int         Count of last lines to output (default 10)
       --scope string      scope the application is looked for in: project, user

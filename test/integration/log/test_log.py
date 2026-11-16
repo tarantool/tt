@@ -318,9 +318,13 @@ def test_log_output_default_follow_want_zero_last(tt_cmd, mock_env_dir):
         )
 
         reader.send_signal(signal.SIGINT)
-        reader.pWait(timeout=10)
+        # Ctrl-C is how one leaves --follow: no error, exit code 0.
+        assert reader.pWait(timeout=10) == 0
         reader.pStop()
         output += "".join(reader.stdout)
+        stderr = "".join(reader.stderr)
+        assert "context canceled" not in stderr
+        assert "⨯" not in stderr
 
     for i in range(20, 23):
         assert f"app0:inst0: line {i}" in output

@@ -50,19 +50,23 @@ func NewLogsCmd() *cobra.Command {
 		"Count of last lines to output")
 	// No -f: it is --force.
 	logsCmd.Flags().BoolVar(&logOpts.follow, "follow", false,
-		"Output appended data as the log file grows")
+		"Output appended data as the log file grows, until Ctrl-C")
 
 	return logsCmd
 }
 
-func printLines(ctx context.Context, in <-chan string) error {
+// printLines prints the lines of in until it is closed or ctx is done. ctx is
+// done on SIGINT, which is how one leaves --follow: like tail -f, and like
+// tt instance start --foreground stopped by a Ctrl-C, that is no error, and
+// tt exits with 0 and says nothing.
+func printLines(ctx context.Context, in <-chan string) {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err() //nolint:wrapcheck // The interrupt is reported as is.
+			return
 		case line, ok := <-in:
 			if !ok {
-				return nil
+				return
 			}
 
 			_, _ = fmt.Fprintln(os.Stdout, line)
@@ -155,7 +159,7 @@ func follow(instances []running.InstanceCtx, lineCount int) error {
 			close(logLines)
 		}()
 
-		return printLines(ctx, logLines)
+		printLines(ctx, logLines)
 	}
 
 	return nil
@@ -181,9 +185,11 @@ func printLastN(instances []running.InstanceCtx, lineCount int) error {
 			return fmt.Errorf("cannot read log file %q: %w", inst.Log, err)
 		}
 
-		err = printLines(ctx, logLines)
-		if err != nil {
-			return err
+		printLines(ctx, logLines)
+
+		if ctx.Err() != nil {
+			// Interrupted: the logs of the other instances are not wanted either.
+			return nil
 		}
 
 		color = nextColor()

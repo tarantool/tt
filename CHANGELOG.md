@@ -1017,6 +1017,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- Ctrl-C on `tt instance logs --follow` ends it quietly with exit code 0, as
+  it ends `tail -f` and `tt instance start --foreground`. It printed
+  `context canceled` as an error and exited with 1.
 - A rock server that cannot be reached or read is one line: what was being
   done, the server, where it is configured and why, `resolving "checks":
   cannot reach rock server http://no-such-host.invalid/ (from
