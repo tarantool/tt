@@ -73,8 +73,10 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx) (string, error) {
 	return prefix.Dir, nil
 }
 
-// warnedPrefixes are the warnings of a prefix WarnHeaders already showed: a
-// command that compiles more than once shows each once.
+// warnedPrefixes are the lines on a prefix already shown: the warnings
+// WarnHeaders showed and the debug line of ResolveTarantoolPrefix on the
+// prefix it found. A command that compiles or resolves the prefix more than
+// once, tt emmylua prepare installing the rocks say, shows each once.
 var warnedPrefixes sync.Map
 
 // WarnHeaders shows the warnings of prefix - its headers are of another
@@ -93,7 +95,8 @@ func WarnHeaders(prefix tarantool.Prefix) {
 // by the one rule of tarantool.ResolvePrefix: the prefix of the project
 // scope, TT_CLI_TARANTOOL_PREFIX, the directories of the executable, then its
 // CMAKE_INSTALL_PREFIX. Its warnings - headers of another version - are not
-// shown: WarnHeaders shows them for a command that compiles.
+// shown: WarnHeaders shows them for a command that compiles. The prefix it
+// found is said with -V, once per command.
 func ResolveTarantoolPrefix(cli *cmdcontext.CliCtx) (tarantool.Prefix, error) {
 	prefix, err := tarantool.ResolvePrefix(tarantool.PrefixQuery{
 		Project:    cli.TarantoolPrefix,
@@ -105,8 +108,11 @@ func ResolveTarantoolPrefix(cli *cmdcontext.CliCtx) (tarantool.Prefix, error) {
 		return tarantool.Prefix{}, err
 	}
 
-	log.Debugf("Tarantool prefix path: %q (headers: %q, looked in %q)",
+	found := fmt.Sprintf("Tarantool prefix path: %q (headers: %q, looked in %q)",
 		prefix.Dir, prefix.IncludeDir, prefix.Tried)
+	if _, shown := warnedPrefixes.LoadOrStore(found, true); !shown {
+		log.Debug(found)
+	}
 
 	return prefix, nil
 }

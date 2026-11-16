@@ -1702,6 +1702,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of the declaration, `EmmyLua 0.30.0pre1-1 from <server>`. It named the
   release and the server it was asked for, the default ones without flags,
   as if it had declared them.
+- `tt -V` says `tcm executable is not found` when there is no tcm, where it
+  printed `tcm executable found: ""`, and prints the line on the prefix of
+  Tarantool once per command: a command that resolves the prefix more than
+  once, `tt emmylua prepare` installing the rocks say, printed it each
+  time.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

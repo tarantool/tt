@@ -3,6 +3,7 @@ package rocks
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/tarantool"
 )
@@ -204,10 +206,30 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	cli := cmdcontext.CliCtx{TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath}}
 
+	logger, recorder := logtest.New(t)
+	previous := slog.Default()
+
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
 	prefix, err := ResolveTarantoolPrefix(&cli)
 	require.NoError(t, err)
 	assert.Equal(testDir, prefix.Dir)
 	assert.Empty(prefix.Warnings)
+
+	// Resolved again in the same command, the prefix is said once, with -V.
+	_, err = ResolveTarantoolPrefix(&cli)
+	require.NoError(t, err)
+
+	said := 0
+
+	for _, record := range recorder.Records() {
+		if strings.HasPrefix(record.Message, "Tarantool prefix path: ") {
+			said++
+		}
+	}
+
+	assert.Equal(1, said)
 
 	failed := errors.New("failed to run luarocks")
 	require.Equal(t, failed, explainMissingHeaders(failed, prefix, []string{"make"}))

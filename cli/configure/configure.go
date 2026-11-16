@@ -153,7 +153,11 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	detectTarantool(&cmdCtx.Cli)
 
 	cmdCtx.Cli.TcmCli.Executable = detectTcm(cmdCtx.Cli.ProjectDir)
-	log.Debugf("tcm executable found: %q", cmdCtx.Cli.TcmCli.Executable)
+	if cmdCtx.Cli.TcmCli.Executable == "" {
+		log.Debugf("tcm executable is not found")
+	} else {
+		log.Debugf("tcm executable found: %q", cmdCtx.Cli.TcmCli.Executable)
+	}
 
 	return nil
 }
