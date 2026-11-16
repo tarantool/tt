@@ -9,8 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -501,15 +503,57 @@ func (r *runner) layout(ctx context.Context, found workspace) (analyzer.Layout, 
 	default:
 		stubs = analyzer.FindStubs(tarantool.Path())
 		if stubs == "" {
-			logger.Warn(tarantoolName(tarantool) + " has no EmmyLua stubs: " + withoutTypes)
-			logger.Debug("no " + analyzer.StubsDir + " next to " + tarantool.Path() +
-				" or the file it links to: Tarantool 3.9 and newer install the stubs there")
+			r.warnNoStubs(tarantool)
 		}
 	}
 
 	return analyzer.Layout{
 		ProjectDir: found.dir, Stubs: stubs, Extra: extra, Path: path, Own: own,
 	}, nil
+}
+
+// warnNoStubs warns that tarantool has no EmmyLua stubs, once for each
+// Tarantool executable: every command of EmmyLua would say it, an editor
+// running tt emmylua ls too, and nothing changes from one run to the next
+// until another Tarantool is installed. A marker in the cache of the module
+// (analyzer.First) remembers the executable by its path, with links
+// resolved, its version, its size and its time of change, so an upgrade in
+// place warns anew. Later runs say it at the debug level, -V, with the path
+// the stubs were looked for at.
+func (r *runner) warnNoStubs(tarantool sdk.Tarantool) {
+	logger := r.services.Log()
+	name := tarantoolName(tarantool)
+	message := name + " has no EmmyLua stubs: " + withoutTypes
+
+	if analyzer.First(analyzer.DefaultCacheDir(), executableKey("no-stubs", name,
+		tarantool.Path())...) {
+		logger.Warn(message + "; said once for this Tarantool, -V says it on every run")
+	} else {
+		logger.Debug(message)
+	}
+
+	logger.Debug("no " + analyzer.StubsDir + " next to " + tarantool.Path() +
+		" or the file it links to: Tarantool 3.9 and newer install the stubs there")
+}
+
+// executableKey is the key of analyzer.First for what is said of the
+// executable at path, named name: the path with its links resolved, and
+// its size and time of change when it can be read.
+func executableKey(what, name, path string) []string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		resolved = path
+	}
+
+	key := []string{what, name, resolved}
+
+	info, err := os.Stat(resolved)
+	if err == nil {
+		key = append(key, strconv.FormatInt(info.Size(), 10),
+			info.ModTime().UTC().Format(time.RFC3339Nano))
+	}
+
+	return key
 }
 
 // tarantoolName names tarantool by its version, Tarantool 3.8.1, or by its

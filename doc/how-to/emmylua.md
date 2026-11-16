@@ -801,8 +801,20 @@ warn on stderr, and `checks` and `metrics` are unresolved as well:
    ⚠ no Tarantool found: checking without the types of the Tarantool API module=emmylua
 ```
 
-or, for a Tarantool without stubs, `Tarantool 3.8.1 has no EmmyLua stubs:
-checking without the types of the Tarantool API`.
+or, for a Tarantool without stubs:
+
+```text
+   ⚠ Tarantool 3.8.1 has no EmmyLua stubs: checking without the types of the Tarantool API; said once for this Tarantool, -V says it on every run module=emmylua
+```
+
+The warning on a Tarantool without stubs is printed once for each Tarantool
+executable, the first time a command runs with it: a marker in
+`<user cache>/tt/emmylua/once/` remembers it, by the path of the executable
+with its links resolved, its version, its size and its time of change, so
+another Tarantool, or an upgrade in place, is warned of anew. After that the
+line goes to the debug level: `tt -V emmylua check` prints it on every run,
+with the path the stubs were looked for at. The warning on no Tarantool at
+all is printed on every run.
 
 A Tarantool older than 3.9 has no stubs. One `tt binary install` installed
 keeps them in `share/tarantool/emmylua/` of its installation, beside the

@@ -1668,6 +1668,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of EmmyLua, fails saying that the release has no builds to download for
   any platform, and how to pack it from a local build. The error began with
   `unsupported platform`, as if the host were to blame.
+- `tt emmylua check`, `doc`, `ls` and `config` warn of a Tarantool without
+  EmmyLua stubs once for each Tarantool executable, where they
+  warned on every run: a marker in `<user cache>/tt/emmylua/once/`
+  remembers the executable by its real path, version, size and time of
+  change, so another Tarantool, or an upgrade in place, is warned of anew.
+  Later runs print the line with `-V` only.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

@@ -401,9 +401,13 @@ func TestFmtInit(t *testing.T) {
 
 // TestConfig checks that tt emmylua config writes the configuration, valid
 // JSON with the stubs of the Tarantool of the project among its libraries,
-// prints its path, and warns of a Tarantool without stubs and of none.
+// prints its path, and warns of a Tarantool without stubs, once for each, and
+// of none. It changes the environment for a user cache of its own, where the
+// warning is remembered, so it is not parallel.
+//
+//nolint:paralleltest // Sets the environment.
 func TestConfig(t *testing.T) {
-	t.Parallel()
+	userCache(t)
 
 	root := t.TempDir()
 	stubs := filepath.Join(root, "share", "tarantool", "emmylua")
@@ -436,16 +440,38 @@ func TestConfig(t *testing.T) {
 	assert.Equal(t, []string{stubs}, config.Workspace.Library)
 
 	old := filepath.Join(t.TempDir(), "bin", "tarantool")
+	writeFile(t, old, "#!/bin/sh\n")
 
-	got = sdktest.New(t, sdktest.WithProject(project),
-		sdktest.WithTarantool(old, sdk.TarantoolVersion{Major: 3})).Run(
-		emmylua.New, "emmylua", "config")
-	require.NoError(t, got.Err)
-	assert.Equal(t, []string{"Tarantool 3.0.0 has no EmmyLua stubs: " +
-		"checking without the types of the Tarantool API"}, warnings(got.Records))
-	assert.Contains(t, debugs(got.Records), "no share/tarantool/emmylua next to "+old+
-		" or the file it links to: Tarantool 3.9 and newer install the stubs there",
-		"the path is told with -V")
+	noStubs := "Tarantool 3.0.0 has no EmmyLua stubs: checking without the types of " +
+		"the Tarantool API"
+	lookedAt := "no share/tarantool/emmylua next to " + old + " or the file it links " +
+		"to: Tarantool 3.9 and newer install the stubs there"
+	runOld := func(version sdk.TarantoolVersion) sdktest.Result {
+		t.Helper()
+
+		got := sdktest.New(t, sdktest.WithProject(project),
+			sdktest.WithTarantool(old, version)).Run(emmylua.New, "emmylua", "config")
+		require.NoError(t, got.Err)
+
+		return got
+	}
+
+	got = runOld(sdk.TarantoolVersion{Major: 3})
+	assert.Equal(t, []string{noStubs + "; said once for this Tarantool, -V says it on " +
+		"every run"}, warnings(got.Records))
+	assert.Contains(t, debugs(got.Records), lookedAt, "the path is told with -V")
+
+	// Said once: the next run says it with -V alone.
+	got = runOld(sdk.TarantoolVersion{Major: 3})
+	assert.Empty(t, warnings(got.Records))
+	assert.Contains(t, debugs(got.Records), noStubs)
+	assert.Contains(t, debugs(got.Records), lookedAt)
+
+	// Another Tarantool at the same path, an upgrade in place, is warned of
+	// anew.
+	got = runOld(sdk.TarantoolVersion{Major: 3, Minor: 1})
+	assert.Len(t, warnings(got.Records), 1)
+	assert.Contains(t, warnings(got.Records)[0], "Tarantool 3.1.0 has no EmmyLua stubs")
 
 	got = sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New, "emmylua", "config")
 	require.NoError(t, got.Err)
