@@ -3,13 +3,16 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/tarantool/tt/sdk/bundle"
+	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/printing"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/install"
@@ -57,7 +60,7 @@ func NewBinaryCmd() *cobra.Command {
 		installCtx   install.InstallCtx
 		uninstallCtx uninstall.UninstallCtx
 		searchCtx    = search.NewSearchCtx()
-		listCtx      list.ListCtx
+		listCtx      listOptions
 		switchCtx    switcher.SwitchCtx
 	)
 
@@ -858,27 +861,58 @@ func internalSearchModule(base binary.BinaryContext, searchCtx search.SearchCtx,
 
 // newBinaryListCmd creates a command to list installed binaries.
 func newBinaryListCmd(base *binary.BinaryContext,
-	listCtx *list.ListCtx,
+	listCtx *listOptions,
 ) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   listCmdName,
 		Short: "List installed binaries and versions",
 		Long: `List installed versions and active binaries in the selected scope.
-The project scope uses only .tarantool in the current directory.`,
+The project scope uses only .tarantool in the current directory.
+
+Each line names the product and the version; the active version is marked
+[active]. A local build linked with --from-build is listed by its path.
+Use -o json or -o yaml for the same data in a machine format.`,
 		Args: cobra.NoArgs,
 		RunE: binaryRunE(base, listCtx, internalListModule),
 	}
 
+	listCtx.format = bindFormatFlag(listCmd)
+
 	return listCmd
 }
 
-// internalListModule is a list module.
-func internalListModule(base binary.BinaryContext, listCtx list.ListCtx,
+// internalListModule is a list module. The list goes to stdout, coloured
+// only on a terminal that takes colour.
+func internalListModule(base binary.BinaryContext, listCtx listOptions,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
 	listCtx.BinaryContext = base
+	listCtx.Color = colorsHelp(isTerminal(os.Stdout), os.LookupEnv)
 
-	return list.ListBinaries(listCtx)
+	listing, err := list.List(listCtx.ListCtx)
+	if err != nil {
+		return err
+	}
+
+	format := output.FormatHuman
+	if listCtx.format != nil {
+		format = listCtx.format.Format()
+	}
+
+	printer, err := printing.NewPrinter(format)
+	if err != nil {
+		return err
+	}
+
+	return printer.Emit(listing)
+}
+
+// listOptions are the options of tt binary list: those of the list and
+// the output format.
+type listOptions struct {
+	list.ListCtx
+
+	format *output.FormatFlag
 }
 
 // newBinarySwitchCmd creates a command to switch installed binaries.

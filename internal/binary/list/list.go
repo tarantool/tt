@@ -3,15 +3,16 @@ package list
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/fatih/color"
-	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -27,15 +28,10 @@ var (
 // ListCtx contains the options for listing installed binaries.
 type ListCtx struct {
 	binary.BinaryContext
-}
 
-// printInstalledVersion outputs installed versions of the program.
-func printInstalledVersion(versionString string) {
-	if strings.HasSuffix(versionString, "[active]") {
-		_, _ = fmt.Fprintf(os.Stdout, "\t%s\n", binary.Bold(color.GreenString(versionString)))
-	} else {
-		_, _ = fmt.Fprintf(os.Stdout, "\t%s\n", color.YellowString(versionString))
-	}
+	// Color styles the active version: the caller sets it when stdout is a
+	// terminal that takes colour.
+	Color bool
 }
 
 // displayVersion parses ordering information without changing installation identity.
@@ -203,16 +199,95 @@ func installedVersions(root string, program binary.Program) ([]version.Version, 
 	return versions, nil
 }
 
-// ListBinaries outputs installed versions from exactly the selected scope.
-func ListBinaries(listCtx ListCtx) error {
+// Installed is one installed version of a product in the scope, or the
+// local build its active tarantool links to.
+type Installed struct {
+	// Product is the product: tt, tt-ee, tarantool, tarantool-ee, tcm or
+	// tarantool-sdk.
+	Product string `json:"product" yaml:"product"`
+	// Version is the installed version as tt binary switch takes it. A local
+	// build has none.
+	Version string `json:"version,omitempty" yaml:"version,omitempty"`
+	// Active tells the version the active links of the scope select.
+	Active bool `json:"active" yaml:"active"`
+	// Path is the executable of a local build linked into the scope.
+	Path string `json:"path,omitempty" yaml:"path,omitempty"`
+	// Missing tells a local build whose executable is gone.
+	Missing bool `json:"missing,omitempty" yaml:"missing,omitempty"`
+}
+
+// Listing is what tt binary list prints: every installed version of every
+// product in one scope.
+type Listing struct {
+	// Scope is the scope listed: project, user or system.
+	Scope string `json:"scope" yaml:"scope"`
+	// Root is the directory of the scope.
+	Root string `json:"root" yaml:"root"`
+	// Binaries are the installed versions, product by product, the newest
+	// first.
+	Binaries []Installed `json:"binaries" yaml:"binaries"`
+
+	// color styles the active version in the human form.
+	color bool
+}
+
+// tabColumnPadding is the gap between the columns of the human form.
+const tabColumnPadding = 2
+
+// Human writes one line per installed version: the product and the
+// version, the active one marked [active]. It is meant for both reading
+// and scripts, so the product is on every line and nothing but the data
+// goes to the writer; -o json gives the same data as JSON.
+func (l *Listing) Human(w io.Writer) error {
+	table := tabwriter.NewWriter(w, 0, 0, tabColumnPadding, ' ', 0)
+	active := color.New(color.FgGreen, color.Bold)
+
+	if l.color {
+		active.EnableColor()
+	} else {
+		active.DisableColor()
+	}
+
+	for _, installed := range l.Binaries {
+		label := installed.Version
+		if installed.Path != "" {
+			label = installed.Path
+		}
+
+		switch {
+		case installed.Active && installed.Missing:
+			label = active.Sprint(label + " [active, missing]")
+		case installed.Active:
+			label = active.Sprint(label + " [active]")
+		case installed.Missing:
+			label += " [missing]"
+		}
+
+		_, err := fmt.Fprintf(table, "%s\t%s\n", installed.Product, label)
+		if err != nil {
+			return fmt.Errorf("rendering the list: %w", err)
+		}
+	}
+
+	err := table.Flush()
+	if err != nil {
+		return fmt.Errorf("rendering the list: %w", err)
+	}
+
+	return nil
+}
+
+// List reads the installed versions from exactly the selected scope. A
+// scope with none is ErrNoBinariesInstalled.
+func List(listCtx ListCtx) (*Listing, error) {
 	root, err := listCtx.Scope.ArtifactPath()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	buildPath, err := binary.TarantoolBuildPath(filepath.Join(root, binary.BinDirName))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	programs := [...]binary.Program{
@@ -223,40 +298,46 @@ func ListBinaries(listCtx ListCtx) error {
 		binary.ProgramTcm,
 		binary.ProgramSDK,
 	}
-	versions := make(map[binary.Program][]version.Version, len(programs))
-	hasBinaries := buildPath != ""
+
+	listing := &Listing{
+		Scope:    listCtx.Scope.String(),
+		Root:     root,
+		Binaries: []Installed{},
+		color:    listCtx.Color,
+	}
 
 	for _, program := range programs {
-		versions[program], err = installedVersions(root, program)
+		versions, err := installedVersions(root, program)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		hasBinaries = hasBinaries || len(versions[program]) > 0
-	}
+		for _, installed := range versions {
+			name, active := strings.CutSuffix(installed.Str, " [active]")
 
-	if !hasBinaries {
-		return ErrNoBinariesInstalled
-	}
-
-	_, _ = fmt.Fprintln(os.Stdout, "List of installed binaries:")
-
-	for _, program := range programs {
-		isLocalBuild := program == binary.ProgramCe && buildPath != ""
-		if len(versions[program]) == 0 && !isLocalBuild {
-			continue
+			listing.Binaries = append(listing.Binaries, Installed{
+				Product: program.String(),
+				Version: strings.TrimPrefix(name, "v"),
+				Active:  active,
+				Path:    "",
+				Missing: false,
+			})
 		}
 
-		log.Infof(program.String() + ":")
-
-		for _, binVersion := range versions[program] {
-			printInstalledVersion(strings.TrimPrefix(binVersion.Str, "v"))
-		}
-
-		if isLocalBuild {
-			printInstalledVersion(program.String() + " -> " + buildPath + " [active]")
+		if program == binary.ProgramCe && buildPath != "" {
+			listing.Binaries = append(listing.Binaries, Installed{
+				Product: program.String(),
+				Version: "",
+				Active:  true,
+				Path:    buildPath,
+				Missing: !binary.IsRegularFile(buildPath),
+			})
 		}
 	}
 
-	return nil
+	if len(listing.Binaries) == 0 {
+		return nil, ErrNoBinariesInstalled
+	}
+
+	return listing, nil
 }

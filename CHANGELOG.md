@@ -1593,6 +1593,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   find the instances the same way. `start`, `restart` and `check`, which
   need the config, fail with an error that names the storage, such as `the
   config storage etcd http://127.0.0.1:2379, prefix "/app" cannot be read`.
+- `tt binary list` writes the list, and only the list, to stdout: one line
+  per installed version, the product first, `tarantool  3.9.0 [active]`,
+  so a script can read it. The product used to be a log line on stderr,
+  printed before the header of stdout, and the active version was wrapped
+  in colour codes in a pipe and with `NO_COLOR` set; the colour now comes
+  only on a terminal and not with `NO_COLOR`. A local build is listed by
+  its path, and one whose executable is gone is marked `missing`. `-o json`
+  and `-o yaml` print the same data.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

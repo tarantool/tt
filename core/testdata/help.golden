@@ -1343,11 +1343,16 @@ EXAMPLES
 List installed versions and active binaries in the selected scope.
 The project scope uses only .tarantool in the current directory.
 
+Each line names the product and the version; the active version is marked
+[active]. A local build linked with --from-build is listed by its path.
+Use -o json or -o yaml for the same data in a machine format.
+
 USAGE
   tt binary list [flags]
 
 FLAGS
-  -h, --help   help for list
+  -o, --format string   output format: table, json or yaml (default "table")
+  -h, --help            help for list
 
 GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")

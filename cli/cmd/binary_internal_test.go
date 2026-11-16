@@ -717,7 +717,7 @@ func TestBinaryScopedAdaptersDoNotFindParent(t *testing.T) {
 
 	base := binary.BinaryContext{Scope: binary.ScopeProject}
 	ctx := &cmdcontext.CmdCtx{}
-	err := internalListModule(base, list.ListCtx{}, ctx, nil)
+	err := internalListModule(base, listOptions{}, ctx, nil)
 	require.ErrorIs(t, err, list.ErrNoBinariesInstalled)
 	require.ErrorContains(t, internalSwitchModule(base, switcher.SwitchCtx{}, ctx,
 		[]string{"tt", "3.0.0"}), "is not installed")
@@ -756,7 +756,7 @@ func TestBinaryScopedAdaptersFindProject(t *testing.T) {
 	expected, err := filepath.EvalSymlinks(installed)
 	require.NoError(t, err)
 	assert.Equal(t, expected, active)
-	require.NoError(t, internalListModule(base, list.ListCtx{}, ctx, nil))
+	require.NoError(t, internalListModule(base, listOptions{}, ctx, nil))
 
 	ctx.CommandName = "tt"
 	require.NoError(t, internalUninstallModule(base, uninstall.UninstallCtx{}, ctx,

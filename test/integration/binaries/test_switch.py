@@ -189,7 +189,8 @@ def test_legacy_enterprise_names(tt_cmd, tmp_path):
 
     rc, output = binary("list")
     assert rc == 0, output
-    assert {"\tgc64-2.11.1", "\tnogc64-2.11.1"} <= set(output.splitlines())
+    listed = {" ".join(line.split()) for line in output.splitlines()}
+    assert {"tarantool-ee gc64-2.11.1", "tarantool-ee nogc64-2.11.1"} <= listed
 
     rc, output = binary("switch", "tarantool-ee", "2.11.1")
     assert rc != 0, output

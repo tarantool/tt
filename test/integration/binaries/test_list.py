@@ -1,8 +1,12 @@
+import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from utils import config_name, run_command_and_get_output
 
@@ -14,9 +18,9 @@ def cleanup_ansi(text):
 
 
 def compare_output(actual: str, expected: str) -> bool:
-    """Compare output without indentation or ANSI escape codes."""
-    got_lines = [cleanup_ansi(line.strip()) for line in actual.splitlines()]
-    expected_lines = [line.strip() for line in expected.splitlines()]
+    """Compare output without column padding or ANSI escape codes."""
+    got_lines = [" ".join(cleanup_ansi(line).split()) for line in actual.splitlines()]
+    expected_lines = [" ".join(line.split()) for line in expected.splitlines()]
     return got_lines == expected_lines
 
 
@@ -53,18 +57,55 @@ def list_binaries(tt_cmd, project, scope="project"):
 def test_list(tt_cmd, tmp_path):
     list_fixture(tmp_path)
     rc, output = list_binaries(tt_cmd, tmp_path)
-    expected_output = """List of installed binaries:
-   • tt:
-    0.1.0
-   • tarantool:
-    2.10.3
-    2.8.1 [active]
-   • tcm:
-    1.3.1-0-g074b5ffa [active]
-    1.2.0-11-g2d0a0f495
+    expected_output = """tt 0.1.0
+tarantool 2.10.3
+tarantool 2.8.1 [active]
+tcm 1.3.1-0-g074b5ffa [active]
+tcm 1.2.0-11-g2d0a0f495
 """
     assert rc == 0
     assert compare_output(output, expected_output)
+
+
+@pytest.mark.parametrize("no_color", [None, "1"])
+def test_list_stdout_is_data(tt_cmd, tmp_path, no_color):
+    """Off a terminal the list is plain data on stdout and nothing on stderr,
+    with NO_COLOR or without."""
+    list_fixture(tmp_path)
+    env = dict(os.environ)
+    env.pop("NO_COLOR", None)
+    if no_color:
+        env["NO_COLOR"] = no_color
+
+    process = subprocess.run(
+        [tt_cmd, "binary", "list"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert process.returncode == 0, process.stderr
+    assert process.stderr == ""
+    assert "\x1b" not in process.stdout
+    assert re.search(r"^tarantool +2\.8\.1 \[active\]$", process.stdout, re.M)
+    assert re.search(r"^tcm +1\.2\.0-11-g2d0a0f495$", process.stdout, re.M)
+
+
+@pytest.mark.parametrize("fmt", ["json", "yaml"])
+def test_list_machine_formats(tt_cmd, tmp_path, fmt):
+    list_fixture(tmp_path)
+    process = subprocess.run(
+        [tt_cmd, "binary", "list", "-o", fmt],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert process.returncode == 0, process.stderr
+    data = json.loads(process.stdout) if fmt == "json" else yaml.safe_load(process.stdout)
+    assert data["scope"] == "project"
+    assert Path(data["root"]) == tmp_path / ".tarantool"
+    assert {"product": "tarantool", "version": "2.8.1", "active": True} in data["binaries"]
+    assert {"product": "tt", "version": "0.1.0", "active": False} in data["binaries"]
 
 
 def test_list_no_directory(tt_cmd, tmp_path):
@@ -95,12 +136,11 @@ def test_list_tarantool_from_build(tt_cmd, tmp_path, broken, with_versions):
         install_version(root, "tarantool", "1.10.0")
 
     rc, output = list_binaries(tt_cmd, tmp_path)
-    expected_output = """List of installed binaries:
-   • tarantool:
-"""
+    expected_output = ""
     if with_versions:
-        expected_output += "    2.10.7\n    1.10.0\n"
-    expected_output += f"    tarantool -> {build_binary} [active]\n"
+        expected_output += "tarantool 2.10.7\ntarantool 1.10.0\n"
+    marker = "[active, missing]" if broken else "[active]"
+    expected_output += f"tarantool {build_binary} {marker}\n"
     assert rc == 0
     assert compare_output(output, expected_output)
 
@@ -115,16 +155,12 @@ def test_list_tarantool_no_symlink(tt_cmd, tmp_path):
     root = list_fixture(tmp_path)
     replace_prog(root / "bin" / "tarantool", "Tarantool 3.1.0-entrypoint-83-gcb0264c3c")
     rc, output = list_binaries(tt_cmd, tmp_path)
-    expected_output = """List of installed binaries:
-   • tt:
-    0.1.0
-   • tarantool:
-    3.1.0-entrypoint-83-gcb0264c3c [active]
-    2.10.3
-    2.8.1
-   • tcm:
-    1.3.1-0-g074b5ffa [active]
-    1.2.0-11-g2d0a0f495
+    expected_output = """tt 0.1.0
+tarantool 3.1.0-entrypoint-83-gcb0264c3c [active]
+tarantool 2.10.3
+tarantool 2.8.1
+tcm 1.3.1-0-g074b5ffa [active]
+tcm 1.2.0-11-g2d0a0f495
 """
     assert rc == 0
     assert compare_output(output, expected_output)
@@ -132,15 +168,11 @@ def test_list_tarantool_no_symlink(tt_cmd, tmp_path):
     (root / "bin" / "tarantool").unlink()
     (root / "bin" / "tcm").unlink()
     rc, output = list_binaries(tt_cmd, tmp_path)
-    expected_output = """List of installed binaries:
-   • tt:
-    0.1.0
-   • tarantool:
-    2.10.3
-    2.8.1
-   • tcm:
-    1.3.1-0-g074b5ffa
-    1.2.0-11-g2d0a0f495
+    expected_output = """tt 0.1.0
+tarantool 2.10.3
+tarantool 2.8.1
+tcm 1.3.1-0-g074b5ffa
+tcm 1.2.0-11-g2d0a0f495
 """
     assert rc == 0
     assert compare_output(output, expected_output)
@@ -154,11 +186,8 @@ def test_list_enterprise_active_identity(tt_cmd, tmp_path):
     assert rc == 0
     assert compare_output(
         output,
-        """List of installed binaries:
-   • tarantool:
-    3.0.0
-   • tarantool-ee:
-    3.0.0 [active]
+        """tarantool 3.0.0
+tarantool-ee 3.0.0 [active]
 """,
     )
 

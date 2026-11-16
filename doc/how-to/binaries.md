@@ -26,6 +26,19 @@ $ tt binary switch tarantool 3.8.1
 $ tt binary uninstall tarantool 3.9.0
 ```
 
+`tt binary list` prints one line per installed version, the product first,
+the active version marked `[active]`:
+
+```console
+$ tt binary list
+tarantool     3.9.0 [active]
+tarantool     3.8.2
+tarantool-ee  3.8.1
+```
+
+The list is the only thing on stdout, coloured only on a terminal and not
+with `NO_COLOR` set; `-o json` and `-o yaml` give the same data.
+
 The version installed last becomes the active one: `<root>/bin/tarantool`
 points to it, and `<root>/include/tarantool` to its headers. Each version is
 kept in `<root>/versions/<product>/<product>_<version>/`, with the headers in

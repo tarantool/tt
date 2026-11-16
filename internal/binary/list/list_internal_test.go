@@ -3,6 +3,8 @@ package list
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -131,7 +133,7 @@ func TestListBinariesEmptyScope(t *testing.T) {
 				require.NoError(t, os.Mkdir(filepath.Join(project, ".tarantool"), 0o755))
 			}
 
-			err := ListBinaries(ListCtx{Scope: binary.ScopeProject})
+			_, err := List(ListCtx{Scope: binary.ScopeProject})
 			require.ErrorIs(t, err, ErrNoBinariesInstalled)
 
 			if !emptyRoot {
@@ -150,7 +152,7 @@ func TestListBinariesIgnoresParent(t *testing.T) {
 	require.NoError(t, os.Mkdir(child, 0o755))
 	t.Chdir(child)
 
-	err := ListBinaries(ListCtx{Scope: binary.ScopeProject})
+	_, err := List(ListCtx{Scope: binary.ScopeProject})
 	require.ErrorIs(t, err, ErrNoBinariesInstalled)
 }
 
@@ -160,14 +162,79 @@ func TestListBinariesDirectoryError(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(project, ".tarantool"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(project, ".tarantool", "versions"), nil, 0o644))
 
-	err := ListBinaries(ListCtx{Scope: binary.ScopeProject})
+	_, err := List(ListCtx{Scope: binary.ScopeProject})
 	require.ErrorContains(t, err, "error reading directory")
 	assert.NotErrorIs(t, err, ErrNoBinariesInstalled)
 }
 
 func TestListBinariesInvalidScope(t *testing.T) {
-	err := ListBinaries(ListCtx{})
+	_, err := List(ListCtx{})
 	require.ErrorIs(t, err, binary.ErrUnknownScope)
+}
+
+// TestListHuman: every line names the product, the active version is
+// marked, and colour comes only when asked for.
+func TestListHuman(t *testing.T) {
+	project := t.TempDir()
+	t.Chdir(project)
+
+	root := filepath.Join(project, ".tarantool")
+	listExecutable(t, root, binary.ProgramTt, "v3.0.0")
+	listExecutable(t, root, binary.ProgramCe, "3.8.2")
+
+	active := listExecutable(t, root, binary.ProgramCe, "3.10.0")
+
+	listExecutable(t, root, binary.ProgramEe, "3.8.1")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, binary.BinDirName), 0o755))
+	require.NoError(t, os.Symlink(active, filepath.Join(root, binary.BinDirName, "tarantool")))
+
+	for _, colored := range []bool{false, true} {
+		t.Run(map[bool]string{false: "plain", true: "color"}[colored], func(t *testing.T) {
+			listing, err := List(ListCtx{Scope: binary.ScopeProject, Color: colored})
+			require.NoError(t, err)
+
+			var out strings.Builder
+
+			require.NoError(t, listing.Human(&out))
+
+			text := out.String()
+			if colored {
+				assert.Contains(t, text, "\x1b[32;1m3.10.0 [active]\x1b[")
+
+				text = regexp.MustCompile("\x1b\\[[0-9;]*m").ReplaceAllString(text, "")
+			} else {
+				assert.NotContains(t, text, "\x1b")
+			}
+
+			assert.Equal(t, "tt            3.0.0\n"+
+				"tarantool     3.10.0 [active]\n"+
+				"tarantool     3.8.2\n"+
+				"tarantool-ee  3.8.1\n", text)
+		})
+	}
+}
+
+// TestListLocalBuild: a local build is listed by its path, a missing one
+// marked so.
+func TestListLocalBuild(t *testing.T) {
+	project := t.TempDir()
+	t.Chdir(project)
+
+	root := filepath.Join(project, ".tarantool")
+	build := filepath.Join(t.TempDir(), "tarantool")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, binary.BinDirName), 0o755))
+	require.NoError(t, os.Symlink(build, filepath.Join(root, binary.BinDirName, "tarantool")))
+
+	listing, err := List(ListCtx{Scope: binary.ScopeProject})
+	require.NoError(t, err)
+	assert.Equal(t, []Installed{{
+		Product: "tarantool", Version: "", Active: true, Path: build, Missing: true,
+	}}, listing.Binaries)
+
+	var out strings.Builder
+
+	require.NoError(t, listing.Human(&out))
+	assert.Equal(t, "tarantool  "+build+" [active, missing]\n", out.String())
 }
 
 func TestParseBinariesCompleteInstallations(t *testing.T) {

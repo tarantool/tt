@@ -55,7 +55,7 @@ def test_from_build_lifecycle(tt_cmd, tmp_path, local_build, command, expected_v
         cwd=tmp_path,
     )
     assert rc == 0, output
-    assert f"tarantool -> {binary} [active]" in output
+    assert f"{binary} [active" in output
     assert "2.10.3 [active]" not in output
     assert "tarantool-dev" not in output
 
