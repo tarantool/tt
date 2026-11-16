@@ -961,6 +961,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt emmylua` finds the stubs beside the executable there. A tt release
   keeps the `LICENSE` of its archive too. A version installed before has
   none of them until it is installed again with `--reinstall`.
+- `tt cluster show` takes a path to a cluster config file again, as
+  `<FILE>` or `<FILE>:<INSTANCE>`, and shows it as the config of an
+  application: with the `TT_*` environment and the config storage the file
+  points to, and checked with `--validate`. A target is a file when it has a
+  slash or ends in `.yaml` or `.yml`: `tt cluster show ./config.yaml`,
+  `tt cluster show config.yaml:instance-001`.
+
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in

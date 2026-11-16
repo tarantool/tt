@@ -705,3 +705,59 @@ group-001:
     show_output = instance_process.stdout.read()
 
     assert r'   ⨯ instance "master" not found' in show_output
+
+
+def test_cluster_show_file(tt_cmd, tmp_path):
+    # A cluster config file is shown as the config of an application: merged
+    # with the environment, an instance of it on its own, and validated.
+    (tmp_path / "config.yaml").write_text(test_simple_app_cfg)
+    (tmp_path / "invalid.yml").write_text(invalid_cluster_cfg)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+
+    for target, cwd in [
+        ("config.yaml", tmp_path),
+        ("./config.yaml", tmp_path),
+        (str(tmp_path / "config.yaml"), sub),
+        ("../config.yaml", sub),
+    ]:
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "show", "--validate", target],
+            cwd=cwd,
+        )
+        assert rc == 0, out
+        assert out == test_simple_app_cfg
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "show", "config.yaml:storage"],
+        cwd=tmp_path,
+        env={**os.environ, "TT_REPLICATION_FAILOVER": "manual"},
+    )
+    assert rc == 0, out
+    assert out == (
+        "database:\n  mode: rw\n"
+        "iproto:\n  listen:\n    - uri: 127.0.0.1:3302\n"
+        "replication:\n  failover: manual\n"
+    )
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "show", "./config.yaml:nosuch"],
+        cwd=tmp_path,
+    )
+    assert rc == 1
+    assert 'instance "nosuch" not found' in out
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "show", "--validate", "invalid.yml"],
+        cwd=tmp_path,
+    )
+    assert rc == 1
+    assert "mode" in out and "invalid" in out
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "show", "./missing.yaml"],
+        cwd=tmp_path,
+    )
+    assert rc == 1
+    assert "missing.yaml" in out
+    assert "no such file or directory" in out

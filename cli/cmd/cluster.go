@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -451,12 +452,21 @@ func NewClusterCmd() *cobra.Command {
 	}
 
 	show := &cobra.Command{
-		Use:   "show (<APP> | <APP>:<INSTANCE> | <URI>)",
+		Use:   "show (<APP> | <APP>:<INSTANCE> | <FILE> | <FILE>:<INSTANCE> | <URI>)",
 		Short: "Show a cluster configuration",
 		Long: "Show a cluster configuration for an application, instance," +
-			" from etcd URI or from tarantool config storage URI.\n\n" + clusterURIHelp,
+			" from a cluster configuration file, from etcd URI or from tarantool" +
+			" config storage URI.\n\n" +
+			"The configuration of an application or a file is shown as Tarantool" +
+			" reads it: merged with the TT_* environment variables and with the" +
+			" config storage the file points to with config.etcd or config.storage." +
+			" A target is a file when it has a slash or ends in .yaml or .yml, such" +
+			" as ./config.yaml or /etc/app/config.yaml:instance_name.\n\n" +
+			clusterURIHelp,
 		Example: "tt cluster show application_name\n" +
 			"  tt cluster show application_name:instance_name\n" +
+			"  tt cluster show ./config.yaml\n" +
+			"  tt cluster show ./config.yaml:instance_name\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt?name=instance",
 		RunE: internalRunE(internalClusterShowModule),
@@ -468,6 +478,11 @@ func NewClusterCmd() *cobra.Command {
 		) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+
+			// A path being typed is that of a config file.
+			if strings.ContainsRune(toComplete, '/') || strings.HasPrefix(toComplete, ".") {
+				return nil, cobra.ShellCompDirectiveDefault
 			}
 
 			return internal.ClusterValidArgsFunction(&cmdCtx, cmd, toComplete,
@@ -560,15 +575,67 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return clustercmd.ShowURI(showCtx, opts)
 	}
 
+	showCtx.Integrity = cmdCtx.Integrity
+
+	// A config file is shown as the config of an application is: with the
+	// environment and the config storage it points to.
+	configPath, instName, isFile := configFileTarget(args[0])
+	if isFile {
+		return clustercmd.ShowCluster(showCtx, configPath, instName)
+	}
+
 	// It looks like an application or an application:instance.
-	configPath, instName, err := parseAppStr(cmdCtx, args[0])
+	configPath, instName, err = parseAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
 	}
 
-	showCtx.Integrity = cmdCtx.Integrity
-
 	return clustercmd.ShowCluster(showCtx, configPath, instName)
+}
+
+// configFileTarget reports whether target, of tt cluster show, names a
+// cluster config file, <FILE> or <FILE>:<INSTANCE>, rather than an
+// application, and returns the path of the file and the instance name,
+// empty for none.
+//
+// A target names a file when it has a slash, which no application name has
+// (see app.ParseTargets), or ends in .yaml or .yml, as the file of tt cluster
+// publish does: ./config.yaml, /etc/app/config.yaml:i1, config.yml. Whether
+// a file of the name exists only tells a path with a colon in it from
+// <FILE>:<INSTANCE>: an application may be named as a file in the current
+// directory, its binary say, and a path to a missing file is better told
+// missing than looked for as an application.
+func configFileTarget(target string) (string, string, bool) {
+	if hasYAMLExt(target) {
+		return target, "", true
+	}
+
+	isPath := strings.ContainsRune(target, '/')
+	if isPath {
+		info, err := os.Stat(target)
+		if err == nil && info.Mode().IsRegular() {
+			return target, "", true
+		}
+	}
+
+	path, inst, found := strings.CutLast(target, string(running.InstanceDelimiter))
+	if found && (hasYAMLExt(path) || strings.ContainsRune(path, '/')) && inst != "" &&
+		!strings.ContainsRune(inst, '/') {
+		return path, inst, true
+	}
+
+	if !isPath {
+		return "", "", false
+	}
+
+	return target, "", true
+}
+
+// hasYAMLExt reports whether name ends in .yaml or .yml.
+func hasYAMLExt(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+
+	return ext == ".yaml" || ext == ".yml"
 }
 
 // internalClusterPublishModule is an entrypoint for `cluster publish` command.

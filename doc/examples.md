@@ -189,6 +189,9 @@ The module has following commands:
 The `SOURCE` could be:
 
 - An application name or application:instance name.
+- For `tt cluster show`, a path to a cluster configuration file, or a path
+  and an instance name: `./config.yaml`, `./config.yaml:instance2`. A
+  `SOURCE` is a path when it has a slash or ends in `.yaml` or `.yml`.
 - An etcd URI. In this case you could specify an instance name as an URI
   argument `name`.
 
@@ -344,6 +347,19 @@ iproto:
 
 This is done to help the user see the actual configuration that will be used
 by Tarantool.
+
+A configuration file that is not a part of an application is shown the same
+way, by its path:
+
+```text
+$ TT_APP_FILE=init.lua tt cluster show ./.templates/default/config.yaml:instance2
+iproto:
+  listen:
+    - uri: 127.0.0.1:3389
+  threads: 10
+app:
+  file: init.lua
+```
 
 To view all available options for the commands, use the help command:
 
