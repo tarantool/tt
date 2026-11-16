@@ -3946,11 +3946,20 @@ _build/component/<component>/ - the build tree of a cmake one, where cmake
 rebuilds what changed - and --rebuild empties it first. A cargo build builds in
 _build/cargo/, its CARGO_TARGET_DIR.
 
+-j N runs at most N jobs at once in each component build, one a CPU by default:
+the backend hands N to its tool, and a make or shell build reads it as
+TT_BUILD_JOBS. It changes no input: a component built with other -j is not built
+again.
+
 USAGE
   tt package build [COMPONENT] [flags]
 
 FLAGS
   -h, --help                   help for build
+  -j, --jobs N                 run at most N jobs at once in each component
+                               build: the compiles of c and lua-c, cmake --build
+                               --parallel, cargo -j, go build -p, zig build -j,
+                               TT_BUILD_JOBS of make and shell; 0 is one a CPU
       --locked                 fail if the lock is out of date instead of
                                re-resolving it
       --product string         product to build (default: the product marked
@@ -4231,6 +4240,10 @@ FLAGS
                                rock-src (the source rock and its rockspec)
                                (default [tt])
   -h, --help                   help for pack
+  -j, --jobs N                 run at most N jobs at once in each component
+                               build: the compiles of c and lua-c, cmake --build
+                               --parallel, cargo -j, go build -p, zig build -j,
+                               TT_BUILD_JOBS of make and shell; 0 is one a CPU
       --locked                 fail if the lock is out of date instead of
                                re-resolving it
       --out string             directory to write into (default _build/pack of
@@ -5596,7 +5609,8 @@ dependencies before any test does. luatest itself need not be declared: when
 [dev_dependencies] does not name it and the project tree does not already hold
 it, it is resolved as an implicit '*' requirement and installed. That resolution
 is not a declaration — app.manifest.toml and app.manifest.lock are left exactly
-as they were, so running the tests never makes the lock stale.
+as they were, so running the tests never makes the lock stale. -j N runs at
+most N jobs at once in each component build, as it does for tt package build.
 
 Everything after '--' is handed to luatest, and the exit code is luatest's own.
 
@@ -5607,6 +5621,10 @@ FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
   -h, --help               help for test
+  -j, --jobs N             run at most N jobs at once in each component build:
+                           the compiles of c and lua-c, cmake --build
+                           --parallel, cargo -j, go build -p, zig build -j,
+                           TT_BUILD_JOBS of make and shell; 0 is one a CPU
 
 EXAMPLES
   # Build and run everything under test/ (or tests/).

@@ -47,7 +47,10 @@ var (
 	packageProduct string
 	packageLocked  bool
 	// packageRebuild builds the incremental components whatever they recorded.
-	packageRebuild     bool
+	packageRebuild bool
+	// packageJobs is -j, --jobs: the most jobs each component build runs at
+	// once, 0 leaving it to the backends (build.Options.Jobs).
+	packageJobs        int
 	packageWithoutDeps bool
 	// packageIntegrityKey is --with-integrity-check of tt package pack: the
 	// private key that signs the archive. The flag exists only when the
@@ -778,7 +781,11 @@ func newPackageBuildCmd() *cobra.Command {
 			"A component build keeps what it makes on the way in TT_BUILD_DIR, " +
 			"_build/component/<component>/ - the build tree of a cmake one, where " +
 			"cmake rebuilds what changed - and --rebuild empties it first. A cargo " +
-			"build builds in _build/cargo/, its CARGO_TARGET_DIR.",
+			"build builds in _build/cargo/, its CARGO_TARGET_DIR.\n\n" +
+			"-j N runs at most N jobs at once in each component build, one a CPU by " +
+			"default: the backend hands N to its tool, and a make or shell build " +
+			"reads it as TT_BUILD_JOBS. It changes no input: a component built with " +
+			"other -j is not built again.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackage(args, false))
@@ -792,6 +799,7 @@ func newPackageBuildCmd() *cobra.Command {
 	buildCmd.Flags().BoolVar(&packageRebuild, "rebuild", false,
 		"build the incremental components even when nothing changed, and every "+
 			"component in an empty TT_BUILD_DIR")
+	sdk.AddJobsFlag(buildCmd, &packageJobs)
 	addRegistryFlag(buildCmd)
 
 	return buildCmd
@@ -866,6 +874,7 @@ func newPackagePackCmd() *cobra.Command {
 	packCmd.Flags().BoolVar(&packageRebuild, "rebuild", false,
 		"build the incremental components even when nothing changed, and every "+
 			"component in an empty TT_BUILD_DIR")
+	sdk.AddJobsFlag(packCmd, &packageJobs)
 	packCmd.Flags().BoolVar(&packageWithoutDeps, "without-deps", false,
 		"pack without _runtime/ and without foreign dependencies in .rocks/")
 	packCmd.Flags().StringSliceVar(&packageFormats, "format", []string{pack.FormatTt},
@@ -952,6 +961,7 @@ func runPackagePack() error {
 			Registries: sources,
 			ShowOutput: cmdCtx.Cli.Verbose,
 			Rebuild:    packageRebuild,
+			Jobs:       packageJobs,
 			Now:        time.Time{},
 			Logger:     luarocksLogger(),
 			Warn:       nil,
@@ -1054,6 +1064,7 @@ func runPackage(args []string, fetchOnly bool) error {
 		locked:     packageLocked,
 		fetchOnly:  fetchOnly,
 		rebuild:    packageRebuild,
+		jobs:       packageJobs,
 		registries: packageRegistries,
 		showOutput: false,
 		args:       nil,
@@ -1076,6 +1087,9 @@ type packageRun struct {
 	fetchOnly bool
 	// rebuild builds the incremental components whatever they recorded.
 	rebuild bool
+	// jobs is the most jobs each component build runs at once, as -j sets
+	// it (build.Options.Jobs).
+	jobs int
 	// registries are the rock servers of --registry.
 	registries []string
 	// showOutput shows what the tools print, as --verbose does.
@@ -1133,6 +1147,7 @@ func buildPackageResult(ctx context.Context, projectDir string, run packageRun) 
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose || run.showOutput,
 		Rebuild:    run.rebuild,
+		Jobs:       run.jobs,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },

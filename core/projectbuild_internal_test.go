@@ -185,6 +185,13 @@ func TestProjectBuild(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Components["calc"].UpToDate)
 
+	// The jobs are no input: other ones keep it up to date.
+	result, err = project.Build(t.Context(), sdk.BuildOptions{
+		Components: []string{"calc"}, Jobs: 3,
+	})
+	require.NoError(t, err)
+	assert.True(t, result.Components["calc"].UpToDate)
+
 	// With arguments the build is not up to date, and they reach it.
 	result, err = project.Build(t.Context(), sdk.BuildOptions{
 		Components: []string{"calc"}, Args: []string{"-opt=2"},
@@ -218,10 +225,12 @@ func TestProjectBuildContext(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "components", "calc"), 0o755))
 
 	facts, bld, err := project.BuildContext(t.Context(), sdk.BuildContextOptions{
-		Product: "", Component: "calc", Locked: true, Args: []string{"--help"},
+		Product: "", Component: "calc", Locked: true, Args: []string{"--help"}, Jobs: 2,
 	})
 	require.NoError(t, err)
 	assert.IsType(t, wasmBuild{}, bld)
+	assert.Equal(t, 2, facts.Jobs)
+	assert.Equal(t, "2", facts.Env["TT_BUILD_JOBS"])
 	assert.Equal(t, sdkbuild.Component{
 		Name: "calc", Path: "components/calc", Namespace: "app", Package: "app", Wants: nil,
 	}, facts.Component)

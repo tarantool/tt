@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	sdkbuild "github.com/tarantool/tt/sdk/build"
@@ -105,6 +106,12 @@ type contract struct {
 	// for the headers where they are not, rather than let it fail or find
 	// them itself.
 	tarantool sdkbuild.Tarantool
+	// jobs is TT_BUILD_JOBS, the number of jobs the build runs at once
+	// (sdkbuild.Context.JobsOrCPUs): never 0, so that make -j"$TT_BUILD_JOBS"
+	// does not run as many jobs as there is work. The environment is no
+	// input of an incremental build (componentInputs), so another number
+	// does not build a component again.
+	jobs int
 	// hook is set for the reduced contract of a lifecycle hook, which runs
 	// around all the components and has no single output directory,
 	// component name or directory of intermediate files.
@@ -113,8 +120,8 @@ type contract struct {
 
 // environ is the contract as key=value: TT_OUTPUT_DIR, TT_PROJECT_ROOT,
 // TT_PACKAGE, TT_COMPONENT_NAME, TT_VERSION, TT_PLATFORM_OS,
-// TT_PLATFORM_ARCH, TT_BUILD_DIR, then those of Tarantool; those of a
-// component left out for a hook.
+// TT_PLATFORM_ARCH, TT_BUILD_DIR, TT_BUILD_JOBS, then those of Tarantool;
+// those of a component left out for a hook.
 func (c contract) environ() []string {
 	var environ []string
 
@@ -137,6 +144,8 @@ func (c contract) environ() []string {
 	if !c.hook && c.buildDir != "" {
 		environ = append(environ, "TT_BUILD_DIR="+c.buildDir)
 	}
+
+	environ = append(environ, "TT_BUILD_JOBS="+strconv.Itoa(c.jobs))
 
 	if c.tarantool.Prefix != "" {
 		environ = append(environ, "TT_TARANTOOL_PREFIX="+c.tarantool.Prefix)

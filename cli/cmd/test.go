@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -17,6 +18,10 @@ import (
 // luatestName is the rock tt test runs, and the requirement it adds implicitly
 // when the manifest declares none.
 const luatestName = "luatest"
+
+// testJobs is -j, --jobs of tt test: the most jobs each component build of
+// the build before the tests runs at once (build.Options.Jobs).
+var testJobs int
 
 // NewTestCmd creates `tt test`: build the package, then run its test suite
 // under the same Tarantool tt run would choose.
@@ -36,7 +41,8 @@ dependencies before any test does. luatest itself need not be declared: when
 [dev_dependencies] does not name it and the project tree does not already hold
 it, it is resolved as an implicit '*' requirement and installed. That resolution
 is not a declaration — app.manifest.toml and app.manifest.lock are left exactly
-as they were, so running the tests never makes the lock stale.
+as they were, so running the tests never makes the lock stale. -j N runs at
+most N jobs at once in each component build, as it does for tt package build.
 
 Everything after '--' is handed to luatest, and the exit code is luatest's own.
 `,
@@ -59,6 +65,7 @@ Everything after '--' is handed to luatest, and the exit code is luatest's own.
 	}
 
 	addProjectDirFlag(testCmd)
+	sdk.AddJobsFlag(testCmd, &testJobs)
 
 	return testCmd
 }
@@ -116,6 +123,7 @@ func runTest(subPaths, luatestArgs []string) error {
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
 		Rebuild:    false,
+		Jobs:       testJobs,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },

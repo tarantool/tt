@@ -121,6 +121,7 @@ func (b builder) component(name string) (componentRun, error) {
 			version:     b.version,
 			target:      b.target,
 			tarantool:   b.tarantool,
+			jobs:        b.jobs(),
 			hook:        false,
 		}.environ(),
 	}
@@ -138,6 +139,7 @@ func (b builder) component(name string) (componentRun, error) {
 		Locked:    b.opts.Locked,
 		Static:    component.Build.StaticValue(),
 		Args:      slices.Clone(b.opts.Args),
+		Jobs:      b.opts.Jobs,
 		Hook:      false,
 		Log:       buildLogger(backend.Name),
 		Warn:      b.warn,
@@ -179,6 +181,7 @@ func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Conte
 			version:     b.version,
 			target:      b.target,
 			tarantool:   b.tarantool,
+			jobs:        b.jobs(),
 			hook:        true,
 		}.environ(),
 	}
@@ -192,12 +195,21 @@ func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Conte
 		Fresh:     b.opts.Rebuild,
 		Locked:    b.opts.Locked,
 		Static:    false,
+		Jobs:      b.opts.Jobs,
 		Hook:      true,
 		Log:       buildLogger(backend),
 		Warn:      b.warn,
 	}
 
 	return sdkbuild.NewContext(facts, b.host(env, dirs.Cwd))
+}
+
+// jobs is TT_BUILD_JOBS of the builds: Options.Jobs, or one a CPU when it is
+// 0, as sdkbuild.Context.JobsOrCPUs counts them.
+func (b builder) jobs() int {
+	facts := sdkbuild.Context{Jobs: b.opts.Jobs}
+
+	return facts.JobsOrCPUs()
 }
 
 // host returns the host of a build whose commands run in cwd with env.

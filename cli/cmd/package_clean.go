@@ -103,6 +103,7 @@ func cleanProjectIn(ctx context.Context, projectDir string, clean build.CleanOpt
 		},
 		ShowOutput: cmdCtx.Cli.Verbose,
 		Rebuild:    false,
+		Jobs:       0,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
