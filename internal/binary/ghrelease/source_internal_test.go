@@ -564,6 +564,46 @@ func TestLatestToken(t *testing.T) {
 	assert.Equal(t, "v3.0.0-alpha.2", tag)
 }
 
+func TestCheckPlatform(t *testing.T) {
+	source := New()
+
+	for _, test := range []struct {
+		tag, os, arch string
+		// want is the platforms the error names, none for a supported one.
+		want string
+	}{
+		{tag: "v3.0.0", os: goosLinux, arch: goarchAMD64},
+		{tag: "v3.0.0", os: goosLinux, arch: goarchARM64},
+		{tag: "v3.0.0-alpha.2", os: goosDarwin, arch: goarchARM64},
+		{tag: "v2.15.0", os: goosDarwin, arch: goarchAMD64},
+		{
+			tag: "v3.0.0", os: goosDarwin, arch: goarchAMD64,
+			want: "only for linux/amd64, linux/arm64, darwin/arm64",
+		},
+		{
+			tag: "v2.15.0", os: goosDarwin, arch: goarchARM64,
+			want: "only for linux/amd64, linux/arm64, darwin/amd64",
+		},
+		{
+			tag: "v3.0.0", os: goosLinux, arch: "386",
+			want: "only for linux/amd64, linux/arm64, darwin/arm64",
+		},
+	} {
+		t.Run(test.tag+"/"+test.os+"/"+test.arch, func(t *testing.T) {
+			err := source.CheckPlatform(test.tag, test.os, test.arch)
+			if test.want == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, errUnsupportedPlatform)
+			require.ErrorContains(t, err, fmt.Sprintf("no prebuilt tt %s for %s/%s, %s",
+				test.tag, test.os, test.arch, test.want))
+		})
+	}
+}
+
 func TestTagMajor(t *testing.T) {
 	for tag, want := range map[string]uint64{
 		"v3.0.0": 3, "3.0.0-alpha.2": 3, "v2.15.2": 2, "v10.1.0": 10, "nightly": 0, "": 0,

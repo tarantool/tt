@@ -920,6 +920,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt binary list` shows it and the documentation names it, no longer as
   `tt_v3.0.0`; a release installed before as `tt_v<version>` is used as it
   is rather than installed again.
+- The help of `tt binary install tt` said prebuilt tt is installed on macOS
+  amd64, while the releases of tt 3 on GitHub publish macOS archives for
+  arm64 only; it now names Linux amd64 and arm64 and macOS arm64, and macOS
+  amd64 for tt 2. On a platform the release publishes no archive for, macOS
+  amd64 for tt 3 say, `tt binary install tt` fails naming the platforms the
+  release has and `--source-build`, instead of looking for an archive there
+  is none of.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in

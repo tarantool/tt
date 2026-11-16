@@ -1289,13 +1289,14 @@ GLOBAL FLAGS
 === tt binary install tt --help
 Install tt Community or Enterprise Edition.
 
-On Linux amd64/arm64 and macOS amd64, install prebuilt Community binaries
-from GitHub Releases when available. Other platforms and releases without
-prebuilt archives are built from source automatically.
+Install prebuilt Community binaries from GitHub Releases: tt 3 is published
+for Linux amd64/arm64 and macOS arm64 (tt 2 for macOS amd64 instead of arm64).
+On other platforms, use --source-build to compile tt from source. Releases
+without prebuilt archives are built from source automatically.
 Use --source-build to always compile Community releases from source.
 
-Bare versions select Community Edition: 2, 2.15, or 2.15.0. Append ce or ee to
-select an edition explicitly: 2ce, 2.15ce, 2.15.0ce, 2ee, 2.15ee, or 2.15.0ee.
+Bare versions select Community Edition: 3, 3.0, or 3.0.0. Append ce or ee to
+select an edition explicitly: 3ce, 3.0ce, 3.0.0ce, 2ee, 2.15ee, or 2.15.0ee.
 Omitting the version selects the latest Community release of tt 3: the newest
 stable one, or the newest pre-release while tt 3 has none; tt 2 is installed
 only by its version. Git commits, master, and pull requests also select

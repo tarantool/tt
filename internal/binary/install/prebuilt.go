@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/bundle"
@@ -45,6 +46,14 @@ type latestReleaseSource interface {
 	Latest(ctx context.Context) (string, error)
 }
 
+// platformSource is a source that knows the platforms its releases publish
+// archives for, as the releases of tt on GitHub do. A host it publishes none
+// for is an error that names the platforms there are, not an archive that
+// is not found.
+type platformSource interface {
+	CheckPlatform(tag, goos, goarch string) error
+}
+
 // latestPrebuiltTt returns the tag of the latest release of tt the source
 // of tt has. A pushed tag may still have no release, so the newest tag is
 // not a reliable choice for prebuilt delivery.
@@ -71,7 +80,8 @@ func latestPrebuiltTt(ctx context.Context) (string, error) {
 // source of program and unpacks it into a directory of destination. A
 // build the source does not have is errPrebuiltPackageUnavailable: no
 // source of program, no build of the tag for the host, or a Fetch that
-// reports bundle.ErrNotFound. Any other failure is a failed delivery.
+// reports bundle.ErrNotFound. A host the source knows it publishes no build
+// for (platformSource) and any other failure are errors.
 func preparePrebuilt(ctx context.Context, program binary.Program, tag, destination string,
 	keepTemp bool,
 ) (programArtifact, error) {
@@ -79,6 +89,14 @@ func preparePrebuilt(ctx context.Context, program binary.Program, tag, destinati
 	if err != nil {
 		return programArtifact{}, fmt.Errorf("%w: no source of prebuilt %s in this build of tt; "+
 			"use --source-build to build from source", errPrebuiltPackageUnavailable, program)
+	}
+
+	if checker, ok := source.(platformSource); ok {
+		err = checker.CheckPlatform(tag, runtime.GOOS, runtime.GOARCH)
+		if err != nil {
+			return programArtifact{}, fmt.Errorf("%w; use --source-build to build %s %s "+
+				"from source", err, program, tag)
+		}
 	}
 
 	artifact, err := findPrebuilt(ctx, source, program, tag)

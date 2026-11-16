@@ -278,6 +278,41 @@ func TestPreparePrebuiltUnavailable(t *testing.T) {
 	}
 }
 
+var errTestPlatform = errors.New("no prebuilt tt for this platform, only for linux/amd64")
+
+// platformTestSource is a source that publishes no build for the host.
+type platformTestSource struct {
+	*prebuiltTestSource
+
+	// checked are the tags, platforms included, the source was asked about.
+	checked []string
+}
+
+func (s *platformTestSource) CheckPlatform(tag, goos, goarch string) error {
+	s.checked = append(s.checked, tag+" "+goos+"/"+goarch)
+
+	return errTestPlatform
+}
+
+// TestPrepareTtUnsupportedPlatform refuses a host the releases of tt publish
+// no archive for, naming the platforms they do, rather than looking for an
+// archive or building tt from source unasked.
+func TestPrepareTtUnsupportedPlatform(t *testing.T) {
+	source := &platformTestSource{prebuiltTestSource: &prebuiltTestSource{product: "tt"}}
+	setTestBundleSources(t, source)
+	t.Setenv("PATH", t.TempDir())
+
+	resolved := tagInstallVersion("v3.0.0")
+	_, err := prepareTtArtifact(InstallCtx{Program: binary.ProgramTt}, t.TempDir(), resolved)
+	require.ErrorIs(t, err, errTestPlatform)
+	require.NotErrorIs(t, err, errPrebuiltPackageUnavailable)
+	require.ErrorContains(t, err, "use --source-build to build tt v3.0.0 from source")
+
+	assert.Equal(t, []string{"v3.0.0 " + runtime.GOOS + "/" + runtime.GOARCH}, source.checked)
+	assert.Empty(t, source.queries, "no archive is looked for")
+	assert.Empty(t, source.fetched)
+}
+
 func TestPreparePrebuiltFailures(t *testing.T) {
 	for _, test := range []struct {
 		name   string

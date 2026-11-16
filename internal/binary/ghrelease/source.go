@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -208,6 +209,14 @@ func (s *Source) Latest(ctx context.Context) (string, error) {
 	}
 
 	return s.latestListed(ctx)
+}
+
+// CheckPlatform reports a platform the release tag of tt publishes no
+// archive for, with an error that names the platforms it does publish
+// archives for. tt binary install refuses such a platform rather than
+// asking for an archive there is none of.
+func (*Source) CheckPlatform(tag, goos, goarch string) error {
+	return checkPlatform(tag, goos, goarch)
 }
 
 // latestRedirect returns the tag of the latest release of tt, of any major
@@ -414,21 +423,28 @@ func findChecksum(checksums io.Reader, name string) (string, bool, error) {
 	return "", false, nil
 }
 
-// checkPlatform recognizes the platforms published in GitHub Releases.
-// tt 2 publishes macOS archives for amd64, tt 3 for arm64.
-func checkPlatform(tag, goos, goarch string) error {
+// platforms returns the platforms the release tag of tt publishes archives
+// for: tt 2 publishes macOS archives for amd64, tt 3 for arm64.
+func platforms(tag string) []string {
 	darwinArch := goarchARM64
 
 	if tagMajor(tag) < firstDarwinARM64Major {
 		darwinArch = goarchAMD64
 	}
 
-	supported := goos == goosLinux && (goarch == goarchAMD64 || goarch == goarchARM64) ||
-		goos == goosDarwin && goarch == darwinArch
-	if !supported {
-		return fmt.Errorf("%w: no prebuilt tt %s for %s/%s",
-			errUnsupportedPlatform, tag, goos, goarch)
+	return []string{
+		goosLinux + "/" + goarchAMD64, goosLinux + "/" + goarchARM64,
+		goosDarwin + "/" + darwinArch,
+	}
+}
+
+// checkPlatform recognizes the platforms published in GitHub Releases.
+func checkPlatform(tag, goos, goarch string) error {
+	supported := platforms(tag)
+	if slices.Contains(supported, goos+"/"+goarch) {
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("%w: GitHub has no prebuilt tt %s for %s/%s, "+
+		"only for %s", errUnsupportedPlatform, tag, goos, goarch, strings.Join(supported, ", "))
 }

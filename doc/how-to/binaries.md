@@ -44,7 +44,11 @@ Community releases are installed from prebuilt binaries where there are
 some - Tarantool on Linux amd64 and arm64 with glibc, from the static RPMs
 of rws.tarantool.org, tt on Linux amd64 and arm64, tt 3 on macOS arm64 and
 tt 2 on macOS amd64, from the releases of tt on GitHub - and built from
-source elsewhere. A distribution of tt may have other sources, or none
+source elsewhere. tt is the exception: the releases of tt on GitHub name
+the platforms they publish, so on another one, macOS amd64 for tt 3 say,
+`tt binary install tt` fails naming the platforms there are, and
+`--source-build` builds it from source. A distribution of tt may have other
+sources, or none
 (`bundle_sources` in [tt.manifest.toml](../reference/tt-manifest.md)):
 without a source of Tarantool or tt every version of it is built from
 source. A commit,
