@@ -21,7 +21,7 @@ func TestNarrowToTheOnlyFile(t *testing.T) {
 	file := filepath.Join(root, "hello.lua")
 	require.NoError(t, os.WriteFile(file, []byte("return 0ULL\n"), 0o600))
 
-	narrowing, err := Narrow(filepath.Join(t.TempDir(), "emmylua"), root, []string{file})
+	narrowing, err := Narrow(filepath.Join(t.TempDir(), "emmylua"), root, []string{file}, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { _ = narrowing.Remove() })

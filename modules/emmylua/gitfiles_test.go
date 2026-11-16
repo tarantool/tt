@@ -1,9 +1,11 @@
 package emmylua_test
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -223,6 +225,133 @@ func TestFmtGitNoFiles(t *testing.T) {
 	assert.Empty(t, got.Stdout)
 	assert.Contains(t, infoMessages(services),
 		"git sees no Lua files in "+project+": nothing to format")
+}
+
+// emmyrcWorkspace is the workspace of a configuration of EmmyLua.
+type emmyrcWorkspace struct {
+	Workspace struct {
+		IgnoreDir []string `json:"ignoreDir"` //nolint:tagliatelle // EmmyLua's name.
+		Library   []string `json:"library"`
+	} `json:"workspace"`
+}
+
+// readWorkspace reads the workspace of the configuration at path.
+func readWorkspace(t *testing.T, path string) emmyrcWorkspace {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var config emmyrcWorkspace
+
+	require.NoError(t, json.Unmarshal(data, &config))
+
+	return config
+}
+
+// TestCheckGitIgnored checks that tt emmylua check, in a git work tree,
+// leaves what git ignores out of the code of the project - the directories
+// it ignores whole and the Lua files it ignores, by .gitignore and by
+// .git/info/exclude - with .rocks/, .tarantool/ and _build/, which are left
+// out whatever git says, and that a path given is checked as given: what
+// git ignores is left out of a directory given, not out of a file or of the
+// directory it lies in. It runs programs, so it is not parallel, as
+// TestCheck.
+func TestCheckGitIgnored(t *testing.T) {
+	needGit(t)
+
+	project := gitProject(t, "echo \"$@\"\n")
+	// The program prints the narrowing, the second configuration, and the
+	// links of its library before tt removes them.
+	writeProgram(t, project, "emmylua_check", "if [ \"$3\" = --config ]; then\n"+
+		"cat \"$4\"; echo '--- links'; ls -A \"$(dirname \"$4\")/lib\"\nfi\n")
+
+	inProject := func(names ...string) []string {
+		paths := make([]string, 0, len(names))
+		for _, name := range names {
+			paths = append(paths, filepath.Join(project, filepath.FromSlash(name)))
+		}
+
+		return paths
+	}
+
+	own := inProject(".rocks", ".tarantool", "_build")
+
+	check := func(args ...string) sdktest.Result {
+		t.Helper()
+
+		got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
+			append([]string{"emmylua", "check"}, args...)...)
+		require.NoError(t, got.Err, args)
+
+		return got
+	}
+
+	check()
+	assert.Equal(t, append(slices.Clone(own), inProject("ignored.lua", "local.lua", "scratch")...),
+		readWorkspace(t, configPath(project)).Workspace.IgnoreDir)
+
+	// A directory given: what git ignores under it is still left out.
+	writeFile(t, filepath.Join(project, "app", "draft.lua"), "return {}\n")
+	writeFile(t, filepath.Join(project, ".git", "info", "exclude"), "local.lua\ndraft.lua\n")
+
+	got := check("app")
+
+	assert.Equal(t, append(slices.Clone(own),
+		inProject("app/draft.lua", "ignored.lua", "local.lua", "scratch")...),
+		readWorkspace(t, configPath(project)).Workspace.IgnoreDir)
+
+	// The narrowing reads the rest of the project as a library of links,
+	// but none to what git ignores, and ignores it through them too.
+	config, links, found := strings.Cut(got.Stdout, "--- links\n")
+	require.True(t, found)
+
+	var narrowing emmyrcWorkspace
+
+	require.NoError(t, json.Unmarshal([]byte(config), &narrowing))
+	require.Len(t, narrowing.Workspace.Library, 1)
+
+	library := narrowing.Workspace.Library[0]
+	for _, name := range []string{"ignored.lua", "local.lua", "scratch"} {
+		assert.Contains(t, narrowing.Workspace.IgnoreDir, filepath.Join(library, name))
+	}
+
+	// ls sorts by the collation of the locale, case-insensitively on macOS:
+	// the links are compared in byte order.
+	assert.Equal(t, []string{
+		".git", ".gitignore", ".hidden", "README.md", "app.manifest.toml", "link.lua",
+		"node_modules", "notes.txt", "untracked.lua", "vendor",
+	}, slices.Sorted(slices.Values(strings.Fields(links))))
+
+	// A file git ignores, or one in a directory it ignores, is checked.
+	check("ignored.lua")
+	assert.Equal(t, append(slices.Clone(own),
+		inProject("app/draft.lua", "local.lua", "scratch")...),
+		readWorkspace(t, configPath(project)).Workspace.IgnoreDir)
+
+	check("scratch/draft.lua")
+	assert.Equal(t, append(slices.Clone(own),
+		inProject("app/draft.lua", "ignored.lua", "local.lua")...),
+		readWorkspace(t, configPath(project)).Workspace.IgnoreDir)
+}
+
+// TestCheckOutOfGit checks that tt emmylua check out of a git work tree
+// leaves out .rocks/, .tarantool/ and _build/ alone. It runs programs, so it
+// is not parallel, as TestCheck.
+func TestCheckOutOfGit(t *testing.T) {
+	project := testProject(t)
+	isolateGit(t, filepath.Dir(project))
+	writeFile(t, filepath.Join(project, ".gitignore"), "scratch/\n")
+	writeFile(t, filepath.Join(project, "scratch", "draft.lua"), "return {}\n")
+	writeProgram(t, project, "emmylua_check", "exit 0\n")
+
+	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New, "emmylua", "check")
+	require.NoError(t, got.Err)
+	assert.Equal(t, []string{
+		filepath.Join(project, ".rocks"),
+		filepath.Join(project, ".tarantool"),
+		filepath.Join(project, "_build"),
+	}, readWorkspace(t, configPath(project)).Workspace.IgnoreDir)
 }
 
 // TestFmtGitIgnoredProject checks that tt emmylua fmt with no path in a

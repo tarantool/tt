@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -190,14 +191,44 @@ func TestLayoutConfigOwn(t *testing.T) {
 	project := t.TempDir()
 	own := filepath.Join(project, ".rocks", "share", "tarantool", "kv")
 
+	notCode := []string{
+		filepath.Join(project, ".rocks"),
+		filepath.Join(project, ".tarantool"),
+		filepath.Join(project, "_build"),
+	}
+
 	config := Layout{ProjectDir: project, Own: []string{own}}.Config()
 	workspace, ok := config["workspace"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, []string{own}, workspace["ignoreDir"])
+	assert.Equal(t, append(slices.Clone(notCode), own), workspace["ignoreDir"])
 
-	// No package of its own: no ignoreDir at all.
+	// No package of its own: the directories of tt alone.
 	config = Layout{ProjectDir: project}.Config()
 	workspace, ok = config["workspace"].(map[string]any)
 	require.True(t, ok)
-	assert.NotContains(t, workspace, "ignoreDir")
+	assert.Equal(t, notCode, workspace["ignoreDir"])
+}
+
+// TestLayoutConfigIgnored checks that what git ignores goes to ignoreDir,
+// absolute, between the directories of tt and the project's own package.
+func TestLayoutConfigIgnored(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	own := filepath.Join(project, ".rocks", "share", "tarantool", "kv")
+
+	config := Layout{
+		ProjectDir: project, Own: []string{own},
+		Ignored: []string{"vendor", filepath.Join("app", "scratch.lua")},
+	}.Config()
+	workspace, ok := config["workspace"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, []string{
+		filepath.Join(project, ".rocks"),
+		filepath.Join(project, ".tarantool"),
+		filepath.Join(project, "_build"),
+		filepath.Join(project, "vendor"),
+		filepath.Join(project, "app", "scratch.lua"),
+		own,
+	}, workspace["ignoreDir"])
 }

@@ -62,27 +62,46 @@ func walkOf(pass []string) walkOptions {
 func (r *runner) gitLuaFiles(
 	ctx context.Context, dir string, walk walkOptions,
 ) ([]string, bool, error) {
+	git, err := r.gitFor(ctx, dir, "luafmt walks it")
+	if git == "" || err != nil {
+		return nil, false, err
+	}
+
+	out, err := runGit(ctx, git, dir, "ls-files", "-z", "--cached", "--others",
+		"--exclude-standard")
+	if err != nil {
+		return nil, false, fmt.Errorf("listing the files git sees in %s: %w", dir, err)
+	}
+
+	return luaFiles(dir, gitPaths(out), walk), true, nil
+}
+
+// gitFor returns the git that chooses the files of dir: git is installed,
+// dir is in a work tree of git, and git does not ignore dir itself. It
+// returns "" otherwise, and says why at the debug level, with otherwise,
+// what is done instead.
+func (r *runner) gitFor(ctx context.Context, dir, otherwise string) (string, error) {
 	logger := r.services.Log()
 
 	git, err := exec.LookPath("git")
 	if err != nil {
-		logger.Debug("no git to list the Lua files of " + dir + " (" + err.Error() +
-			"): luafmt walks it")
+		logger.Debug("no git to list the files of " + dir + " (" + err.Error() + "): " +
+			otherwise)
 
-		return nil, false, nil //nolint:nilerr // No git is a directory out of git.
+		return "", nil //nolint:nilerr // No git is a directory out of git.
 	}
 
 	out, err := runGit(ctx, git, dir, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
-		logger.Debug(dir + " is not in a work tree of git (" + err.Error() + "): luafmt walks it")
+		logger.Debug(dir + " is not in a work tree of git (" + err.Error() + "): " + otherwise)
 
-		return nil, false, nil //nolint:nilerr // git fails so out of a work tree.
+		return "", nil //nolint:nilerr // git fails so out of a work tree.
 	}
 
 	if strings.TrimSpace(string(out)) != "true" {
-		logger.Debug(dir + " is not in a work tree of git: luafmt walks it")
+		logger.Debug(dir + " is not in a work tree of git: " + otherwise)
 
-		return nil, false, nil
+		return "", nil
 	}
 
 	_, err = runGit(ctx, git, dir, "check-ignore", "-q", ".")
@@ -91,21 +110,59 @@ func (r *runner) gitLuaFiles(
 
 	switch {
 	case err == nil:
-		logger.Debug("git ignores " + dir + ": luafmt walks it")
+		logger.Debug("git ignores " + dir + ": " + otherwise)
 
-		return nil, false, nil
+		return "", nil
 	case failed && exitErr.ExitCode() == 1:
-		// Not ignored.
+		return git, nil
 	default:
-		return nil, false, fmt.Errorf("asking git whether it ignores %s: %w", dir, err)
+		return "", fmt.Errorf("asking git whether it ignores %s: %w", dir, err)
+	}
+}
+
+// gitIgnored returns what git ignores under dir that EmmyLua would read,
+// relative to dir, sorted: the directories git ignores whole and the Lua
+// files it ignores elsewhere - untracked files that .gitignore,
+// .git/info/exclude or core.excludesFile match; a tracked file is code
+// whatever they say. ownDirs at the top are left out, since the
+// configuration leaves them out anyway. Where git does not choose the files
+// of dir (gitFor) it returns none.
+func (r *runner) gitIgnored(ctx context.Context, dir string) ([]string, error) {
+	git, err := r.gitFor(ctx, dir, "EmmyLua reads what git would ignore there")
+	if git == "" || err != nil {
+		return nil, err
 	}
 
-	out, err = runGit(ctx, git, dir, "ls-files", "-z", "--cached", "--others",
-		"--exclude-standard")
+	out, err := runGit(ctx, git, dir, "ls-files", "-z", "--others", "--ignored",
+		"--exclude-standard", "--directory")
 	if err != nil {
-		return nil, false, fmt.Errorf("listing the files git sees in %s: %w", dir, err)
+		return nil, fmt.Errorf("listing the files git ignores in %s: %w", dir, err)
 	}
 
+	var ignored []string
+
+	for _, name := range gitPaths(out) {
+		isDir := strings.HasSuffix(name, "/")
+
+		name = strings.TrimSuffix(name, "/")
+
+		parts := strings.Split(name, "/")
+		if slices.Contains(ownDirs, parts[0]) {
+			continue
+		}
+
+		if isDir || slices.Contains(luaExtensions, strings.ToLower(path.Ext(name))) {
+			ignored = append(ignored, filepath.FromSlash(name))
+		}
+	}
+
+	slices.Sort(ignored)
+
+	return ignored, nil
+}
+
+// gitPaths splits out, what git prints with -z, into its paths.
+func gitPaths(out []byte) []string {
 	var paths []string
 
 	for entry := range bytes.SplitSeq(out, []byte{0}) {
@@ -114,7 +171,7 @@ func (r *runner) gitLuaFiles(
 		}
 	}
 
-	return luaFiles(dir, paths, walk), true, nil
+	return paths
 }
 
 // runGit runs git with args in dir and returns what it prints. A failure

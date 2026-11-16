@@ -41,9 +41,12 @@ const outsideHelp = "Outside every project the programs come from the user cache
 // pathHelp says what a PATH of check or doc means: the command does what,
 // and the code is done.
 func pathHelp(does, done string) string {
-	return "With no PATH the command " + does + " the whole project. A PATH, a " +
+	return "With no PATH the command " + does + " the whole project but .rocks/, " +
+		".tarantool/ and _build/, and in a git work tree but the files git ignores " +
+		"(.gitignore, .git/info/exclude, core.excludesFile). A PATH, a " +
 		"directory or a file of the project, narrows what is " + done + " to the " +
-		"files under it, and with more than one to the files under any: the rest " +
+		"files under it, git ignoring it or not, and with more than one to the " +
+		"files under any: the rest " +
 		"of the project is read as a library, so its modules resolve and are not " +
 		done + ", and EmmyLua still runs on the root of the project, so the module " +
 		"names, the relative paths of the configuration and the paths it prints are " +
@@ -338,8 +341,9 @@ func newConfigCmd(services sdk.Services) *cobra.Command {
 		Short: "Write the configuration EmmyLua runs with, and print its path",
 		Long: "Write the configuration tt gives EmmyLua - LuaJIT, the globals of " +
 			"Tarantool, the stubs of the Tarantool the project runs on and the modules " +
-			"its rocks install, with .rocks/, .tarantool/ and the build tree _build/ " +
-			"left out of the code of the project, and the project's own package, which " +
+			"its rocks install, with .rocks/, .tarantool/, the build tree _build/ and, " +
+			"in a git work tree, what git ignores left out of the code of the " +
+			"project, and the project's own package, which " +
 			"tt package build installs into .rocks/, out of the libraries - to " +
 			analyzer.ConfigDir + "/" + analyzer.ConfigFileName +
 			" of the project and print its path: for an editor that runs emmylua_ls " +
@@ -459,8 +463,10 @@ func (r *runner) libraryDirs(found workspace) ([]string, error) {
 const withoutTypes = "checking without the types of the Tarantool API"
 
 // layout is what tt knows of the workspace of the command for EmmyLua, with
-// the libraries of --library, and where the configuration goes: into the
-// project, or outside every project into the user cache. No Tarantool, one tt
+// the libraries of --library, what git ignores there (gitIgnored), and where
+// the configuration goes: into the project, or outside every project into
+// the user cache. git failing to list what it ignores is reported, and is
+// no error: EmmyLua then reads those files too. No Tarantool, one tt
 // cannot choose and one without stubs are reported, and are not errors: the
 // code is checked without the types of the Tarantool API. Neither is a rock
 // tree tt cannot read for the project's own package (analyzer.OwnModules):
@@ -491,6 +497,11 @@ func (r *runner) layout(ctx context.Context, found workspace) (analyzer.Layout, 
 		path = analyzer.GlobalConfigPath(cache, found.dir)
 	}
 
+	ignored, err := r.gitIgnored(ctx, found.dir)
+	if err != nil {
+		logger.Warn(err.Error() + ": EmmyLua reads what git ignores too")
+	}
+
 	stubs := ""
 
 	tarantool, err := r.services.Tarantool()
@@ -509,6 +520,7 @@ func (r *runner) layout(ctx context.Context, found workspace) (analyzer.Layout, 
 
 	return analyzer.Layout{
 		ProjectDir: found.dir, Stubs: stubs, Extra: extra, Path: path, Own: own,
+		Ignored: ignored,
 	}, nil
 }
 
@@ -597,6 +609,10 @@ func (r *runner) withConfig(
 		return err
 	}
 
+	asked := absPaths(found.workDir, paths)
+
+	layout.Ignored = askedFor(layout.Ignored, found.dir, asked)
+
 	config, err := layout.WriteConfig()
 	if err != nil {
 		return err
@@ -605,8 +621,8 @@ func (r *runner) withConfig(
 	configs := layout.ConfigFiles(config)
 
 	if len(paths) > 0 {
-		narrowing, err := analyzer.Narrow(filepath.Dir(config), found.dir,
-			absPaths(found.workDir, paths))
+		narrowing, err := analyzer.Narrow(filepath.Dir(config), found.dir, asked,
+			layout.Ignored)
 		if err != nil {
 			return err
 		}
@@ -629,6 +645,33 @@ func (r *runner) withConfig(
 	argv = append(argv, found.dir)
 
 	return r.runProgram(cmd.Context(), "", path, argv)
+}
+
+// askedFor returns ignored, what git ignores under root relative to it,
+// without what a path of paths, absolute, names: the path itself or a
+// directory it lies in. A path given to check or doc is checked as given,
+// as fmt formats it, git ignoring it or not; what git ignores under a
+// directory given is still left out.
+func askedFor(ignored []string, root string, paths []string) []string {
+	if len(paths) == 0 {
+		return ignored
+	}
+
+	kept := make([]string, 0, len(ignored))
+
+	for _, name := range ignored {
+		named := slices.ContainsFunc(paths, func(path string) bool {
+			rel, err := filepath.Rel(root, path)
+
+			return err == nil && (rel == name ||
+				strings.HasPrefix(rel, name+string(filepath.Separator)))
+		})
+		if !named {
+			kept = append(kept, name)
+		}
+	}
+
+	return kept
 }
 
 // absPaths returns paths, absolute: a relative one is taken from dir.

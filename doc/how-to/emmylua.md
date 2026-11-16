@@ -467,6 +467,10 @@ $ cat .tarantool/emmylua/emmyrc.json
   },
   "workspace": {
     "ignoreDir": [
+      "/home/me/work/kv/.rocks",
+      "/home/me/work/kv/.tarantool",
+      "/home/me/work/kv/_build",
+      "/home/me/work/kv/api",
       "/home/me/work/kv/.rocks/share/tarantool/kv"
     ],
     "ignoreGlobs": [
@@ -689,21 +693,33 @@ one (the file `tt emmylua config` printed above):
   with, `share/tarantool/emmylua` of its prefix, and the modules the rocks of
   the project install, `.rocks/share/tarantool` and `.rocks/share/lua/5.1`;
   then the directories of `--library`.
+- `workspace.ignoreDir`, absolute paths, are what EmmyLua does not walk
+  into:
+  - `.rocks/`, `.tarantool/` and `_build/` of the root, whatever git says.
+    `_build/` is where `tt package build` builds the project, out of copies
+    of its sources and its path dependencies: read as code, every module
+    would be there twice. The libraries under `.rocks/` are read all the
+    same: EmmyLua does not apply an ignored directory to a library inside
+    it.
+  - In a git work tree, what git ignores: the directories it ignores whole
+    and the untracked Lua files `.gitignore`, `.git/info/exclude` or
+    `core.excludesFile` match. A file git tracks is code whatever they say.
+  - The project's own package in the library `.rocks/share/tarantool`,
+    where `tt package build` installs it: the modules its rock installs,
+    `.rocks/share/tarantool/kv` here. Before a build there is none.
 - `workspace.ignoreGlobs` leave `.rocks/`, `.tarantool/` and `_build/` out of
-  the code of the project. `_build/` is where `tt package build` builds the
-  project, out of copies of its sources and its path dependencies: read as
-  code, every module would be there twice.
-- `workspace.ignoreDir` leaves the project's own package out of the library
-  `.rocks/share/tarantool`, where `tt package build` installs it: the
-  modules its rock installs, absolute paths, `.rocks/share/tarantool/kv`
-  here. Before a build there is none.
+  every folder EmmyLua reads, a directory of `--library` with a `.rocks/` of
+  its own too.
 
 The project's `.luarc.json`, `.emmyrc.json` and `.emmyrc.lua` are read after
 it and add to it, as [above](#check-the-code). `check`, `doc` and `ls` read
-every other Lua file of the project, those git ignores too: `ignoreGlobs`
-or `ignoreDir` of `.emmyrc.json` leave more out. With paths, `check` and
-`doc` add one more configuration for the run, which leaves the rest of the
-root out of the code and reads it as a library instead.
+every other Lua file of the project: `ignoreGlobs` or `ignoreDir` of
+`.emmyrc.json` leave more out. Out of a git work tree, or in a directory git
+ignores, nothing is left out for git. With paths, `check` and `doc` add one
+more configuration for the run, which leaves the rest of the root out of the
+code and reads it as a library instead, but what git ignores; a path given
+is checked even when git ignores it, while what git ignores under a
+directory given is still left out.
 
 `fmt` runs luafmt without that configuration: luafmt reads `.luafmt.toml`
 or `luafmt.toml`, the nearest one above each file, and `.luafmtignore`. What

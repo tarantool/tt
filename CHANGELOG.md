@@ -1674,6 +1674,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   remembers the executable by its real path, version, size and time of
   change, so another Tarantool, or an upgrade in place, is warned of anew.
   Later runs print the line with `-V` only.
+- `tt emmylua check`, `doc` and `ls` in a git work tree leave out what git
+  ignores, as `tt emmylua fmt` does: the directories git ignores whole and
+  the untracked Lua files `.gitignore`, `.git/info/exclude` or
+  `core.excludesFile` match go to `workspace.ignoreDir` of the configuration
+  tt writes. They read them as code of the project, so a scratch file or a
+  vendored tree git ignores was checked and documented. `.rocks/`,
+  `.tarantool/` and `_build/` of the root go to `ignoreDir` too, whatever git
+  says, so EmmyLua no longer walks them, while the libraries under `.rocks/`
+  are read as before. A path given to `check` or `doc` is checked as given,
+  git ignoring it or not; what git ignores under a directory given is still
+  left out.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

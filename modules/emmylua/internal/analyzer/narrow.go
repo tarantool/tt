@@ -53,16 +53,19 @@ const narrowingLibrary = "lib"
 //   - every entry of root that neither is a path nor leads to one goes to
 //     workspace.ignoreDir, so it is not read as the code of the workspace;
 //   - the same entries, but .rocks/, .tarantool/ and _build/ at the top,
-//     which are not the code of the project, are read as a library, so that
-//     their modules resolve and are not reported: a directory of links to
-//     them, laid out as they are under root, so that their modules keep the
-//     names they have in root. The links are not under the paths EmmyLua
-//     ignores, and it follows them.
+//     which are not the code of the project, and those git ignores, are
+//     read as a library, so that their modules resolve and are not
+//     reported: a directory of links to them, laid out as they are under
+//     root, so that their modules keep the names they have in root. The
+//     links are not under the paths EmmyLua ignores, and it follows them;
+//     what git ignores under a link is ignored through the link as well.
 //
-// A path that is root itself narrows nothing: the narrowing has no Config. A
-// path outside root, once links are resolved, fails with an error wrapping
-// ErrOutside. The caller removes the narrowing after the run.
-func Narrow(parent, root string, paths []string) (*Narrowing, error) {
+// ignored are the files and directories of root git ignores, relative to
+// it (Layout.Ignored). A path that is root itself narrows nothing: the
+// narrowing has no Config. A path outside root, once links are resolved,
+// fails with an error wrapping ErrOutside. The caller removes the narrowing
+// after the run.
+func Narrow(parent, root string, paths, ignored []string) (*Narrowing, error) {
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, fmt.Errorf("reading the workspace: %w", err)
@@ -104,7 +107,7 @@ func Narrow(parent, root string, paths []string) (*Narrowing, error) {
 
 	narrowing := &Narrowing{Config: filepath.Join(dir, ConfigFileName), dir: dir}
 
-	err = narrowing.write(realRoot, others)
+	err = narrowing.write(realRoot, others, ignored)
 	if err != nil {
 		_ = narrowing.Remove()
 
@@ -115,9 +118,11 @@ func Narrow(parent, root string, paths []string) (*Narrowing, error) {
 }
 
 // write writes the configuration and the links of the narrowing that leaves
-// others, entries of root, out of the workspace.
-func (n *Narrowing) write(root string, others []string) error {
+// others, entries of root, out of the workspace, with ignored, what git
+// ignores under root, out of the library too.
+func (n *Narrowing) write(root string, others, ignored []string) error {
 	library := filepath.Join(n.dir, narrowingLibrary)
+	ignoreDir := slices.Clone(others)
 
 	for _, entry := range others {
 		rel, err := filepath.Rel(root, entry)
@@ -125,7 +130,7 @@ func (n *Narrowing) write(root string, others []string) error {
 			return fmt.Errorf("narrowing the workspace: %w", err)
 		}
 
-		if slices.Contains(notCode, rel) {
+		if slices.Contains(notCode, rel) || under(rel, ignored) {
 			continue
 		}
 
@@ -141,7 +146,12 @@ func (n *Narrowing) write(root string, others []string) error {
 		}
 	}
 
-	workspace := map[string]any{"ignoreDir": others}
+	// EmmyLua walks a link by its own path, not by the path it leads to.
+	for _, rel := range ignored {
+		ignoreDir = append(ignoreDir, filepath.Join(library, rel))
+	}
+
+	workspace := map[string]any{"ignoreDir": ignoreDir}
 
 	_, err := os.Stat(library)
 	if err == nil {
@@ -158,6 +168,14 @@ func (n *Narrowing) write(root string, others []string) error {
 	}
 
 	return writeFileAtomic(n.Config, append(data, '\n'))
+}
+
+// under reports whether rel, a path relative to a root, is one of paths,
+// relative to the same root, or lies under one.
+func under(rel string, paths []string) bool {
+	return slices.ContainsFunc(paths, func(path string) bool {
+		return rel == path || strings.HasPrefix(rel, path+string(filepath.Separator))
+	})
 }
 
 // notCode are the entries at the top of a workspace that are not its code:

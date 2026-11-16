@@ -3228,13 +3228,15 @@ command fails as emmylua_check does: when it reports an error, or with
 --severity go to emmylua_check as they are, its other flags, such as --ignore
 and --output, after --. Arguments after -- go to the program as they are.
 
-With no PATH the command checks the whole project. A PATH, a directory or a file
-of the project, narrows what is checked to the files under it, and with more
-than one to the files under any: the rest of the project is read as a library,
-so its modules resolve and are not checked, and EmmyLua still runs on the root
-of the project, so the module names, the relative paths of the configuration and
-the paths it prints are those of the whole project. Outside every project a PATH
-must be in the current directory.
+With no PATH the command checks the whole project but .rocks/, .tarantool/ and
+_build/, and in a git work tree but the files git ignores (.gitignore,
+.git/info/exclude, core.excludesFile). A PATH, a directory or a file of the
+project, narrows what is checked to the files under it, git ignoring it or not,
+and with more than one to the files under any: the rest of the project is read
+as a library, so its modules resolve and are not checked, and EmmyLua still runs
+on the root of the project, so the module names, the relative paths of the
+configuration and the paths it prints are those of the whole project. Outside
+every project a PATH must be in the current directory.
 
 Outside every project the programs come from the user cache, fetched there once
 from the rock server (--rock-server, --version), and the configuration tt writes
@@ -3271,11 +3273,12 @@ EXAMPLES
 === tt emmylua config --help
 Write the configuration tt gives EmmyLua - LuaJIT, the globals of Tarantool, the
 stubs of the Tarantool the project runs on and the modules its rocks install,
-with .rocks/, .tarantool/ and the build tree _build/ left out of the code of the
-project, and the project's own package, which tt package build installs into
-.rocks/, out of the libraries - to .tarantool/emmylua/emmyrc.json of the project
-and print its path: for an editor that runs emmylua_ls itself, through
-EMMYLUALS_CONFIG. The other commands write it anew on every run.
+with .rocks/, .tarantool/, the build tree _build/ and, in a git work tree, what
+git ignores left out of the code of the project, and the project's own package,
+which tt package build installs into .rocks/, out of the libraries - to
+.tarantool/emmylua/emmyrc.json of the project and print its path: for an editor
+that runs emmylua_ls itself, through EMMYLUALS_CONFIG. The other commands write
+it anew on every run.
 
 Outside every project it is written into the user cache, one file for each
 directory, with the modules of .rocks/ of the directory, and the directory is
@@ -3300,13 +3303,15 @@ the documentation of the annotated code, by default as an HTML site in ./output.
 flags, such as --site-name, after --. Arguments after -- go to the program as
 they are.
 
-With no PATH the command documents the whole project. A PATH, a directory or a
-file of the project, narrows what is documented to the files under it, and with
-more than one to the files under any: the rest of the project is read as a
-library, so its modules resolve and are not documented, and EmmyLua still runs
-on the root of the project, so the module names, the relative paths of the
-configuration and the paths it prints are those of the whole project. Outside
-every project a PATH must be in the current directory.
+With no PATH the command documents the whole project but .rocks/, .tarantool/
+and _build/, and in a git work tree but the files git ignores (.gitignore,
+.git/info/exclude, core.excludesFile). A PATH, a directory or a file of the
+project, narrows what is documented to the files under it, git ignoring it or
+not, and with more than one to the files under any: the rest of the project is
+read as a library, so its modules resolve and are not documented, and EmmyLua
+still runs on the root of the project, so the module names, the relative paths
+of the configuration and the paths it prints are those of the whole project.
+Outside every project a PATH must be in the current directory.
 
 Outside every project the programs come from the user cache, fetched there once
 from the rock server (--rock-server, --version), and the configuration tt writes

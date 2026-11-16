@@ -75,6 +75,10 @@ type Layout struct {
 	// Own are the files and directories of the libraries that hold the
 	// project's own package (OwnModules), left out of them.
 	Own []string
+	// Ignored are the files and directories under ProjectDir that git
+	// ignores, relative to it, left out of the code of the project: EmmyLua
+	// walks the whole workspace and knows nothing of .gitignore.
+	Ignored []string
 }
 
 // Libraries are the directories EmmyLua reads as libraries: the stubs of
@@ -105,16 +109,31 @@ func (l Layout) Libraries() []string {
 
 // Config is the configuration tt gives EmmyLua: LuaJIT, the globals of
 // Tarantool, the libraries of Layout, and what of the project is not its
-// code: ignoreGlobs, relative to the root, for the code of the project, and
-// ignoreDir, absolute, for the project's own package in the libraries (Own).
-// The project's own configuration is read after it, so it can add to any of
-// these: EmmyLua merges the objects and joins the lists.
+// code. ignoreDir, absolute paths, is what EmmyLua does not walk into:
+// .rocks/, .tarantool/ and _build/ of the root (notCode), what git ignores
+// (Ignored), and the project's own package in the libraries (Own). EmmyLua
+// drops a directory of ignoreDir that holds a library from the walk of that
+// library, so the libraries under .rocks/ are read all the same.
+// ignoreGlobs, relative to the root of each folder EmmyLua walks, leave the
+// same directories out of the libraries too, a checkout of a rock with its
+// own .rocks/ given to --library say. The project's own configuration is
+// read after it, so it can add to any of these: EmmyLua merges the objects
+// and joins the lists.
 func (l Layout) Config() map[string]any {
 	comment := "Written by tt emmylua for this machine, anew on every run: " +
 		"put the settings of the project into .emmyrc.json."
 	if l.Path != "" {
 		comment = "Written by tt emmylua for " + l.ProjectDir + ", outside every project, " +
 			"anew on every run: put the settings of the directory into .emmyrc.json there."
+	}
+
+	ignoreDir := make([]string, 0, len(notCode)+len(l.Ignored)+len(l.Own))
+	for _, name := range notCode {
+		ignoreDir = append(ignoreDir, filepath.Join(l.ProjectDir, name))
+	}
+
+	for _, name := range l.Ignored {
+		ignoreDir = append(ignoreDir, filepath.Join(l.ProjectDir, name))
 	}
 
 	workspace := map[string]any{
@@ -124,10 +143,7 @@ func (l Layout) Config() map[string]any {
 			projectDirName + "/**/*.lua",
 			BuildDirGlob,
 		},
-	}
-
-	if len(l.Own) > 0 {
-		workspace["ignoreDir"] = l.Own
+		"ignoreDir": append(ignoreDir, l.Own...),
 	}
 
 	return map[string]any{
