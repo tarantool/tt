@@ -471,7 +471,7 @@ func (b ccBuild) Run(ctx context.Context, c *build.Context) error {
 		run.required = requireName(c.Component.Namespace, b.config.Module)
 	}
 
-	err = compileAll(ctx, built.steps, maxJobs(), run.compile)
+	err = compileAll(ctx, built.steps, maxJobs(c), run.compile)
 
 	// The warnings of the compiles that succeeded are shown when another
 	// failed too: they may tell why.

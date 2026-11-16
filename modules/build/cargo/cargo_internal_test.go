@@ -18,7 +18,7 @@ func TestArgs(t *testing.T) {
 			"build", "--profile", "release", "--bin", "agent",
 			"--message-format=json-render-diagnostics",
 		},
-		cargoBuild{bin: "agent"}.args(""))
+		cargoBuild{bin: "agent"}.args("", 0))
 
 	assert.Equal(t,
 		[]string{
@@ -29,7 +29,24 @@ func TestArgs(t *testing.T) {
 		},
 		cargoBuild{config: Config{
 			Profile: "dist", Package: "agent-crate", Features: []string{"tls", "serde/derive"},
-		}, bin: "agent"}.args("x86_64-unknown-linux-musl"))
+		}, bin: "agent"}.args("x86_64-unknown-linux-musl", 0))
+
+	// The jobs of the build, when they are set.
+	assert.Equal(t,
+		[]string{
+			"build", "--profile", "release", "--bin", "agent",
+			"--message-format=json-render-diagnostics", "-j", "3",
+		},
+		cargoBuild{bin: "agent"}.args("", 3))
+}
+
+func TestJobsArgs(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, jobsArgs(0))
+	assert.Empty(t, jobsArgs(-1))
+	assert.Equal(t, []string{"-j", "1"}, jobsArgs(1))
+	assert.Equal(t, []string{"-j", "12"}, jobsArgs(12))
 }
 
 func TestModuleArgs(t *testing.T) {
@@ -40,7 +57,7 @@ func TestModuleArgs(t *testing.T) {
 	assert.Equal(t, []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release",
 		"--message-format=json-render-diagnostics", "--package", "fast", "--features", "simd",
-	}, fast.moduleArgs("", "linux"))
+	}, fast.moduleArgs("", "linux", 0))
 
 	// On macOS the library leaves its symbols of Tarantool to the loader, and
 	// only the library: the arguments after -- go to its rustc alone.
@@ -50,7 +67,15 @@ func TestModuleArgs(t *testing.T) {
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev",
 		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
 		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",
-	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS))
+	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS, 0))
+
+	// The jobs are of cargo, before the arguments of rustc.
+	assert.Equal(t, []string{
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev",
+		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
+		"-j", "2",
+		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",
+	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS, 2))
 }
 
 func TestTarget(t *testing.T) {

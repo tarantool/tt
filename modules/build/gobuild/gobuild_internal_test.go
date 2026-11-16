@@ -19,6 +19,7 @@ func TestGoArgs(t *testing.T) {
 		config Config
 		output string
 		static bool
+		jobs   int
 		want   []string
 	}{
 		{
@@ -74,19 +75,29 @@ func TestGoArgs(t *testing.T) {
 			output: output,
 			want:   []string{"build", "-trimpath", "-o", output, "."},
 		},
+		{
+			// The jobs of the build, when they are set.
+			name:   "jobs",
+			config: Config{Tags: []string{"prod"}},
+			output: output,
+			jobs:   3,
+			want: []string{
+				"build", "-trimpath", "-o", output, "-p", "3", "-tags", "prod", ".",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			args, err := goArgs(tt.config, tt.output, tt.static)
+			args, err := goArgs(tt.config, tt.output, tt.static, tt.jobs)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, args)
 		})
 	}
 
-	_, err := goArgs(Config{Ldflags: []string{`both ' and "`}}, output, false)
+	_, err := goArgs(Config{Ldflags: []string{`both ' and "`}}, output, false, 0)
 	require.ErrorIs(t, err, errUnquotableFlag)
 }
 

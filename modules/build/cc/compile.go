@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
@@ -23,10 +22,12 @@ const (
 	dirPerm  = 0o755
 )
 
-// maxJobs is the number of compiles that run at once: one a CPU, as the
-// cmake backend builds.
-func maxJobs() int {
-	return runtime.NumCPU()
+// maxJobs is the number of compiles of the build in c that run at once: its
+// Jobs, as tt package build --jobs sets them, or one a CPU, as the cmake
+// backend builds, when it is 0 (build.Context.JobsOrCPUs). The jobs are of
+// no key of the cache: an object compiled with other jobs is the same.
+func maxJobs(c *build.Context) int {
+	return c.JobsOrCPUs()
 }
 
 // compileAll runs compile for each of steps, up to jobs of them at once. The

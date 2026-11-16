@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/build"
@@ -265,7 +266,7 @@ func (b cargoBuild) runBinary(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	stdout, err := c.Output(b.command(ctx, c, b.args(target)))
+	stdout, err := c.Output(b.command(ctx, c, b.args(target, c.Jobs)))
 	if err != nil {
 		if b.static {
 			return fmt.Errorf("%w; a static build is made for the target %s, "+
@@ -305,7 +306,7 @@ func (b cargoBuild) runModule(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	stdout, err := c.Output(b.command(ctx, c, b.moduleArgs(target, c.Target.OS)))
+	stdout, err := c.Output(b.command(ctx, c, b.moduleArgs(target, c.Target.OS, c.Jobs)))
 	if err != nil {
 		return err
 	}
@@ -355,30 +356,46 @@ func (b cargoBuild) command(ctx context.Context, c *build.Context, args []string
 	return cmd
 }
 
-// args builds the cargo build argv. Diagnostics are rendered by cargo to
-// stderr as usual, and only the JSON messages go to stdout.
-func (b cargoBuild) args(target string) []string {
-	return append([]string{
+// args builds the cargo build argv, with the number of jobs of jobsArgs.
+// Diagnostics are rendered by cargo to stderr as usual, and only the JSON
+// messages go to stdout.
+func (b cargoBuild) args(target string, jobs int) []string {
+	args := append([]string{
 		"build", "--profile", b.profile(), "--bin", b.bin,
 		"--message-format=json-render-diagnostics",
 	}, b.selection(target)...)
+
+	return append(args, jobsArgs(jobs)...)
 }
 
 // moduleArgs builds the cargo rustc argv of the library of a module
-// component, for goos.
-func (b cargoBuild) moduleArgs(target, goos string) []string {
+// component, for goos, with the number of jobs of jobsArgs.
+func (b cargoBuild) moduleArgs(target, goos string, jobs int) []string {
 	args := []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", b.profile(),
 		"--message-format=json-render-diagnostics",
 	}
 
 	args = append(args, b.selection(target)...)
+	args = append(args, jobsArgs(jobs)...)
 
 	if goos == darwinOS {
 		args = append(args, "--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup")
 	}
 
 	return args
+}
+
+// jobsArgs is the part of a cargo argv that says how many jobs it runs at
+// once: -j <jobs>, the Jobs of the build (build.Context.Jobs), when they
+// are set, and nothing otherwise, so that cargo runs as many as its own
+// configuration says, build.jobs or CARGO_BUILD_JOBS, one a CPU by default.
+func jobsArgs(jobs int) []string {
+	if jobs <= 0 {
+		return nil
+	}
+
+	return []string{"-j", strconv.Itoa(jobs)}
 }
 
 // profile is the profile of the build, release unless it names another.

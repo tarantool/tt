@@ -392,6 +392,39 @@ func TestRunCopiesTheBinary(t *testing.T) {
 	assert.Equal(t, "compiling\n", harness.Printed(), "stdout is read, not shown")
 }
 
+// TestRunJobs: the jobs of the build reach every run of cargo as -j, that
+// of the library and that of the binary, and none is given without them.
+func TestRunJobs(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), both())
+	log := fakeCargo(t, harness)
+	bld := validate(t, both(), map[string]any{"module": "fast", "bin": "agent"}, false)
+
+	noTargetDir(harness)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	for _, run := range readLines(t, log+".runs") {
+		assert.NotContains(t, strings.Fields(run), "-j", run)
+	}
+
+	require.NoError(t, os.Remove(log+".runs"))
+
+	harness.SetJobs(4)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	runs := readLines(t, log+".runs")
+	require.Len(t, runs, 2)
+	assert.True(t, strings.HasPrefix(runs[0], "rustc "), runs[0])
+	assert.True(t, strings.HasPrefix(runs[1], "build "), runs[1])
+
+	for _, run := range runs {
+		assert.Contains(t, run, " -j 4", run)
+	}
+}
+
 // TestRunCopiesTheLibraryAndTheBinary: a block that names module and bin
 // builds the library, into the directory of the modules, then the binary,
 // into that of the programs; a static one builds the binary alone for musl.
