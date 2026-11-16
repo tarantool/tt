@@ -500,7 +500,9 @@ The objects name no path of the machine: `-ffile-prefix-map=<project>=.`
 makes the root of the project `.` in the debug information and in
 `__FILE__`, and `-gno-record-gcc-switches` keeps the command line out of
 it, so that the same sources built in another directory make the same
-module. A debugger finds the sources when it is started in the project, or
+module. That is so on Linux; on macOS the debug information stays in the
+objects, and the module keeps their paths, under `_build/` of the project,
+in its debug map, which `dsymutil` and a debugger read. A debugger finds the sources when it is started in the project, or
 told the directory, `set substitute-path . /path/to/project` of gdb. Each
 of the two is given only when the compiler takes it: tt compiles a source
 of nothing with it once a compiler and a language, which has to succeed

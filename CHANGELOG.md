@@ -523,7 +523,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   its lines. Each compile has `-ffile-prefix-map=<project>=.` and
   `-gno-record-gcc-switches` too, when its compiler takes them - probed
   once a compiler, the answer kept in the build directory - so the module
-  names no path of the machine it was built on.
+  names no path of the machine it was built on. On macOS the debug map of
+  the module still names its objects under `_build/`.
 - A `c` or `lua-c` module of Linux is linked with `-Wl,-Bsymbolic-functions`
   (but by `zig cc`, which refuses it): its calls to its own functions call
   them, where a function of the name of one Tarantool exports - Tarantool
