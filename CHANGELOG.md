@@ -535,6 +535,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt run` works in any project, as the instance commands find it: one of
+  templates alone, as `tt create single_instance` and `cluster` make, runs
+  its own Tarantool, where `tt run` refused it with `not a tt package
+  directory`. Outside every project it says `not inside a project`. `tt test`
+  still needs `app.manifest.toml`, since it builds the package, and says so.
 - Breaking: `tt run` runs Tarantool in the current directory, as
   `tarantool` started there would run, where it moved to the project root
   first, so `tt run ../script.lua` in a subdirectory of the project failed

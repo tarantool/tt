@@ -62,6 +62,19 @@ def test_test_runs_the_test_directory(run_tt, project: Path, fake_luatest):
     assert "arg:test/" in result.stdout
 
 
+def test_test_needs_a_package(run_tt, tmp_path_factory: pytest.TempPathFactory):
+    """A project of templates alone has no package for tt test to build."""
+    project = tmp_path_factory.mktemp("templates-only")
+    (project / ".templates" / "default").mkdir(parents=True)
+    (project / ".templates" / "default" / "instances.yaml").write_text("{}\n")
+
+    result = run_tt("test", cwd=project)
+
+    assert result.returncode == 1
+    assert "no app.manifest.toml" in result.stderr
+    assert "tt test builds the package, and tt new writes a manifest for it" in result.stderr
+
+
 def test_test_runs_in_the_root_from_a_subdirectory(run_tt, project: Path, fake_luatest):
     """Unlike tt run, tt test runs luatest in the project root.
 

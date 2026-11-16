@@ -9,19 +9,42 @@ from pathlib import Path
 import pytest
 
 
-def test_run_needs_a_manifest(run_tt, tmp_path_factory: pytest.TempPathFactory):
-    """A directory with no package is an error, not an empty success.
+@pytest.mark.parametrize("pair_file", ["instances.yaml", "config.yaml"])
+def test_run_works_in_a_project_without_a_manifest(
+    run_tt,
+    tmp_path_factory: pytest.TempPathFactory,
+    pair_file: str,
+):
+    """A project of templates alone, as tt create single_instance makes, is a
+    project tt run works in, from a subdirectory too: it needs the tarantool
+    of the project, not a package."""
+    project = tmp_path_factory.mktemp("templates-only")
+    (project / ".templates" / "default").mkdir(parents=True)
+    (project / ".templates" / "default" / pair_file).write_text("{}\n")
+    (project / "sub").mkdir()
 
-    The manifest is the only thing the command requires, so this is also the
-    assertion that it requires nothing else. The directory is outside the
-    project of the fixture: inside it, the run would find that project.
-    """
+    for cwd in (project, project / "sub"):
+        result = run_tt("run", "-e", "print('ran') os.exit()", cwd=cwd, stdin="")
+
+        assert result.returncode == 0, result.stderr
+        assert "ran" in result.stdout
+
+
+def test_run_outside_a_project_names_what_makes_one(
+    run_tt,
+    tmp_path_factory: pytest.TempPathFactory,
+):
+    """A directory in no project is an error, not an empty success. It is
+    outside the project of the fixture: inside it, the run would find that
+    project."""
     elsewhere = tmp_path_factory.mktemp("elsewhere")
 
     result = run_tt("run", "-e", "print(1)", cwd=elsewhere)
 
     assert result.returncode == 1
-    assert "app.manifest.toml" in result.stderr
+    assert "not inside a project: no app.manifest.toml, .templates/*/instances.yaml" in (
+        result.stderr
+    )
 
 
 def test_run_needs_no_tt_environment(run_tt):

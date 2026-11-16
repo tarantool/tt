@@ -287,7 +287,8 @@ The archive includes `.rocks/`, `.templates/`, runtimes and the files listed in
 > instead.
 
 `tt run` runs the Tarantool of the project the current directory is in, the
-nearest directory above it with `app.manifest.toml`. It previously read
+nearest directory above it with `app.manifest.toml` or the pair of a template
+in `.templates/<name>/`; no package is needed. It previously read
 `tt.yaml`. Tarantool runs in the current directory, so `tt run ../script.lua`
 from a subdirectory runs the script of the parent directory. Only `-h` and
 `--help` before the script name are tt's own, and a `--` there ends them and is

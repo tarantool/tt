@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/scope"
 
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
 )
@@ -16,11 +20,13 @@ import (
 func NewRunCmd() *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run [TARANTOOL-OPTIONS...] [SCRIPT [ARGS...]]",
-		Short: "Run the current package under its Tarantool",
+		Short: "Run the Tarantool of the current project",
 		Long: `Run the Tarantool of the current project, in the current directory.
 
-The project is the one the current directory is in: the nearest directory
-holding app.manifest.toml, the current one or one above it. No tt environment
+The project is the one the current directory is in, as the instance commands
+find it: the nearest directory, the current one or one above it, holding
+app.manifest.toml or the pair of a template in .templates/<name>/, as
+tt create single_instance makes. No package is needed, and no tt environment
 and no tt.yaml are involved. The interpreter is the project's own, the one
 .tarantool/bin/tarantool of the project selects, and the first tarantool on
 PATH when there is none — TT_USE_SYSTEM_TARANTOOL=1 forces PATH either way.
@@ -125,7 +131,17 @@ func splitRunArgs(args []string) (bool, []string) {
 
 // internalRunModule is a default run module.
 func internalRunModule(_ *cmdcontext.CmdCtx, args []string) error {
-	root, tarantool, err := selectProjectTarantool()
+	projectDir, err := projectRootDir()
+	if err != nil {
+		return err
+	}
+
+	root, err := anyProjectRoot(projectDir)
+	if err != nil {
+		return err
+	}
+
+	tarantool, err := projectTarantool(root)
 	if err != nil {
 		return err
 	}
@@ -133,16 +149,36 @@ func internalRunModule(_ *cmdcontext.CmdCtx, args []string) error {
 	return run.Exec(root, tarantool, args)
 }
 
-// selectProjectTarantool resolves the project root and the interpreter it runs
-// under, shared by tt run and tt test. The root is the project the working
-// directory is in (projectRootDir), so both work from any of its
-// subdirectories: tt run in that subdirectory, tt test in the root.
-//
-// The interpreter is chosen by the rule the instance commands follow for a
-// project (cli/tarantool), so a package runs on the same tarantool under
-// tt run as under tt instance start. bin_dir of tt.yaml plays no part in it.
-// What the choice warns about, a project tarantool other than the one the
-// lock bundles say, goes to the log.
+// anyProjectRoot reports dir, the project projectRootDir found, as the root
+// of a project of any kind: one with app.manifest.toml, or one with the pair
+// of a template only, as tt create single_instance makes, which the instance
+// commands work on just as well. tt run needs no package, only the
+// tarantool of the project. A dir with no marker is the working directory
+// outside every project.
+func anyProjectRoot(dir string) (string, error) {
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolving %q: %w", dir, err)
+	}
+
+	found, err := scope.HasProjectMarker(root)
+	if err != nil {
+		return "", fmt.Errorf("looking for the project in %s: %w", root, err)
+	}
+
+	if !found {
+		return "", fmt.Errorf("%w: no %s, %s/*/%s or %s/*/%s in %s or its parents",
+			app.ErrNoProject, scope.ManifestFileName, scope.TemplatesDirName,
+			scope.InstancesFileName, scope.TemplatesDirName, scope.ConfigFileName, root)
+	}
+
+	return root, nil
+}
+
+// selectProjectTarantool resolves the root of the package the working
+// directory is in (projectRootDir) and the interpreter it runs under, for
+// tt test, which builds the package and so needs its manifest. tt run takes
+// a project of any kind (anyProjectRoot).
 func selectProjectTarantool() (string, string, error) {
 	projectDir, err := projectRootDir()
 	if err != nil {
@@ -151,17 +187,37 @@ func selectProjectTarantool() (string, string, error) {
 
 	root, err := run.ProjectRoot(projectDir)
 	if err != nil {
+		// A project of templates alone is still one tt run and the instance
+		// commands work on: what it lacks is the package to build.
+		return "", "", fmt.Errorf("%w; tt test builds the package, and tt new writes "+
+			"a manifest for it", err)
+	}
+
+	tarantool, err := projectTarantool(root)
+	if err != nil {
 		return "", "", err
 	}
 
+	return root, tarantool, nil
+}
+
+// projectTarantool chooses the interpreter of the project at root, shared by
+// tt run and tt test.
+//
+// The interpreter is chosen by the rule the instance commands follow for a
+// project (cli/tarantool), so a package runs on the same tarantool under
+// tt run as under tt instance start. bin_dir of tt.yaml plays no part in it.
+// What the choice warns about, a project tarantool other than the one the
+// lock bundles say, goes to the log.
+func projectTarantool(root string) (string, error) {
 	exe, err := run.Tarantool(root)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	for _, warning := range exe.Warnings {
 		log.Warn(warning)
 	}
 
-	return root, exe.Path, nil
+	return exe.Path, nil
 }

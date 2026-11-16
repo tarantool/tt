@@ -30,7 +30,7 @@ COMMANDS
   replicaset  Manage replicasets
   restore     Restore a Tarantool cluster from a backup (PITR)
   rocks       LuaRocks package manager
-  run         Run the current package under its Tarantool
+  run         Run the Tarantool of the current project
   service     Integrate with the service manager of the system
   tcm         Manage tcm application
   test        Build the current package and run its tests
@@ -5398,8 +5398,10 @@ USAGE
 === tt run (via tt help: flag parsing disabled)
 Run the Tarantool of the current project, in the current directory.
 
-The project is the one the current directory is in: the nearest directory
-holding app.manifest.toml, the current one or one above it. No tt environment
+The project is the one the current directory is in, as the instance commands
+find it: the nearest directory, the current one or one above it, holding
+app.manifest.toml or the pair of a template in .templates/<name>/, as
+tt create single_instance makes. No package is needed, and no tt environment
 and no tt.yaml are involved. The interpreter is the project's own, the one
 .tarantool/bin/tarantool of the project selects, and the first tarantool on
 PATH when there is none — TT_USE_SYSTEM_TARANTOOL=1 forces PATH either way.
@@ -6787,7 +6789,7 @@ registry	Inspect the rock servers packages are resolved against
 replicaset	Manage replicasets
 restore	Restore a Tarantool cluster from a backup (PITR)
 rocks	LuaRocks package manager
-run	Run the current package under its Tarantool
+run	Run the Tarantool of the current project
 service	Integrate with the service manager of the system
 tcm	Manage tcm application
 test	Build the current package and run its tests
