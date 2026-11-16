@@ -1053,6 +1053,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt package uninstall` says that it removes an application in the user and
   system scopes. `tt --help` no longer has a line of a single space after
   HELP TOPICS.
+- `tt package install` into the user or system scope warns when the
+  installed application has no tarantool to start on, as for an archive
+  packed `--without-deps` into a scope where no tarantool satisfies
+  `[platform].tarantool`: `myapp 1.0.0 cannot start yet: tarantool is not
+  installed in the user scope: …`, naming the constraint and the
+  `tt binary install tarantool <version> --scope user` that satisfies it.
+  The install succeeded silently, and the first `tt instance start` failed.
 - A `tt package add` or `tt package remove` whose resolution fails leaves
   `app.manifest.toml` and `app.manifest.lock` byte for byte as they were,
   whatever the failure: a rock no server has, a constraint no version

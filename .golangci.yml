@@ -598,6 +598,9 @@ linters:
             - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/status"
             - "github.com/tarantool/tt/v3/cli/tail"
+            # tt package install warns of an application that has no
+            # tarantool to start on, as tt instance start would find it.
+            - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/cli/tcm"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"

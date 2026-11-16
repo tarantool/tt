@@ -1084,6 +1084,8 @@ func runPackageInstall(archives []string) error {
 		warnRestart(one.Package, one.Scope, projectDir, one.Version, running)
 	}
 
+	warnMissingTarantool(result.Installed, projectDir)
+
 	return nil
 }
 
