@@ -69,14 +69,23 @@ const (
 	groupMarked = "true"
 )
 
+// takesArgs reports whether command declares positional arguments of its
+// own, by an Args validator or by ValidArgs: an argument of it is not
+// meant as a subcommand, so it is not an unknown one either.
+func takesArgs(command *cobra.Command) bool {
+	return command.Args != nil || len(command.ValidArgs) > 0 ||
+		command.ValidArgsFunction != nil
+}
+
 // rejectUnknownSubcommands gives groupRunE to every command under root that
-// has subcommands and nothing to run of its own, and marks it with
-// groupAnnotation: its usage has no line of its own to run it by. cobra
-// prints the help of such a command for any argument and exits 0, which
-// lets a mistyped subcommand pass a script unnoticed.
+// has subcommands, nothing to run of its own and no positional arguments of
+// its own, and marks it with groupAnnotation: its usage has no line of its
+// own to run it by. cobra prints the help of such a command for any
+// argument and exits 0, which lets a mistyped subcommand pass a script
+// unnoticed.
 func rejectUnknownSubcommands(root *cobra.Command) {
 	for _, command := range root.Commands() {
-		if command.HasSubCommands() && !command.Runnable() {
+		if command.HasSubCommands() && !command.Runnable() && !takesArgs(command) {
 			command.RunE = groupRunE
 
 			if command.Annotations == nil {

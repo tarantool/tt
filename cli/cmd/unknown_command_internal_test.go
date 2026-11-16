@@ -215,3 +215,52 @@ func TestRejectUnknownSubcommands(t *testing.T) {
 	assert.False(t, isGroup(leaf), "a help topic stays one")
 	assert.False(t, leaf.Runnable())
 }
+
+// TestGroupWithArgs checks that a command with subcommands that takes
+// positional arguments of its own, by its RunE, its Args or its ValidArgs,
+// is not made a group: an argument that names no subcommand reaches it and
+// is not reported as an unknown command.
+//
+//nolint:paralleltest // Replaces slog.Default for the duration of each case.
+func TestGroupWithArgs(t *testing.T) {
+	var got []string
+
+	runs := &cobra.Command{
+		Use:  "runs [program]",
+		Args: cobra.MaximumNArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			got = args
+
+			return nil
+		},
+	}
+	runs.AddCommand(&cobra.Command{Use: "tarantool", Run: func(*cobra.Command, []string) {}})
+
+	validated := &cobra.Command{Use: "validated", Args: cobra.ArbitraryArgs}
+	validated.AddCommand(&cobra.Command{Use: "sub", Run: func(*cobra.Command, []string) {}})
+
+	valid := &cobra.Command{Use: "valid", ValidArgs: []string{"one", "two"}}
+	valid.AddCommand(&cobra.Command{Use: "sub", Run: func(*cobra.Command, []string) {}})
+
+	root := &cobra.Command{Use: "tt", RunE: groupRunE, TraverseChildren: true}
+	root.AddCommand(runs, validated, valid)
+
+	rejectUnknownSubcommands(root)
+
+	for _, command := range []*cobra.Command{runs, validated, valid} {
+		assert.False(t, isGroup(command), command.Name())
+	}
+
+	run := runUnknown(t, root, "runs", "bash", "123")
+
+	assert.Equal(t, sdk.ExitOK, run.code)
+	assert.Empty(t, run.logged)
+	assert.Equal(t, []string{"bash", "123"}, got)
+
+	for _, name := range []string{"validated", "valid"} {
+		run = runUnknown(t, root, name, "one")
+
+		assert.Equal(t, sdk.ExitOK, run.code, name)
+		assert.NotContains(t, run.logged, "unknown command", name)
+	}
+}

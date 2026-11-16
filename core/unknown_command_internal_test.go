@@ -17,12 +17,14 @@ import (
 	"github.com/tarantool/tt/v3/cli/logging"
 )
 
-// groupsOf returns the commands under command that have subcommands.
+// groupsOf returns the commands under command that have subcommands and no
+// positional arguments of their own, which an argument of goes to as is.
 func groupsOf(command *cobra.Command) []*cobra.Command {
 	var groups []*cobra.Command
 
 	for _, sub := range command.Commands() {
-		if sub.HasSubCommands() {
+		takesArgs := sub.Args != nil || len(sub.ValidArgs) > 0 || sub.ValidArgsFunction != nil
+		if sub.HasSubCommands() && !takesArgs {
 			groups = append(groups, sub)
 		}
 
@@ -64,6 +66,8 @@ func TestUnknownSubcommandOfEveryGroup(t *testing.T) {
 	for _, group := range groups {
 		path := group.CommandPath()
 		words := strings.Fields(path)[1:]
+
+		assert.Equal(t, "true", group.Annotations["tt.core/group"], "%s is a group", path)
 
 		var first string
 
