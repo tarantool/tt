@@ -111,9 +111,10 @@ func (l Layout) Libraries() []string {
 // Tarantool, the libraries of Layout, and what of the project is not its
 // code. ignoreDir, absolute paths, is what EmmyLua does not walk into:
 // .rocks/, .tarantool/ and _build/ of the root (notCode), what git ignores
-// (Ignored), and the project's own package in the libraries (Own). EmmyLua
-// drops a directory of ignoreDir that holds a library from the walk of that
-// library, so the libraries under .rocks/ are read all the same.
+// (Ignored), the entry module of luatest, which the stub tt writes stands
+// for (luatestInits), and the project's own package in the libraries (Own).
+// EmmyLua drops a directory of ignoreDir that holds a library from the walk
+// of that library, so the libraries under .rocks/ are read all the same.
 // ignoreGlobs, relative to the root of each folder EmmyLua walks, leave the
 // same directories out of the libraries too, a checkout of a rock with its
 // own .rocks/ given to --library say. The project's own configuration is
@@ -136,8 +137,15 @@ func (l Layout) Config() map[string]any {
 		ignoreDir = append(ignoreDir, filepath.Join(l.ProjectDir, name))
 	}
 
+	library := l.Libraries()
+
+	if inits := l.luatestInits(); len(inits) > 0 {
+		library = append([]string{l.stubsDir()}, library...)
+		ignoreDir = append(ignoreDir, inits...)
+	}
+
 	workspace := map[string]any{
-		"library": l.Libraries(),
+		"library": library,
 		"ignoreGlobs": []string{
 			rocksDirName + "/**/*.lua",
 			projectDirName + "/**/*.lua",
@@ -168,7 +176,8 @@ func (l Layout) ConfigPath() string {
 	return filepath.Join(l.ProjectDir, filepath.FromSlash(ConfigDir), ConfigFileName)
 }
 
-// WriteConfig writes Config to ConfigPath and returns the path.
+// WriteConfig writes Config to ConfigPath, with the stubs it reads, and
+// returns the path.
 func (l Layout) WriteConfig() (string, error) {
 	data, err := json.MarshalIndent(l.Config(), "", "  ")
 	if err != nil {
@@ -180,6 +189,13 @@ func (l Layout) WriteConfig() (string, error) {
 	err = os.MkdirAll(filepath.Dir(path), dirPerm)
 	if err != nil {
 		return "", fmt.Errorf("writing the EmmyLua configuration: %w", err)
+	}
+
+	if len(l.luatestInits()) > 0 {
+		err = l.writeStubs()
+		if err != nil {
+			return "", err
+		}
 	}
 
 	err = writeFileAtomic(path, append(data, '\n'))

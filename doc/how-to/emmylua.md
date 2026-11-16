@@ -710,6 +710,16 @@ one (the file `tt emmylua config` printed above):
 - `workspace.ignoreGlobs` leave `.rocks/`, `.tarantool/` and `_build/` out of
   every folder EmmyLua reads, a directory of `--library` with a `.rocks/` of
   its own too.
+- With luatest among the libraries, a dev dependency of the project say,
+  `stubs/` beside the configuration is the first library, and
+  `luatest/init.lua` of the rock goes to `ignoreDir`. `luatest/init.lua`
+  builds the module out of `luatest.assertions` through a metatable and
+  defines `before_suite` and `after_suite` at run time, which EmmyLua cannot
+  follow: every `t.assert_equals(...)` of a test was an undefined field. The
+  stub tt writes, `stubs/luatest/init.lua`, makes the module the
+  assertions module of the rock, with the fields `luatest/init.lua` sets, so
+  the assertions are those of the luatest installed and a misspelled one is
+  still reported. A project whose own package is luatest keeps its code.
 
 The project's `.luarc.json`, `.emmyrc.json` and `.emmyrc.lua` are read after
 it and add to it, as [above](#check-the-code). `check`, `doc` and `ls` read

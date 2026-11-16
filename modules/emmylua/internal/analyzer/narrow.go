@@ -170,8 +170,8 @@ func (n *Narrowing) write(root string, others, ignored []string) error {
 	return writeFileAtomic(n.Config, append(data, '\n'))
 }
 
-// under reports whether rel, a path relative to a root, is one of paths,
-// relative to the same root, or lies under one.
+// under reports whether rel is one of paths or lies under one: all of them
+// relative to the same root, or all absolute.
 func under(rel string, paths []string) bool {
 	return slices.ContainsFunc(paths, func(path string) bool {
 		return rel == path || strings.HasPrefix(rel, path+string(filepath.Separator))

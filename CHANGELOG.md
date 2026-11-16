@@ -1685,6 +1685,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   are read as before. A path given to `check` or `doc` is checked as given,
   git ignoring it or not; what git ignores under a directory given is still
   left out.
+- `tt emmylua check` of a project that tests with luatest, that of the
+  tutorial "Your first package" say, no longer
+  reports every assertion of its tests, `t.assert_equals(...)` as an
+  undefined field that may be nil. `luatest/init.lua` builds the module out
+  of `luatest.assertions` through a metatable, which EmmyLua 0.30 does not
+  follow, and defines `before_suite` and `after_suite` at run time, which no
+  release sees. With luatest among the libraries, the configuration tt
+  writes reads a stub of that entry module in its place,
+  `.tarantool/emmylua/stubs/luatest/init.lua`: the module is the assertions
+  module of the rock, with the fields `luatest/init.lua` sets, so the
+  assertions are those of the luatest installed and a misspelled one is
+  still reported. luatest ships no EmmyLua annotations of its own.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
