@@ -20,10 +20,12 @@ def test_version_cmd(tt_cmd, tmp_path):
     assert rc == 0
     assert re.search(r"Available versions of tt:", output)
 
+    # The program is a subcommand: one tt does not manage is unknown.
     cmd = [tt_cmd, "binary", "search", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
-    assert rc == 0
-    assert "Search available program versions" in output
+    assert rc == 1
+    assert 'unknown command "git" for "tt binary search"' in output
+    assert "Search available program versions" not in output
 
     cmd = [tt_cmd, "binary", "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
