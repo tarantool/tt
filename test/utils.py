@@ -6,6 +6,7 @@ import ipaddress
 import json
 import math
 import os
+import platform
 import pty
 import re
 import shutil
@@ -535,6 +536,13 @@ def stop_leftover_instances(tt_cmd, root):
         if _pid_file_locked(path):
             _kill_watchdog(path, root)
     return targets
+
+
+def short_tmp_dir():
+    """The directory for a temporary directory whose paths must fit a unix
+    socket address: /tmp on macOS, where $TMPDIR is a long path under
+    /var/folders, and the default, $TMPDIR or /tmp, elsewhere."""
+    return "/tmp" if platform.system() == "Darwin" else None
 
 
 def wait_instance_stop(pid_path, timeout_sec=5):

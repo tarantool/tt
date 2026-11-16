@@ -21,6 +21,7 @@ from utils import (
     instances_file,
     pid_file,
     run_command_and_get_output,
+    short_tmp_dir,
     wait_file,
 )
 
@@ -202,7 +203,7 @@ def test_t3_instances_without_console(tt_cmd):
     # Default temporary directory may have very long path (notably on macOS, where it lives
     # under /var/folders/...). This overflows the unix socket sun_path limit (104 bytes on
     # macOS), so anchor our own temporary directory under /tmp to keep the path short.
-    with tempfile.TemporaryDirectory(dir="/tmp") as tmpdir:
+    with tempfile.TemporaryDirectory(dir=short_tmp_dir()) as tmpdir:
         test_app_path = os.path.join(tmpdir, "app")
         shutil.copytree(test_app_path_src, test_app_path)
 

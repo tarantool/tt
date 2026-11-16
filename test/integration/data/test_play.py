@@ -21,6 +21,7 @@ from utils import (
     instances_file,
     run_command_and_get_output,
     run_command_and_get_streams,
+    short_tmp_dir,
     skip_if_tarantool_ssl_unsupported,
     wait_file,
     wait_files,
@@ -315,7 +316,7 @@ def test_play_row_mode(tt_cmd, request, tmp_path, source):
 def test_play_to_single_instance_app(tt_cmd):
     # The binary port of the instance, under .tarantool/var/run/<app>/<inst>/ of
     # the project, is given to tarantool by its full path: keep it short.
-    tmp_path = Path(tempfile.mkdtemp(dir="/tmp"))
+    tmp_path = Path(tempfile.mkdtemp(dir=short_tmp_dir()))
     app_name = "test_app"
     test_app_path = TEST_FILES / "test_app.lua"
     test_xlog_name = "timestamp.snap"
@@ -424,7 +425,7 @@ def test_play_to_cluster_app(tt_cmd):
     # the project, is given to tarantool by its full path: keep it short. The
     # application is named after its directory, which the path holds twice, and
     # /tmp is /private/tmp on macOS.
-    tmpdir = tempfile.mkdtemp(dir="/tmp")
+    tmpdir = tempfile.mkdtemp(dir=short_tmp_dir())
 
     empty_file = "empty.lua"
     app_name = "play_app"

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from replicaset_helpers import copy_application, stop_application
 
-from utils import run_command_and_get_output, wait_file
+from utils import run_command_and_get_output, short_tmp_dir, wait_file
 
 
 @pytest.mark.parametrize(
@@ -253,9 +253,10 @@ def test_status_user_scope(tt_cmd, tmp_path):
     # does for the instance commands that start it; without it the
     # application is looked for in the system scope.
     #
-    # The scope root is under /tmp: the console socket of an installed
-    # instance is bound by its full path, which must fit a unix socket address.
-    with tempfile.TemporaryDirectory(dir="/tmp") as tmpdir:
+    # The scope root is under a short directory: the console socket of an
+    # installed instance is bound by its full path, which must fit a unix
+    # socket address.
+    with tempfile.TemporaryDirectory(dir=short_tmp_dir()) as tmpdir:
         user = Path(tmpdir) / "user"
         install_user_app(user)
         env = dict(os.environ, TT_USER_ROOT=str(user), TT_SYSTEM_ROOT=str(Path(tmpdir) / "system"))
