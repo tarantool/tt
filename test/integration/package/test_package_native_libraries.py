@@ -11,6 +11,7 @@ The tests need cc, ar and a tarantool with its headers, as tt finds them
 """
 
 import os
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -163,12 +164,20 @@ def test_bundle_a_shared_library_of_a_component(tt_cmd, tmp_path, static):
     archive pack makes and the tree install unpacks it into, elsewhere, where
     the module loads with no LD_LIBRARY_PATH and the sources of the library
     gone. With static = true the build passes the static check: the module
-    finds the library beside itself.
+    finds the library beside itself. On macOS the library is a dylib whose
+    install name is @rpath/libfoo.1.dylib, and the copy takes its base name.
     """
+    if platform.system() == "Darwin":
+        command = "cc -dynamiclib -o libfoo.dylib foo.c -Wl,-install_name,@rpath/libfoo.1.dylib"
+        library, copy, module = "libfoo.dylib", "libfoo.1.dylib", "answer.dylib"
+    else:
+        command = "cc -shared -fPIC -o libfoo.so foo.c -Wl,-soname,libfoo.so.1"
+        library, copy, module = "libfoo.so", "libfoo.so.1", "answer.so"
+
     project = make_project(
         tmp_path / "project",
-        "cc -shared -fPIC -o libfoo.so foo.c -Wl,-soname,libfoo.so.1",
-        "[{ path = 'libfoo.so', to = 'link' }, { path = 'foo.h', to = 'link' }]",
+        command,
+        f"[{{ path = '{library}', to = 'link' }}, {{ path = 'foo.h', to = 'link' }}]",
         static=static,
         bundle="['foo']",
     )
@@ -176,8 +185,8 @@ def test_bundle_a_shared_library_of_a_component(tt_cmd, tmp_path, static):
     build(tt_cmd, project)
 
     lib = project / ".rocks" / "lib" / "tarantool"
-    assert (lib / "answer.so").is_file()
-    assert (lib / "libfoo.so.1").is_file()
+    assert (lib / module).is_file()
+    assert (lib / copy).is_file()
     assert require_answer(project) == "42"
 
     pack = ("package", "pack", "--without-deps", "--registry", str(ROCKS_REPO))
@@ -202,7 +211,7 @@ def test_bundle_a_shared_library_of_a_component(tt_cmd, tmp_path, static):
     assert result.returncode == 0, result.stderr
 
     installed = target / ".rocks" / "lib" / "tarantool"
-    assert (installed / "libfoo.so.1").is_file()
+    assert (installed / copy).is_file()
     assert require_answer(target) == "42"
 
 
