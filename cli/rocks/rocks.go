@@ -196,6 +196,14 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 		return err
 	}
 
+	// LuaRocks is given headers that are none when there are none, so that
+	// a rock of Lua alone installs without them.
+	luarocksIncludeDir, removeStub, err := includeDirOf(prefix, args)
+	if err != nil {
+		return err
+	}
+	defer removeStub()
+
 	cfg := luarocks.Config{
 		Tree:       filepath.Join(workingDir, ".rocks"),
 		WorkingDir: workingDir,
@@ -203,10 +211,12 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 		Tarantool: luarocks.TarantoolConfig{
 			Executable: cmdCtx.Cli.TarantoolCli.Executable,
 			Prefix:     tarantoolPrefixDir,
-			IncludeDir: tarantoolIncludeDir,
+			IncludeDir: luarocksIncludeDir,
 			Version:    version.Str,
 		},
 	}
+
+	args = pinRelease(ctx, searchRocks(cfg), servers, args)
 
 	rocksClient, err := client.New(cfg, client.WithBackend(client.BackendLua))
 	if err != nil {

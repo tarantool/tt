@@ -21,7 +21,12 @@ func NewRocksCmd() *cobra.Command {
 			"with a warning, and one named with --server or --only-server is an " +
 			"error: install its rocks with tt package. A directory is such a server " +
 			"when it holds the index and no manifest; an HTTP(S) server when a HEAD " +
-			"of the index succeeds and one of each manifest answers 403, 404 or 410.",
+			"of the index succeeds and one of each manifest answers 403, 404 or 410.\n\n" +
+			"install NAME with no version and no --dev installs the newest release " +
+			"of NAME, as tt package add declares it, not an scm or dev version the " +
+			"servers list too; one with no release installs as LuaRocks chooses. " +
+			"A rock of Lua alone installs without the headers of Tarantool; a rock " +
+			"of C fails without them, saying where tt looked.",
 		// Disabled all flags parsing on this commands leaf.
 		// LuaRocks will handle it self.
 		DisableFlagParsing: true,

@@ -1,10 +1,13 @@
 import http.server
+import io
 import os
 import platform
 import re
 import shutil
+import tarfile
 import tempfile
 import threading
+import zipfile
 
 import pytest
 
@@ -499,6 +502,62 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path, offline):
     assert os.path.exists(os.path.join(tmp_path, "subdir", ".rocks"))
 
 
+PURE_ROCKSPEC = """package = "pure"
+version = "{version}"
+source = {{ url = "file:///nonexistent/pure.tar.gz", dir = "pure" }}
+build = {{ type = "builtin", modules = {{ pure = "pure.lua" }} }}
+"""
+
+
+def write_pure_repo(repo):
+    """A rock server directory with pure, a rock of Lua, as 1.0.0-1 and scm-1."""
+    repo.mkdir()
+    for version in ("1.0.0-1", "scm-1"):
+        source = io.BytesIO()
+        with tarfile.open(fileobj=source, mode="w:gz") as archive:
+            module = f"return '{version}'\n".encode()
+            info = tarfile.TarInfo("pure/pure.lua")
+            info.size = len(module)
+            archive.addfile(info, io.BytesIO(module))
+        with zipfile.ZipFile(repo / f"pure-{version}.src.rock", "w") as rock:
+            rock.writestr(f"pure-{version}.rockspec", PURE_ROCKSPEC.format(version=version))
+            rock.writestr("pure.tar.gz", source.getvalue())
+    (repo / "manifest").write_text(
+        "commands = {}\nmodules = {}\nrepository = {\n"
+        '  pure = {\n    ["1.0.0-1"] = {{arch = "src"}},\n'
+        '    ["scm-1"] = {{arch = "src"}},\n  },\n}\n',
+    )
+
+
+def test_rocks_install_takes_the_release_without_headers(tt_cmd, tmp_path):
+    """`tt rocks install pure` takes the newest release, not scm-1, as
+    `tt package add` does, and a rock of Lua alone needs no headers of
+    Tarantool."""
+    write_pure_repo(tmp_path / "repo")
+    no_headers = tmp_path / "no-headers"
+    no_headers.mkdir()
+    env = dict(os.environ, PWD=str(tmp_path), TT_CLI_TARANTOOL_PREFIX=str(no_headers))
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "install", "pure", "--only-server", str(tmp_path / "repo")],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 0, output
+    assert "pure 1.0.0-1 is now installed" in output
+    assert "Failed finding Lua header files" not in output
+    assert not list((tmp_path / ".rocks").rglob("lua.h"))
+
+    # A version given is the version installed.
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "install", "pure", "scm-1", "--only-server", str(tmp_path / "repo")],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 0, output
+    assert "pure scm-1 is now installed" in output
+
+
 @pytest.mark.notarantool
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
 def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tarantool_prefix):
@@ -520,7 +579,13 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tarantool_prefix
         )
 
         assert rc == 1  # Tarantool headers are not found.
-        assert re.search("Error: Failed finding Lua header files", output)
+        # LuaRocks, given a lua.h that is none, passes its check of the
+        # headers of Lua and installs the rocks of Lua alone that crud needs;
+        # it fails on the headers of Tarantool that vshard needs, in the
+        # prefix.
+        assert "Failed finding Lua header files" not in output
+        no_module_h = f"No file tarantool/module.h in {os.path.join(no_headers, 'include')}\n"
+        assert no_module_h in output
         assert "tarantool development headers not found" in output
         assert os.path.join(no_headers, "include", "tarantool") in output
 

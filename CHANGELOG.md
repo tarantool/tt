@@ -954,6 +954,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a bundle, `-shared -undefined dynamic_lookup -all_load`, with
   `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
   a path of the build machine. Other compilers link a bundle, as before.
+- `tt rocks install NAME` with no version and no `--dev` installs the
+  newest release of NAME, as `tt package add` resolves it and as LuaRocks
+  does with the scm versions of luarocks.org on a server of their own: it
+  took `scm-1`, a checkout of a branch, when the server listed one. A rock
+  with no release installs as before. A rock of Lua alone installs with no
+  headers of Tarantool: LuaRocks checks for a `lua.h` before it builds any
+  rock, and is now given one, of headers that are none, whose `#error`
+  stops the build of a rock of C at its first `#include`, saying where tt
+  looked for the headers.
 - The warning that the headers of Tarantool are of another version than the
   `tarantool` is shown once, by a command that compiles against them: a
   build of a component whose backend makes native modules, a rock an install
