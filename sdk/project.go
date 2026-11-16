@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
+
+	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/sdk/build"
 )
@@ -91,6 +94,59 @@ func (m DependencyMove) String() string {
 const RegistryFlagUsage = "rock server to use instead of the configured ones: " +
 	"an http(s) URL or a local directory; repeat to give an ordered list " +
 	"(overrides TT_REGISTRIES and [platform].registries)"
+
+// JobsFlag is the name of the flag of the number of jobs of a build, -j
+// ([AddJobsFlag]).
+const JobsFlag = "jobs"
+
+// JobsFlagUsage is the help of the -j, --jobs flag of tt package build; N in
+// backquotes names its value in the help.
+const JobsFlagUsage = "run at most `N` jobs at once in each component build: the compiles " +
+	"of c and lua-c, cmake --build --parallel, cargo -j, go build -p, zig build -j, " +
+	"TT_BUILD_JOBS of make and shell; 0 is one a CPU"
+
+// errJobs reports a -j that is not a number of jobs: not a number, or a
+// negative one. pflag tells the value with it.
+var errJobs = errors.New("not a number of jobs: 1 or more, or 0 for one a CPU")
+
+// jobsValue is the value of -j: a number of jobs, not a negative one.
+type jobsValue struct {
+	jobs *int
+}
+
+// String returns the number.
+func (v jobsValue) String() string {
+	if v.jobs == nil {
+		return "0"
+	}
+
+	return strconv.Itoa(*v.jobs)
+}
+
+// Set sets the number, refusing a negative one.
+func (v jobsValue) Set(text string) error {
+	jobs, err := strconv.Atoi(text)
+	if err != nil || jobs < 0 {
+		return errJobs
+	}
+
+	*v.jobs = jobs
+
+	return nil
+}
+
+// Type names the type of the value in the help.
+func (jobsValue) Type() string {
+	return "int"
+}
+
+// AddJobsFlag declares -j, --jobs on cmd, bound to jobs, as every command of
+// tt that builds the components of a project declares it, with the same
+// help: the [BuildOptions.Jobs] of the build. A negative number fails the
+// parse of the flags; 0, the default, leaves it to the backends.
+func AddJobsFlag(cmd *cobra.Command, jobs *int) {
+	cmd.Flags().VarP(jobsValue{jobs: jobs}, JobsFlag, "j", JobsFlagUsage)
+}
 
 // ResolveOptions are how [Project.Resolve] and [Project.RemoveDependency]
 // resolve the lock of a project.
@@ -407,6 +463,11 @@ type BuildOptions struct {
 	// -- of tt wasm build calc -- -opt=2. With any, Components is to name
 	// exactly one component.
 	Args []string
+	// Jobs is the most jobs each build runs at once, [build.Context.Jobs],
+	// as --jobs sets it ([JobsFlagUsage]); 0 leaves it to the backends, one
+	// a CPU. It is no input of an incremental build: a component is not
+	// built again for another Jobs.
+	Jobs int
 }
 
 // BuildResult is what [Project.Build] built.
@@ -445,6 +506,8 @@ type BuildContextOptions struct {
 	Locked bool
 	// Args are [build.Context.Args].
 	Args []string
+	// Jobs is [build.Context.Jobs], and TT_BUILD_JOBS of its Env.
+	Jobs int
 }
 
 // CleanOptions are what [Project.Clean] cleans, as tt package clean chooses

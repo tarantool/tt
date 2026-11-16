@@ -43,6 +43,7 @@ func testContract() contract {
 		version:     "1.2.3",
 		target:      sdkbuild.Target{OS: "linux", Arch: "amd64"},
 		tarantool:   sdkbuild.Tarantool{Prefix: "", IncludeDir: "", Version: "", Executable: ""},
+		jobs:        4,
 		hook:        false,
 	}
 }
@@ -66,6 +67,7 @@ func TestEnvironContract(t *testing.T) {
 	assert.Equal(t, "linux", lastEnvValue(got, "TT_PLATFORM_OS"))
 	assert.Equal(t, "amd64", lastEnvValue(got, "TT_PLATFORM_ARCH"))
 	assert.Equal(t, "/proj/_build/component/comp", lastEnvValue(got, "TT_BUILD_DIR"))
+	assert.Equal(t, "4", lastEnvValue(got, "TT_BUILD_JOBS"))
 
 	// The env of the block is merged in, after the environment of tt, in key
 	// order, and the contract comes last. The environment of tt is not counted
@@ -95,6 +97,7 @@ func TestEnvironContractVarWinsOverBlock(t *testing.T) {
 	env := environment{
 		block: map[string]string{
 			"TT_OUTPUT_DIR": "/fake", "TT_BUILD_DIR": "/fake", "TT_TARANTOOL_PREFIX": "/fake",
+			"TT_BUILD_JOBS": "99",
 		},
 		projectRoot: "",
 		contract: func() []string {
@@ -111,6 +114,7 @@ func TestEnvironContractVarWinsOverBlock(t *testing.T) {
 	assert.Equal(t, "/out", lastEnvValue(got, "TT_OUTPUT_DIR"))
 	assert.Equal(t, "/proj/_build/component/comp", lastEnvValue(got, "TT_BUILD_DIR"))
 	assert.Equal(t, "/opt/tarantool", lastEnvValue(got, "TT_TARANTOOL_PREFIX"))
+	assert.Equal(t, "4", lastEnvValue(got, "TT_BUILD_JOBS"))
 	assert.Less(t, slices.Index(got, "TT_OUTPUT_DIR=/fake"),
 		slices.Index(got, "TT_OUTPUT_DIR=/out"))
 
@@ -142,7 +146,7 @@ func TestHookContract(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"TT_PROJECT_ROOT=/proj", "TT_PACKAGE=pkg", "TT_VERSION=1.2.3", "TT_PLATFORM_OS=linux",
-		"TT_PLATFORM_ARCH=amd64", "TT_TARANTOOL_PREFIX=/opt/tarantool",
+		"TT_PLATFORM_ARCH=amd64", "TT_BUILD_JOBS=4", "TT_TARANTOOL_PREFIX=/opt/tarantool",
 		"TT_TARANTOOL_INCLUDE_DIR=/opt/tarantool/include/tarantool",
 	}, got)
 }

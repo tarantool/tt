@@ -100,6 +100,12 @@ type Options struct {
 	// recorded: for a change the inputs do not cover, such as a new version
 	// of a compiler. The build is recorded as ever.
 	Rebuild bool
+	// Jobs is the most jobs each build runs at once, the Jobs of its Context
+	// (sdkbuild.Context.Jobs), as --jobs sets it; 0 leaves it to the
+	// backends, one a CPU. The builds of the path dependencies get it too.
+	// It is no input of an incremental build: a component is not built
+	// again for another Jobs.
+	Jobs int
 	// Now stamps version.lua's built_at; the zero value uses the wall clock.
 	Now time.Time
 	// Logger receives the adapter's structured operation logs; nil disables it.
