@@ -4220,6 +4220,12 @@ USAGE
   tt package pack [flags]
 
 FLAGS
+      --debuginfo string       debug information of the modules and programs the
+                               package's builds made: keep, or strip it (strip
+                               --strip-debug; strip -S on macOS) from what is
+                               packed; the project's own files, the bundled
+                               runtime and the dependencies are not touched
+                               (default "keep")
       --format strings         what to make, comma-separated: tt (the .tt
                                archive), rock (the rock and its rockspec),
                                rock-src (the source rock and its rockspec)
