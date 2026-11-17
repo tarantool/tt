@@ -161,6 +161,12 @@ jobs:
           if [ -d "$RUNNER_TEMP/rocks-mirror" ]; then
             export TT_TEST_ROCKS_MIRROR="$RUNNER_TEMP/rocks-mirror"
           fi
+          # The TMPDIR of macOS is a long path behind the /var -> /private/var
+          # symlink; the runner's temporary directory is a real and a shorter
+          # one.
+          if [ "$RUNNER_OS" = macOS ]; then
+            export TMPDIR="$RUNNER_TEMP"
+          fi
           extra=()
           if [ -n "$TEST_DIR" ]; then
             extra+=(--test-dir "$TEST_DIR")
