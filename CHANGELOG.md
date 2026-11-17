@@ -1044,6 +1044,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt coredump pack` no longer reads and compresses the holes of a core
+  dump. A core is mostly holes, the pages of the mappings the process
+  never touched: that of a bare `tarantool` is 1.1 GB long and takes 11 MB
+  on disk, and `tar` read all of it and gzipped the zeros, 16 s of the
+  pack here. The pack script runs GNU `tar` with `--sparse`, 0.6 s for
+  that core, and `--format=posix`, which keeps the entry of the core a
+  regular one: `tt coredump unpack` and `inspect` read the archive, older
+  versions of tt too, and the core they unpack is the same file.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read

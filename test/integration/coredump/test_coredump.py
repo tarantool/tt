@@ -126,7 +126,8 @@ def coredump_pack(tt_cmd, coredump):
 
     test_coredump_pack checks them, and the tests of unpack and inspect take
     the archive. It is the same command on the same core, and a pack, which
-    reads the whole core of a gigabyte or so, takes about 10 s."""
+    runs gdb on the core and the tarantool and gzips the tarantool and its
+    libraries, takes seconds."""
     cmd = [tt_cmd, "coredump", "pack", coredump.as_posix()]
     return run_command_and_get_output(cmd, cwd=coredump.parents[0])
 
