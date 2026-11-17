@@ -2,6 +2,7 @@ import datetime
 import fcntl
 import glob
 import hashlib
+import http.server
 import ipaddress
 import json
 import math
@@ -12,6 +13,7 @@ import re
 import shutil
 import signal
 import socket
+import socketserver
 import struct
 import subprocess
 import time
@@ -73,6 +75,20 @@ def no_cmake_policy_env(env=None):
     env = dict(os.environ if env is None else env)
     env.pop("CMAKE_POLICY_VERSION_MINIMUM", None)
     return env
+
+
+class LoopbackHTTPServer(http.server.ThreadingHTTPServer):
+    """A ThreadingHTTPServer that binds without a reverse lookup of its host.
+
+    HTTPServer.server_bind names the server by socket.getfqdn(host), a
+    reverse lookup of 127.0.0.1. On the macOS runners of GitHub the first one
+    of a session stalls for 35 s (actions/runner-images#14568), which was the
+    setup of the first test that served anything. No handler of the tests
+    reads the name, so the server takes its address for one."""
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 def run_command_and_get_output(

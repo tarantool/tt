@@ -11,7 +11,12 @@ import zipfile
 
 import pytest
 
-from utils import create_lua_config, no_cmake_policy_env, run_command_and_get_output
+from utils import (
+    LoopbackHTTPServer,
+    create_lua_config,
+    no_cmake_policy_env,
+    run_command_and_get_output,
+)
 
 # A manifest whose [platform].registries names the rock repository in the
 # repo directory next to it.
@@ -46,7 +51,7 @@ def offline(tmp_path):
     502. tt and the downloaders LuaRocks runs, wget and curl, send every
     request to it; the LuaRocks cache is that of the test, so that no manifest
     cached a moment ago stands in for one the command asks a remote for."""
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), RemoteTrap)
+    server = LoopbackHTTPServer(("127.0.0.1", 0), RemoteTrap)
     server.requests = []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
