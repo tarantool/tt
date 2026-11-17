@@ -8,6 +8,7 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )
 
@@ -104,10 +105,18 @@ func BuildConfig(info TarantoolInfo, opts ConfigOptions) luarocks.Config {
 //
 // The client builds rocks with the environment of tt, which gets the policy
 // version CMake 4 needs to configure a cmake rock of an old CMake, unless the
-// user has set one (cmakepolicy.Setenv): go-luarocks takes no environment of
-// its own for the tools it runs.
+// user has set one (cmakepolicy.Setenv), and the directory of the Tarantool of
+// the config first in PATH, unless PATH finds that tarantool already, so that
+// a rock build that runs tarantool runs the one the rock is built against,
+// the .tarantool/bin/tarantool of a project included (tarantool.PrependPath):
+// go-luarocks takes no environment of its own for the tools it runs.
 func (a *Adapter) Client(backend client.Backend) (*client.Rocks, error) {
 	err := cmakepolicy.Setenv()
+	if err != nil {
+		return nil, fmt.Errorf("rocks: %w", err)
+	}
+
+	err = tarantool.PrependPath(a.cfg.Tarantool.Executable, a.cfg.Tarantool.Prefix)
 	if err != nil {
 		return nil, fmt.Errorf("rocks: %w", err)
 	}

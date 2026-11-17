@@ -69,7 +69,10 @@ A shell that does not tell a sourced script its path, such as dash, gets the
 directory the project had when the script was written. The instance commands of a
 project do not need them: they run the project's Tarantool by themselves.
 Nor do the builds of its components: a build backend and a hook find the
-programs of `.tarantool/bin` ahead of `PATH`.
+programs of `.tarantool/bin` ahead of `PATH`. Nor do the builds of rocks,
+those of its dependencies and those of `tt rocks`: a rock that runs
+`tarantool` by name, as the cmake of a rock that looks for it does, runs
+the project's.
 
 Community releases are installed from prebuilt binaries where there are
 some - Tarantool on Linux amd64 and arm64 with glibc, from the static RPMs
