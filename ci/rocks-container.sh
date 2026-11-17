@@ -429,7 +429,18 @@ case "$level" in
                 ;;
             system) root=/opt/tarantool ;;
         esac
-        (cd "$dir" && "$tt" binary install tarantool "$version" --scope "$level")
+        # The download from rws.tarantool.org times out now and then ("dial
+        # tcp ...:443: i/o timeout"): it is tried three times.
+        for attempt in 1 2 3; do
+            if (cd "$dir" && "$tt" binary install tarantool "$version" --scope "$level"); then
+                break
+            fi
+            if [ "$attempt" = 3 ]; then
+                exit 1
+            fi
+            echo "$0: tt binary install failed (attempt $attempt of 3), trying again" >&2
+            sleep 10
+        done
         tarantool=$root/bin/tarantool
         header=$root/include/tarantool/module.h
         ;;
