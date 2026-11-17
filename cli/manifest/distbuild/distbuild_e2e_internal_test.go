@@ -54,6 +54,13 @@ require (
 )
 `
 
+// The tests below build tt with go build, each in directories of its own,
+// and run in parallel but TestBuildLocalCore. That one, the first, compiles
+// the packages of the core into the build cache with the flags of a
+// distribution; go test starts the parallel tests of a package after its
+// serial ones, so they link what it compiled rather than compile the same
+// packages each at once.
+
 // TestBuildLocalCore builds a distribution of the core of this checkout with
 // a local module and a module of the core's repository, runs it, and builds
 // it again from the lock.
@@ -214,6 +221,8 @@ hello = "./plugins/hello"
 // TestBuildMountConflict fails a distribution whose module takes the name
 // of a command of tt: the binary does not start.
 func TestBuildMountConflict(t *testing.T) {
+	t.Parallel()
+
 	_, err := exec.LookPath(goTool)
 	if err != nil {
 		t.Skip("go is not in PATH")
@@ -298,6 +307,8 @@ func packageBuild(t *testing.T, tt, project string) ([]byte, error) {
 // module of the build backends: it has none, and says so of a component and
 // of a hook.
 func TestBuildWithoutTheBuildModule(t *testing.T) {
+	t.Parallel()
+
 	_, err := exec.LookPath(goTool)
 	if err != nil {
 		t.Skip("go is not in PATH")
@@ -343,6 +354,8 @@ exclude = ["build", "emmylua"]
 // version among them: the check of the built binary runs without them, and
 // still fails a module that cannot be mounted.
 func TestBuildWithoutBuiltin(t *testing.T) {
+	t.Parallel()
+
 	_, err := exec.LookPath(goTool)
 	if err != nil {
 		t.Skip("go is not in PATH")
@@ -397,6 +410,8 @@ hello = "./hello"
 // module, copies it away from everything it was made of and builds it with
 // an empty module cache and no network, as build.sh does.
 func TestBundleOffline(t *testing.T) {
+	t.Parallel()
+
 	_, err := exec.LookPath(goTool)
 	if err != nil {
 		t.Skip("go is not in PATH")
@@ -525,6 +540,8 @@ func checkoutCommit(t *testing.T, dir string) string {
 // while its manifest asks for a version of the core: nothing is fetched and
 // the lock is left alone.
 func TestBuildCoreOverride(t *testing.T) {
+	t.Parallel()
+
 	_, err := exec.LookPath(goTool)
 	if err != nil {
 		t.Skip("go is not in PATH")
@@ -620,6 +637,8 @@ require (
 // local directory, which the binary is built from and the lock records by
 // the hash of its files, and one with another version of the module.
 func TestBuildReplace(t *testing.T) {
+	t.Parallel()
+
 	_, err := exec.LookPath(goTool)
 	if err != nil {
 		t.Skip("go is not in PATH")
@@ -755,6 +774,8 @@ hello = "./plugins/hello"
 // TestBuildReplaceRefused refuses to replace a module the manifest has a
 // place for, and a directory of another module.
 func TestBuildReplaceRefused(t *testing.T) {
+	t.Parallel()
+
 	_, err := exec.LookPath(goTool)
 	if err != nil {
 		t.Skip("go is not in PATH")
