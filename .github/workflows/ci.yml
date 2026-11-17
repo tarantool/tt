@@ -56,6 +56,10 @@ jobs:
       github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # Linter releases add checks, so keep the CI version in sync with the
+      # version required by mage lint:golang.
+      GOLANGCI_LINT_VERSION: '2.14.0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -73,11 +77,19 @@ jobs:
         run: go install github.com/magefile/mage@v1.15.0
         shell: bash
 
-      # Linter releases add checks, so keep the CI version in sync with the
-      # version required by mage lint:golang.
       - name: Setup golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+        run: go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}"
         shell: bash
+
+      # The results golangci-lint keeps per package: without them the run over
+      # the root module takes a minute, most of it on the dependencies, which
+      # change only with go.sum. Another go.sum takes the cache of the last one.
+      - name: Cache golangci-lint
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-lint-${{ runner.os }}-${{ env.GOLANGCI_LINT_VERSION }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: golangci-lint-${{ runner.os }}-${{ env.GOLANGCI_LINT_VERSION }}-
 
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0

@@ -1,7 +1,12 @@
 version: "2"
 
 run:
-  timeout: 3m
+  # A run over the root module takes seconds with its caches and a minute on
+  # a CI runner without that of golangci-lint. Without the Go build cache, as
+  # the first run on a runner after a change of go.sum is, loading the
+  # packages alone took more than 3 minutes there. The timeout is only
+  # against a hang.
+  timeout: 10m
   build-tags:
     - integration
     - integration_docker
