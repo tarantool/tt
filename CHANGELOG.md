@@ -1119,6 +1119,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   before it got to the prebuilt binary; with git there, a prebuilt install
   no longer reaches GitHub over git, and a mask no longer picks a newer tag
   that has no prebuilt binary yet.
+- `tt binary search tarantool` and `tt binary search tt` work on a host
+  without git: they list the releases `tt binary install` installs there,
+  those with a prebuilt binary for the host - of rws.tarantool.org, of tt
+  on GitHub - marked installed and active as before, after a warning that
+  only those are listed, `git is not found, so only the releases of
+  tarantool with a prebuilt build in rws for linux/amd64 are listed;
+  install git to list every tag`. A host with no prebuilt binary, macOS
+  for Tarantool, and a source that fails are errors that say why and to
+  install git. They failed with `'git' is required for 'tt binary search'
+  to work`. With git, they list the Git tags and `master`, as before; a
+  `--local-repo` search without git names the repository whose tags it
+  could not read.
 - A `c` or `lua-c` module of macOS links with `zig cc` and `zig c++`
   (`CC="zig cc"`): the linker of zig crashed on `-bundle -undefined
   dynamic_lookup`, and the build failed with `linking: signal: segmentation

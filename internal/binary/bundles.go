@@ -187,6 +187,82 @@ func ListBundles(ctx context.Context, source bundle.Source, program Program,
 	return bundles, nil
 }
 
+// ReleaseSource is a source that lists the tags of the releases of its
+// product, as the releases of tt on GitHub do: its List answers for a
+// release tag only.
+type ReleaseSource interface {
+	Releases(ctx context.Context) ([]string, error)
+}
+
+// PlatformSource is a source that knows the platforms its releases publish
+// archives for, as the releases of tt on GitHub do. A host it publishes none
+// for is an error that names the platforms there are, not an archive that
+// is not found.
+type PlatformSource interface {
+	CheckPlatform(tag, goos, goarch string) error
+}
+
+// PrebuiltVersions returns the versions of the releases of program source
+// has prebuilt builds of for the host, sorted as the Git tags are: the tags
+// of the releases of a ReleaseSource, those a PlatformSource publishes
+// archives for the host of, or the versions of the builds without flavours
+// the source lists for the host. The versions tt no longer installs, and
+// those it cannot read, are left out. tt binary install resolves a version
+// among them, and tt binary search lists them, without git.
+func PrebuiltVersions(ctx context.Context, source bundle.Source, program Program) (
+	version.VersionSlice, error,
+) {
+	if releases, ok := source.(ReleaseSource); ok {
+		tags, err := releases.Releases(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", source.Name(), err)
+		}
+
+		platforms, _ := source.(PlatformSource)
+
+		return releaseVersions(program, tags, platforms), nil
+	}
+
+	bundles, err := ListBundles(ctx, source, program, NewBundleQuery(program, false, ""))
+	if err != nil {
+		return nil, err
+	}
+
+	var versions version.VersionSlice
+
+	for _, found := range bundles {
+		if len(found.Artifact.Flavor) == 0 {
+			versions = append(versions, found.Version)
+		}
+	}
+
+	sort.Stable(versions)
+
+	return versions, nil
+}
+
+// releaseVersions returns the versions of the release tags of program,
+// sorted, but those tt no longer installs, those it cannot read and, with
+// platforms, those that publish no archive for the host.
+func releaseVersions(program Program, tags []string, platforms PlatformSource,
+) version.VersionSlice {
+	versions := make(version.VersionSlice, 0, len(tags))
+
+	for _, tag := range tags {
+		parsed, err := version.Parse(tag)
+		if err != nil || IsMasked(program, parsed) ||
+			platforms != nil && platforms.CheckPlatform(tag, runtime.GOOS, runtime.GOARCH) != nil {
+			continue
+		}
+
+		versions = append(versions, parsed)
+	}
+
+	sort.Stable(versions)
+
+	return versions
+}
+
 // LessVersion orders the versions of builds: by number, release type,
 // commits past the tag and revision.
 func LessVersion(verLeft, verRight version.Version) bool {

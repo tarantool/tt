@@ -150,7 +150,7 @@ func SearchVersions(searchCtx SearchCtx) error {
 
 	switch {
 	case prg.GitRepo() != "":
-		vers, err = searchVersionsGit(prg.GitRepo())
+		vers, err = searchVersionsRepo(prg)
 		vers = releaseTags(vers, searchCtx.All)
 	case prg.BundleSource() != binary.ProgramUnknown:
 		vers, err = searchVersionsBundles(&searchCtx)

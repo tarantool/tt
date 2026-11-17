@@ -1,10 +1,16 @@
 package binary_test
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -54,4 +60,70 @@ func TestCheckRequestedVersion(t *testing.T) {
 				"use tt 2 to install Tarantool "+test.requested)
 		})
 	}
+}
+
+var errTestPlatform = errors.New("no archive for this platform")
+
+// releasesTestSource is a source of tt that lists the tags of its releases
+// and publishes archives for the host of those in platforms only.
+type releasesTestSource struct {
+	releases  []string
+	platforms map[string]bool
+	err       error
+}
+
+func (releasesTestSource) Name() string { return "test-source" }
+
+func (releasesTestSource) Products() []string { return []string{binary.ProgramTt.String()} }
+
+func (releasesTestSource) List(context.Context, bundle.Query) ([]bundle.Artifact, error) {
+	return nil, nil
+}
+
+func (releasesTestSource) Fetch(context.Context, bundle.Artifact, io.Writer) error {
+	return nil
+}
+
+func (s releasesTestSource) Releases(context.Context) ([]string, error) {
+	return s.releases, s.err
+}
+
+func (s releasesTestSource) CheckPlatform(tag, goos, goarch string) error {
+	if goos != runtime.GOOS || goarch != runtime.GOARCH {
+		return fmt.Errorf("%w: asked for %s/%s", errTestPlatform, goos, goarch)
+	}
+
+	if !s.platforms[tag] {
+		return errTestPlatform
+	}
+
+	return nil
+}
+
+// TestPrebuiltVersionsReleases takes the release tags of a source that
+// lists them, sorted, without those that publish no archive for the host
+// and those that name no version.
+func TestPrebuiltVersionsReleases(t *testing.T) {
+	source := releasesTestSource{
+		releases: []string{"v3.0.0-alpha.2", "nightly", "v2.15.2", "v2.15.1", "v1.0.0"},
+		platforms: map[string]bool{
+			"v3.0.0-alpha.2": true, "nightly": true, "v2.15.2": true, "v1.0.0": true,
+		},
+	}
+
+	versions, err := binary.PrebuiltVersions(t.Context(), source, binary.ProgramTt)
+	require.NoError(t, err)
+
+	tags := make([]string, 0, len(versions))
+	for _, found := range versions {
+		tags = append(tags, found.Str)
+	}
+
+	assert.Equal(t, []string{"v1.0.0", "v2.15.2", "v3.0.0-alpha.2"}, tags)
+
+	source.err = errTestPlatform
+
+	_, err = binary.PrebuiltVersions(t.Context(), source, binary.ProgramTt)
+	require.ErrorIs(t, err, errTestPlatform)
+	require.EqualError(t, err, "test-source: no archive for this platform")
 }

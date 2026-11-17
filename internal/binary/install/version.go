@@ -133,7 +133,7 @@ type prebuiltMiss struct {
 }
 
 // resolvePrebuiltTag resolves the requested version among the releases the
-// source of the prebuilt builds of the program has (prebuiltVersions), as
+// source of the prebuilt builds of the program has (binary.PrebuiltVersions), as
 // version.MatchVersion resolves it among the Git tags, so that the install
 // of a prebuilt release needs no git. No version requested is the latest
 // release: the one a latestReleaseSource names, or the default tag
@@ -173,7 +173,7 @@ func resolvePrebuiltTag(ctx context.Context, installCtx InstallCtx) (string, *pr
 		return tag, nil
 	}
 
-	versions, err := prebuiltVersions(ctx, source, program)
+	versions, err := binary.PrebuiltVersions(ctx, source, program)
 	if err != nil {
 		return "", missed(err, "")
 	}
