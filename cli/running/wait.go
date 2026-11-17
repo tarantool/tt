@@ -50,8 +50,11 @@ const (
 	// up.
 	externalGrace = time.Second
 	// waitPollInterval is how often the state of a starting instance is
-	// looked at.
-	waitPollInterval = 100 * time.Millisecond
+	// looked at. A look reads the report file and asks the console socket,
+	// which takes a millisecond or two once the socket is there and less
+	// before; every start waits half the interval on average after its
+	// instances are up.
+	waitPollInterval = 20 * time.Millisecond
 	// probeTimeout bounds one question to a starting Tarantool instance.
 	probeTimeout = 2 * time.Second
 	// logTailLines is how many lines of tt.log a failure quotes.
