@@ -63,8 +63,8 @@ tt test
     program at once.
 - The package version comes from `VERSION` or the nearest git tag. Read it in
   code with `require('<name>.version').version`.
-- `tt run` runs the project's Tarantool in the current directory and passes
-  the arguments from the script name on through unchanged.
+- `tt run` runs the project's Tarantool in the current directory. Arguments
+  from the script name on pass to the script unchanged.
 - `tt test` builds the package and runs its tests with luatest. If the manifest
   does not declare luatest, tt installs it automatically.
 
@@ -188,9 +188,9 @@ Tarantool Community Edition, Tarantool Enterprise Edition, tt, TCM and the
 Enterprise SDK. Binaries can be installed into the project, user or system
 scope.
 
-- Tarantool Community Edition installs as a prebuilt binary on Linux with glibc.
-  tt installs from its GitHub release, with release checksum verification. Other
-  platforms build from source.
+- Tarantool Community Edition installs as a prebuilt binary on Linux with glibc:
+  tt takes it from the GitHub release and verifies the release checksums. On
+  other platforms, Tarantool is built from source.
 - `--from-build` links a manually built Tarantool without copying its files.
 - The first install into a project creates `.env/activate.sh`. This script adds
   the project's binaries to `PATH`.
@@ -229,7 +229,7 @@ host.
   + by the LSNs of one replica with `--from` and `--to`.
 
   Both bounds are inclusive. A transaction is never split.
-- `tt data cat -o json` prints one JSON object per row, one object per line, for
+- `tt data cat -o json` prints each row as a JSON object on its own line, for
   use in scripts.
 - `tt data play` applies whole transactions where the target supports it. The
   target can be `APP:INSTANCE` or a URI. The command supports `--dry-run` and

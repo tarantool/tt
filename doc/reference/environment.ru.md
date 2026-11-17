@@ -1,23 +1,23 @@
 # Переменные окружения {#environment-variables}
 
-## Scope и бинарные файлы {#scopes-and-binaries}
+## Области установки и бинарные файлы {#scopes-and-binaries}
 
 | Переменная | |
 | --- | --- |
-| `TT_USER_ROOT` | корневой каталог пользовательского scope вместо `$XDG_DATA_HOME/tarantool` или `~/.local/share/tarantool`; абсолютный путь |
-| `TT_SYSTEM_ROOT` | корневой каталог системного scope вместо `/opt/tarantool`; абсолютный путь |
-| `XDG_DATA_HOME` | пользовательский scope располагается в `$XDG_DATA_HOME/tarantool`, если значение является абсолютным путём |
+| `TT_USER_ROOT` | корневой каталог области установки пользователя вместо `$XDG_DATA_HOME/tarantool` или `~/.local/share/tarantool`; абсолютный путь |
+| `TT_SYSTEM_ROOT` | корневой каталог области установки системы вместо `/opt/tarantool`; абсолютный путь |
+| `XDG_DATA_HOME` | область установки пользователя располагается в `$XDG_DATA_HOME/tarantool`, если значение является абсолютным путём |
 | `TT_USE_SYSTEM_TARANTOOL` | любое значение, кроме пустого, `0` или `false`: проект запускается на `tarantool` из `PATH`, даже если в проекте установлен свой; на установленные приложения не влияет |
-| `TT_CLI_TARANTOOL_PREFIX` | префикс каталога с заголовочными файлами Tarantool, `<prefix>/include/tarantool`, под которые собираются rock'и с частью на C и компоненты `c` и `lua-c`, вместо тех, которые tt находит рядом с `tarantool` ([Заголовки для rock'ов с частью на C](../how-to/binaries.md#headers-for-rocks-with-a-c-part)); задаётся в `.env/activate.sh` |
+| `TT_CLI_TARANTOOL_PREFIX` | префикс каталога с заголовочными файлами Tarantool, `<prefix>/include/tarantool`, под которые собираются rock-модули с частью на C и компоненты `c` и `lua-c`, вместо тех, которые tt находит рядом с `tarantool` ([Заголовки для rock-модулей с частью на C](../how-to/binaries.md#headers-for-rocks-with-a-c-part)); задаётся в `.env/activate.sh` |
 | `TT_PROJECT_DIR` | каталог проекта; задаётся в `.env/activate.sh` |
 | `TT_CLI_EE_USERNAME`, `TT_CLI_EE_PASSWORD` | учётные данные customer-zone для Enterprise, TCM и SDK, если не передан флаг `--credentials-file` |
-| `CMAKE_POLICY_VERSION_MINIMUM` | версия политик, с которой CMake 4 конфигурирует проект для более старого CMake; tt устанавливает её в `3.5` для `cmake` и `make`, собирающих Tarantool из исходников, и для собираемых им rock-модулей, если только переменная не задана (включая пустое значение) |
+| `CMAKE_POLICY_VERSION_MINIMUM` | версия политик, с которой CMake 4 конфигурирует проект для более старого CMake; tt устанавливает её в `3.5` для `cmake` и `make`, собирающих Tarantool из исходного кода, и для собираемых им rock-модулей, если только переменная не задана (включая пустое значение) |
 
 CMake 4 отказывается конфигурировать проект, запрашивающий CMake старее 3.5
 через `cmake_minimum_required`, как это делают коммиты Tarantool до 2024 года
 и многие rock-модули, если только `CMAKE_POLICY_VERSION_MINIMUM` не указывает,
 какую версию политик предполагать. CMake 3 эту переменную не читает. tt не
-устанавливает её для компонентов проекта и их hook'ов, являющихся кодом
+устанавливает её для компонентов проекта и их хуков, являющихся кодом
 пользователя, а также для Tarantool, который запускают `tt run` и `tt test`.
 
 См. [Projects and scopes](../concepts/projects-and-scopes.md) и
@@ -32,15 +32,15 @@ CMake 4 отказывается конфигурировать проект, з
 | `TT_PROJECT_LOCK` | устанавливается tt на время удержания блокировки проекта, `_build/tt.lock`, для запускаемых им команд: запускаемый среди них tt работает с проектом под этой блокировкой, а не ждёт её; значение, указывающее на блокировку, которую никто не удерживает, игнорируется. Вручную не задаётся |
 
 Сборка компонента и hook получают переменные `TT_PROJECT_ROOT`, `TT_PACKAGE`,
-`TT_VERSION`, `TT_PLATFORM_OS` и `TT_PLATFORM_ARCH`, а если tt знает
-Tarantool, под который идёт сборка, то и `TT_TARANTOOL_PREFIX` и
-`TT_TARANTOOL_INCLUDE_DIR` - каталог его файлов `module.h` и `lua.h`; см.
+`TT_VERSION`, `TT_PLATFORM_OS` и `TT_PLATFORM_ARCH`, а если tt знает Tarantool,
+под который идёт сборка, то и `TT_TARANTOOL_PREFIX` и `TT_TARANTOOL_INCLUDE_DIR`
+- каталог его файлов `module.h` и `lua.h`; см.
 [app.manifest.toml](app-manifest.md#componentsnamebuild). Каталог
 `.tarantool/bin` проекта ставится первым в передаваемом им `PATH`. Сборка
-компонента получает также `TT_OUTPUT_DIR`, куда она помещает создаваемые
-модули, `TT_COMPONENT_NAME` и `TT_BUILD_DIR` - `_build/component/<component>/`,
-собственный каталог сборки для того, что она создаёт по пути, вне исходников,
-а сборка `cargo` - `CARGO_TARGET_DIR`, `_build/cargo/`, если не заданы
+компонента получает также `TT_OUTPUT_DIR`, куда она помещает создаваемые модули,
+`TT_COMPONENT_NAME` и `TT_BUILD_DIR` - `_build/component/<component>/`,
+собственный каталог сборки для того, что она создаёт по пути, вне исходного
+кода, а сборка `cargo` - `CARGO_TARGET_DIR`, `_build/cargo/`, если не заданы
 `CARGO_TARGET_DIR` или `CARGO_BUILD_TARGET_DIR`.
 
 ## Компоненты WebAssembly {#webassembly-components}
@@ -48,7 +48,7 @@ Tarantool, под который идёт сборка, то и `TT_TARANTOOL_PR
 | Переменная | |
 | --- | --- |
 | `TT_WASM_RELEASES` | JSON-файл с релизами tarantool-wasm, которые `tt wasm` использует вместо встроенных: например, файлы с зеркала |
-| `XDG_CACHE_HOME` | `tt wasm` кэширует скачанные файлы в подкаталоге `tt/wasm/`, по умолчанию `~/.cache/tt/wasm`; на macOS - в `~/Library/Caches/tt/wasm`. `tt emmylua` хранит программы, которые запускает вне проекта, и их конфигурацию в подкаталоге `tt/emmylua/` (см. [Раскладку](layout.md#the-user-cache)) |
+| `XDG_CACHE_HOME` | `tt wasm` кэширует скачанные файлы в подкаталоге `tt/wasm/`, по умолчанию `~/.cache/tt/wasm`; на macOS - в `~/Library/Caches/tt/wasm`. `tt emmylua` хранит программы, которые запускает вне проекта, и их конфигурацию в подкаталоге `tt/emmylua/` (см. [Структуру каталогов](layout.md#the-user-cache)) |
 
 Файл из `TT_WASM_RELEASES` сопоставляет версию с её релизом: нативный модуль
 для каждой платформы со своей контрольной суммой sha256 и архив SDK, на
@@ -96,7 +96,7 @@ go-luarocks считает целевой для бинарного rock-мод�
 
 | Переменная | |
 | --- | --- |
-| `TT_CLI_USERNAME`, `TT_CLI_PASSWORD` | имя пользователя и пароль, с которыми tt подключается к инстансам Tarantool и хранилищам конфигураций |
+| `TT_CLI_USERNAME`, `TT_CLI_PASSWORD` | имя пользователя и пароль, с которыми tt подключается к экземплярам Tarantool и хранилищам конфигураций |
 | `TT_CLI_ETCD_USERNAME`, `TT_CLI_ETCD_PASSWORD` | имя пользователя и пароль, с которыми tt подключается к etcd |
 
 Учётные данные в URI имеют приоритет над флагами команды, а те - над
@@ -110,19 +110,30 @@ go-luarocks считает целевой для бинарного rock-мод�
 | `TT_DIST_CORE` | `tt binary build tt`: ядро, на котором ведётся сборка, вместо `[core]`; флаг `--core` имеет приоритет |
 | `TT_CLI_BUILD_SSL` | `mage build` и `tt binary build tt`: реализация TLS, `default`, `openssl` или `openssl_static` |
 
-## Что tt передаёт инстансу {#what-tt-sets-for-an-instance}
+## Что tt передаёт команде tt run {#what-tt-sets-for-tt-run}
 
-Инстанс Tarantool получает пути своей [раскладки](layout.md) в виде
+Если `tt run` запущена ниже корня проекта, tt ставит корень в начало
+`LUA_PATH` (`<root>/?.lua;<root>/?/init.lua`) и `LUA_CPATH` (`<root>/?.so`,
+на macOS - `<root>/?.dylib`). Поэтому `require` находит исходный код корня так
+же, как в самом корне. Уже заданное значение переменной идёт после них, а
+незаданное становится `;;` - путями по умолчанию. В корне проекта окружение
+передаётся без изменений. Для `.rocks/` ничего задавать не нужно: Tarantool
+ищет этот каталог вверх от каталога, в котором запущен. `tt test` запускает
+luatest в корне проекта и не задаёт ни одну из этих переменных.
+
+## Что tt передаёт экземпляру {#what-tt-sets-for-an-instance}
+
+Экземпляр Tarantool получает пути своей [структуры каталогов](layout.md) в виде
 переменных `TT_*_DEFAULT` - `TT_SNAPSHOT_DIR_DEFAULT`, `TT_WAL_DIR_DEFAULT`,
 `TT_VINYL_DIR_DEFAULT`, `TT_PROCESS_PID_FILE_DEFAULT`,
-`TT_CONSOLE_SOCKET_DEFAULT` и других; кластерная конфигурация переопределяет
-их. Инстанс со `script` получает `TT_WAL_DIR`, `TT_MEMTX_DIR`,
+`TT_CONSOLE_SOCKET_DEFAULT` и других; конфигурация кластера переопределяет
+их. Экземпляр со `script` получает `TT_WAL_DIR`, `TT_MEMTX_DIR`,
 `TT_VINYL_DIR` и `TT_LISTEN`. Под systemd переменная `TT_SYSTEMD_UNIT`
-задаёт имя юнита.
+задаёт имя unit-файла.
 
 Сам Tarantool читает настройки из переменных вида `TT_<NAME>`: параметр
-кластерной конфигурации - из пути параметра в верхнем регистре с `_` вместо
-`.` (например, `TT_IPROTO_LISTEN`), а параметр `box.cfg` инстанса со скриптом
+конфигурации кластера - из пути параметра в верхнем регистре с `_` вместо
+`.` (например, `TT_IPROTO_LISTEN`), а параметр `box.cfg` экземпляра со скриптом
 - по его имени (например, `TT_MEMTX_MEMORY`). tt ничего к этому не добавляет;
 их задают в секции `env` соответствующей записи в
 [instances.yaml](instances-yaml.md).

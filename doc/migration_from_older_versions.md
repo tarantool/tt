@@ -61,7 +61,7 @@ to this page.
 #### Convert an environment into projects
 
 A project replaces an application in a tt environment. It is a directory
-containing `app.manifest.toml` (created by `tt new` ) or instance templates at
+containing `app.manifest.toml` (created by `tt new`) or instance templates at
 `.templates/<name>/instances.yaml`. tt searches upward from the current
 directory for a project.
 
@@ -190,8 +190,8 @@ Other changes:
   into `tt stop` or ran `tt --no-prompt stop`, pass `--yes` instead. Without it,
   the command exits with code 1.
 - `tt instance start --foreground` runs each instance under its own watchdog, as
-  in background mode, also writes its output to `tt.log`, and does not restart
-  instances. It exits with:
+  in background mode. It also writes instance output to `tt.log` and does not
+  restart instances. The command exits with:
   + `0` if the instances stopped in time;
   + `137` if an instance did not stop within its `stop_timeout` and was killed;
   + otherwise, the exit code of the first instance that ended on its own with
@@ -286,15 +286,19 @@ The archive includes `.rocks/`, `.templates/`, runtimes and the files listed in
 > `app.file`, add it to that list or load a component's code with `app.module`
 > instead.
 
-`tt run` runs the Tarantool of the project the current directory is in, the
-nearest directory above it with `app.manifest.toml` or the pair of a template
-in `.templates/<name>/`; no package is needed. It previously read
-`tt.yaml`. Tarantool runs in the current directory, so `tt run ../script.lua`
-from a subdirectory runs the script of the parent directory. Only `-h` and
-`--help` before the script name are tt's own, and a `--` there ends them and is
-dropped. Everything from the script name on passes through unchanged:
-`tt run script.lua a -- -h` passes `a -- -h` to the script, even though the
-tt 2.x help described `--` differently.
+`tt run` runs the Tarantool of the project that contains the current
+directory. It previously read `tt.yaml`.
+
+- The project root is the nearest directory above with `app.manifest.toml` or
+  instance templates in `.templates/<name>/`. A package is not required.
+- Tarantool runs in the current directory, and paths are relative to it. For
+  example, `tt run ../script.lua` in a subdirectory runs the script from the
+  parent directory.
+- Only `-h` and `--help` before the script name are options of `tt run`. A `--`
+  before the script name ends these options and is dropped.
+- All arguments from the script name on pass to the script unchanged:
+  `tt run script.lua a -- -h` passes `a -- -h` to the script. The tt 2.x help
+  described `--` differently.
 
 ### box.cfg applications are script records
 
@@ -433,14 +437,11 @@ See [Run instances under systemd](how-to/systemd.md).
 In tt 2.x, all errors except those from `tt backup` and `tt restore` returned
 code 1. In tt 3.0, the codes are:
 
-- `1`: the request cannot be carried out as given. Examples include usage
-  errors, a missing file or project, or a required confirmation without a
-  terminal.
-- `2`: a failure of the system where the command ran. Examples include an
-  unreachable or unresponsive server, a hostname that cannot be resolved, or a
-  filesystem operation denied due to permissions or insufficient space.
-  `tt connect` to a port with no listener now exits with 2 rather than 1.
-- `3`: a command targeting several resources succeeded for only some of them.
+| Code | Meaning |
+| --- | --- |
+| `1` | The request cannot be carried out as given: a usage error, a missing file or project, or a required confirmation without a terminal |
+| `2` | A failure of the system where the command ran: an unreachable or unresponsive server, a hostname that cannot be resolved, or a filesystem operation denied due to permissions or insufficient space. For example, `tt connect` to a port with no listener now exits with 2 rather than 1 |
+| `3` | A command targeting several resources succeeded for only some of them |
 
 If a script checked for code 1, check for any nonzero code instead. `tt backup`
 and `tt restore` keep their own codes from 3 upward. See `tt help errors` for

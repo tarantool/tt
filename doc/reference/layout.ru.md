@@ -1,9 +1,10 @@
 # Структура файловой системы {#filesystem-layout}
 
-## Корень scope {#the-root-of-a-scope}
+## Корень области установки {#the-root-of-a-scope}
 
-У каждого [scope](../concepts/projects-and-scopes.md#scopes) корень устроен
-одинаково: `.tarantool/` проекта, корень user scope или корень system scope.
+У каждой [области установки](../concepts/projects-and-scopes.md#scopes) корень
+устроен одинаково: `.tarantool/` проекта, корень области установки пользователя
+или корень области установки системы.
 
 ```text
 <root>/
@@ -26,22 +27,22 @@
 │   └── kv-api/                           # пара хоста (user, system)
 │       ├── config.yaml
 │       ├── instances.yaml
-│       └── systemd.yaml                  # инстансы, которыми управляют юниты systemd
+│       └── systemd.yaml                  # экземпляры, которыми управляют юниты systemd
 └── var/
     ├── lib/<app>/<instance>/             # данные; рабочий каталог внешнего процесса
-    ├── log/<app>/<instance>/tt.log       # вывод инстанса и сообщения его watchdog
+    ├── log/<app>/<instance>/tt.log       # вывод экземпляра и сообщения его watchdog
     └── run/<app>/<instance>/             # tt.pid, tarantool.pid, tarantool.control,
                                           # tarantool.sock, process.pid
 ```
 
 | Файл | |
 | --- | --- |
-| `run/.../tt.pid` | PID watchdog инстанса |
+| `run/.../tt.pid` | PID процесса-наблюдателя экземпляра |
 | `run/.../tarantool.pid` | pid-файл, который записывает Tarantool |
 | `run/.../tarantool.control` | сокет консоли, к которому подключается `tt connect <app>:<instance>` |
 | `run/.../tarantool.sock` | бинарный порт, если конфигурация кластера или скрипт не слушают другой адрес |
 | `run/.../process.pid` | PID внешнего процесса |
-| `log/.../tt.log` | всё, что выводит инстанс, и сообщения его watchdog |
+| `log/.../tt.log` | всё, что выводит экземпляр, и сообщения его процесса-наблюдателя |
 
 `tt wasm prepare` добавляет в корень проекта всё необходимое для сборки
 компонентов WebAssembly: tarawasm и утилиты, которые устанавливает tt, под
@@ -78,7 +79,7 @@ myapp/
 ├── app.manifest.lock          # зафиксированные версии зависимостей; сохраняем в git
 ├── VERSION                    # опционально: версия пакета
 ├── .templates/
-│   └── default/               # шаблон инстансов: пара проекта
+│   └── default/               # шаблон экземпляров: пара проекта
 │       ├── config.yaml
 │       └── instances.yaml
 ├── .rocks/                    # зависимости и собранные компоненты (генерируется)
