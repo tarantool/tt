@@ -1,0 +1,274 @@
+name: Rocks
+
+# Builds every rock of rocks.tarantool.org with tt package add and build, and
+# requires its modules, against the Tarantool of each level: a project
+# (tt binary install --scope project), the user and the system scopes, and
+# the packages of the system (setup-tarantool on Linux, Homebrew on macOS), on
+# Linux amd64 and arm64 and macOS arm64. See test/integration/rocks_catalog;
+# the exceptions and the system libraries the rocks need are in
+# test/rocks-catalog.yaml.
+#
+# A pull request runs it when it has the label ci-rocks; it is not a required
+# check. workflow_dispatch runs it on a branch, for another Tarantool too; a
+# run on v3 fills the cache of the macOS builds of Tarantool for every pull
+# request.
+on:
+  workflow_dispatch:
+    inputs:
+      tarantool-version:
+        description: Tarantool CE version, or min or latest from ci/tarantool-versions.env
+        type: string
+        default: latest
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  # An unrelated label must not cancel a requested run.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'ci-rocks' && 'ignored' || 'tests' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GO_VERSION: '1.27.4'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # The snapshot build makes the binaries of all three platforms in one job.
+  build:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'ci-rocks') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci-rocks')) }}
+    uses: ./.github/workflows/_build.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      mode: snapshot
+      artifact-name: packages-rocks
+
+  rocks:
+    needs: build
+    name: ${{ matrix.platform }}, ${{ matrix.level }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux-amd64, linux-arm64, darwin-arm64]
+        level: [project, user, system, os]
+        include:
+          # A rock spends most of its time on the network: more workers than
+          # cores (4 on Linux, 3 on macOS) finish sooner.
+          - platform: linux-amd64
+            runner: ubuntu-24.04
+            jobs: 16
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+            jobs: 16
+          - platform: darwin-arm64
+            runner: macos-15
+            jobs: 8
+    runs-on: ${{ matrix.runner }}
+    # tt binary install builds Tarantool from source on macOS when the cache
+    # has no build of it.
+    timeout-minutes: ${{ matrix.platform == 'darwin-arm64' && 60 || 30 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tt-snapshot-default-${{ matrix.platform }}
+
+      - name: Prepare binary
+        run: |
+          chmod +x tt
+          ./tt version
+
+      # The toolchains the rocks build with; the Tarantool is the level's.
+      - name: Prepare the test environment
+        uses: ./.github/actions/prepare-ce-test-env # zizmor: ignore[self-repository] -- Test the checked-out revision.
+        with:
+          tarantool-version: ${{ inputs.tarantool-version || 'latest' }}
+          skip-tarantool-install: 'true'
+          skip-etcd-install: 'true'
+          build-tt: 'false'
+          cache: 'false'
+
+      - name: Resolve the Tarantool version
+        id: version
+        env:
+          REQUESTED: ${{ inputs.tarantool-version || 'latest' }}
+        run: |
+          series=$(ci/tarantool-version.sh ce "$REQUESTED")
+          # The newest release of the series: the same Tarantool at every
+          # level tt installs, and the key of its macOS build in the cache.
+          version=$(./tt binary search tarantool |
+            awk -v s="$series" '/^[0-9]+\.[0-9]+\.[0-9]+$/ && ($0 == s || index($0, s ".") == 1)' |
+            tail -n 1)
+          if [ -z "$version" ]; then
+            echo "No Tarantool release matches $series" >&2
+            exit 1
+          fi
+          echo "Tarantool $version"
+          echo "series=$series" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: List the system libraries of the rocks
+        id: packages
+        run: |
+          echo "apt=$(python3 test/ci.py rocks-packages apt)" >> "$GITHUB_OUTPUT"
+          echo "brew=$(python3 test/ci.py rocks-packages brew)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the system libraries of the rocks on Linux
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/apt-install # zizmor: ignore[self-repository] -- Test the checked-out revision.
+        with:
+          packages: ${{ steps.packages.outputs.apt }}
+
+      - name: Install the system libraries of the rocks on macOS
+        if: runner.os == 'macOS'
+        env:
+          PACKAGES: ${{ steps.packages.outputs.brew }}
+        run: |
+          # shellcheck disable=SC2086 # The names are split on purpose.
+          brew install $PACKAGES
+
+      # A build of Tarantool takes 15-20 minutes on macOS: the cache keeps
+      # versions/tarantool/tarantool_<version> of the root of the level, and
+      # tt binary switch makes it the active one again, as tt binary install
+      # leaves it. A key per level keeps the build where it was made.
+      - name: Restore the Tarantool build
+        id: tarantool-cache
+        if: runner.os == 'macOS' && matrix.level != 'os'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tarantool-build
+          key: tarantool-build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.level }}-${{ steps.version.outputs.version }}
+
+      - name: Install Tarantool through tt
+        id: tt-tarantool
+        if: matrix.level != 'os'
+        env:
+          LEVEL: ${{ matrix.level }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CACHED: ${{ steps.tarantool-cache.outputs.cache-hit }}
+          BUILD: ${{ runner.temp }}/tarantool-build
+        run: |
+          tt=$PWD/tt
+          dir=$RUNNER_TEMP
+          # The default roots: CI sets neither TT_USER_ROOT nor
+          # TT_SYSTEM_ROOT, and the macOS ones have a space in them.
+          case "$LEVEL:$RUNNER_OS" in
+            project:*)
+              dir=$RUNNER_TEMP/template
+              mkdir -p "$dir"
+              root=$dir/.tarantool
+              ;;
+            user:macOS) root="$HOME/Library/Application Support/tarantool" ;;
+            user:*)
+              case "${XDG_DATA_HOME:-}" in
+                /*) root=$XDG_DATA_HOME/tarantool ;;
+                *) root=$HOME/.local/share/tarantool ;;
+              esac
+              ;;
+            system:macOS) root="/Library/Application Support/tarantool" ;;
+            system:*) root=/opt/tarantool ;;
+          esac
+          # tt runs as the runner user, which owns the system root: under sudo
+          # it would get another PATH and HOME.
+          if [ "$LEVEL" = system ]; then
+            sudo mkdir -p "$root"
+            sudo chown "$(id -u):$(id -g)" "$root"
+          fi
+          cd "$dir"
+          if [ "$CACHED" = true ]; then
+            mkdir -p "$root/versions/tarantool"
+            cp -a "$BUILD/tarantool_$VERSION" "$root/versions/tarantool/"
+            "$tt" binary switch tarantool "$VERSION" --scope "$LEVEL"
+          else
+            "$tt" binary install tarantool "$VERSION" --scope "$LEVEL"
+          fi
+          if [ "$RUNNER_OS" = macOS ] && [ "$CACHED" != true ]; then
+            mkdir -p "$BUILD"
+            cp -a "$root/versions/tarantool/tarantool_$VERSION" "$BUILD/"
+          fi
+          ls -l "$root/bin/tarantool" "$root/include/tarantool"
+          "$root/bin/tarantool" --version
+          {
+            echo "root=$root"
+            echo "template=$RUNNER_TEMP/template"
+            echo "tarantool=$root/bin/tarantool"
+          } >> "$GITHUB_OUTPUT"
+
+      # Saved before the check, which may fail.
+      - name: Save the Tarantool build
+        if: steps.tarantool-cache.outcome == 'success' && steps.tarantool-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tarantool-build
+          key: tarantool-build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.level }}-${{ steps.version.outputs.version }}
+
+      # download.tarantool.org times out now and then: try once more.
+      - name: Install Tarantool from the packages of the system
+        id: os-tarantool
+        if: matrix.level == 'os' && runner.os == 'Linux'
+        continue-on-error: true
+        uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
+        env:
+          # The action's default cache key omits the architecture.
+          TARANTOOL_CACHE_KEY_SUFFIX: -${{ runner.arch }}
+        with:
+          tarantool-version: ${{ steps.version.outputs.series }}
+
+      - name: Install Tarantool from the packages of the system, second attempt
+        if: steps.os-tarantool.outcome == 'failure'
+        uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
+        env:
+          TARANTOOL_CACHE_KEY_SUFFIX: -${{ runner.arch }}
+        with:
+          tarantool-version: ${{ steps.version.outputs.series }}
+
+      # Homebrew has one version of Tarantool, whatever the series.
+      - name: Install Tarantool from Homebrew
+        if: matrix.level == 'os' && runner.os == 'macOS'
+        run: brew install tarantool
+
+      - name: Check the rocks
+        env:
+          LEVEL: ${{ matrix.level }}
+          JOBS: ${{ matrix.jobs }}
+          ROOT: ${{ steps.tt-tarantool.outputs.root }}
+          TEMPLATE: ${{ steps.tt-tarantool.outputs.template }}
+          TARANTOOL: ${{ steps.tt-tarantool.outputs.tarantool }}
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            # $TMPDIR is under /var/folders, a link to /private/var.
+            export TMPDIR="$RUNNER_TEMP"
+          fi
+          case "$LEVEL" in
+            project) export TT_TEST_ROCKS_TEMPLATE="$TEMPLATE" ;;
+            user | system)
+              export PATH="$ROOT/bin:$PATH"
+              export TT_TEST_ROCKS_TARANTOOL="$TARANTOOL"
+              ;;
+            os)
+              TT_TEST_ROCKS_TARANTOOL=$(command -v tarantool)
+              export TT_TEST_ROCKS_TARANTOOL
+              ;;
+          esac
+          export TT_TEST_ROCKS_LEVEL="$LEVEL" TT_TEST_ROCKS_LOGS="$PWD/reports/rocks"
+          if [ -n "${TT_TEST_ROCKS_TARANTOOL:-}" ]; then
+            "$TT_TEST_ROCKS_TARANTOOL" --version
+          fi
+          python3 test/ci.py run --shard rocks --marker rocks_catalog --test-dir rocks_catalog \
+            --jobs "$JOBS" --tt-cmd "$PWD/tt" --report-dir reports
+
+      - name: Upload the reports and the logs of the rocks
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rocks-${{ matrix.platform }}-${{ matrix.level }}
+          path: reports/
+          retention-days: 7
