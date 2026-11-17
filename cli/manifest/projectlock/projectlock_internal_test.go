@@ -228,6 +228,112 @@ func TestOtherProcessWaits(t *testing.T) {
 	release()
 }
 
+// holdUnnamed locks the lock file of the project in dir as a tt has it in
+// the instant between its flock(2) and the write of its pid, and just before
+// it gives the lock up: held, naming no holder. Closing the file returned
+// releases it.
+func holdUnnamed(t *testing.T, dir string) *os.File {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, BuildDirName), dirPerm))
+
+	file, err := os.OpenFile(Path(dir), os.O_RDWR|os.O_CREATE, filePerm)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = file.Close() })
+
+	require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
+
+	return file
+}
+
+// waitInBackground acquires the lock of the project in dir in a goroutine,
+// releasing it at once, and returns the pids its wait was told of and the
+// result.
+func waitInBackground(t *testing.T, dir string) (chan int, chan error) {
+	t.Helper()
+
+	told := make(chan int, unnamedPolls)
+	done := make(chan error, 1)
+
+	go func() {
+		_, release, err := acquire(context.Background(), dir, func(pid int, self bool) {
+			assert.False(t, self)
+
+			told <- pid
+		})
+		if err == nil {
+			release()
+		}
+
+		done <- err
+	}()
+
+	return told, done
+}
+
+// TestWaitTellsTheHolderNamedLate has this process wait for a holder that
+// writes its pid after the wait first reads the file: the wait is told once,
+// of that pid, not of a holder the file does not name.
+//
+//nolint:paralleltest // The lock sets the environment of the process.
+func TestWaitTellsTheHolderNamedLate(t *testing.T) {
+	dir := project(t)
+	holder := holdUnnamed(t, dir)
+
+	told, done := waitInBackground(t, dir)
+
+	time.Sleep(3 * pollInterval / 2)
+
+	_, err := holder.WriteAt([]byte("4242\n"), 0)
+	require.NoError(t, err)
+
+	time.Sleep(3 * pollInterval)
+	require.NoError(t, holder.Close())
+	require.NoError(t, <-done)
+
+	require.Len(t, told, 1)
+	assert.Equal(t, 4242, <-told)
+}
+
+// TestWaitTellsNothingOfAHolderGivingUp: a lock held with no pid that is
+// free at a poll after, as a tt gives it up, is taken with nothing told.
+//
+//nolint:paralleltest // The lock sets the environment of the process.
+func TestWaitTellsNothingOfAHolderGivingUp(t *testing.T) {
+	dir := project(t)
+	holder := holdUnnamed(t, dir)
+
+	told, done := waitInBackground(t, dir)
+
+	time.Sleep(3 * pollInterval / 2)
+	require.NoError(t, holder.Close())
+	require.NoError(t, <-done)
+
+	assert.Empty(t, told)
+}
+
+// TestWaitTellsAHolderThatIsNotATt: a holder the file names for none of
+// unnamedPolls polls is told with no pid.
+//
+//nolint:paralleltest // The lock sets the environment of the process.
+func TestWaitTellsAHolderThatIsNotATt(t *testing.T) {
+	dir := project(t)
+	holder := holdUnnamed(t, dir)
+
+	told, done := waitInBackground(t, dir)
+
+	select {
+	case pid := <-told:
+		assert.Equal(t, 0, pid)
+	case <-time.After((unnamedPolls + 5) * pollInterval):
+		require.FailNow(t, "the wait was told of no holder")
+	}
+
+	require.NoError(t, holder.Close())
+	require.NoError(t, <-done)
+	assert.Empty(t, told, "the wait is told once")
+}
+
 // TestCrashReleases kills the helper holding the lock: the kernel drops the
 // lock, and the next acquire takes the file it left at once.
 //

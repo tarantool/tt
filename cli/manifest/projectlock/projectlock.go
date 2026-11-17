@@ -83,6 +83,13 @@ const (
 	// pollInterval is the pause between the attempts to take a lock held:
 	// flock(2) that waits cannot be interrupted, the context can.
 	pollInterval = 100 * time.Millisecond
+	// unnamedPolls is how many polls a wait makes for a lock held whose file
+	// names no holder before it says so. A tt writes its pid just after it
+	// takes the lock and truncates the file just before it gives the lock
+	// up: a waiter that reads the file in between finds no pid, and a poll
+	// after finds the pid, or the lock free. A holder that names itself for
+	// none of these polls, for a second, is not a tt.
+	unnamedPolls = 10
 	// maxSize is as much of the lock file as is read; a pid is shorter.
 	maxSize = 64
 )
@@ -96,8 +103,8 @@ func Path(dir string) string {
 }
 
 // Waiting is told whose lock an Acquire waits for: the pid of the tt that
-// holds it, 0 when the file does not say, and whether that is this process,
-// another goroutine of it.
+// holds it, 0 when the file names no holder for unnamedPolls polls, and
+// whether that is this process, another goroutine of it.
 type Waiting func(pid int, self bool)
 
 // Acquire takes the lock of the project in dir, waiting while another
@@ -259,7 +266,9 @@ func (h hold) release() {
 }
 
 // lockFile takes the lock of the file path, creating it and its directory,
-// or finds that this process works under it.
+// or finds that this process works under it. A wait is told of the holder
+// once, by the first poll that reads its pid, or with no pid once
+// unnamedPolls polls have read none.
 func lockFile(ctx context.Context, path string, waiting Waiting) (hold, error) {
 	err := os.MkdirAll(filepath.Dir(path), dirPerm)
 	if err != nil {
@@ -267,10 +276,15 @@ func lockFile(ctx context.Context, path string, waiting Waiting) (hold, error) {
 	}
 
 	told := false
+	unnamed := 0
 
 	for range attempts {
 		held, retry, err := tryLock(ctx, path, func(pid int) {
-			if !told {
+			switch {
+			case told:
+			case pid <= 0 && unnamed < unnamedPolls:
+				unnamed++
+			default:
 				told = true
 
 				waiting(pid, false)
