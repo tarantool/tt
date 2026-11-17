@@ -6,12 +6,18 @@
 # rocks.tarantool.org lists, at the version tt package add resolves for it
 # without a constraint: a rock new on the server is checked from the next run
 # on. It builds the rock against the Tarantool of each level (project, user,
-# system, os) and requires the modules the rock installed. An entry here
-# naming a rock the server no longer has fails the check, and so does one
-# that does not say why it is here.
+# system, os) and requires the modules the rock installed, on Ubuntu 24.04 and
+# macOS, and on other Linux distributions in containers. An entry here naming
+# a rock the server no longer has fails the check, and so does one that does
+# not say why it is here.
 #
-# packages: what the workflow installs before the check, apt on Linux and brew
-# on macOS; python3 test/ci.py rocks-packages apt|brew prints the list.
+# packages: what the workflow installs before the check: apt on Ubuntu and
+# Debian, dnf on Rocky Linux and Fedora, pacman on Arch Linux, emerge on
+# Gentoo (category/name, from its binary host) and brew on macOS; python3
+# test/ci.py rocks-packages apt|brew|dnf|emerge|pacman prints the list. A
+# package a distribution does not have is left out there (see
+# ci/rocks-container.sh), and the rock that needs it fails there unless an
+# entry skips it there.
 #
 # rocks: an entry per rock, of
 #   skip: why the rock is not checked; with os or levels: [project, user,
@@ -46,6 +52,38 @@ packages:
     - pcre2 # lrexlib-pcre2
     - proj # gis
     - zookeeper # zookeeper
+  # EPEL and PowerTools or CRB on Rocky Linux. No repository has MsgPuck or
+  # the C client of ZooKeeper; Fedora has no PCRE (1).
+  dnf:
+    - cyrus-sasl-devel # memcached
+    - geos-devel # gis
+    - gperftools-devel # gperftools
+    - libpq-devel # pg
+    - librdkafka-devel # kafka, tnt-kafka
+    - pcre-devel # lrexlib-pcre
+    - pcre2-devel # lrexlib-pcre2
+    - proj-devel # gis
+  # Arch Linux has neither MsgPuck nor the C client of ZooKeeper.
+  pacman:
+    - geos # gis
+    - gperftools # gperftools
+    - libsasl # memcached
+    - librdkafka # kafka, tnt-kafka
+    - pcre # lrexlib-pcre
+    - pcre2 # lrexlib-pcre2
+    - postgresql-libs # pg
+    - proj # gis
+  # The binary host of Gentoo has no librdkafka, and the tree has neither
+  # MsgPuck nor the C client of ZooKeeper; the msgpuck 2.0 of the overlay of
+  # Tarantool does not configure with CMake 4 (CMP0037 set to OLD).
+  emerge:
+    - dev-db/postgresql # pg: libpq
+    - dev-libs/cyrus-sasl # memcached
+    - dev-libs/libpcre # lrexlib-pcre
+    - dev-libs/libpcre2 # lrexlib-pcre2
+    - dev-util/google-perftools # gperftools
+    - sci-libs/geos # gis
+    - sci-libs/proj # gis
 
 rocks:
   cartridge-metrics-role:

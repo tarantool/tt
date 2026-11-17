@@ -18,6 +18,7 @@ SYSTEMS = ("linux", "darwin")
 # major number of its version, as rocky-8.
 DISTROS = ("arch", "debian", "fedora", "gentoo", "rocky", "ubuntu")
 _DISTRO = re.compile(rf"(?:{'|'.join(DISTROS)})(?:-\d+)?")
+PACKAGE_MANAGERS = ("apt", "brew", "dnf", "emerge", "pacman")
 DEFAULT_REGISTRY = "https://rocks.tarantool.org"
 CATALOG_FILE = Path(__file__).resolve().parents[2] / "rocks-catalog.yaml"
 
@@ -200,6 +201,12 @@ def load_catalog(path=CATALOG_FILE):
     ):
         problems.append("packages must map a package manager to a list of package names")
         packages = {}
+    unknown = set(packages) - set(PACKAGE_MANAGERS)
+    if unknown:
+        problems.append(
+            f"packages: unknown package managers {', '.join(sorted(unknown))}, "
+            f"not of {', '.join(PACKAGE_MANAGERS)}",
+        )
     rocks = data.get("rocks") or {}
     if not isinstance(rocks, dict):
         problems.append("rocks must map rock names to their entries")
