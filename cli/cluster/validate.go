@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/go-config/v2/collectors"
@@ -23,7 +24,7 @@ var (
 // accepted in a replicaset only, as Tarantool accepts them, and are refused
 // globally, in a group and in an instance.
 func Validate(cfg goconfig.Config) error {
-	return validate(cfg, newestSchema)
+	return validate(cfg, func(compiled schemas) compiledSchema { return compiled.cluster })
 }
 
 // ValidateInstance validates a goconfig.Config as the configuration of one
@@ -38,11 +39,67 @@ func Validate(cfg goconfig.Config) error {
 // there. A key unknown to Tarantool and a value of a wrong type are refused
 // here as well.
 func ValidateInstance(cfg goconfig.Config) error {
-	return validate(cfg, newestInstanceSchema)
+	return validate(cfg, func(compiled schemas) compiledSchema { return compiled.instance })
 }
 
-// validate validates cfg against the schema that schema returns.
-func validate(cfg goconfig.Config, schema func() ([]byte, error)) error {
+// compiledSchema is a schema compiled into its validator, or the error that
+// kept it from compiling.
+type compiledSchema struct {
+	validator *jsonschema.Validator
+	err       error
+}
+
+// schemas are the two schemas Validate and ValidateInstance validate
+// against, compiled.
+type schemas struct {
+	// cluster is the schema of a cluster config (Validate).
+	cluster compiledSchema
+	// instance is the schema of the config of one instance
+	// (ValidateInstance).
+	instance compiledSchema
+}
+
+// compiledSchemas compiles both schemas once for the run of tt. A schema is
+// close to a megabyte and takes tens of milliseconds to compile, and tt
+// instance start validates the cluster config and then the config of every
+// instance it starts: compiled for each config, they took a tenth of a
+// second for an instance and more for each one more. Both are compiled at
+// once, as the instance schema follows the cluster one whenever a cluster
+// config passes.
+var compiledSchemas = sync.OnceValue(func() schemas {
+	var compiled schemas
+
+	var compiling sync.WaitGroup
+
+	compiling.Go(func() {
+		compiled.instance = compileSchema(newestInstanceSchema)
+	})
+
+	compiled.cluster = compileSchema(newestSchema)
+
+	compiling.Wait()
+
+	return compiled
+})
+
+// compileSchema compiles the schema that schema returns.
+func compileSchema(schema func() ([]byte, error)) compiledSchema {
+	schemaBytes, err := schema()
+	if err != nil {
+		return compiledSchema{validator: nil, err: err}
+	}
+
+	validator, err := jsonschema.New(schemaBytes)
+	if err != nil {
+		return compiledSchema{validator: nil, err: fmt.Errorf("failed to compile schema: %w", err)}
+	}
+
+	return compiledSchema{validator: validator, err: nil}
+}
+
+// validate validates cfg against the schema of compiledSchemas that pick
+// picks.
+func validate(cfg goconfig.Config, pick func(schemas) compiledSchema) error {
 	yamlBytes, err := cfg.MarshalYAML()
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
@@ -52,15 +109,12 @@ func validate(cfg goconfig.Config, schema func() ([]byte, error)) error {
 		return nil
 	}
 
-	schemaBytes, err := schema()
-	if err != nil {
-		return err
+	schema := pick(compiledSchemas())
+	if schema.err != nil {
+		return schema.err
 	}
 
-	validator, err := jsonschema.New(schemaBytes)
-	if err != nil {
-		return fmt.Errorf("failed to compile schema: %w", err)
-	}
+	validator := schema.validator
 
 	node, err := collectors.NewYamlFormat().From(bytes.NewReader(yamlBytes)).Parse()
 	if err != nil {
