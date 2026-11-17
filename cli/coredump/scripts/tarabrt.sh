@@ -314,7 +314,15 @@ done
 # Pack everything listed in TARLIST file into a tarball. To unify
 # the archive format BINARY, COREFILE, VERSION and TARLIST are
 # renamed while packing.
+# A core dump is mostly holes: the pages of the mappings the process
+# never touched. --sparse stores the data of a file and a map of its
+# holes, so tar neither reads nor compresses the zeros of the holes. The
+# posix format keeps the entry of such a file a regular one with the map
+# in its extended header, which GNU tar, bsdtar and the archive/tar of Go
+# read; tt coredump unpack refuses the old GNU sparse entries of the gnu
+# format.
 tar -czhf "${ARCHIVE}" -P -T "${TARLIST}" \
+	--format=posix --sparse \
 	${tar_opts} \
 	--transform="s|${BINARY}|/tarantool|"  \
 	--transform="s|${COREFILE}|/coredump|" \
