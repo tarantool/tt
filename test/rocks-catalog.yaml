@@ -1,0 +1,110 @@
+# The exceptions of the rocks catalogue check, and the system libraries the
+# rocks build against.
+#
+# The check, test/integration/rocks_catalog, which .github/workflows/rocks.yml
+# runs on a pull request labelled ci-rocks, takes every rock the manifest of
+# rocks.tarantool.org lists, at the version tt package add resolves for it
+# without a constraint: a rock new on the server is checked from the next run
+# on. It builds the rock against the Tarantool of each level (project, user,
+# system, os) and requires the modules the rock installed. An entry here
+# naming a rock the server no longer has fails the check, and so does one
+# that does not say why it is here.
+#
+# packages: what the workflow installs before the check, apt on Linux and brew
+# on macOS; python3 test/ci.py rocks-packages apt|brew prints the list.
+#
+# rocks: an entry per rock, of
+#   skip: why the rock is not checked; with os: [linux, darwin] or levels:
+#     [project, user, system, os], it is not checked on those only;
+#   constraint: the version constraint of tt package add NAME CONSTRAINT;
+#   require: the modules to require, instead of those the check takes: the
+#     Lua modules of the fewest dots the rock installed, or its C modules
+#     when it has no Lua module;
+#   exclude: the modules of those the check takes not to require;
+#   reason: why the constraint, require or exclude is needed.
+
+packages:
+  apt:
+    - libgeos-dev # gis
+    - libgoogle-perftools-dev # gperftools: libprofiler.so
+    - libmsgpuck-dev # cbench, shard
+    - libpcre2-dev # lrexlib-pcre2
+    - libpcre3-dev # lrexlib-pcre
+    - libpq-dev # pg
+    - libproj-dev # gis
+    - librdkafka-dev # kafka, tnt-kafka
+    - libsasl2-dev # memcached
+    - libzookeeper-mt-dev # zookeeper
+  brew:
+    - cyrus-sasl # memcached
+    - geos # gis
+    - librdkafka # kafka, tnt-kafka
+    - pcre # lrexlib-pcre
+    - pcre2 # lrexlib-pcre2
+    - proj # gis
+    - zookeeper # zookeeper
+
+rocks:
+  cartridge-metrics-role:
+    require: []
+    reason: >-
+      a role of Cartridge, which the rock does not depend on: its modules
+      load in an application of Cartridge only
+  cbench:
+    skip: Homebrew has no MsgPuck, which the rock builds against
+    os: [darwin]
+  gperftools:
+    skip: >-
+      loads libprofiler with ffi.load('profiler'), and Homebrew installs it
+      into /opt/homebrew/lib, where the dynamic loader does not look (not
+      tried yet)
+    os: [darwin]
+  http:
+    exclude: [http.sslsocket]
+    reason: >-
+      http.sslsocket calls OpenSSL through ffi from the tarantool executable,
+      which the static builds of Tarantool for Linux, of tt binary install and
+      of the deb packages alike, do not export (undefined symbol
+      TLS_server_method); http.server works without it
+  icu-date:
+    skip: >-
+      calls ICU through ffi from the tarantool executable, which the static
+      builds of Tarantool for Linux, of tt binary install and of the deb
+      packages alike, do not export (undefined symbol ucnv_open)
+    os: [linux]
+  jsonpath:
+    skip: >-
+      depends on lulpeg, whose build requires the builtin compat module of
+      Tarantool instead of its own (builtin/compat.lua: Invalid option lua52)
+  lulpeg:
+    skip: >-
+      its build runs tarantool scripts/pack.lua, whose require 'compat' gets
+      the builtin compat module of Tarantool instead of its own
+      (builtin/compat.lua: Invalid option lua52)
+  migrate:
+    skip: >-
+      scm-1 only: its builtin build includes <tarantool/module.h> and
+      <msgpuck.h> from the default include path and links libsmall, which no
+      system package has
+  mqtt:
+    skip: >-
+      1.5.1-1 links the static libz.a of the system into driver.so, which
+      fails ("relocation R_X86_64_PC32 ... recompile with -fPIC" on amd64)
+    os: [linux]
+  mrasender:
+    skip: >-
+      scm-1 only: uses struct luaL_reg, which the LuaJIT of Tarantool 3 does
+      not have
+  pg:
+    skip: >-
+      libpq of Homebrew is keg-only, and FindPostgreSQL of the rock does not
+      look into its prefix (not tried yet)
+    os: [darwin]
+  shard:
+    skip: Homebrew has no MsgPuck, which the rock builds against
+    os: [darwin]
+  sharded-queue:
+    exclude: [sharded_queue.api]
+    reason: >-
+      sharded_queue.api is the API of the roles of Cartridge, which the rock
+      does not depend on; the roles of Tarantool 3 load without it

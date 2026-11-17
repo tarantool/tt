@@ -53,3 +53,7 @@ tooling:
 - uninstall
 - version
 - wasm
+# The rocks catalogue check of rocks.yml, which is skipped without its
+# environment.
+rocks:
+- rocks_catalog

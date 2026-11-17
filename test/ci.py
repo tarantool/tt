@@ -1,5 +1,6 @@
-"""Validate integration shards, run pytest with CI reports, and build the rock
-mirror the tests read in CI."""
+"""Validate integration shards, run pytest with CI reports, build the rock
+mirror the tests read in CI, and list the system packages of the rocks
+catalogue check."""
 
 import argparse
 import json
@@ -15,6 +16,7 @@ import yaml
 TEST_DIR = Path(__file__).resolve().parent
 INTEGRATION_DIR = TEST_DIR / "integration"
 ROCKS_MIRROR_LIST = TEST_DIR / "rocks-mirror.txt"
+ROCKS_CATALOG = TEST_DIR / "rocks-catalog.yaml"
 _outcomes = {}
 _rerun = set()
 _rerun_reports = []
@@ -260,6 +262,20 @@ def rocks_mirror(args):
     return 0
 
 
+def rocks_packages(args):
+    """Print the system packages the rocks of the catalogue check build
+    against, as rocks-catalog.yaml lists them for a package manager."""
+    packages = (yaml.safe_load(ROCKS_CATALOG.read_text()) or {}).get("packages") or {}
+    names = packages.get(args.manager) or []
+    if not isinstance(names, list) or not all(
+        isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+@_-]*", name)
+        for name in names
+    ):
+        raise ValueError(f"packages.{args.manager} of rocks-catalog.yaml: not a list of names")
+    print(" ".join(names))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -278,10 +294,14 @@ def main():
     mirror = commands.add_parser("rocks-mirror")
     mirror.add_argument("--dir", required=True, type=Path)
     mirror.add_argument("--tt-cmd", required=True, type=Path)
+    packages = commands.add_parser("rocks-packages")
+    packages.add_argument("manager", choices=["apt", "brew"])
     args = parser.parse_args()
     if args.command == "rocks-mirror":
         return rocks_mirror(args)
     try:
+        if args.command == "rocks-packages":
+            return rocks_packages(args)
         groups = load_shards()
         if args.command == "check-shards":
             files = test_files(INTEGRATION_DIR)
