@@ -32,58 +32,49 @@
 #   exclude: the modules of those the check takes not to require;
 #   reason: why the constraint, require or exclude is needed.
 
+# The rocks skipped everywhere (cbench, gis, shard, tnt-kafka) get no package:
+# MsgPuck, GEOS and PROJ are of them only.
 packages:
   apt:
-    - libgeos-dev # gis
     - libgoogle-perftools-dev # gperftools: libprofiler.so
-    - libmsgpuck-dev # cbench, shard
     - libpcre2-dev # lrexlib-pcre2
     - libpcre3-dev # lrexlib-pcre
     - libpq-dev # pg
-    - libproj-dev # gis
-    - librdkafka-dev # kafka, tnt-kafka
+    - librdkafka-dev # kafka
     - libsasl2-dev # memcached
     - libzookeeper-st-dev # zookeeper: libzookeeper_st
   brew:
     - cyrus-sasl # memcached
-    - geos # gis
-    - librdkafka # kafka, tnt-kafka
+    - librdkafka # kafka
     - pcre # lrexlib-pcre
     - pcre2 # lrexlib-pcre2
-    - proj # gis
     - zookeeper # zookeeper
-  # EPEL and PowerTools or CRB on Rocky Linux. No repository has MsgPuck or
-  # the C client of ZooKeeper; Fedora has no PCRE (1).
+  # EPEL and PowerTools or CRB on Rocky Linux. No repository has the C client
+  # of ZooKeeper; Fedora has no PCRE (1).
   dnf:
     - cyrus-sasl-devel # memcached
-    - geos-devel # gis
     - gperftools-devel # gperftools
     - libpq-devel # pg
-    - librdkafka-devel # kafka, tnt-kafka
+    - librdkafka-devel # kafka
+    - libstdc++-static # luarapidxml links libstdc++.a
     - pcre-devel # lrexlib-pcre
     - pcre2-devel # lrexlib-pcre2
-    - proj-devel # gis
-  # Arch Linux has neither MsgPuck nor the C client of ZooKeeper.
+  # Arch Linux has no C client of ZooKeeper.
   pacman:
-    - geos # gis
     - gperftools # gperftools
     - libsasl # memcached
-    - librdkafka # kafka, tnt-kafka
+    - librdkafka # kafka
     - pcre # lrexlib-pcre
     - pcre2 # lrexlib-pcre2
     - postgresql-libs # pg
-    - proj # gis
-  # The binary host of Gentoo has no librdkafka, and the tree has neither
-  # MsgPuck nor the C client of ZooKeeper; the msgpuck 2.0 of the overlay of
-  # Tarantool does not configure with CMake 4 (CMP0037 set to OLD).
+  # The binary host of Gentoo has no librdkafka, and the tree no C client of
+  # ZooKeeper.
   emerge:
     - dev-db/postgresql # pg: libpq
     - dev-libs/cyrus-sasl # memcached
     - dev-libs/libpcre # lrexlib-pcre
     - dev-libs/libpcre2 # lrexlib-pcre2
     - dev-util/google-perftools # gperftools
-    - sci-libs/geos # gis
-    - sci-libs/proj # gis
 
 rocks:
   cartridge-metrics-role:
@@ -92,8 +83,14 @@ rocks:
       a role of Cartridge, which the rock does not depend on: its modules
       load in an application of Cartridge only
   cbench:
-    skip: Homebrew has no MsgPuck, which the rock builds against
-    os: [darwin]
+    skip: >-
+      builds against MsgPuck, which only Debian and Ubuntu package, and
+      there it does not load: it looks for cbench.bench in package.cpath,
+      which has no .rocks/lib/tarantool of the project
+  gis:
+    skip: >-
+      its FindPROJ looks for proj_api.h, which PROJ 8 removed: of the
+      systems checked, only Rocky Linux 8 has an older PROJ (6.3)
   gperftools:
     skip: >-
       loads libprofiler with ffi.load('profiler'), and Homebrew installs it
@@ -117,6 +114,12 @@ rocks:
     skip: >-
       depends on lulpeg, whose build requires the builtin compat module of
       Tarantool instead of its own (builtin/compat.lua: Invalid option lua52)
+  kafka:
+    skip: the binary host of Gentoo has no librdkafka
+    os: [gentoo]
+  lrexlib-pcre:
+    skip: Fedora has no PCRE (1), only PCRE2
+    os: [fedora]
   lulpeg:
     skip: >-
       its build runs tarantool scripts/pack.lua, whose require 'compat' gets
@@ -142,10 +145,26 @@ rocks:
       look into its prefix (not tried yet)
     os: [darwin]
   shard:
-    skip: Homebrew has no MsgPuck, which the rock builds against
-    os: [darwin]
+    skip: >-
+      builds against MsgPuck, which only Debian and Ubuntu package, and
+      there it links their libmsgpuck.a, built without -fPIC, into a shared
+      object ("relocation R_X86_64_PC32 ... recompile with -fPIC")
   sharded-queue:
     exclude: [sharded_queue.api]
     reason: >-
       sharded_queue.api is the API of the roles of Cartridge, which the rock
       does not depend on; the roles of Tarantool 3 load without it
+  sqlparser:
+    skip: >-
+      does not build with GCC 15 and later ("'uintmax_t' does not name a
+      type"), which Arch Linux, Fedora and Gentoo have
+    os: [arch, fedora, gentoo]
+  tnt-kafka:
+    skip: >-
+      consumer.c calls strcpy without <string.h> and builds with -Werror,
+      which GCC refuses (implicit declaration of function strcpy)
+  zookeeper:
+    skip: >-
+      builds against the C client of ZooKeeper, which neither Rocky Linux,
+      with EPEL, nor Fedora, Arch Linux or Gentoo packages
+    os: [rocky, fedora, arch, gentoo]
