@@ -10,6 +10,12 @@ groups:
         replication:
           bootstrap_strategy: config
           connect_timeout: 3
+          # tt instance start waits until both instances are up. Started
+          # together, each one finds the other not listening yet more often
+          # than not and connects again replication.timeout later, 1 s by
+          # default; reconnect_timeout, which sets that pause alone, is
+          # Tarantool 3.5+.
+          timeout: 0.25
         bootstrap_leader: storage-master
         instances:
           storage-master:
