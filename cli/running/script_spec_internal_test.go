@@ -58,7 +58,7 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 
 	run := startSpec(t, ctx, spec)
 
-	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+	require.True(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 	assert.True(t, run.alive(), "Can't start the instance.")
 
 	return run
@@ -88,6 +88,9 @@ func TestInstanceBase(t *testing.T) {
 	inst := startTestInstance(t, context.Background(), "dumb_test_app", consoleSock,
 		binaryPort, logger)
 	t.Cleanup(func() { cleanupTestInstance(t, inst, consoleSock) })
+
+	// The script marks the start before box.cfg, which opens the socket.
+	require.True(t, waitForFile(consoleSock), "No console socket")
 
 	conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", consoleSock)
 	require.NoErrorf(t, err, `Can't connect to console socket. Error: "%v".`, err)
@@ -160,12 +163,12 @@ func TestInstanceLogs(t *testing.T) {
 	inst := startSpec(t, context.Background(), spec)
 	t.Cleanup(func() { cleanupTestInstance(t, inst, consoleSock) })
 
-	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+	require.True(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 	assert.True(t, inst.alive())
 
 	// The script marks the start before box.cfg, which opens the sockets.
-	assert.NotZero(t, waitForFile(consoleSock), "No console socket")
-	assert.NotZero(t, waitForFile(binaryPort), "No binary port socket")
+	assert.True(t, waitForFile(consoleSock), "No console socket")
+	assert.True(t, waitForFile(binaryPort), "No binary port socket")
 }
 
 func TestInstanceStopByContext(t *testing.T) {
@@ -182,8 +185,8 @@ func TestInstanceStopByContext(t *testing.T) {
 	// The context stops an instance that runs: the script writes the started
 	// flag before box.cfg, so wait for the sockets box.cfg opens, or the
 	// signal reaches a Tarantool that has not started and it exits with 1.
-	require.NotZero(t, waitForFile(consoleSock), "No console socket")
-	require.NotZero(t, waitForFile(binaryPort), "No binary port socket")
+	require.True(t, waitForFile(consoleSock), "No console socket")
+	require.True(t, waitForFile(binaryPort), "No binary port socket")
 
 	cancel()
 	require.ErrorIs(t, inst.wait(), context.Canceled)
