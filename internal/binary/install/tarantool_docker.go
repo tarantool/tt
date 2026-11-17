@@ -7,7 +7,7 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/tarantool/tt/v3/cli/docker"
 	"github.com/tarantool/tt/v3/cli/templates"
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -59,7 +59,7 @@ func installTarantoolInDocker(tntVersion, artifactRoot string, installCtx Instal
 		return fmt.Errorf("failed to get tt executable path: %w", err)
 	}
 
-	err = copy.Copy(currentExecutable, filepath.Join(tmpDir, "tt"))
+	err = cp.Copy(currentExecutable, filepath.Join(tmpDir, "tt"))
 	if err != nil {
 		return fmt.Errorf("failed to copy tt executable: %w", err)
 	}

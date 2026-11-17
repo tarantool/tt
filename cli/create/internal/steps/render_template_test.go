@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
@@ -15,7 +15,7 @@ import (
 
 func TestTemplateRender(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/sample", workDir))
+	require.NoError(t, cp.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 
@@ -59,7 +59,7 @@ login = admin
 
 func TestTemplateRenderMissingVar(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/sample", workDir))
+	require.NoError(t, cp.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 
@@ -76,7 +76,7 @@ func TestTemplateRenderMissingVar(t *testing.T) {
 
 func TestTemplateRenderMissingVarInFileName(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/sample", workDir))
+	require.NoError(t, cp.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 

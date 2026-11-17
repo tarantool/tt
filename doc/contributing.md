@@ -18,7 +18,7 @@ The tests need:
 - Python 3 with the packages of `test/requirements.txt`;
 - Tarantool 3.3 or newer;
 - [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
-  2.14.0: `mage lint:golang` refuses another version, and `GOLANGCI_LINT`
+  2.15.0: `mage lint:golang` refuses another version, and `GOLANGCI_LINT`
   names the executable when it is not `golangci-lint` on `PATH`;
 - [lichen](https://github.com/uw-labs/lichen#install), in `~/go/bin`;
 - Docker;

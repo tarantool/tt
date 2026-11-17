@@ -523,7 +523,10 @@ func TestRealSignals(t *testing.T) {
 		_ = syscall.Kill(supervisor, syscall.SIGKILL)
 		_ = syscall.Kill(childPid, syscall.SIGKILL)
 
-		<-exited
+		// The supervisor has exited after SIGINT, or, when the test failed
+		// before, has just been killed: either way its error is no failure.
+		err := <-exited
+		t.Logf("the supervisor exited: %v", err)
 	})
 
 	assert.Equal(t, supervisor, waitPid(t, pidFile))

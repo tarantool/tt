@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
@@ -15,7 +15,7 @@ import (
 func TestCleanUp(t *testing.T) {
 	workDir := t.TempDir()
 
-	require.NoError(t, copy.Copy("testdata/cleanup", workDir))
+	require.NoError(t, cp.Copy("testdata/cleanup", workDir))
 
 	filesToRemove := []string{
 		filepath.Join(workDir, "file1.txt"),
@@ -49,7 +49,7 @@ func TestCleanUp(t *testing.T) {
 func TestCleanUpKeepSubdir(t *testing.T) {
 	workDir := t.TempDir()
 
-	require.NoError(t, copy.Copy("testdata/cleanup", workDir))
+	require.NoError(t, cp.Copy("testdata/cleanup", workDir))
 
 	filesToKeep := []string{
 		filepath.Join(workDir, "keep_it.txt"),

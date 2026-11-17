@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
@@ -20,7 +20,7 @@ func TestMoveAppDirBasic(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
+	require.NoError(t, cp.Copy("testdata/sample", srcAppDir))
 
 	dstAppDir := t.TempDir()
 
@@ -80,7 +80,7 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
+	require.NoError(t, cp.Copy("testdata/sample", srcAppDir))
 
 	dstAppDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dstAppDir, "parent", "apps"), 0o755))
@@ -112,7 +112,7 @@ func TestMoveAppDirEmptyTargetDir(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
+	require.NoError(t, cp.Copy("testdata/sample", srcAppDir))
 
 	templateCtx.AppPath = srcAppDir
 

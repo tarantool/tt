@@ -89,7 +89,7 @@ RUN read -r _ _ docker < /etc/tt-test-arch \
 
 # The golangci-lint version magefile.go pins.
 RUN read -r arch _ < /etc/tt-test-arch \
-    && LINT_VER=2.14.0 \
+    && LINT_VER=2.15.0 \
     && curl -fsSL "https://github.com/golangci/golangci-lint/releases/download/v${LINT_VER}/golangci-lint-${LINT_VER}-linux-${arch}.tar.gz" \
         | tar xz -C /usr/local/bin --strip-components=1 \
             "golangci-lint-${LINT_VER}-linux-${arch}/golangci-lint"
