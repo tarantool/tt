@@ -154,6 +154,12 @@ hello = "./plugins/hello"
 	assert.Regexp(t, `(?m)^\[modules\.hello\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`,
 		string(lock))
 
+	// What .gitignore ignores in a local module - of its own or of the
+	// project - is no change of it: a binary built in it, a log, written
+	// after the lock.
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "build", "tt-hello"), "a binary\n")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "debug.log"), "a log\n")
+
 	// The lock rebuilds the same modules and writes nothing.
 	output := filepath.Join(dir, "out", "tt")
 
@@ -166,16 +172,6 @@ hello = "./plugins/hello"
 	again, err := os.ReadFile(filepath.Join(dir, "tt.manifest.sum"))
 	require.NoError(t, err)
 	assert.Equal(t, string(sum), string(again))
-
-	// What .gitignore ignores in a local module - of its own or of the
-	// project - is no change of it: a binary built in it, a log.
-	writeFile(t, filepath.Join(dir, "plugins", "hello", "build", "tt-hello"), "a binary\n")
-	writeFile(t, filepath.Join(dir, "plugins", "hello", "debug.log"), "a log\n")
-
-	_, err = Run(t.Context(), Options{
-		Manifest: manifestPath, Output: output, Locked: true, GeneratedBy: "tt test",
-	})
-	require.NoError(t, err)
 
 	// A local module that changed fails a build from the lock and is
 	// recorded again by a build that may write it.
@@ -719,13 +715,8 @@ hello = "./plugins/hello"
 	require.NoError(t, err, string(out))
 	assert.Equal(t, "hello from lib v2 36\n", string(out))
 
-	_, err = Run(t.Context(), Options{
-		Manifest: manifestPath, Output: output, Locked: true, GeneratedBy: "tt test",
-	})
-	require.NoError(t, err)
-
-	// The bundle carries the replaced directory and builds offline, away
-	// from everything it was made of.
+	// The bundle, made from the lock that build wrote, carries the replaced
+	// directory and builds offline, away from everything it was made of.
 	bundle := filepath.Join(dir, "bundle")
 
 	_, err = Run(t.Context(), Options{Manifest: manifestPath, Vendor: bundle, Locked: true})
