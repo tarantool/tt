@@ -1044,6 +1044,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
+  `tt backup` and `tt cluster topology` no longer waits 3 s before it is
+  made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read
+  the greeting of the server first, to tell the text console from the
+  binary protocol, and a TLS server sends none before the handshake, so the
+  read waited out its timeout every time. A TLS connection is dialed at
+  once now. A server that is not a TLS one, a plain Tarantool, fails the
+  handshake with its greeting; tt then reads the greeting over a plain
+  connection, for twice as long as the failure took and 250 ms more, and
+  says, as before, `unencrypted connection established, but encryption
+  required`. Any other failure is reported as it is, and a refusal of the
+  credentials or a timeout without that second connection.
 - A `c` or `lua-c` module of macOS links with `zig cc` and `zig c++`
   (`CC="zig cc"`): the linker of zig crashed on `-bundle -undefined
   dynamic_lookup`, and the build failed with `linking: signal: segmentation

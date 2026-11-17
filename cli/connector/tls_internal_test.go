@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,15 +92,6 @@ func readTestPacket(conn net.Conn) (map[uint64]uint64, error) {
 }
 
 func writeTestResponse(conn net.Conn, header map[uint64]uint64) error {
-	var response bytes.Buffer
-
-	encoder := msgpack.NewEncoder(&response)
-
-	err := encoder.Encode(map[uint64]uint64{0: 0, 1: header[1]})
-	if err != nil {
-		return err
-	}
-
 	body := map[uint64]any{0x30: []any{}}
 
 	switch header[0] {
@@ -107,6 +99,26 @@ func writeTestResponse(conn net.Conn, header map[uint64]uint64) error {
 		body = map[uint64]any{0x54: uint64(6), 0x55: []uint64{}}
 	case 0x08: // IPROTO_EVAL.
 		body = map[uint64]any{0x30: []any{"hello", "world"}}
+	}
+
+	return writeTestPacket(conn, map[uint64]uint64{0: 0, 1: header[1]}, body)
+}
+
+// writeTestRefusal answers the request of header as Tarantool refuses the
+// credentials of an IPROTO_AUTH.
+func writeTestRefusal(conn net.Conn, header map[uint64]uint64) error {
+	return writeTestPacket(conn, map[uint64]uint64{0: 0x8000 + 47, 1: header[1]},
+		map[uint64]any{0x31: "User not found or supplied credentials are invalid"})
+}
+
+func writeTestPacket(conn net.Conn, header map[uint64]uint64, body map[uint64]any) error {
+	var response bytes.Buffer
+
+	encoder := msgpack.NewEncoder(&response)
+
+	err := encoder.Encode(header)
+	if err != nil {
+		return err
 	}
 
 	err = encoder.Encode(body)
@@ -126,17 +138,25 @@ func writeTestResponse(conn net.Conn, header map[uint64]uint64) error {
 }
 
 // startTLSTestServer starts a binary server that, as a TLS port of
-// Tarantool, greets nobody before the TLS handshake. The first connection,
-// the probe of the protocol, is closed at once, so that the probe does not
-// wait for a greeting that never comes.
-func startTLSTestServer(t *testing.T, config *tls.Config) string {
+// Tarantool, greets nobody before the TLS handshake, and returns its address
+// and the number of connections it accepted.
+func startTLSTestServer(t *testing.T, config *tls.Config) (string, *atomic.Int32) {
 	t.Helper()
 
-	return startConnectorTestServer(t, func(index int, raw net.Conn) {
-		if index == 0 {
-			// End the plaintext probe so the connector can start TLS.
-			return
-		}
+	return startTLSTestServerAnswering(t, config, writeTestResponse)
+}
+
+// startTLSTestServerAnswering starts the server of startTLSTestServer that
+// answers each request with respond.
+func startTLSTestServerAnswering(t *testing.T, config *tls.Config,
+	respond func(net.Conn, map[uint64]uint64) error,
+) (string, *atomic.Int32) {
+	t.Helper()
+
+	var accepted atomic.Int32
+
+	endpoint := startConnectorTestServer(t, func(_ int, raw net.Conn) {
+		accepted.Add(1)
 
 		conn := tls.Server(raw, config)
 
@@ -156,12 +176,14 @@ func startTLSTestServer(t *testing.T, config *tls.Config) string {
 				return
 			}
 
-			err = writeTestResponse(conn, header)
+			err = respond(conn, header)
 			if err != nil {
 				return
 			}
 		}
 	})
+
+	return endpoint, &accepted
 }
 
 func TestConnectEncryptedSSLKey(t *testing.T) {
@@ -190,13 +212,14 @@ func TestConnectEncryptedSSLKey(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			endpoint := startTLSTestServer(t, &tls.Config{
+			endpoint, _ := startTLSTestServer(t, &tls.Config{
 				Certificates: []tls.Certificate{cert},
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				ClientCAs:    roots,
 				MinVersion:   tls.VersionTLS12,
 			})
 
+			start := time.Now()
 			conn, err := Connect(ConnectOpts{
 				Network: TCPNetwork, Address: endpoint,
 				Username: "test", Password: "password",
@@ -206,9 +229,15 @@ func TestConnectEncryptedSSLKey(t *testing.T) {
 					PasswordFile: testCase.passwordFile,
 				},
 			})
+			elapsed := time.Since(start)
+
 			if testCase.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, conn)
+				// The server is a TLS one: the plain dial after the failure
+				// reads no greeting from it and gives up soon.
+				require.NotErrorIs(t, err, errEncryptionRequired)
+				assert.Less(t, elapsed, greetingOperationTimeout)
 
 				return
 			}
@@ -338,8 +367,9 @@ func TestSslOptsEncrypted(t *testing.T) {
 }
 
 // The ssl transport with no other option set takes the way the TLS settings
-// take: a server silent before the handshake is a binary one, dialed over
-// TLS.
+// take: the connection is a binary one over TLS, dialed at once. It used to
+// read a greeting first, which a TLS server never sends, and waited out
+// greetingOperationTimeout before every TLS connection.
 func TestConnectSslTransportWithoutOptions(t *testing.T) {
 	cert, err := tls.LoadX509KeyPair("testdata/localhost.crt", "testdata/localhost.key")
 	require.NoError(t, err)
@@ -361,16 +391,20 @@ func TestConnectSslTransportWithoutOptions(t *testing.T) {
 		return config, nil
 	}
 
-	endpoint := startTLSTestServer(t, config)
+	endpoint, accepted := startTLSTestServer(t, config)
 
+	start := time.Now()
 	conn, err := Connect(ConnectOpts{
 		Network: TCPNetwork, Address: endpoint, Username: "test", Password: "password",
 		Ssl: SslOpts{Transport: dial.TransportSsl},
 	})
+	elapsed := time.Since(start)
 
 	require.NotEmpty(t, hellos, "the connection must start a TLS handshake")
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+	assert.EqualValues(t, 1, accepted.Load(), "no connection but the TLS one")
+	assert.Less(t, elapsed, greetingOperationTimeout, "no wait for a greeting")
 
 	result, err := conn.Eval("return 'hello', 'world'", []any{}, RequestOpts{})
 	require.NoError(t, err)
@@ -452,4 +486,170 @@ func TestConnectPlainTransport(t *testing.T) {
 	result, err := conn.Eval("return 'hello', 'world'", []any{}, RequestOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, []any{"hello", "world"}, result)
+}
+
+// A server that is not a TLS one fails the TLS handshake with what it sends
+// first. When a plain dial of it then reads a Tarantool greeting, binary or
+// of the text console, the server is a plain Tarantool and the failure is
+// errEncryptionRequired; with anything else it is that of the handshake.
+// Neither waits out greetingOperationTimeout.
+func TestConnectTLSToAServerThatIsNotATLSOne(t *testing.T) {
+	cases := []struct {
+		name    string
+		first   string
+		wantErr error
+	}{
+		{name: "a plain Tarantool", first: binaryGreeting(), wantErr: errEncryptionRequired},
+		{
+			name:    "a text console",
+			first:   fmt.Sprintf("%-63s\n%-63s\n", "Tarantool 3.6.0 (Lua console)", "type 'help'"),
+			wantErr: errEncryptionRequired,
+		},
+		{name: "not a Tarantool", first: "HTTP/1.1 400 Bad Request\r\n\r\n"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var accepted atomic.Int32
+
+			endpoint := startConnectorTestServer(t, func(_ int, conn net.Conn) {
+				accepted.Add(1)
+
+				_, _ = io.WriteString(conn, testCase.first)
+				_, _ = io.Copy(io.Discard, conn)
+			})
+
+			start := time.Now()
+			conn, err := Connect(ConnectOpts{
+				Network: TCPNetwork, Address: endpoint,
+				Ssl: SslOpts{Transport: dial.TransportSsl},
+			})
+			elapsed := time.Since(start)
+
+			assert.Nil(t, conn)
+
+			if testCase.wantErr != nil {
+				require.ErrorIs(t, err, testCase.wantErr)
+			} else {
+				require.Error(t, err)
+				require.NotErrorIs(t, err, errEncryptionRequired)
+			}
+
+			assert.EqualValues(t, 2, accepted.Load(), "the TLS connection and the plain one")
+			assert.Less(t, elapsed, greetingOperationTimeout)
+		})
+	}
+}
+
+// A server that stays silent, not even answering the TLS handshake, runs the
+// connection into its ConnectTimeout. It is not dialed again: a plain
+// Tarantool greets at once and fails the handshake long before that.
+func TestConnectTLSToASilentServer(t *testing.T) {
+	if !tlsEngineTimesOutHandshake {
+		t.Skip("the TLS engine of the build does not time a handshake out")
+	}
+
+	var accepted atomic.Int32
+
+	endpoint := startConnectorTestServer(t, func(_ int, conn net.Conn) {
+		accepted.Add(1)
+
+		_, _ = io.Copy(io.Discard, conn)
+	})
+
+	start := time.Now()
+	conn, err := Connect(ConnectOpts{
+		Network: TCPNetwork, Address: endpoint,
+		Ssl:            SslOpts{Transport: dial.TransportSsl},
+		ConnectTimeout: 100 * time.Millisecond,
+	})
+	elapsed := time.Since(start)
+
+	assert.Nil(t, conn)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errEncryptionRequired)
+	assert.EqualValues(t, 1, accepted.Load(), "no plain connection after a timeout: %v", err)
+	assert.Less(t, elapsed, greetingOperationTimeout)
+}
+
+// A TLS server that refuses the credentials answered over TLS, so it is not
+// dialed again, and the refusal is the error.
+func TestConnectTLSRefusedCredentials(t *testing.T) {
+	cert, err := tls.LoadX509KeyPair("testdata/localhost.crt", "testdata/localhost.key")
+	require.NoError(t, err)
+
+	endpoint, accepted := startTLSTestServerAnswering(t, &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}, func(conn net.Conn, header map[uint64]uint64) error {
+		if header[0] == 0x07 { // IPROTO_AUTH.
+			return writeTestRefusal(conn, header)
+		}
+
+		return writeTestResponse(conn, header)
+	})
+
+	start := time.Now()
+	conn, err := Connect(ConnectOpts{
+		Network: TCPNetwork, Address: endpoint, Username: "test", Password: "password",
+		Ssl: SslOpts{Transport: dial.TransportSsl},
+	})
+	elapsed := time.Since(start)
+
+	assert.Nil(t, conn)
+	require.ErrorContains(t, err, "User not found or supplied credentials are invalid")
+	require.NotErrorIs(t, err, errEncryptionRequired)
+	assert.EqualValues(t, 1, accepted.Load(), "no plain connection after a refusal")
+	assert.Less(t, elapsed, greetingOperationTimeout)
+}
+
+// Cancellation interrupts a TLS connection that waits for the handshake, and
+// no plain connection follows it.
+func TestConnectTLSCancelled(t *testing.T) {
+	if !tlsEngineTimesOutHandshake {
+		t.Skip("the TLS engine of the build does not end a handshake on cancellation")
+	}
+
+	var accepted atomic.Int32
+
+	ready := make(chan struct{}, 1)
+	endpoint := startConnectorTestServer(t, func(_ int, conn net.Conn) {
+		accepted.Add(1)
+
+		ready <- struct{}{}
+
+		_, _ = io.Copy(io.Discard, conn)
+	})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := ConnectContext(ctx, ConnectOpts{
+			Network: TCPNetwork, Address: endpoint,
+			Ssl:            SslOpts{Transport: dial.TransportSsl},
+			ConnectTimeout: 10 * time.Second,
+		})
+		done <- err
+	}()
+
+	select {
+	case <-ready:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the TLS connection was not dialed")
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		require.Error(t, err)
+		require.NotErrorIs(t, err, errEncryptionRequired)
+	case <-time.After(greetingOperationTimeout):
+		t.Fatal("the TLS connection ignored cancellation")
+	}
+
+	assert.EqualValues(t, 1, accepted.Load(), "no plain connection after cancellation")
 }

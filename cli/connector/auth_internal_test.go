@@ -161,22 +161,15 @@ func writeAuthTestPacket(conn net.Conn, sync uint64, body map[uint64]any) error 
 }
 
 // startAuthServer starts server on a plain port, or on a TLS one, which
-// greets nobody before the handshake, when tlsConfig is set. probed says
-// that the first connection is the probe of the protocol Connect makes.
-func startAuthServer(t *testing.T, server *authServer, tlsConfig *tls.Config,
-	probed bool,
-) string {
+// greets nobody before the handshake, when tlsConfig is set. Connect and
+// ConnectIproto dial a TLS port over TLS at once.
+func startAuthServer(t *testing.T, server *authServer, tlsConfig *tls.Config) string {
 	t.Helper()
 
-	return startConnectorTestServer(t, func(index int, raw net.Conn) {
+	return startConnectorTestServer(t, func(_ int, raw net.Conn) {
 		if tlsConfig == nil {
 			server.serve(raw)
 
-			return
-		}
-
-		if probed && index == 0 {
-			// End the plaintext probe so the connector can start TLS.
 			return
 		}
 
@@ -284,7 +277,7 @@ func TestConnectAuth(t *testing.T) {
 					ssl = SslOpts{Transport: dial.TransportSsl}
 				}
 
-				endpoint := startAuthServer(t, server, tlsConfig, name == "Connect")
+				endpoint := startAuthServer(t, server, tlsConfig)
 
 				err := connect(t, ConnectOpts{
 					Network: TCPNetwork, Address: endpoint,
