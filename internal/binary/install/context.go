@@ -1,6 +1,7 @@
 package install
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -38,10 +39,24 @@ type InstallCtx struct {
 	IncDir string
 	// Install development build.
 	DevBuild bool
-	// skipMasterUpdate is set if user doesn't want to check for latest master
-	// version and update for it if master version already exists. It inherits
-	// the --no-prompt flag from global context.
-	skipMasterUpdate bool
+	// Confirm asks the user to confirm what question asks: whether to build
+	// on an OS whose dependencies tt cannot check, and whether to update an
+	// installed master. It keeps the rules of the confirmations of tt, --yes
+	// and --no-prompt among them, and fails when it cannot ask. nil asks
+	// nothing and confirms nothing.
+	Confirm func(question string) (bool, error)
+}
+
+// errNoConfirmation is the error of a confirmation with no Confirm to ask.
+var errNoConfirmation = errors.New("no confirmation can be asked")
+
+// confirm asks installCtx.Confirm to confirm what question asks.
+func (installCtx InstallCtx) confirm(question string) (bool, error) {
+	if installCtx.Confirm == nil {
+		return false, errNoConfirmation
+	}
+
+	return installCtx.Confirm(question)
 }
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
@@ -73,7 +88,6 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) e
 	}
 
 	installCtx.Verbose = installCtx.Verbose || cmdCtx.Cli.Verbose
-	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
 	return nil
 }

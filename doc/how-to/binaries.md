@@ -127,8 +127,30 @@ packages. A build of tt runs Git and Mage.
 tt knows the packages of Debian and Ubuntu, of RHEL, CentOS, Fedora, Rocky
 Linux, AlmaLinux, Oracle Linux and Amazon Linux, of Gentoo, Arch Linux and
 Alpine Linux, of the distributions derived from them, as `ID_LIKE` of
-`/etc/os-release` tells, and of macOS with Homebrew. `--force` skips the
-check, for the programs installed elsewhere than from packages.
+`/etc/os-release` tells, and of macOS with Homebrew. `--force` (`-f`) skips
+the check, for the programs installed elsewhere than from packages.
+
+On another system, openSUSE or Void Linux say, tt cannot check the
+dependencies and asks whether to build Tarantool without the check.
+`--yes` (`-y`) answers yes. The question is asked on a terminal only: in a
+script, a pipe or a container run without `-t`, and under the global
+`tt --no-prompt`, the installation fails at once, with nothing read from
+the standard input, unless `--yes` or `--force` is given:
+
+```console
+$ tt binary install tarantool 3.9.0 --source-build --scope user </dev/null
+   • Installing tarantool in the user scope...
+   • Searching in versions...
+   • Checking existing...
+   • Installing tarantool=3.9.0
+   • Checking dependencies...
+   ⨯ cannot check the build dependencies on an unknown OS: no answer to the confirmation: the standard input is not a terminal; pass --yes to confirm without a prompt, or --force to skip the check
+```
+
+Installing `master` over an installed `master` asks whether to look for
+newer commits and rebuild, which `--yes` answers yes too. Off a terminal or
+under `--no-prompt`, without `--yes`, the installed `master` is kept, and
+tt says that it was not checked.
 
 ## Choose a version
 

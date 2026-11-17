@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt binary install --yes` (`-y`) answers yes to the questions of the
+  installation: whether to build Tarantool from source on an OS whose
+  packages tt does not know without checking the dependencies, and whether
+  to look for newer commits of an installed `master` and rebuild it. They
+  are asked on a terminal only, as the confirmations of `tt instance stop`
+  are: an answer piped into the standard input is not read any more, and
+  `--yes` takes its place.
 - A build of Tarantool from source checks its dependencies on Gentoo, Arch
   Linux and Alpine Linux, and on the distributions `ID_LIKE` of
   `/etc/os-release` derives from them, such as Manjaro, EndeavourOS and
@@ -1075,6 +1082,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   says, as before, `unencrypted connection established, but encryption
   required`. Any other failure is reported as it is, and a refusal of the
   credentials or a timeout without that second connection.
+- `tt binary install` of Tarantool built from source on an OS whose
+  packages tt does not know fails at once off a terminal, in CI or in
+  `docker run` without `-t`, and under `--no-prompt`: `cannot check the
+  build dependencies on an unknown OS: no answer to the confirmation: the
+  standard input is not a terminal; pass --yes to confirm without a prompt,
+  or --force to skip the check`. It read the answer from the standard
+  input, and failed with `cannot read the answer: EOF`. `--force` skips the
+  question with the check, as before. Over an installed `master`, the
+  question of an update that cannot be asked keeps the installed one, as
+  `--no-prompt` did, and tt says so; it failed with the same EOF.
 - The dependency check of a build of Tarantool from source on Debian,
   Ubuntu and the Red Hat family looks for autoconf, automake and libtool,
   which configure the libunwind Tarantool bundles, for patch, which the

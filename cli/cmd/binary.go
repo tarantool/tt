@@ -143,6 +143,13 @@ activate.fish and deactivate.fish for fish, in the project directory once.
 Source them to use the project binaries and headers or restore your shell environment.
 Outside a project, the project scope is the current directory: the first
 installation there says that it creates .tarantool/ and .env/ in it.
+
+A build from source checks its dependencies first and names the packages
+that are missing; --force skips the check. On an OS whose packages tt does
+not know, tt asks whether to build without the check, and over an installed
+master it asks whether to look for newer commits. It asks on a terminal
+only, and --yes answers yes. Off a terminal or under --no-prompt, without
+--yes, the build on an unknown OS fails and the installed master is kept.
 `,
 		Example: `# Install the latest Tarantool release for this project.
   $ tt binary install tarantool
@@ -155,11 +162,18 @@ installation there says that it creates .tarantool/ and .env/ in it.
       --scope system --local-dir ./bundles`,
 	}
 	installCmd.PersistentFlags().BoolVarP(&installCtx.Force, "force", "f", false,
-		"Skip dependency checks")
+		"Skip dependency checks, and the question of an unknown OS")
 	installCmd.PersistentFlags().BoolVar(&installCtx.KeepTemp, "no-clean", false,
 		"Keep temporary files")
 	installCmd.PersistentFlags().BoolVar(&installCtx.Reinstall, "reinstall", false,
 		"Reinstall an existing version")
+	// The questions of an installation are confirmed as those of tt instance
+	// are: with --yes, and on a terminal only.
+	installCmd.PersistentFlags().BoolVarP(&instanceYes, "yes", "y", false,
+		"Answer yes to the questions of the installation")
+
+	installCtx.Confirm = confirm
+
 	// Cobra traversal checks local flags before it merges persistent flags.
 	installCmd.Flags().AddFlagSet(installCmd.PersistentFlags())
 

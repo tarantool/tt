@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,6 +16,8 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/install"
 )
 
 // withConfirmation makes the standard input a pipe holding input, a
@@ -142,6 +146,81 @@ func TestPackageConfirmNoPrompt(t *testing.T) {
 	left, err := io.ReadAll(stdin)
 	require.NoError(t, err)
 	assert.Equal(t, "y\n", string(left), "the standard input was read")
+}
+
+// TestBinaryInstallConfirms pins that tt binary install confirms its
+// questions as tt instance does: --yes of install and of its commands,
+// before the command or after it, answers yes; a terminal is asked; and
+// without a terminal, or under --no-prompt, nothing is asked and the
+// standard input is left unread.
+//
+//nolint:paralleltest // Replaces the standard input and --yes.
+func TestBinaryInstallConfirms(t *testing.T) {
+	newInstall := func(t *testing.T) (*cobra.Command, *install.InstallCtx) {
+		t.Helper()
+
+		restoreProcessState(t)
+
+		var installCtx install.InstallCtx
+
+		command := newBinaryInstallCmd(&binary.BinaryContext{}, &installCtx)
+		require.NotNil(t, installCtx.Confirm)
+
+		return command, &installCtx
+	}
+
+	for _, args := range [][]string{
+		{"tarantool", "-y"}, {"tarantool", "--yes"}, {"-y", "tarantool"}, {"tt", "-y"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			command, installCtx := newInstall(t)
+			// The flags of the command set --yes to false as they are made.
+			withConfirmation(t, "n\n", false, false)
+
+			found, rest, err := command.Find(args)
+			require.NoError(t, err)
+			require.NoError(t, found.ParseFlags(rest))
+
+			confirmed, err := installCtx.Confirm("Proceed without checking?")
+			require.NoError(t, err)
+			assert.True(t, confirmed)
+		})
+	}
+
+	t.Run("terminal", func(t *testing.T) {
+		_, installCtx := newInstall(t)
+		withConfirmation(t, "n\n", true, false)
+
+		confirmed, err := installCtx.Confirm("Proceed without checking?")
+		require.NoError(t, err)
+		assert.False(t, confirmed)
+	})
+
+	for name, noPrompt := range map[string]bool{
+		"off a terminal": false, "--no-prompt on a terminal": true,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, installCtx := newInstall(t)
+			stdin := withConfirmation(t, "y\n", noPrompt, false)
+
+			want := errNotTerminal
+
+			if noPrompt {
+				withNoPrompt(t)
+
+				want = errNoPrompt
+			}
+
+			confirmed, err := installCtx.Confirm("Proceed without checking?")
+			require.ErrorIs(t, err, want)
+			require.ErrorContains(t, err, "pass --yes")
+			assert.False(t, confirmed)
+
+			left, err := io.ReadAll(stdin)
+			require.NoError(t, err)
+			assert.Equal(t, "y\n", string(left), "the standard input was read")
+		})
+	}
 }
 
 // TestConfirmingCommands pins that every command of tt instance that asks

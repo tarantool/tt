@@ -1107,6 +1107,13 @@ environment.
 Outside a project, the project scope is the current directory: the first
 installation there says that it creates .tarantool/ and .env/ in it.
 
+A build from source checks its dependencies first and names the packages
+that are missing; --force skips the check. On an OS whose packages tt does
+not know, tt asks whether to build without the check, and over an installed
+master it asks whether to look for newer commits. It asks on a terminal
+only, and --yes answers yes. Off a terminal or under --no-prompt, without
+--yes, the build on an unknown OS fails and the installed master is kept.
+
 USAGE
   tt binary install [flags] <command> [command flags]
 
@@ -1117,10 +1124,11 @@ COMMANDS
   tt            Install tt Community or Enterprise Edition
 
 FLAGS
-  -f, --force       Skip dependency checks
+  -f, --force       Skip dependency checks, and the question of an unknown OS
   -h, --help        help for install
       --no-clean    Keep temporary files
       --reinstall   Reinstall an existing version
+  -y, --yes         Answer yes to the questions of the installation
 
 GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
@@ -1200,11 +1208,12 @@ FLAGS
       --use-docker                Build Tarantool in an Ubuntu Docker container
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks
+  -f, --force          Skip dependency checks, and the question of an unknown OS
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
+  -y, --yes            Answer yes to the questions of the installation
 
 EXAMPLES
   # Build and install Tarantool from the local repository.
@@ -1257,11 +1266,12 @@ FLAGS
                                   archives (tarantool-enterprise-sdk-*.tar.gz)
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks
+  -f, --force          Skip dependency checks, and the question of an unknown OS
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
+  -y, --yes            Answer yes to the questions of the installation
 
 EXAMPLES
   # Install the latest stable SDK for this project.
@@ -1296,11 +1306,12 @@ FLAGS
       --local-dir string          Directory containing tcm standalone archives
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks
+  -f, --force          Skip dependency checks, and the question of an unknown OS
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
+  -y, --yes            Answer yes to the questions of the installation
 
 === tt binary install tt --help
 Install tt Community or Enterprise Edition.
@@ -1340,11 +1351,12 @@ FLAGS
       --source-build              Always build tt Community releases from source
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks
+  -f, --force          Skip dependency checks, and the question of an unknown OS
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
+  -y, --yes            Answer yes to the questions of the installation
 
 EXAMPLES
   # Install the latest tt release for the current user.

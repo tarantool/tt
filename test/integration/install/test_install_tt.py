@@ -326,15 +326,15 @@ def test_install_tt_existing_master(tt_cmd, tmp_path, local_tt_build, update):
     binary.write_text(old_contents)
     binary.chmod(0o755)
 
+    # The question of an update is asked on a terminal only: --yes answers
+    # it, and --no-prompt keeps the installed master.
     args = [tt_cmd]
     if not update:
         args.append("--no-prompt")
     args.extend(["binary", "install", "tt", "master", "--local-repo", "distfiles", "--force"])
-    rc, output = run_command_and_get_output(
-        args,
-        cwd=tmp_path,
-        input="y\n" if update else None,
-    )
+    if update:
+        args.append("--yes")
+    rc, output = run_command_and_get_output(args, cwd=tmp_path)
     assert rc == 0, output
     assert (tmp_path / ".tarantool" / "bin" / "tt").resolve() == binary
     if update:

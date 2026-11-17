@@ -443,7 +443,7 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
 @pytest.mark.slow
 @pytest.mark.tarantool_master
 @pytest.mark.parametrize(
-    "old_tarantool_version, expected_install_msg, is_interactive",
+    "old_tarantool_version, expected_install_msg, yes",
     [
         pytest.param("7192bf6", "Found newest commit of tarantool in master", True),
         pytest.param("master", "tarantool_master version of tarantool already exists", False),
@@ -455,7 +455,7 @@ def test_install_tarantool_fetch_latest_version(
     tmp_path,
     old_tarantool_version,
     expected_install_msg,
-    is_interactive,
+    yes,
 ):
     project_dir = tmp_path / "project"
     project_dir.mkdir()
@@ -493,10 +493,9 @@ def test_install_tarantool_fetch_latest_version(
         link.unlink()
         link.symlink_to(source)
 
-    # Installing newest version.
-    install_cmd = [tt_cmd]
-    if not is_interactive:
-        install_cmd.append("--no-prompt")
+    # Installing newest version. The question of an update is asked on a
+    # terminal only: --yes answers it, and --no-prompt keeps the installed one.
+    install_cmd = [tt_cmd] if yes else [tt_cmd, "--no-prompt"]
     install_cmd.extend(
         [
             "binary",
@@ -510,12 +509,10 @@ def test_install_tarantool_fetch_latest_version(
             "--dynamic",
         ],
     )
+    if yes:
+        install_cmd.append("--yes")
 
-    instance_process_rc, output = run_command_and_get_output(
-        install_cmd,
-        cwd=project_dir,
-        input="y\n" if is_interactive is True else None,
-    )
+    instance_process_rc, output = run_command_and_get_output(install_cmd, cwd=project_dir)
     assert instance_process_rc == 0
     assert expected_install_msg in output
 
@@ -523,7 +520,7 @@ def test_install_tarantool_fetch_latest_version(
 @pytest.mark.slow
 @pytest.mark.tarantool_master
 @pytest.mark.parametrize(
-    "active_symlink, expected_install_msg, is_interactive",
+    "active_symlink, expected_install_msg, yes",
     [
         ("tt_master", "Found newest commit of tt in master", True),
         ("tt_master", "tt_master version of tt already exists.", False),
@@ -533,7 +530,7 @@ def test_install_tarantool_fetch_latest_version(
 def test_install_tt_fetch_latest_version(
     active_symlink,
     expected_install_msg,
-    is_interactive,
+    yes,
     tt_cmd,
     tmp_path,
 ):
@@ -552,15 +549,13 @@ def test_install_tt_fetch_latest_version(
     (root / "bin").mkdir()
     (root / "bin" / "tt").symlink_to(versions / active_symlink / "tt")
 
-    install_cmd = [tt_cmd]
-    if not is_interactive:
-        install_cmd.append("--no-prompt")
+    # The question of an update is asked on a terminal only: --yes answers
+    # it, and --no-prompt keeps the installed master.
+    install_cmd = [tt_cmd] if yes else [tt_cmd, "--no-prompt"]
     install_cmd.extend(["binary", "--scope", "project", "install", "tt", "master"])
-    instance_process_rc, install_output = run_command_and_get_output(
-        install_cmd,
-        cwd=tmp_path,
-        input="y\n" if is_interactive is True else None,
-    )
+    if yes:
+        install_cmd.append("--yes")
+    instance_process_rc, install_output = run_command_and_get_output(install_cmd, cwd=tmp_path)
     assert instance_process_rc == 0
     assert expected_install_msg in install_output
 

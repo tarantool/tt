@@ -1,9 +1,12 @@
 package install
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -404,6 +407,172 @@ func TestDependenciesInstalled(t *testing.T) {
 		err := dependenciesInstalledOn(InstallCtx{}, binary.ProgramCe, osFamilyDebian)
 		require.ErrorContains(t, err, "Missing packages: build-essential coreutils sed perl\n")
 	})
+}
+
+// withOSRelease makes release the os-release of the host, for the test.
+func withOSRelease(t *testing.T, release string) {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "os-release")
+	require.NoError(t, os.WriteFile(path, []byte(release), 0o644))
+
+	previous := osReleasePaths
+
+	t.Cleanup(func() { osReleasePaths = previous })
+
+	osReleasePaths = []string{path}
+}
+
+// answering returns a Confirm that answers confirmed and err, and the
+// questions it is asked.
+func answering(confirmed bool, err error) (func(string) (bool, error), *[]string) {
+	questions := []string{}
+
+	return func(question string) (bool, error) {
+		questions = append(questions, question)
+
+		return confirmed, err
+	}, &questions
+}
+
+// unknownOSQuestion is the question of a build of Tarantool on an OS tt
+// does not know the packages of.
+const unknownOSQuestion = "Unknown OS, can't check if dependencies are installed.\n" +
+	"Proceed without checking?"
+
+// TestUnknownOSConfirmation pins the question of a build of Tarantool on an
+// OS tt does not know the packages of: yes builds without the check, no
+// aborts, and a confirmation that cannot be asked fails pointing at --yes
+// and --force. A build of tt asks nothing: it needs the same everywhere.
+func TestUnknownOSConfirmation(t *testing.T) {
+	// What the Confirm of tt binary install fails with off a terminal.
+	notTerminal := errors.New("no answer to the confirmation: the standard input is " +
+		"not a terminal; pass --yes to confirm without a prompt")
+
+	t.Run("yes", func(t *testing.T) {
+		confirm, questions := answering(true, nil)
+
+		require.NoError(t, dependenciesInstalledOn(InstallCtx{Confirm: confirm},
+			binary.ProgramCe, osFamilyUnknown))
+		assert.Equal(t, []string{unknownOSQuestion}, *questions)
+	})
+
+	t.Run("no", func(t *testing.T) {
+		confirm, _ := answering(false, nil)
+
+		err := dependenciesInstalledOn(InstallCtx{Confirm: confirm}, binary.ProgramCe,
+			osFamilyUnknown)
+		require.ErrorIs(t, err, binary.ErrCmdAbort)
+	})
+
+	t.Run("not asked", func(t *testing.T) {
+		confirm, _ := answering(false, notTerminal)
+
+		err := dependenciesInstalledOn(InstallCtx{Confirm: confirm}, binary.ProgramCe,
+			osFamilyUnknown)
+		require.ErrorIs(t, err, errUnknownOS)
+		require.ErrorIs(t, err, notTerminal)
+		require.EqualError(t, err, "cannot check the build dependencies on an unknown OS: "+
+			"no answer to the confirmation: the standard input is not a terminal; "+
+			"pass --yes to confirm without a prompt, or --force to skip the check")
+	})
+
+	t.Run("no Confirm", func(t *testing.T) {
+		err := dependenciesInstalledOn(InstallCtx{}, binary.ProgramCe, osFamilyUnknown)
+		require.ErrorIs(t, err, errNoConfirmation)
+		require.ErrorContains(t, err, "--force")
+	})
+
+	t.Run("tt", func(t *testing.T) {
+		withPrograms(t, mageExec, gitExec)
+
+		confirm, questions := answering(false, notTerminal)
+
+		require.NoError(t, dependenciesInstalledOn(InstallCtx{Confirm: confirm},
+			binary.ProgramTt, osFamilyUnknown))
+		assert.Empty(t, *questions)
+	})
+}
+
+// TestForceSkipsTheDependencyCheck pins that --force skips the dependency
+// check of a build of Tarantool from source and, on an OS tt does not know
+// the packages of, its question; without --force a question not answered
+// fails the build before it begins.
+func TestForceSkipsTheDependencyCheck(t *testing.T) {
+	if runtime.GOOS != osLinux {
+		t.Skip("os-release tells the OS on Linux only")
+	}
+
+	withOSRelease(t, voidRelease)
+	withPrograms(t)
+
+	for _, force := range []bool{false, true} {
+		t.Run("--force "+strconv.FormatBool(force), func(t *testing.T) {
+			confirm, questions := answering(false, errors.New("not a terminal"))
+
+			// A build that goes on looks for a tarantool/ the local
+			// repository has not.
+			installCtx := InstallCtx{
+				Program: binary.ProgramCe, Force: force, Confirm: confirm, LocalRepo: t.TempDir(),
+			}
+
+			_, err := prepareTarantoolFromSource(installCtx, t.TempDir(),
+				tagInstallVersion("3.9.0"))
+			if force {
+				require.ErrorIs(t, err, errDistfilesDirectoryNotFound)
+				assert.Empty(t, *questions)
+
+				return
+			}
+
+			require.ErrorIs(t, err, errUnknownOS)
+			assert.Equal(t, []string{unknownOSQuestion}, *questions)
+		})
+	}
+}
+
+// TestMasterUpdateConfirmation pins the question of an installation of
+// master over an installed one: a no keeps the installed master, and so does
+// a confirmation that cannot be asked, under --no-prompt or off a terminal,
+// with no failure. Nothing is asked about another version or a file that
+// is no executable.
+func TestMasterUpdateConfirmation(t *testing.T) {
+	notAsked := errors.New("--no-prompt asks no questions")
+
+	for name, test := range map[string]struct {
+		kind       versionKind
+		executable bool
+		err        error
+		asked      bool
+	}{
+		"not asked":      {versionKindMaster, true, notAsked, true},
+		"no":             {versionKindMaster, true, nil, true},
+		"a release":      {versionKindTag, true, nil, false},
+		"not executable": {versionKindMaster, false, nil, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			confirm, questions := answering(false, test.err)
+
+			update, err := isUpdatePossible(InstallCtx{Program: binary.ProgramCe, Confirm: confirm},
+				filepath.Join(t.TempDir(), "tarantool"), test.kind, test.executable)
+			require.NoError(t, err)
+			assert.False(t, update)
+
+			if !test.asked {
+				assert.Empty(t, *questions)
+
+				return
+			}
+
+			require.Len(t, *questions, 1)
+			assert.Contains(t, (*questions)[0], "The 'master' version of the tarantool")
+		})
+	}
+
+	update, err := isUpdatePossible(InstallCtx{Program: binary.ProgramTt},
+		filepath.Join(t.TempDir(), "tt"), versionKindMaster, true)
+	require.NoError(t, err)
+	assert.False(t, update, "with no Confirm")
 }
 
 func TestIsGentooPackageInstalled(t *testing.T) {

@@ -161,10 +161,16 @@ func TestBinaryInstallParentFlags(t *testing.T) {
 		{flag: "-f", name: "force"},
 		{flag: "--force", name: "force"},
 		{flag: "--reinstall", name: "reinstall"},
+		{flag: "-y", name: "yes"},
+		{flag: "--yes", name: "yes"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.flag, func(t *testing.T) {
 			restoreProcessState(t)
+
+			previousYes := instanceYes
+
+			t.Cleanup(func() { instanceYes = previousYes })
 
 			args := []string{
 				"--no-prompt", "binary", "--scope", "project", "install", testCase.flag,
