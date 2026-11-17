@@ -857,6 +857,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A `c` or `lua-c` module of macOS links with `zig cc` and `zig c++`
+  (`CC="zig cc"`): the linker of zig crashed on `-bundle -undefined
+  dynamic_lookup`, and the build failed with `linking: signal: segmentation
+  fault`. zig links the module as a dylib, which Tarantool loads as it loads
+  a bundle, `-shared -undefined dynamic_lookup -all_load`, with
+  `-Wl,-install_name,@rpath/<module>.dylib` for an install name that is not
+  a path of the build machine. Other compilers link a bundle, as before.
 - `tt package build`, `install` and `pack` and `tt rocks` find the headers
   of a Tarantool beside its executable: an Enterprise SDK (`tarantool` and
   `include/tarantool/` side by side), a static or relocated build in
