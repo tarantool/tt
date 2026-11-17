@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -105,19 +106,125 @@ func masterInstallVersion() resolvedInstallVersion {
 	}
 }
 
+// takesPrebuilt reports whether the install of a release takes the prebuilt
+// build the source of the program has: --source-build, --local-repo and, of
+// tarantool, --dynamic and --use-docker build it from source instead.
+func takesPrebuilt(installCtx InstallCtx) bool {
+	switch installCtx.Program {
+	case binary.ProgramCe:
+		return !installCtx.SourceBuild && !installCtx.Dynamic && !installCtx.BuildInDocker &&
+			installCtx.LocalRepo == ""
+	case binary.ProgramTt:
+		return !installCtx.SourceBuild && installCtx.LocalRepo == ""
+	default:
+		return false
+	}
+}
+
+// prebuiltMiss tells why the source of the prebuilt builds of a program
+// resolved no release.
+type prebuiltMiss struct {
+	// source is the name of the source.
+	source string
+	// err is what the source answered: a failure, or no release that matches.
+	err error
+	// suggestion is a release the source has, to ask for instead, if any.
+	suggestion string
+}
+
+// resolvePrebuiltTag resolves the requested version among the releases the
+// source of the prebuilt builds of the program has (prebuiltVersions), as
+// version.MatchVersion resolves it among the Git tags, so that the install
+// of a prebuilt release needs no git. No version requested is the latest
+// release: the one a latestReleaseSource names, or the default tag
+// (defaultInstallTag) of the releases. A pushed tag may still have no
+// release, and a release no prebuilt build yet, so the newest tag is not a
+// reliable choice for prebuilt delivery.
+//
+// It returns no tag and no miss when the install takes no prebuilt build
+// (takesPrebuilt) or this build of tt has no source of the program: the
+// Git tags resolve the version then, as they do after a miss. A miss is a
+// source that fails, or that has no release the request matches: a
+// development tag such as 3.5.0-entrypoint, a release with no prebuilt
+// build for the host yet, a commit.
+func resolvePrebuiltTag(ctx context.Context, installCtx InstallCtx) (string, *prebuiltMiss) {
+	if !takesPrebuilt(installCtx) {
+		return "", nil
+	}
+
+	program, requested := installCtx.Program, installCtx.requestedVersion
+
+	source, err := binary.BundleSource(program)
+	if err != nil {
+		return "", nil
+	}
+
+	missed := func(err error, suggestion string) *prebuiltMiss {
+		return &prebuiltMiss{source: source.Name(), err: err, suggestion: suggestion}
+	}
+
+	if latest, ok := source.(latestReleaseSource); ok && requested == "" {
+		tag, err := latest.Latest(ctx)
+		if err != nil {
+			return "", missed(fmt.Errorf("%w of %s in %s: %w", errNoLatestRelease, program,
+				source.Name(), err), "")
+		}
+
+		return tag, nil
+	}
+
+	versions, err := prebuiltVersions(ctx, source, program)
+	if err != nil {
+		return "", missed(err, "")
+	}
+
+	if len(versions) == 0 {
+		return "", missed(fmt.Errorf("%w: %s has no prebuilt %s for %s/%s",
+			errPrebuiltPackageUnavailable, source.Name(), program, runtime.GOOS,
+			runtime.GOARCH), "")
+	}
+
+	latest, latestErr := defaultInstallTag(program, versions)
+	if requested == "" {
+		if latestErr != nil {
+			return "", missed(fmt.Errorf("%w: %s has no prebuilt release of %s: %w",
+				errPrebuiltPackageUnavailable, source.Name(), program, latestErr), "")
+		}
+
+		return latest, nil
+	}
+
+	tag, err := version.MatchVersion(requested, versions)
+	if err != nil {
+		suggestion := ""
+		if latestErr == nil {
+			suggestion = strings.TrimPrefix(latest, "v")
+		}
+
+		return "", missed(fmt.Errorf("%w: %s has no prebuilt %s %s",
+			errPrebuiltPackageUnavailable, source.Name(), program, requested), suggestion)
+	}
+
+	return tag, nil
+}
+
 // resolveLatestVersion selects the product's default tag when no version was requested.
 func resolveLatestVersion(installCtx InstallCtx) (resolvedInstallVersion, error) {
 	log.Infof("Getting latest %s version...", installCtx.Program.String())
 
-	// The newest tt tag may have no release yet, and then no prebuilt archive.
-	if installCtx.Program == binary.ProgramTt && !installCtx.SourceBuild &&
-		installCtx.LocalRepo == "" {
-		tag, err := latestPrebuiltTt(context.Background())
-		if err == nil {
-			return tagInstallVersion(tag), nil
-		}
+	tag, miss := resolvePrebuiltTag(context.Background(), installCtx)
+	if tag != "" {
+		return tagInstallVersion(tag), nil
+	}
 
-		log.Debugf("Latest tt release is unavailable, using the newest tag: %v", err)
+	if miss != nil {
+		log.Debugf("Latest prebuilt %s is unavailable, using the newest tag: %v",
+			installCtx.Program, miss.err)
+	}
+
+	err := requireGit("find the latest "+installCtx.Program.String(), miss)
+	if err != nil {
+		return resolvedInstallVersion{}, err
 	}
 
 	versions, err := getVersionsFromRepo(installCtx)
@@ -125,7 +232,7 @@ func resolveLatestVersion(installCtx InstallCtx) (resolvedInstallVersion, error)
 		return resolvedInstallVersion{}, err
 	}
 
-	tag, err := defaultInstallTag(installCtx.Program, versions)
+	tag, err = defaultInstallTag(installCtx.Program, versions)
 	if err != nil {
 		return resolvedInstallVersion{}, err
 	}
@@ -170,16 +277,34 @@ func defaultInstallTag(program binary.Program, versions []version.Version) (stri
 	}
 }
 
-// resolveTagVersion matches only release tags; the caller handles a numeric SHA fallback.
+// resolveTagVersion matches only tags: those of the releases the source of
+// prebuilt builds has (resolvePrebuiltTag), then the Git tags. The caller
+// handles a numeric SHA fallback.
 func resolveTagVersion(installCtx InstallCtx) (resolvedInstallVersion, error) {
 	log.Infof("Searching in versions...")
+
+	program, requested := installCtx.Program, installCtx.requestedVersion
+
+	tag, miss := resolvePrebuiltTag(context.Background(), installCtx)
+	if tag != "" {
+		return tagInstallVersion(tag), nil
+	}
+
+	if miss != nil {
+		log.Debugf("%v; searching in the Git tags", miss.err)
+	}
+
+	err := requireGit("find "+program.String()+" "+requested, miss)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
 
 	versions, err := getVersionsFromRepo(installCtx)
 	if err != nil {
 		return resolvedInstallVersion{}, err
 	}
 
-	tag, err := version.MatchVersion(installCtx.requestedVersion, versions)
+	tag, err = version.MatchVersion(requested, versions)
 	if err != nil {
 		return resolvedInstallVersion{}, err
 	}
@@ -193,6 +318,12 @@ func resolvePullRequestVersion(installCtx InstallCtx, pullRequestID string) (
 	error,
 ) {
 	log.Infof("Searching in pull-requests...")
+
+	err := requireGit(fmt.Sprintf("find pull request %s of %s", pullRequestID,
+		installCtx.Program), nil)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
 
 	commit, err := getPullRequestCommit(installCtx, pullRequestID)
 	if err != nil {
@@ -220,6 +351,11 @@ func resolveCommitVersion(installCtx InstallCtx) (resolvedInstallVersion, error)
 
 	if !isValid {
 		return resolvedInstallVersion{}, errHashHasAWrongFormat
+	}
+
+	err = requireGit(fmt.Sprintf("find commit %s of %s", requested, installCtx.Program), nil)
+	if err != nil {
+		return resolvedInstallVersion{}, err
 	}
 
 	ref, err := getCommit(installCtx, requested)

@@ -112,8 +112,7 @@ func warnDevelopmentTag(resolved resolvedInstallVersion) {
 func prepareTarantoolArtifact(installCtx InstallCtx, temporary string,
 	resolved resolvedInstallVersion,
 ) (programArtifact, error) {
-	if resolved.kind == versionKindTag && !installCtx.SourceBuild && !installCtx.Dynamic &&
-		installCtx.LocalRepo == "" {
+	if resolved.kind == versionKindTag && takesPrebuilt(installCtx) {
 		artifact, err := preparePrebuilt(context.Background(), binary.ProgramCe, resolved.ref,
 			temporary, installCtx.KeepTemp)
 		if !errors.Is(err, errPrebuiltPackageUnavailable) {

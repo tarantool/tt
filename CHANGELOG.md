@@ -1102,6 +1102,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the build links, and not for perl and patch, which only the static build
   runs. Run as root, tt names the command that installs the packages
   without `sudo`.
+- `tt binary install tarantool` and `tt binary install tt` of a prebuilt
+  release work on a host without git, as the debian:12 and rockylinux:9
+  images are. A version, a mask such as `3.9` or `3`, or none for the latest
+  is found among the releases the prebuilt binaries are of - the RPMs of
+  rws.tarantool.org, the releases of tt on GitHub, which tt lists with the
+  GitHub API - and a mask is the newest release it matches, as before. The
+  Git tags are asked for what they do not have: a development tag such as
+  `3.10.0-entrypoint`, a release with no prebuilt binary for the host yet, a
+  listing that fails; and for a commit, a pull request and a build from
+  source. Without git such a lookup fails with `'git' is required for 'tt
+  binary install' to find tarantool 3.10.0-entrypoint`, the reason the
+  prebuilt binaries do not do, and a version they have to ask for instead.
+  The version was looked up in the Git tags first in every case, and the
+  install stopped with `'git' is required for 'tt binary search' to work`
+  before it got to the prebuilt binary; with git there, a prebuilt install
+  no longer reaches GitHub over git, and a mask no longer picks a newer tag
+  that has no prebuilt binary yet.
 - A `c` or `lua-c` module of macOS links with `zig cc` and `zig c++`
   (`CC="zig cc"`): the linker of zig crashed on `-bundle -undefined
   dynamic_lookup`, and the build failed with `linking: signal: segmentation

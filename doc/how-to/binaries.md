@@ -170,6 +170,21 @@ tt says that it was not checked.
 - The SDK: like Enterprise - no version, `X`, `X.Y` or `X.Y.Z` select the
   latest stable `gc64` SDK, and a complete archive name an exact one.
 
+A Community release to be installed from a prebuilt binary is looked up
+among the prebuilt binaries, so it needs no Git: the RPMs of
+rws.tarantool.org for Tarantool, the releases of tt on GitHub for tt, which
+tt lists with the GitHub API (`GITHUB_TOKEN` lifts its rate limit). `3`
+there is the latest release of Tarantool 3 that has a prebuilt binary. What
+they do not have - a development tag, a release with no prebuilt binary
+for the host yet, a commit - and a build from source are looked up in the
+Git repository of Tarantool or tt, with `git`. Without `git`, tt says the
+lookup needs it and names a version the prebuilt binaries have:
+
+```console
+$ tt binary install tarantool 3.10.0-entrypoint
+   ⨯ 'git' is required for 'tt binary install' to find tarantool 3.10.0-entrypoint: prebuilt package unavailable: rws has no prebuilt tarantool 3.10.0-entrypoint; install git, or ask for a version rws has, such as 3.9.0
+```
+
 Tarantool, Community or Enterprise, and the SDK are installed from 3.0 on.
 A version older than that - `2.11.5`, `1.10.15`, `2.11ee` - is refused with
 a message that names it, whether it is to be downloaded or built from

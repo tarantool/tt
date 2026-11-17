@@ -11,7 +11,7 @@
 | `TT_CLI_TARANTOOL_PREFIX` | the prefix of the Tarantool headers, `<prefix>/include/tarantool`, that rocks with a C part and `c` and `lua-c` components are built against, instead of the ones tt finds beside the `tarantool`, or of its version in its `CMAKE_INSTALL_PREFIX` or `/usr`; taken whatever version they are of, a warning when it is not the version of the `tarantool` ([Headers for rocks with a C part](../how-to/binaries.md#headers-for-rocks-with-a-c-part)); `.env/activate.sh` sets it |
 | `TT_PROJECT_DIR` | set by `.env/activate.sh` to the project directory |
 | `TT_CLI_EE_USERNAME`, `TT_CLI_EE_PASSWORD` | the customer-zone credentials for Enterprise, TCM and the SDK, when `--credentials-file` is not given |
-| `GITHUB_TOKEN` | the token `tt binary install tt` without a version lists the releases of tt with in the GitHub API, which it does when the latest release on GitHub is not one of tt 3; it lifts the rate limit of anonymous requests |
+| `GITHUB_TOKEN` | the token `tt binary install tt` lists the releases of tt with in the GitHub API, which it does for a version without `--source-build` and, without a version, when the latest release on GitHub is not one of tt 3; it lifts the rate limit of anonymous requests. A listing the API refuses leaves the version to the Git tags, which needs `git` |
 | `CMAKE_POLICY_VERSION_MINIMUM` | the policy version CMake 4 configures a project of an older CMake with; tt sets it to `3.5` for the `cmake` and `make` that build Tarantool from source and for the rocks it builds, unless it is set, the empty value included |
 
 CMake 4 refuses to configure a project that asks for a CMake older than 3.5

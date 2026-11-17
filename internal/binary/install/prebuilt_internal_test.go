@@ -609,3 +609,37 @@ func TestInstallTarantoolPrebuilt(t *testing.T) {
 		})
 	}
 }
+
+// TestInstallTarantoolPrebuiltWithoutGit installs the prebuilt tarantool of
+// a release, a mask and the latest release on a host without git: the
+// releases of the source resolve the version, as the Git tags did.
+func TestInstallTarantoolPrebuiltWithoutGit(t *testing.T) {
+	for _, requested := range []string{"", "3", "3.7", "3.7.1"} {
+		t.Run("version="+requested, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("TMPDIR", t.TempDir())
+			t.Setenv("PATH", t.TempDir())
+
+			source := tarantoolTestSource(t)
+			setTestBundleSources(t, source)
+
+			ctx := InstallCtx{
+				Program: binary.ProgramCe, Scope: binary.ScopeProject,
+				requestedVersion: requested,
+			}
+			require.NoError(t, Install(ctx))
+
+			require.Len(t, source.fetched, 1)
+			assert.Equal(t, "3.7.1", source.fetched[0].Locator,
+				"the newest release without flavours is fetched")
+
+			root, err := ctx.Scope.ArtifactPath()
+			require.NoError(t, err)
+
+			contents, err := os.ReadFile(filepath.Join(root, "versions", "tarantool",
+				"tarantool_3.7.1", "tarantool"))
+			require.NoError(t, err)
+			assert.Equal(t, "executable", string(contents))
+		})
+	}
+}

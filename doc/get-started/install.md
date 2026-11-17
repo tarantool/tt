@@ -140,13 +140,17 @@ and newer is supported.
 ## Runtime dependencies
 
 - Git and Mage, for `tt binary install tt` when it builds tt from source,
-  and Git for `tt binary search tt`.
+  and Git for `tt binary search tt` and `tt binary search tarantool`.
 - Git, CMake, `make`, a C and C++ compiler, autoconf, automake, libtool,
   perl and patch, for `tt binary install tarantool` when it builds Tarantool
   from source: on a platform with no prebuilt binary, Alpine Linux say, for
   a commit or a pull request, or with `--source-build`. tt checks them and
   names the packages that are missing (see
   [Build dependencies](../how-to/binaries.md#build-dependencies)).
+
+  A prebuilt release of Tarantool or tt needs none of them, Git included:
+  `tt binary install tarantool 3.9` finds the release among the prebuilt
+  binaries there are (see [Choose a version](../how-to/binaries.md#choose-a-version)).
 - A C compiler, for rocks and components with a C part.
 - `curl` or `wget`, `zip` and `unzip`, for `tt rocks`, which runs LuaRocks.
 

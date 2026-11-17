@@ -162,6 +162,10 @@ func (repository *ttPrebuiltTestRepository) listing(request *http.Request) *http
 func TestInstallTtDefaultDelivery(t *testing.T) {
 	repository := mockTtPrebuiltRepository(t)
 
+	repository.releases = []string{"v3.0.0", "v3.0.0-rc1/pre", "v2.15.0"}
+	// The releases of tt on GitHub resolve the version: git is not asked.
+	t.Setenv("PATH", t.TempDir())
+
 	for _, keepTemp := range []bool{false, true} {
 		for _, requested := range []string{"", "3", "3.0", "3.0.0"} {
 			t.Run(fmt.Sprintf("version=%s/keep=%t", requested, keepTemp), func(t *testing.T) {
@@ -178,18 +182,20 @@ func TestInstallTtDefaultDelivery(t *testing.T) {
 				}
 				require.NoError(t, Install(ctx))
 
-				var requests []string
-
+				// The latest release is the one the page of the latest
+				// release names, a version one the API lists.
+				releases := "/repos/tarantool/tt/releases"
 				if requested == "" {
-					requests = append(requests, "/tarantool/tt/releases/latest")
+					releases = "/tarantool/tt/releases/latest"
 				}
 
 				// The source lists the archive with its checksum, then the install fetches it.
-				require.Equal(t, append(requests,
+				require.Equal(t, []string{
+					releases,
 					"/tarantool/tt/releases/download/v3.0.0/checksums.txt",
 					fmt.Sprintf("/tarantool/tt/releases/download/v3.0.0/tt-3.0.0-%s-%s.tar.gz",
 						runtime.GOOS, runtime.GOARCH),
-				), repository.requests)
+				}, repository.requests)
 
 				root, err := ctx.Scope.ArtifactPath()
 				require.NoError(t, err)
