@@ -45,6 +45,7 @@ from backup_helpers import (
     finalize_backup,
     instance_data_dir,
     start_backup,
+    start_members,
 )
 from storage_helpers import FileStorage
 
@@ -579,9 +580,7 @@ def test_apply_per_instance_bring_up_the_whole_replicaset(tt, tt_app, tmp_path):
         )
 
     # -- The replicaset comes back on the distributed chain.
-    for name in INSTANCES:
-        proc = tt.run("instance", "start", app_instance(tt_app, name))
-        assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
+    start_members(tt, tt_app, INSTANCES)
 
     assert tt_helper.wait_box_status(30, tt_app, tt_app.instances, ["running"])
     wait_replicaset_connected(tt, tt_app)
@@ -824,9 +823,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
 
     # -- The replicaset comes back on the distributed chain: no member stuck
     # in startup, everyone following everyone.
-    for name in INSTANCES:
-        proc = tt.run("instance", "start", app_instance(tt_app, name))
-        assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
+    start_members(tt, tt_app, INSTANCES)
 
     assert tt_helper.wait_box_status(30, tt_app, tt_app.instances, ["running"])
     wait_replicaset_connected(tt, tt_app)

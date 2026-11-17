@@ -52,6 +52,7 @@ from backup_helpers import (
     finalize_backup,
     instance_data_dir,
     start_backup,
+    start_members,
 )
 from storage_helpers import FileStorage
 
@@ -365,9 +366,7 @@ def wipe_instances(tt_app, names):
 
 
 def start_instances(tt, tt_app, names):
-    for name in names:
-        proc = tt.run("instance", "start", app_instance(tt_app, name))
-        assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
+    start_members(tt, tt_app, names)
     assert tt_helper.wait_box_status(
         60,
         tt_app,

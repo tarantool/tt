@@ -44,6 +44,7 @@ from backup_helpers import (
     finalize_backup,
     instance_data_dir,
     start_backup,
+    start_members,
 )
 from storage_helpers import FileStorage
 
@@ -430,9 +431,7 @@ def test_apply_boots_a_replicaset_on_an_unconfirmed_request(tt, tt_app, tmp_path
 
     # -- The replicaset comes back on the distributed chain: nobody stuck in
     # startup, everyone following the leader.
-    for name in ALL_INSTANCES:
-        proc = tt.run("instance", "start", app_instance(tt_app, name))
-        assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
+    start_members(tt, tt_app, ALL_INSTANCES)
     assert tt_helper.wait_box_status(60, tt_app, tt_app.instances, ["running"])
 
     for name in (STORAGE_B, STORAGE_C):

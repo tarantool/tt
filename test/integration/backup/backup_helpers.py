@@ -40,6 +40,20 @@ def app_instance(tt_app, instance):
     return targets[0]
 
 
+def start_members(tt, tt_app, names):
+    """Start the named members of a replicaset with one tt instance start.
+
+    The start waits for every instance it starts to be up, all of them at
+    once. A member that recovers from its data is up once box.cfg returns:
+    when it has connected to its peers, or replication.connect_timeout
+    later without them. Started one by one, each member but the last would
+    wait out that timeout for the peers not started yet.
+    """
+    targets = [app_instance(tt_app, name) for name in names]
+    proc = tt.run("instance", "start", *targets)
+    assert proc.returncode == 0, f"tt instance start {' '.join(targets)} failed:\n{proc.stdout}"
+
+
 def app_config_path(tt_app):
     """The cluster config of the pair the test application runs from."""
     return tt_app.path(".templates", "default", "config.yaml")
