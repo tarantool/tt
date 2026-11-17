@@ -145,19 +145,21 @@ def tmpdir_with_cfg(tmp_path):
 
 @pytest.fixture(scope="session")
 def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
+    """A directory with a Tarantool and its headers in its project scope.
+
+    The tests that take it are about finding a tarantool that is not on PATH,
+    not about building one: a release with a prebuilt archive is installed
+    where there is one, and a dynamic build from source, the quicker one,
+    elsewhere. The build took 107 s in CI."""
     tmpdir = tmp_path_factory.mktemp("tarantool_env")
 
-    cmd = [
-        tt_cmd,
-        "binary",
-        "--scope",
-        "project",
-        "install",
-        "-f",
-        "tarantool",
-        "--source-build",
-        "--dynamic",
-    ]
+    prebuilt = (
+        platform.system() == "Linux"
+        and platform.machine().lower() in ("x86_64", "amd64", "aarch64", "arm64")
+        and platform.libc_ver()[0] == "glibc"
+    )
+    cmd = [tt_cmd, "binary", "--scope", "project", "install", "-f", "tarantool"]
+    cmd += ["3.7.1"] if prebuilt else ["--source-build", "--dynamic"]
     p = subprocess.run(cmd, cwd=tmpdir)
     assert p.returncode == 0
 
