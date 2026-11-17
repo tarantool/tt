@@ -323,6 +323,26 @@ pub fn main(init: std.process.Init) !void {
 	}
 }
 
+// relativeDep is the path of the checkout dep relative to the project dir,
+// as a .path of build.zig.zon names it. zig resolves that path against the
+// real path of the project, so the two are taken with their symbolic links
+// resolved: a TMPDIR of macOS is under /var/folders, /var a link to
+// /private/var, and the path relative to the link has one .. too few.
+func relativeDep(t *testing.T, dir, dep string) string {
+	t.Helper()
+
+	realDir, err := filepath.EvalSymlinks(dir)
+	require.NoError(t, err)
+
+	realDep, err := filepath.EvalSymlinks(dep)
+	require.NoError(t, err)
+
+	rel, err := filepath.Rel(realDir, realDep)
+	require.NoError(t, err)
+
+	return rel
+}
+
 // TestBuildsAModuleAndAProgramOfZigTarantool builds the project of the
 // how-to against zig-tarantool: the module, whose Lua function and C function
 // Tarantool calls, and the program, which talks to that Tarantool.
@@ -335,10 +355,7 @@ func TestBuildsAModuleAndAProgramOfZigTarantool(t *testing.T) {
 	dirs := harness.Context.Dirs
 	ext := harness.Context.Target.ModuleExt()
 
-	dep, err := filepath.Rel(dirs.Component, checkout)
-	require.NoError(t, err)
-
-	writeFiles(t, dirs.Component, consumerProject(dep))
+	writeFiles(t, dirs.Component, consumerProject(relativeDep(t, dirs.Component, checkout)))
 
 	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
 		map[string]any{"module": "hello", "bin": "hello-client"}, false)), harness.Printed())
