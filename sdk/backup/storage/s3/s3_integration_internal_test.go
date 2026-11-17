@@ -236,7 +236,7 @@ func waitForDefaultBucket(
 			}
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	logs := readContainerLogs(ctx, container)
