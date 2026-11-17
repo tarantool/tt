@@ -141,10 +141,12 @@ and newer is supported.
 
 - Git and Mage, for `tt binary install tt` when it builds tt from source,
   and Git for `tt binary search tt`.
-- Git, CMake, `make` and a C and C++ compiler, for
-  `tt binary install tarantool` when it builds Tarantool from source: on a
-  platform with no prebuilt binary, for a commit or a pull request, or with
-  `--source-build`.
+- Git, CMake, `make`, a C and C++ compiler, autoconf, automake, libtool,
+  perl and patch, for `tt binary install tarantool` when it builds Tarantool
+  from source: on a platform with no prebuilt binary, Alpine Linux say, for
+  a commit or a pull request, or with `--source-build`. tt checks them and
+  names the packages that are missing (see
+  [Build dependencies](../how-to/binaries.md#build-dependencies)).
 - A C compiler, for rocks and components with a C part.
 - `curl` or `wget`, `zip` and `unzip`, for `tt rocks`, which runs LuaRocks.
 

@@ -19,7 +19,7 @@ func prepareTtFromSource(installCtx InstallCtx, tempDir string,
 	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
 
-		err := programDependenciesInstalled(binary.ProgramTt)
+		err := programDependenciesInstalled(installCtx, binary.ProgramTt)
 		if err != nil {
 			return programArtifact{}, err
 		}

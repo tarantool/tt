@@ -123,14 +123,14 @@ func prepareTemporaryDirs(params *bundleParams) error {
 }
 
 // checkDependencies checks if the required system dependencies are installed.
-func checkDependencies(program binary.Program, force bool) error {
-	if force {
+func checkDependencies(installCtx InstallCtx) error {
+	if installCtx.Force {
 		log.Debugf("Skipping dependency check due to --force flag.")
 
 		return nil
 	}
 
-	return programDependenciesInstalled(program)
+	return programDependenciesInstalled(installCtx, installCtx.Program)
 }
 
 // obtainBundle writes the archive of the build into the temporary directory,
@@ -561,7 +561,7 @@ func executeBundleInstallationSteps(params *bundleParams) error {
 	_, _ = fmt.Fprintf(params.logFile, "Installation started for %s version %s\n",
 		params.inst.Program, params.bundleInfo.Version.Str)
 
-	err := checkDependencies(params.inst.Program, params.inst.Force)
+	err := checkDependencies(*params.inst)
 	if err != nil {
 		_, _ = fmt.Fprintf(params.logFile, "Dependency check failed: %v\n", err)
 		return err
