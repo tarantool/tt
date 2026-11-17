@@ -189,7 +189,23 @@ jobs:
             cp -a "$BUILD/tarantool_$VERSION" "$root/versions/tarantool/"
             "$tt" binary switch tarantool "$VERSION" --scope "$LEVEL"
           else
-            "$tt" binary install tarantool "$VERSION" --scope "$LEVEL"
+            # The download from rws.tarantool.org on Linux times out now and
+            # then: it is tried three times. macOS builds from source, which
+            # a second attempt would only repeat.
+            attempts=3
+            if [ "$RUNNER_OS" = macOS ]; then
+              attempts=1
+            fi
+            for attempt in $(seq "$attempts"); do
+              if "$tt" binary install tarantool "$VERSION" --scope "$LEVEL"; then
+                break
+              fi
+              if [ "$attempt" = "$attempts" ]; then
+                exit 1
+              fi
+              echo "tt binary install failed (attempt $attempt of $attempts), trying again"
+              sleep 10
+            done
           fi
           if [ "$RUNNER_OS" = macOS ] && [ "$CACHED" != true ]; then
             mkdir -p "$BUILD"
