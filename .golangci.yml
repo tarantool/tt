@@ -121,8 +121,9 @@ linters:
         linters:
           - tagliatelle
       # The build of a distribution reads the JSON the go command prints,
-      # whose fields are named the Go way.
-      - path: ^cli/manifest/distbuild/
+      # whose fields are named the Go way, and so does mage of the events of
+      # go test -json.
+      - path: ^(cli/manifest/distbuild/|magefile\.testjson\.go$)
         text: 'json\(snake\)'
         linters:
           - tagliatelle

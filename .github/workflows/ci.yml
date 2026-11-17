@@ -214,10 +214,15 @@ jobs:
       - name: Set up the toolchains of the build backends
         uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
 
+      # The events of the tests are what the check of the skips reads.
       - name: Go tests with integration
+        env:
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: mage unit:fullSkipDocker
 
       - name: Check that no build backend test skipped for a missing tool
+        env:
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: ci/build-backend-skips.sh
 
   # Build a native tt: the default build artifact runs only on Linux.
@@ -248,15 +253,17 @@ jobs:
 
       # Hosted macOS runners have no Docker daemon. The TMPDIR of macOS is
       # a long path behind the /var -> /private/var symlink; the runner's
-      # temporary directory is a real and a shorter one.
+      # temporary directory is a real and a shorter one. The events of the
+      # tests are what the check of the skips reads.
       - name: Go tests with integration, excluding Docker
         env:
           TMPDIR: ${{ runner.temp }}
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: mage unit:fullSkipDocker
 
       - name: Check that no build backend test skipped for a missing tool
         env:
-          TMPDIR: ${{ runner.temp }}
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: ci/build-backend-skips.sh
 
   it-ce:

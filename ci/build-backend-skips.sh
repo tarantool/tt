@@ -1,36 +1,23 @@
 #!/usr/bin/env bash
-# Run the tests of the build backends again with -json and check what they
-# skipped (ci/backend_skips.py): CI installs every tool they need
+# Check what the tests of the build backends skipped (ci/backend_skips.py) in
+# the go test -json events mage unit:* wrote into TT_TEST_JSON_DIR, so that
+# the tests run once: CI installs every tool they need
 # (.github/actions/setup-build-toolchains), so a test skipped for a missing
-# one fails the job. The tests ran already with mage unit:*, which reports
-# no skips; this run is for the report, which is written even when a test
-# fails, the script failing then too.
+# one fails the job, and so does a backend no test of which ran.
 set -uo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-out=${RUNNER_TEMP:-$(mktemp -d)}/build-backend-tests
 os=${RUNNER_OS:-$(uname -s | sed 's/Darwin/macOS/')}
+dir=${TT_TEST_JSON_DIR:?names no directory of the events of mage unit:*}
 
-mkdir -p "$out"
+shopt -s nullglob
+files=("$dir"/*.json)
+
+if [ "${#files[@]}" -eq 0 ]; then
+	echo "$dir has no events of go test: run mage unit:* with TT_TEST_JSON_DIR=$dir" >&2
+	exit 2
+fi
+
 cd "$root" || exit 2
 
-failed=0
-
-# modules/build and sdk/build are modules of their own; cli/manifest/build
-# is of the root one.
-for dir in modules/build sdk/build .; do
-	packages=./...
-	if [ "$dir" = . ]; then
-		packages=./cli/manifest/build/...
-	fi
-
-	name=$(echo "$dir" | tr / - | sed 's/^\.$/cli/')
-	if ! (cd "$dir" && go test -tags integration -count=1 -json $packages >"$out/$name.json"); then
-		echo "go test failed in $dir" >&2
-		failed=1
-	fi
-done
-
-python3 ci/backend_skips.py --os "$os" "$out"/*.json || failed=1
-
-exit "$failed"
+exec python3 ci/backend_skips.py --os "$os" "${files[@]}"

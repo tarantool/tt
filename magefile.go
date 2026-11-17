@@ -469,11 +469,15 @@ func runTests(cmd string, args ...string) error {
 	return sh.RunWithV(env, cmd, args...)
 }
 
+// runUnitTests runs go test with flags in each module, writing the events of
+// the tests into TT_TEST_JSON_DIR when it is set (magefile.testjson.go).
 func runUnitTests(flags []string) error {
 	modules, err := findModules()
 	if err != nil {
 		return err
 	}
+
+	jsonDir := os.Getenv(testJSONEnv)
 
 	for _, module := range modules {
 		args := []string{"test", "-C", module}
@@ -484,9 +488,18 @@ func runUnitTests(flags []string) error {
 		// Go flags must precede -args, which forwards the remaining arguments
 		// directly to the test binary (used by Unit.Coverage).
 		args = append(args, "./...", "-count=1")
+		if jsonDir != "" {
+			args = append(args, "-json")
+		}
+
 		args = append(args, flags...)
 
-		err := runTests(goExecutableName, args...)
+		if jsonDir != "" {
+			err = runTestsJSON(testJSONFile(jsonDir, module), args...)
+		} else {
+			err = runTests(goExecutableName, args...)
+		}
+
 		if err != nil {
 			return err
 		}
