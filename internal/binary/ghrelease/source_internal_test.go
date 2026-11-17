@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -562,6 +563,103 @@ func TestLatestToken(t *testing.T) {
 	tag, err := packageTestSource(client).Latest(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "v3.0.0-alpha.2", tag)
+}
+
+// TestReleases lists the releases of every major version of tt, stable ones
+// and pre-releases, newest first, page after page, without drafts and tags
+// that name no version.
+func TestReleases(t *testing.T) {
+	fullPage := make([]string, 0, releasesPerPage)
+	for minor := range releasesPerPage {
+		fullPage = append(fullPage, fmt.Sprintf("v2.%d.0", 200-minor))
+	}
+
+	for _, test := range []struct {
+		name string
+		// pages are the pages of the listing; nil for a listing that fails.
+		pages   [][]string
+		status  int
+		want    []string
+		wantErr error
+		// asked is the number of pages asked.
+		asked int
+	}{
+		{
+			name: "every major version",
+			pages: [][]string{{
+				"v3.1.0/draft", "v3.0.0-alpha.2/pre", "nightly", "v2.15.2", "2.0.0",
+			}},
+			want: []string{"v3.0.0-alpha.2", "v2.15.2", "2.0.0"}, asked: 1,
+		},
+		{
+			name: "a page after a full one", pages: [][]string{fullPage, {"v1.0.0"}},
+			want: append(slices.Clone(fullPage), "v1.0.0"), asked: 2,
+		},
+		{name: "no releases", pages: [][]string{{}}, asked: 1},
+		{
+			name: "rate limit", status: http.StatusForbidden, wantErr: download.ErrHTTPStatus,
+			asked: 1,
+		},
+		{
+			name: "malformed listing", pages: [][]string{{"{"}}, wantErr: errPackageContents,
+			asked: 1,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(tokenVariable, "")
+
+			asked := 0
+
+			client := packageTestClient(t, func(writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				if !assert.Equal(t, "/api/releases", request.URL.Path) {
+					writer.WriteHeader(http.StatusNotFound)
+
+					return
+				}
+
+				asked++
+
+				if test.status != 0 {
+					writer.WriteHeader(test.status)
+
+					return
+				}
+
+				page, err := strconv.Atoi(request.URL.Query().Get("page"))
+				if !assert.NoError(t, err) || page > len(test.pages) {
+					_, _ = writer.Write([]byte("[]"))
+
+					return
+				}
+
+				body := packageTestReleases(test.pages[page-1]...)
+				if len(test.pages[page-1]) > 0 && test.pages[page-1][0] == "{" {
+					body = "{"
+				}
+
+				_, _ = writer.Write([]byte(body))
+			})
+
+			tags, err := packageTestSource(client).Releases(t.Context())
+
+			assert.Equal(t, test.asked, asked)
+
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+
+				if test.status == http.StatusForbidden {
+					require.ErrorContains(t, err, tokenVariable)
+				}
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, test.want, tags)
+		})
+	}
 }
 
 func TestCheckPlatform(t *testing.T) {

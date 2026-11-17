@@ -95,7 +95,7 @@ func ttInstallationID(root string, resolved resolvedInstallVersion) string {
 func prepareTtArtifact(installCtx InstallCtx, temporary string,
 	resolved resolvedInstallVersion,
 ) (programArtifact, error) {
-	if resolved.kind == versionKindTag && !installCtx.SourceBuild && installCtx.LocalRepo == "" {
+	if resolved.kind == versionKindTag && takesPrebuilt(installCtx) {
 		artifact, err := preparePrebuilt(context.Background(), binary.ProgramTt, resolved.ref,
 			temporary, installCtx.KeepTemp)
 		if !errors.Is(err, errPrebuiltPackageUnavailable) {

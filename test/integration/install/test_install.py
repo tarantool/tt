@@ -656,6 +656,71 @@ def test_install_community_prebuilt_release(
     assert rc == 0, output
 
 
+def path_without_git(tmp_path, monkeypatch):
+    """Make PATH an empty directory: no git, nothing a prebuilt install needs."""
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    monkeypatch.setenv("PATH", str(tools))
+
+
+@pytest.mark.parametrize("version", ["3.7.1", "3.7"])
+def test_install_tarantool_prebuilt_without_git(tt_cmd, tmp_path, monkeypatch, version):
+    """A release, or the newest one of a mask, is found among the prebuilt
+    builds of rws.tarantool.org rather than among the Git tags."""
+    arch = platform.machine().lower()
+    if not (
+        platform.system() == "Linux"
+        and arch in ("x86_64", "amd64", "aarch64", "arm64")
+        and platform.libc_ver()[0] == "glibc"
+    ):
+        pytest.skip("No prebuilt tarantool release for this platform")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    monkeypatch.delenv("TT_CLI_CFG", raising=False)
+    path_without_git(tmp_path, monkeypatch)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "install", "tarantool", version, "--scope", "project"],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    installed = re.search(r"Installing prebuilt tarantool=(3\.7\.\d+)\n", output)
+    assert installed, output
+    if version == "3.7.1":
+        assert installed.group(1) == version
+    root = tmp_path / ".tarantool"
+    directory = root / "versions" / "tarantool" / f"tarantool_{installed.group(1)}"
+    assert (root / "bin" / "tarantool").resolve(strict=True) == directory / "tarantool"
+
+
+@pytest.mark.parametrize(
+    "args, error",
+    [
+        pytest.param(
+            ["3.9.0", "--source-build"],
+            "to find tarantool 3.9.0: install git",
+            id="source-build",
+        ),
+        pytest.param(
+            ["2df3077a"],
+            "to find commit 2df3077a of tarantool: install git",
+            id="commit",
+        ),
+    ],
+)
+def test_install_tarantool_git_required(tt_cmd, tmp_path, monkeypatch, args, error):
+    """Without git, a lookup among the Git tags or commits names tt binary
+    install and says what to do."""
+    monkeypatch.delenv("TT_CLI_CFG", raising=False)
+    path_without_git(tmp_path, monkeypatch)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "install", "tarantool", *args, "--scope", "project"],
+        cwd=tmp_path,
+    )
+    assert rc == 1, output
+    assert "'git' is required for 'tt binary install' " + error in output
+    assert not (tmp_path / ".tarantool").exists()
+
+
 @pytest.mark.parametrize("keep_temp", [False, True], ids=["clean", "no-clean"])
 @pytest.mark.parametrize("verbose", [False, True], ids=["quiet", "verbose"])
 def test_install_community_source_artifacts(

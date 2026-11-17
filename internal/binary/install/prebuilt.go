@@ -12,10 +12,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -47,6 +49,13 @@ type latestReleaseSource interface {
 	Latest(ctx context.Context) (string, error)
 }
 
+// releaseSource is a source that lists the tags of the releases of its
+// product, as the releases of tt on GitHub do: its List answers for a
+// release tag only.
+type releaseSource interface {
+	Releases(ctx context.Context) ([]string, error)
+}
+
 // platformSource is a source that knows the platforms its releases publish
 // archives for, as the releases of tt on GitHub do. A host it publishes none
 // for is an error that names the platforms there are, not an archive that
@@ -55,26 +64,57 @@ type platformSource interface {
 	CheckPlatform(tag, goos, goarch string) error
 }
 
-// latestPrebuiltTt returns the tag of the latest release of tt the source
-// of tt has. A pushed tag may still have no release, so the newest tag is
-// not a reliable choice for prebuilt delivery.
-func latestPrebuiltTt(ctx context.Context) (string, error) {
-	source, err := binary.BundleSource(binary.ProgramTt)
+// prebuiltVersions returns the versions of the releases of program source
+// has prebuilt builds of, sorted as the Git tags are: the tags of the
+// releases of a releaseSource, or the versions of the builds without
+// flavours the source lists for the host. The versions tt no longer
+// installs, and those it cannot read, are left out.
+func prebuiltVersions(ctx context.Context, source bundle.Source, program binary.Program) (
+	version.VersionSlice, error,
+) {
+	if releases, ok := source.(releaseSource); ok {
+		tags, err := releases.Releases(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", source.Name(), err)
+		}
+
+		return releaseVersions(program, tags), nil
+	}
+
+	bundles, err := binary.ListBundles(ctx, source, program,
+		binary.NewBundleQuery(program, false, ""))
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", errNoLatestRelease, err)
+		return nil, err
 	}
 
-	latest, ok := source.(latestReleaseSource)
-	if !ok {
-		return "", fmt.Errorf("%w of tt in %s", errNoLatestRelease, source.Name())
+	var versions version.VersionSlice
+
+	for _, found := range bundles {
+		if len(found.Artifact.Flavor) == 0 {
+			versions = append(versions, found.Version)
+		}
 	}
 
-	tag, err := latest.Latest(ctx)
-	if err != nil {
-		return "", fmt.Errorf("%w of tt in %s: %w", errNoLatestRelease, source.Name(), err)
+	sort.Stable(versions)
+
+	return versions, nil
+}
+
+// releaseVersions returns the versions of the release tags of program,
+// sorted, but those tt no longer installs and those it cannot read.
+func releaseVersions(program binary.Program, tags []string) version.VersionSlice {
+	versions := make(version.VersionSlice, 0, len(tags))
+
+	for _, tag := range tags {
+		parsed, err := version.Parse(tag)
+		if err == nil && !binary.IsMasked(program, parsed) {
+			versions = append(versions, parsed)
+		}
 	}
 
-	return tag, nil
+	sort.Stable(versions)
+
+	return versions
 }
 
 // preparePrebuilt downloads the build of the release tag of program from the

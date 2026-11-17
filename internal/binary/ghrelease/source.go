@@ -6,8 +6,9 @@
 // checksums.txt of the same release. There is no listing, so the source
 // answers a query for a release tag only, with the archive the release
 // would have; Fetch reports the one a release does not have with
-// bundle.ErrNotFound. Only Latest may ask the GitHub API, for the releases
-// of a major version of tt (see Source.Latest).
+// bundle.ErrNotFound. Only Latest and Releases may ask the GitHub API, for
+// the latest release of a major version of tt (see Source.Latest) and for
+// the releases tt binary install resolves a version among.
 package ghrelease
 
 import (
@@ -219,6 +220,26 @@ func (*Source) CheckPlatform(tag, goos, goarch string) error {
 	return checkPlatform(tag, goos, goarch)
 }
 
+// Releases returns the tags of the published releases of tt, of every major
+// version, stable ones and pre-releases, newest first, from the listing of
+// the GitHub API: drafts and tags that name no version are left out. With
+// GITHUB_TOKEN set, the API is asked with it. tt binary install resolves a
+// version or a mask among them, so a release is found without git.
+func (s *Source) Releases(ctx context.Context) ([]string, error) {
+	var tags []string
+
+	err := s.eachRelease(ctx, func(release apiRelease) bool {
+		tags = append(tags, release.TagName)
+
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return tags, nil
+}
+
 // latestRedirect returns the tag of the latest release of tt, of any major
 // version, from the redirect of the page of the latest release. GitHub skips
 // drafts and pre-releases there.
@@ -255,7 +276,8 @@ func (s *Source) latestRedirect(ctx context.Context) (string, error) {
 	return tag, nil
 }
 
-// apiRelease is what the GitHub API tells of a release that Latest reads.
+// apiRelease is what the GitHub API tells of a release that Latest and
+// Releases read.
 type apiRelease struct {
 	TagName    string `json:"tag_name"`
 	Draft      bool   `json:"draft"`
@@ -269,39 +291,65 @@ type apiRelease struct {
 // a stable release is not missed behind a page of the releases of another
 // major version.
 func (s *Source) latestListed(ctx context.Context) (string, error) {
-	prerelease := ""
+	stable, prerelease := "", ""
 
+	err := s.eachRelease(ctx, func(release apiRelease) bool {
+		if tagMajor(release.TagName) != s.major {
+			return true
+		}
+
+		if !release.Prerelease {
+			stable = release.TagName
+
+			return false
+		}
+
+		if prerelease == "" {
+			prerelease = release.TagName
+		}
+
+		return true
+	})
+
+	switch {
+	case err != nil:
+		return "", err
+	case stable != "":
+		return stable, nil
+	case prerelease == "":
+		return "", fmt.Errorf("%w of tt %d in %s", errNoRelease, s.major, s.apiURL)
+	default:
+		return prerelease, nil
+	}
+}
+
+// eachRelease calls visit with the published releases of tt the GitHub API
+// lists, newest first, but drafts and tags that name no version, until visit
+// returns false or the listing ends: a page shorter than a full one, or
+// maxReleasePages pages.
+func (s *Source) eachRelease(ctx context.Context, visit func(apiRelease) bool) error {
 	for page := 1; page <= maxReleasePages; page++ {
 		releases, err := s.releasesPage(ctx, page)
 		if err != nil {
-			return "", err
+			return err
 		}
 
 		for _, release := range releases {
-			if release.Draft || !versionPattern.MatchString(release.TagName) ||
-				tagMajor(release.TagName) != s.major {
+			if release.Draft || !versionPattern.MatchString(release.TagName) {
 				continue
 			}
 
-			if !release.Prerelease {
-				return release.TagName, nil
-			}
-
-			if prerelease == "" {
-				prerelease = release.TagName
+			if !visit(release) {
+				return nil
 			}
 		}
 
 		if len(releases) < releasesPerPage {
-			break
+			return nil
 		}
 	}
 
-	if prerelease == "" {
-		return "", fmt.Errorf("%w of tt %d in %s", errNoRelease, s.major, s.apiURL)
-	}
-
-	return prerelease, nil
+	return nil
 }
 
 // releasesPage returns a page, numbered from 1, of the releases of tt the

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/tarantool/tt/v3/cli/version"
@@ -17,12 +18,39 @@ var (
 	errHashHasAWrongFormat        = errors.New("hash has a wrong format")
 	errUnableToGetHashInfo        = errors.New(": unable to get hash info")
 	errUnableToGetPullRequestInfo = errors.New(": unable to get pull-request info")
+	// errGitRequired reports git missing from PATH for a lookup in the Git
+	// repository of a product.
+	errGitRequired = errors.New("'git' is required for 'tt binary install'")
 )
 
 const (
 	gitExec          = "git"
 	gitSubmoduleJobs = "19" // Tarantool submodules count.
 )
+
+// requireGit fails when git is not on PATH, saying that lookup, in the Git
+// repository of a product, needs it and what to do: install git or, when
+// the source of prebuilt builds has missed the version (miss), ask for a
+// release that source has. A miss that is nil is a lookup no source of
+// prebuilt builds could do: a commit, a pull request, a build from source.
+func requireGit(lookup string, miss *prebuiltMiss) error {
+	_, err := exec.LookPath(gitExec)
+	if err == nil {
+		return nil
+	}
+
+	if miss == nil {
+		return fmt.Errorf("%w to %s: install git", errGitRequired, lookup)
+	}
+
+	advice := "install git"
+	if miss.suggestion != "" {
+		advice += fmt.Sprintf(", or ask for a version %s has, such as %s", miss.source,
+			miss.suggestion)
+	}
+
+	return fmt.Errorf("%w to %s: %w; %s", errGitRequired, lookup, miss.err, advice)
+}
 
 // getVersionsFromRepo returns available versions from the selected product's repository.
 func getVersionsFromRepo(installCtx InstallCtx) ([]version.Version, error) {
