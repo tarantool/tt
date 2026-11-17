@@ -18,7 +18,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+// Each test runs a Garage of its own, so they run in parallel.
+
 func TestGaragePut(t *testing.T) {
+	t.Parallel()
+
 	ctx := t.Context()
 	store := newGarageStorage(ctx, t)
 
@@ -35,6 +39,8 @@ func TestGaragePut(t *testing.T) {
 }
 
 func TestGarageGet(t *testing.T) {
+	t.Parallel()
+
 	ctx := t.Context()
 	store := newGarageStorage(ctx, t)
 
@@ -53,6 +59,8 @@ func TestGarageGet(t *testing.T) {
 }
 
 func TestGarageList(t *testing.T) {
+	t.Parallel()
+
 	ctx := t.Context()
 	store := newGarageStorage(ctx, t)
 
@@ -72,6 +80,8 @@ func TestGarageList(t *testing.T) {
 }
 
 func TestGarageDelete(t *testing.T) {
+	t.Parallel()
+
 	ctx := t.Context()
 	store := newGarageStorage(ctx, t)
 
@@ -86,6 +96,8 @@ func TestGarageDelete(t *testing.T) {
 }
 
 func TestGarageGetMissingBucketIsNotKeyNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := t.Context()
 	testcontainers.SkipIfProviderIsNotHealthy(t)
 
@@ -110,6 +122,8 @@ func TestGarageGetMissingBucketIsNotKeyNotFound(t *testing.T) {
 // Every other test here stays below that, on the single-PUT path; a real
 // backup archive lands on multipart from day one, so round-trip one.
 func TestGaragePutMultipartSized(t *testing.T) {
+	t.Parallel()
+
 	ctx := t.Context()
 	store := newGarageStorage(ctx, t)
 
