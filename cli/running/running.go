@@ -45,12 +45,16 @@ var (
 )
 
 const (
-	defaultDirPerms        = 0o770
-	watchdogRestartTimeout = 5 * time.Second
+	defaultDirPerms = 0o770
 	// killCleanupTimeout bounds the wait for the kernel to drop the pid file
 	// lock of a killed watchdog.
 	killCleanupTimeout = 5 * time.Second
 )
+
+// watchdogRestartTimeout is the pause of the watchdog between an exit of the
+// instance and its restart. A test of a restart through Start sets a shorter
+// one: the pause is not what it checks.
+var watchdogRestartTimeout = 5 * time.Second
 
 // WatchdogFlag is the hidden flag of tt instance start that makes it the
 // watchdog of one instance (StartWatchdog), which it runs from the launch
