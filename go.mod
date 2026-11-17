@@ -27,7 +27,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4
 	github.com/tarantool/go-iproto v1.1.0
-	github.com/tarantool/go-luarocks v0.1.1-0.20261116155841-7d7909b11b0f
+	github.com/tarantool/go-luarocks v0.1.1-0.20261117141140-0ccca9142639
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c
 	github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094
