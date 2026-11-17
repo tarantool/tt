@@ -442,6 +442,33 @@ func (Lint) Vuln() error {
 
 type Unit mg.Namespace
 
+// testEnv is the environment of the tests mage runs, go test and pytest
+// alike: TMPDIR is the temporary directory with its symlinks resolved. The
+// TMPDIR of macOS is under /var/folders, and /var is a symlink to
+// /private/var, so a test that compares a path the code resolves with one it
+// does not fails there alone. A real TMPDIR makes the two the same on every
+// system; a TMPDIR that is a symlink reproduces the failure on Linux, with go
+// test run by hand.
+func testEnv() (map[string]string, error) {
+	tmpDir, err := filepath.EvalSymlinks(os.TempDir())
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve the temporary directory: %w", err)
+	}
+
+	return map[string]string{"TMPDIR": tmpDir}, nil
+}
+
+// runTests runs cmd, go or pytest, with the arguments of a test run, in
+// testEnv.
+func runTests(cmd string, args ...string) error {
+	env, err := testEnv()
+	if err != nil {
+		return err
+	}
+
+	return sh.RunWithV(env, cmd, args...)
+}
+
 func runUnitTests(flags []string) error {
 	modules, err := findModules()
 	if err != nil {
@@ -459,7 +486,7 @@ func runUnitTests(flags []string) error {
 		args = append(args, "./...", "-count=1")
 		args = append(args, flags...)
 
-		err := sh.RunV(goExecutableName, args...)
+		err := runTests(goExecutableName, args...)
 		if err != nil {
 			return err
 		}
@@ -520,7 +547,7 @@ func (Unit) Fuzz() error {
 			_, _ = fmt.Fprintf(os.Stdout, "Fuzzing %s %s for %s...\n",
 				test.pkg, test.name, fuzzTime)
 
-			err := sh.RunV(goExecutableName, "test", "-C", test.module, "-run", "^$",
+			err := runTests(goExecutableName, "test", "-C", test.module, "-run", "^$",
 				"-fuzz", "^"+test.name+"$", "-fuzztime", fuzzTime, test.pkg)
 			if err != nil {
 				failed = append(failed, test.pkg+" "+test.name)
@@ -538,7 +565,13 @@ func (Unit) Fuzz() error {
 // fuzzTests lists the fuzz tests of the packages of module: go test -list
 // prints the names of a package, then its ok line.
 func fuzzTests(module string) ([]fuzzTest, error) {
-	out, err := sh.Output(goExecutableName, "test", "-C", module, "-list", "^Fuzz", "./...")
+	env, err := testEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := sh.OutputWith(env, goExecutableName, "test", "-C", module, "-list", "^Fuzz",
+		"./...")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the fuzz tests of %s: %w", module, err)
 	}
@@ -656,7 +689,7 @@ func Integration() error {
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow and not slow_ee "+
+	return runTests(pythonExecutableName, "-m", "pytest", "-m", "not slow and not slow_ee "+
 		"and not notarantool and not tarantool_master", "test/integration")
 }
 
@@ -666,7 +699,7 @@ func IntegrationFull() error {
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
+	return runTests(pythonExecutableName, "-m", "pytest", "-m",
 		"not slow_ee and not notarantool and not tarantool_master",
 		"test/integration")
 }
@@ -677,7 +710,7 @@ func IntegrationFullSkipDocker() error {
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests, excluding docker...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
+	return runTests(pythonExecutableName, "-m", "pytest", "-m",
 		"not slow_ee and not notarantool and not docker and not tarantool_master",
 		"test/integration")
 }
@@ -688,7 +721,7 @@ func IntegrationFullDocker() error {
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running docker integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
+	return runTests(pythonExecutableName, "-m", "pytest", "-m",
 		"not slow_ee and not notarantool and docker and not tarantool_master", "test/integration")
 }
 
@@ -696,14 +729,14 @@ func IntegrationFullDocker() error {
 func IntegrationEE() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running all EE integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration/ee")
+	return runTests(pythonExecutableName, "-m", "pytest", "test/integration/ee")
 }
 
 // IntegrationNoTarantool runs integration tests without a system-wide Tarantool installation.
 func IntegrationNoTarantool() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running integration tests without Tarantool...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "notarantool",
+	return runTests(pythonExecutableName, "-m", "pytest", "-m", "notarantool",
 		"test/integration")
 }
 
@@ -771,7 +804,7 @@ func (Docs) Reference() error {
 		return fmt.Errorf("cannot clean the reference directory: %w", err)
 	}
 
-	return sh.RunV(goExecutableName, "test", "./core", "-run", "^TestCLIReference$",
+	return runTests(goExecutableName, "test", "./core", "-run", "^TestCLIReference$",
 		"-count=1", "-args", "-clidoc", dir)
 }
 

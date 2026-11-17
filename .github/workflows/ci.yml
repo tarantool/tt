@@ -244,11 +244,17 @@ jobs:
       - name: Set up the toolchains of the build backends
         uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
 
-      # Hosted macOS runners have no Docker daemon.
+      # Hosted macOS runners have no Docker daemon. The TMPDIR of macOS is
+      # a long path behind the /var -> /private/var symlink; the runner's
+      # temporary directory is a real and a shorter one.
       - name: Go tests with integration, excluding Docker
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: mage unit:fullSkipDocker
 
       - name: Check that no build backend test skipped for a missing tool
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: ci/build-backend-skips.sh
 
   it-ce:

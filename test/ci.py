@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -184,9 +185,14 @@ def run(args, groups):
         "--reruns",
         "1",
     ]
+    # The temporary directory with its symlinks resolved, as mage gives it to
+    # the tests (testEnv in magefile.go): the TMPDIR of macOS is under
+    # /var/folders, and /var is a symlink to /private/var, so a test that
+    # compares a path tt resolves with one it does not fails there alone.
     env = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join(filter(None, [str(TEST_DIR), os.getenv("PYTHONPATH")])),
+        "TMPDIR": os.path.realpath(tempfile.gettempdir()),
         "TT_CI_RESULTS": str(results_path),
     }
     with (report_dir / "pytest.log").open("w") as log:
