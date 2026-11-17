@@ -194,7 +194,11 @@ func startGarage(ctx context.Context, t *testing.T) garageInstance {
 		WaitingFor: wait.ForListeningPort("3900/tcp").WithStartupTimeout(time.Minute),
 		Started:    true,
 	})
-	testcontainers.CleanupContainer(t, container)
+	// Stopped, Garage waits for the open connections of its clients to close
+	// for 10 seconds before it exits: the idle keep-alive one minio-go keeps
+	// never does, and docker stop would wait it out. The instance is
+	// disposable, so it is killed rather than stopped.
+	testcontainers.CleanupContainer(t, container, testcontainers.StopTimeout(0))
 	require.NoError(t, err)
 
 	inst.endpoint, err = container.PortEndpoint(ctx, "3900/tcp", "")
