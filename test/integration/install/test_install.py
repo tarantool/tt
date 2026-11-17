@@ -795,10 +795,12 @@ def scope_install_image():
         pytest.skip("Docker daemon is not available")
 
     image = f"tt-install-scope:{uuid.uuid4().hex}"
+    # Ubuntu 20.04 with git, for the tag list, and the CA certificates, for
+    # the downloads: buildpack-deps has them installed. Installing them with
+    # apt-get in ubuntu:20.04 took 14-34 s in CI, all of it on the archive
+    # of Ubuntu.
     dockerfile = (
-        "FROM ubuntu:20.04\n"
-        "RUN apt-get update && apt-get install -y --no-install-recommends "
-        "ca-certificates git && rm -rf /var/lib/apt/lists/*\n"
+        "FROM buildpack-deps:focal-scm\n"
         "RUN mkdir -p /work /home/tt-test && chown 1000:1000 /work /home/tt-test\n"
         "ENV HOME=/home/tt-test\n"
         "WORKDIR /work\n"
