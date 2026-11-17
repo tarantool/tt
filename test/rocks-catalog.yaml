@@ -43,11 +43,9 @@ packages:
     - librdkafka-dev # kafka
     - libsasl2-dev # memcached
     - libzookeeper-st-dev # zookeeper: libzookeeper_st
+  # kafka, lrexlib-pcre, lrexlib-pcre2 and memcached are skipped on macOS: no
+  # librdkafka, PCRE or Cyrus SASL.
   brew:
-    - cyrus-sasl # memcached
-    - librdkafka # kafka
-    - pcre # lrexlib-pcre
-    - pcre2 # lrexlib-pcre2
     - zookeeper # zookeeper
   # EPEL and PowerTools or CRB on Rocky Linux. No repository has the C client
   # of ZooKeeper; Fedora has no PCRE (1).
@@ -106,25 +104,42 @@ rocks:
       TLS_server_method); http.server works without it
   icu-date:
     skip: >-
-      calls ICU through ffi from the tarantool executable, which the static
-      builds of Tarantool for Linux, of tt binary install and of the deb
-      packages alike, do not export (undefined symbol ucnv_open)
-    os: [linux]
+      calls ICU through ffi from the tarantool executable, which only a
+      Tarantool linked with a shared ICU exports, as that of Homebrew is: the
+      builds of tt binary install, on Linux and macOS, and the deb and rpm
+      packages link it statically and do not (undefined symbol ucnv_open)
   jsonpath:
     skip: >-
       depends on lulpeg, whose build requires the builtin compat module of
       Tarantool instead of its own (builtin/compat.lua: Invalid option lua52)
   kafka:
-    skip: the binary host of Gentoo has no librdkafka
-    os: [gentoo]
+    skip: >-
+      the binary host of Gentoo has no librdkafka, and on macOS the build,
+      with -Werror, refuses the rdkafka.h of Homebrew ("'const' type
+      qualifier on return type has no effect")
+    os: [gentoo, darwin]
   lrexlib-pcre:
-    skip: Fedora has no PCRE (1), only PCRE2
-    os: [fedora]
+    skip: >-
+      Fedora has no PCRE (1), only PCRE2; on macOS the build does not find
+      the pcre.h of Homebrew, in /opt/homebrew, which tt does not look into
+      for an external dependency, as LuaRocks does not
+    os: [fedora, darwin]
+  lrexlib-pcre2:
+    skip: >-
+      on macOS the build does not find the pcre2.h of Homebrew, in
+      /opt/homebrew, which tt does not look into for an external dependency,
+      as LuaRocks does not
+    os: [darwin]
   lulpeg:
     skip: >-
       its build runs tarantool scripts/pack.lua, whose require 'compat' gets
       the builtin compat module of Tarantool instead of its own
       (builtin/compat.lua: Invalid option lua52)
+  memcached:
+    skip: >-
+      on macOS internal/mc_sasl.c declares a typedef the sasl.h of the SDK
+      declares otherwise ("typedef redefinition with different types")
+    os: [darwin]
   migrate:
     skip: >-
       scm-1 only: its builtin build includes <tarantool/module.h> and
@@ -132,13 +147,19 @@ rocks:
       system package has
   mqtt:
     skip: >-
-      1.5.1-1 links the static libz.a of the system into driver.so, which
-      fails ("relocation R_X86_64_PC32 ... recompile with -fPIC" on amd64)
-    os: [linux]
+      1.5.1-1 links the static libz.a of the system into driver.so on Linux,
+      which fails ("relocation R_X86_64_PC32 ... recompile with -fPIC" on
+      amd64), and on macOS its mosquitto calls mach_absolute_time without
+      its header, which clang refuses
   mrasender:
     skip: >-
       scm-1 only: uses struct luaL_reg, which the LuaJIT of Tarantool 3 does
       not have
+  mysql:
+    skip: >-
+      on macOS the CMake of the bundled mariadb-connector-c finds no iconv
+      ("ICONV_LIBRARIES ... set to NOTFOUND"), which macOS has in its SDK only
+    os: [darwin]
   pg:
     skip: >-
       libpq of Homebrew is keg-only, and FindPostgreSQL of the rock does not
@@ -157,8 +178,9 @@ rocks:
   sqlparser:
     skip: >-
       does not build with GCC 15 and later ("'uintmax_t' does not name a
-      type"), which Arch Linux, Fedora and Gentoo have
-    os: [arch, fedora, gentoo]
+      type"), which Arch Linux, Fedora and Gentoo have, nor with the clang of
+      macOS, with -Werror ("variable 'hsql_nerrs' set but not used")
+    os: [arch, fedora, gentoo, darwin]
   tnt-kafka:
     skip: >-
       consumer.c calls strcpy without <string.h> and builds with -Werror,
