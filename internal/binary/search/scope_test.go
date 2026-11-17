@@ -2,7 +2,9 @@ package search_test
 
 import (
 	"context"
+	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/bundle"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/search"
 )
@@ -352,4 +355,246 @@ func TestSearchVersionsLocalActiveIdentity(t *testing.T) {
 	output, err = captureSearch(t, func() error { return search.SearchVersionsLocal(ctx) })
 	require.NoError(t, err)
 	require.Equal(t, version+"\n", output, "a directory is not an installed executable")
+}
+
+var errTestListing = errors.New("connection reset")
+
+// prebuiltTestSource is a source of one product: tarantool lists its
+// builds for the host, as rws does, and tt the tags of its releases, as
+// the releases of tt on GitHub do.
+type prebuiltTestSource struct {
+	product   string
+	artifacts []bundle.Artifact
+	releases  []string
+	err       error
+	// queries are what the source was asked.
+	queries []bundle.Query
+}
+
+func (*prebuiltTestSource) Name() string { return "test-source" }
+
+func (s *prebuiltTestSource) Products() []string { return []string{s.product} }
+
+func (s *prebuiltTestSource) List(_ context.Context, query bundle.Query) (
+	[]bundle.Artifact, error,
+) {
+	s.queries = append(s.queries, query)
+
+	return s.artifacts, s.err
+}
+
+func (*prebuiltTestSource) Fetch(context.Context, bundle.Artifact, io.Writer) error {
+	return nil
+}
+
+// releaseTestSource is a prebuiltTestSource that lists the tags of its
+// releases.
+type releaseTestSource struct {
+	*prebuiltTestSource
+}
+
+func (s releaseTestSource) Releases(context.Context) ([]string, error) {
+	return s.releases, s.err
+}
+
+// prebuiltTestSources are a source of tarantool with a release tt no longer
+// installs, three for the host and a debug build, and one of tt.
+func prebuiltTestSources() (*prebuiltTestSource, releaseTestSource) {
+	tarantool := &prebuiltTestSource{
+		product: binary.ProgramCe.String(),
+		artifacts: []bundle.Artifact{
+			{Version: "2.11.5"}, {Version: "3.7.1"}, {Version: "3.9.0"}, {Version: "3.8.0"},
+			{Version: "3.9.0", Flavor: []string{"debug"}},
+		},
+	}
+	tt := releaseTestSource{&prebuiltTestSource{
+		product:  binary.ProgramTt.String(),
+		releases: []string{"v3.0.0-alpha.2", "nightly", "v2.15.2", "v2.15.1"},
+	}}
+
+	return tarantool, tt
+}
+
+// searchWithoutGit runs the search of program in the project scope of the
+// current directory with an empty PATH, and returns what it prints and the
+// warnings it logs.
+func searchWithoutGit(t *testing.T, program binary.Program) (string, []string, error) {
+	t.Helper()
+
+	t.Setenv("PATH", t.TempDir())
+
+	logger, recorder := logtest.New(t)
+	previous := slog.Default()
+
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	ctx := search.NewSearchCtx()
+
+	ctx.Program = program
+	ctx.Scope = binary.ScopeProject
+
+	output, err := captureSearch(t, func() error { return search.SearchVersions(ctx) })
+
+	var warnings []string
+
+	for _, record := range recorder.Records() {
+		if record.Level == slog.LevelWarn {
+			warnings = append(warnings, record.Message)
+		}
+	}
+
+	return output, warnings, err
+}
+
+// TestSearchVersionsWithoutGit lists the releases the source of prebuilt
+// builds has for the host on a host without git, marked installed and
+// active as the Git tags are, and warns that they are all it lists.
+func TestSearchVersionsWithoutGit(t *testing.T) {
+	platform := runtime.GOOS + "/" + runtime.GOARCH
+
+	for _, test := range []struct {
+		program binary.Program
+		want    string
+	}{
+		{program: binary.ProgramCe, want: "3.7.1 [installed]\n3.8.0 [active]\n3.9.0\n"},
+		{program: binary.ProgramTt, want: "v2.15.1\nv2.15.2 [active]\nv3.0.0-alpha.2\n"},
+	} {
+		t.Run(test.program.String(), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			root, err := binary.ScopeProject.ArtifactPath()
+			require.NoError(t, err)
+
+			tarantool, tt := prebuiltTestSources()
+			useBundleSources(t, tarantool, tt)
+
+			if test.program == binary.ProgramCe {
+				addSearchVersion(t, root, test.program, "3.7.1")
+				activateSearchVersion(t, root, test.program,
+					addSearchVersion(t, root, test.program, "3.8.0"))
+			} else {
+				activateSearchVersion(t, root, test.program,
+					addSearchVersion(t, root, test.program, "v2.15.2"))
+			}
+
+			output, warnings, err := searchWithoutGit(t, test.program)
+			require.NoError(t, err)
+			require.Equal(t, test.want, output)
+			require.Equal(t, []string{"git is not found, so only the releases of " +
+				test.program.String() + " with a prebuilt build in test-source for " +
+				platform + " are listed; install git to list every tag"}, warnings)
+
+			if test.program == binary.ProgramCe {
+				require.Equal(t, []bundle.Query{binary.NewBundleQuery(test.program, false, "")},
+					tarantool.queries, "every build for the host is listed")
+			}
+		})
+	}
+}
+
+// TestSearchVersionsWithoutGitFails says that git is required, the reason
+// the source of prebuilt builds does not do, and to install git, when the
+// source has nothing for the host, fails or is not there.
+func TestSearchVersionsWithoutGitFails(t *testing.T) {
+	const required = "'git' is required for 'tt binary search' to list the versions of "
+
+	for _, test := range []struct {
+		name    string
+		program binary.Program
+		change  func(tarantool, tt *prebuiltTestSource)
+		// noSources is a build of tt without sources of prebuilt builds.
+		noSources bool
+		want      string
+	}{
+		{
+			name: "no build for the host", program: binary.ProgramCe,
+			change: func(tarantool, _ *prebuiltTestSource) { tarantool.artifacts = nil },
+			want: required + "tarantool: test-source has no prebuilt tarantool for " +
+				runtime.GOOS + "/" + runtime.GOARCH + "; install git",
+		},
+		{
+			name: "listing failure", program: binary.ProgramCe,
+			change: func(tarantool, _ *prebuiltTestSource) { tarantool.err = errTestListing },
+			want: required + "tarantool: list tarantool archives in test-source: " +
+				"connection reset; install git",
+		},
+		{
+			name: "tt releases failure", program: binary.ProgramTt,
+			change: func(_, tt *prebuiltTestSource) { tt.err = errTestListing },
+			want:   required + "tt: test-source: connection reset; install git",
+		},
+		{
+			name: "no source", program: binary.ProgramCe, noSources: true,
+			want: required + "tarantool: install git",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			tarantool, tt := prebuiltTestSources()
+			if test.change != nil {
+				test.change(tarantool, tt.prebuiltTestSource)
+			}
+
+			if test.noSources {
+				useBundleSources(t)
+			} else {
+				useBundleSources(t, tarantool, tt)
+			}
+
+			output, warnings, err := searchWithoutGit(t, test.program)
+			require.EqualError(t, err, test.want)
+			require.Empty(t, output, "a failed search prints no versions")
+			require.Empty(t, warnings)
+		})
+	}
+}
+
+// TestSearchVersionsWithGit lists the Git tags and master where git is,
+// as before, and does not ask the source of prebuilt builds.
+func TestSearchVersionsWithGit(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	commands := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(commands, "git"), []byte(`#!/bin/sh
+if [ "$1 $2 $3" != "ls-remote --tags --refs" ]; then exit 1; fi
+printf 'abcdef0\trefs/tags/%s\n' 2.11.5 3.7.1 3.9.1-entrypoint 3.9.1
+`), 0o755))
+	t.Setenv("PATH", commands)
+
+	tarantool, tt := prebuiltTestSources()
+	useBundleSources(t, tarantool, tt)
+
+	ctx := search.NewSearchCtx()
+
+	ctx.Program = binary.ProgramCe
+	ctx.Scope = binary.ScopeProject
+
+	output, err := captureSearch(t, func() error { return search.SearchVersions(ctx) })
+	require.NoError(t, err)
+	require.Equal(t, "3.7.1\n3.9.1\nmaster\n", output,
+		"a release with no prebuilt build is listed, a development tag is not")
+	require.Empty(t, tarantool.queries)
+}
+
+// TestSearchVersionsLocalWithoutGit says what --local-repo needs git for:
+// its tags have no other reader.
+func TestSearchVersionsLocalWithoutGit(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+
+	repo := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(repo, "tarantool"), 0o755))
+
+	ctx := search.NewSearchCtx()
+
+	ctx.Program = binary.ProgramCe
+	ctx.Scope = binary.ScopeProject
+	ctx.LocalRepo = repo
+
+	_, err := captureSearch(t, func() error { return search.SearchVersionsLocal(ctx) })
+	require.EqualError(t, err, "failed to search local versions for tarantool: 'git' is "+
+		"required for 'tt binary search' to read the tags of "+filepath.Join(repo, "tarantool")+
+		": install git")
 }

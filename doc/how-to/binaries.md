@@ -291,6 +291,24 @@ tags of the Tarantool repository mark where a version starts, are no
 releases, and are left out unless `--all` is given. Installing one builds
 it from source, with a warning that says so.
 
+`tt binary search tarantool` and `tt binary search tt` read the tags of
+the Git repository, which needs `git`. Without it they list the releases
+that `tt binary install` can install from a prebuilt binary without it:
+those of rws.tarantool.org for the host, the releases of tt on GitHub for
+the host, with no `master`. A warning says so:
+
+```console
+$ tt binary search tarantool
+   ⚠ git is not found, so only the releases of tarantool with a prebuilt build in rws for linux/amd64 are listed; install git to list every tag
+   • Available versions of tarantool:
+3.0.0
+...
+3.9.0
+```
+
+A host with none of them, macOS for Tarantool, or a source that does not
+answer, is an error that says why and to install `git`.
+
 ## Headers for rocks with a C part
 
 `tt rocks` and `tt package build`, `install` and `pack` build a rock with a

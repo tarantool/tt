@@ -2,6 +2,7 @@ import json
 import os
 import platform
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -240,6 +241,41 @@ def test_search_hides_entrypoint_tags(tt_cmd, tmp_path, all_tags):
         assert output.splitlines() == ["3.8.0-entrypoint", "3.8.0", "3.9.0-entrypoint", "master"]
     else:
         assert output.splitlines() == ["3.8.0", "master"]
+
+
+def test_search_tarantool_without_git(tt_cmd, tmp_path):
+    """Without git, search lists the releases of rws.tarantool.org with a
+    prebuilt build for the host, marked as the Git tags are, and says that
+    it lists only those."""
+    arch = platform.machine().lower()
+    if not (
+        platform.system() == "Linux"
+        and arch in ("x86_64", "amd64", "aarch64", "arm64")
+        and platform.libc_ver()[0] == "glibc"
+    ):
+        pytest.skip("No prebuilt tarantool release for this platform")
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    installed = install_version(tmp_path / ".tarantool", "tarantool", "3.7.1", active=True)
+    process = subprocess.run(
+        [tt_cmd, "binary", "search", "tarantool"],
+        cwd=tmp_path,
+        env={"PATH": str(tools), "HOME": str(tmp_path / "home")},
+        capture_output=True,
+        text=True,
+    )
+    assert process.returncode == 0, process.stderr
+    goarch = "amd64" if arch in ("x86_64", "amd64") else "arm64"
+    assert (
+        "git is not found, so only the releases of tarantool with a prebuilt build in rws "
+        f"for linux/{goarch} are listed; install git to list every tag"
+    ) in process.stderr
+    assert "Available versions of tarantool:" in process.stderr
+    versions = process.stdout.splitlines()
+    assert "3.0.0" in versions
+    assert "3.7.1 [active]" in versions, installed
+    assert "master" not in versions
+    assert all(re.fullmatch(r"3\.\d+\.\d+( \[active\])?", line) for line in versions), versions
 
 
 @pytest.mark.parametrize("scope", ["project", "user", "nested-project"])

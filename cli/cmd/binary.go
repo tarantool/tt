@@ -754,6 +754,10 @@ The X.Y.Z-entrypoint tags of the repository mark where a version starts
 and are no releases: they are left out unless --all is given, and
 installing one builds it from source.
 
+The versions are the Git tags of the repository. Without git on PATH, only
+the releases with a prebuilt build for this host are listed: those of
+rws.tarantool.org.
+
 With --local-repo <dir>, <dir>/tarantool must be a local Git clone of the
 Tarantool source repository. Versions are read from its Git tags.`,
 		RunE: binaryRunE(base, searchCtx, internalSearchModule),
@@ -811,6 +815,10 @@ func newSearchTtCmd(base *binary.BinaryContext,
 		Use:   binary.ProgramTt.String(),
 		Short: "Search available tt versions",
 		Long: `Search available tt versions.
+
+The versions are the Git tags of the repository. Without git on PATH, only
+the releases with a prebuilt build for this host are listed: those of tt on
+GitHub, which the GitHub API lists (GITHUB_TOKEN lifts its rate limit).
 
 With --local-repo <dir>, <dir>/tt must be a local Git clone of the tt source
 repository. Versions are read from its Git tags.`,

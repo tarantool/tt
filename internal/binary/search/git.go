@@ -14,14 +14,17 @@ import (
 )
 
 var (
-	errGitRequired = errors.New(
-		"'git' is required for 'tt binary search' to work",
-	)
+	// errGitRequired reports git missing from PATH for a lookup in a Git
+	// repository that nothing else can do.
+	errGitRequired = errors.New("'git' is required for 'tt binary search'")
+
 	errUnableToGetCommitsGitCommandIsMissing = errors.New(
 		"unable to get commits: `git` command is missing",
 	)
 	errUnexpectedDataFrom = errors.New("unexpected Data from ")
 )
+
+const gitExec = "git"
 
 // isMasked reports whether a version of program is no longer offered for
 // installation, as binary.IsMasked does for archives.
@@ -33,9 +36,9 @@ func isMasked(program binary.Program, ver version.Version) bool {
 func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 	versions := version.VersionSlice{}
 
-	_, err := exec.LookPath("git")
+	_, err := exec.LookPath(gitExec)
 	if err != nil {
-		return nil, errGitRequired
+		return nil, fmt.Errorf("%w to list the tags of %s: install git", errGitRequired, repo)
 	}
 
 	output, err := exec.CommandContext(
@@ -171,9 +174,9 @@ func cloneGitRepoForLookup(repo string) (string, error) {
 func GetVersionsFromGitLocal(repo string, program binary.Program) (version.VersionSlice, error) {
 	versions := version.VersionSlice{}
 
-	_, err := exec.LookPath("git")
+	_, err := exec.LookPath(gitExec)
 	if err != nil {
-		return nil, errGitRequired
+		return nil, fmt.Errorf("%w to read the tags of %s: install git", errGitRequired, repo)
 	}
 
 	output, err := exec.CommandContext(context.Background(), "git", "-C", repo, "tag").Output()
@@ -204,6 +207,18 @@ func GetVersionsFromGitLocal(repo string, program binary.Program) (version.Versi
 	sort.Stable(versions)
 
 	return versions, nil
+}
+
+// searchVersionsRepo lists the versions of program, which has a Git
+// repository: its tags and master with git, the releases the source of its
+// prebuilt builds has for the host without it (searchVersionsPrebuilt).
+func searchVersionsRepo(program binary.Program) (version.VersionSlice, error) {
+	_, err := exec.LookPath(gitExec)
+	if err != nil {
+		return searchVersionsPrebuilt(context.Background(), program)
+	}
+
+	return searchVersionsGit(program.GitRepo())
 }
 
 // searchVersionsGit handles searching versions from a remote Git repository.
