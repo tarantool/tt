@@ -56,6 +56,12 @@ func (started *startedInstance) marker() string {
 // launch of its start; tarantool reads the cluster config of the version
 // itself at every start, so an edited config applies.
 func TestWatchdogRestartStaysOnItsVersion(t *testing.T) {
+	restartDelay := watchdogRestartTimeout
+
+	t.Cleanup(func() { watchdogRestartTimeout = restartDelay })
+
+	watchdogRestartTimeout = testRestartDelay
+
 	root, _ := setScopeRoots(t)
 	installTarantoolLink(t, root)
 
