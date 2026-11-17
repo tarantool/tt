@@ -54,7 +54,11 @@ def pytest_collectreport(report):
         _collection_errors.add(report.nodeid)
 
 
-def pytest_sessionfinish():
+def pytest_sessionfinish(session):
+    # Under pytest-xdist the controller gets the reports of every worker, and
+    # a worker those of its own tests only: the results are the controller's.
+    if hasattr(session.config, "workerinput"):
+        return
     failed = []
     errors = set(_collection_errors)
     flaky = []
@@ -185,6 +189,8 @@ def run(args, groups):
         "--reruns",
         "1",
     ]
+    if args.jobs:
+        cmd += ["-n", str(args.jobs)]
     # The temporary directory with its symlinks resolved, as mage gives it to
     # the tests (testEnv in magefile.go): the TMPDIR of macOS is under
     # /var/folders, and /var is a symlink to /private/var, so a test that
@@ -264,6 +270,11 @@ def main():
     runner.add_argument("--tt-cmd", required=True, type=Path)
     runner.add_argument("--report-dir", required=True, type=Path)
     runner.add_argument("--test-dir")
+    runner.add_argument(
+        "--jobs",
+        type=int,
+        help="run the tests in this many processes (pytest-xdist); in one without it",
+    )
     mirror = commands.add_parser("rocks-mirror")
     mirror.add_argument("--dir", required=True, type=Path)
     mirror.add_argument("--tt-cmd", required=True, type=Path)
