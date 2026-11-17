@@ -97,6 +97,39 @@ before tt exits; `--no-clean` keeps them and names them.
 Uninstalling the active version selects the latest remaining one in the same
 scope; without a version, `uninstall` removes the only installed one.
 
+## Build dependencies
+
+Before it builds Tarantool or tt from source, tt checks that the programs and
+the packages of the build are installed. What is missing makes it stop and
+name the packages with the command that installs them:
+
+```console
+$ tt binary install tarantool 3.9.0 --source-build --scope user
+   • Installing tarantool in the user scope...
+   • Searching in versions...
+   • Checking existing...
+   • Installing tarantool=3.9.0
+   • Checking dependencies...
+   ⨯ The operation requires some dependencies.
+   ⨯ Missing packages: cmake autoconf automake libtool
+     You can install them by running command:
+      sudo apt install cmake autoconf automake libtool
+     Use --force if you already have those packages installed
+```
+
+A build of Tarantool runs Git, CMake, `make`, a C and a C++ compiler, and
+autoconf, automake and libtool, which configure the libunwind it bundles.
+The static build, the one without `--dynamic`, also downloads and builds
+OpenSSL, ICU, readline, ncurses and zlib, and runs perl and patch for them;
+`--dynamic` links those of the system instead, and needs their development
+packages. A build of tt runs Git and Mage.
+
+tt knows the packages of Debian and Ubuntu, of RHEL, CentOS, Fedora, Rocky
+Linux, AlmaLinux, Oracle Linux and Amazon Linux, of Gentoo, Arch Linux and
+Alpine Linux, of the distributions derived from them, as `ID_LIKE` of
+`/etc/os-release` tells, and of macOS with Homebrew. `--force` skips the
+check, for the programs installed elsewhere than from packages.
+
 ## Choose a version
 
 - Community Edition: `3`, `3.8` or `3.8.1` select the latest matching

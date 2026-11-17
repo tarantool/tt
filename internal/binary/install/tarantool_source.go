@@ -27,7 +27,7 @@ func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
 	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
 
-		err := programDependenciesInstalled(binary.ProgramCe)
+		err := programDependenciesInstalled(installCtx, binary.ProgramCe)
 		if err != nil {
 			return programArtifact{}, err
 		}

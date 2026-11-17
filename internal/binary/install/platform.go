@@ -34,6 +34,15 @@ const (
 	// osFamilyRedHat is RHEL, CentOS, Rocky Linux, AlmaLinux, Fedora and
 	// their derivatives: rpm, and dnf or yum.
 	osFamilyRedHat
+	// osFamilyGentoo is Gentoo and its derivatives: Portage.
+	osFamilyGentoo
+	// osFamilyArch is Arch Linux and its derivatives, Manjaro and
+	// EndeavourOS among them: pacman.
+	osFamilyArch
+	// osFamilyAlpine is Alpine Linux and its derivatives, such as
+	// postmarketOS: apk. Its libc is musl, which the prebuilt Tarantool
+	// does not run on, so Tarantool is built from source there.
+	osFamilyAlpine
 )
 
 var (
@@ -41,10 +50,15 @@ var (
 	// looked for.
 	osReleasePaths = []string{"/etc/os-release", "/usr/lib/os-release"}
 
-	// familyIDs are the os-release IDs of the distributions of a family.
+	// familyIDs are the os-release IDs of the distributions of a family. A
+	// derivative names the distribution it derives from in ID_LIKE: Manjaro
+	// has ID_LIKE=arch. No ID is in two families.
 	familyIDs = map[osFamily][]string{
 		osFamilyDebian: {"debian", "ubuntu"},
 		osFamilyRedHat: {"rhel", "centos", "fedora", "rocky", "almalinux", "ol", "amzn"},
+		osFamilyGentoo: {"gentoo"},
+		osFamilyArch:   {"arch"},
+		osFamilyAlpine: {"alpine"},
 	}
 )
 
@@ -96,8 +110,8 @@ func readOSRelease(path string) (osRelease, error) {
 // that of the first of the distributions it derives from with one.
 func (release osRelease) family() osFamily {
 	for _, id := range append([]string{release.id}, release.like...) {
-		for _, family := range []osFamily{osFamilyDebian, osFamilyRedHat} {
-			if slices.Contains(familyIDs[family], id) {
+		for family, ids := range familyIDs {
+			if slices.Contains(ids, id) {
 				return family
 			}
 		}

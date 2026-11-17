@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- A build of Tarantool from source checks its dependencies on Gentoo, Arch
+  Linux and Alpine Linux, and on the distributions `ID_LIKE` of
+  `/etc/os-release` derives from them, such as Manjaro, EndeavourOS and
+  postmarketOS, and names what is missing with the command that installs
+  it: `emerge --ask --noreplace dev-build/cmake dev-vcs/git`, `pacman -S
+  --needed cmake git`, `apk add cmake git linux-headers`. Portage is asked
+  through its package database, `/var/db/pkg`, pacman with `pacman -Q` and
+  apk with `apk info -e`. Alpine Linux, whose musl the prebuilt Tarantool
+  does not run on, builds Tarantool from source. tt asked `Unknown OS,
+  can't check if dependencies are installed. Proceed without checking?` on
+  all of them.
 - `tt instance check`, `tt instance start` and `tt instance restart`
   validate the cluster config of the instances against the schema of the
   Tarantool config that `tt cluster show --validate` uses. `check` fails
@@ -1064,6 +1075,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   says, as before, `unencrypted connection established, but encryption
   required`. Any other failure is reported as it is, and a refusal of the
   credentials or a timeout without that second connection.
+- The dependency check of a build of Tarantool from source on Debian,
+  Ubuntu and the Red Hat family looks for autoconf, automake and libtool,
+  which configure the libunwind Tarantool bundles, for patch, which the
+  static build applies to ICU and readline, and on Debian for perl, the
+  package with the modules the Configure of OpenSSL uses: the check passed
+  without them, and the build failed. With `--dynamic` it looks for the
+  development packages of OpenSSL, readline, ncurses, ICU and zlib, which
+  the build links, and not for perl and patch, which only the static build
+  runs. Run as root, tt names the command that installs the packages
+  without `sudo`.
 - A `c` or `lua-c` module of macOS links with `zig cc` and `zig c++`
   (`CC="zig cc"`): the linker of zig crashed on `-bundle -undefined
   dynamic_lookup`, and the build failed with `linking: signal: segmentation
