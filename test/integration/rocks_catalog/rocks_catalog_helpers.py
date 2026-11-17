@@ -3,6 +3,7 @@ rock_manifest of an installed rock and test/rocks-catalog.yaml, the file of
 its exceptions."""
 
 import os
+import platform
 import re
 import time
 import urllib.request
@@ -12,6 +13,11 @@ import yaml
 
 LEVELS = ("project", "user", "system", "os")
 SYSTEMS = ("linux", "darwin")
+# The distributions rocks.yml checks the rocks on, by the ID of their
+# /etc/os-release: an os of a skip names one of them, or one of them and the
+# major number of its version, as rocky-8.
+DISTROS = ("arch", "debian", "fedora", "gentoo", "rocky", "ubuntu")
+_DISTRO = re.compile(rf"(?:{'|'.join(DISTROS)})(?:-\d+)?")
 DEFAULT_REGISTRY = "https://rocks.tarantool.org"
 CATALOG_FILE = Path(__file__).resolve().parents[2] / "rocks-catalog.yaml"
 
@@ -217,14 +223,19 @@ def _entry_problems(entry):
         problems.append(f"unknown keys {', '.join(sorted(unknown))}")
     if "skip" in entry and not (isinstance(entry["skip"], str) and entry["skip"].strip()):
         problems.append("skip must say why the rock is skipped")
-    for key, allowed in (("os", SYSTEMS), ("levels", LEVELS)):
-        if key not in entry:
-            continue
-        if "skip" not in entry:
-            problems.append(f"{key} limits a skip, and the entry has none")
-        values = entry[key]
-        if not isinstance(values, list) or not values or not set(values) <= set(allowed):
-            problems.append(f"{key} must be a list of {', '.join(allowed)}")
+    if "skip" not in entry:
+        problems.extend(
+            f"{key} limits a skip, and the entry has none"
+            for key in ("os", "levels")
+            if key in entry
+        )
+    if "os" in entry and not _is_list(entry["os"], _is_platform):
+        problems.append(
+            f"os must be a list of {', '.join(SYSTEMS)} and of the distributions "
+            f"{', '.join(DISTROS)}, each alone or with its major version, as rocky-8",
+        )
+    if "levels" in entry and not _is_list(entry["levels"], LEVELS.__contains__):
+        problems.append(f"levels must be a list of {', '.join(LEVELS)}")
     if "constraint" in entry and not isinstance(entry["constraint"], str):
         problems.append("constraint must be a string")
     problems.extend(
@@ -245,11 +256,48 @@ def _entry_problems(entry):
     return problems
 
 
-def skip_reason(entry, system, level):
-    """Return why the entry skips the rock on the system at the level, or
-    None."""
+def _is_list(values, valid):
+    return (
+        isinstance(values, list)
+        and bool(values)
+        and all(isinstance(value, str) and valid(value) for value in values)
+    )
+
+
+def _is_platform(value):
+    return value in SYSTEMS or _DISTRO.fullmatch(value) is not None
+
+
+def platforms(os_release=None):
+    """Return the names an os of a skip may give the system the check runs
+    on: linux or darwin and, on Linux, the ID of /etc/os-release alone and
+    with the major number of its VERSION_ID (debian, debian-12). os_release
+    is the content of os-release, read from the system when None."""
+    system = platform.system().lower()
+    names = {system}
+    if system != "linux":
+        return names
+    if os_release is None:
+        try:
+            os_release = platform.freedesktop_os_release()
+        except OSError:
+            return names
+    distro = os_release.get("ID", "")
+    if distro:
+        names.add(distro)
+        major = os_release.get("VERSION_ID", "").split(".")[0]
+        if major:
+            names.add(f"{distro}-{major}")
+    return names
+
+
+def skip_reason(entry, names, level):
+    """Return why the entry skips the rock on the system of the names, as
+    platforms() gives them, at the level, or None."""
     if "skip" not in entry:
         return None
-    if system not in entry.get("os", SYSTEMS) or level not in entry.get("levels", LEVELS):
+    if "os" in entry and not set(entry["os"]) & set(names):
+        return None
+    if level not in entry.get("levels", LEVELS):
         return None
     return entry["skip"]

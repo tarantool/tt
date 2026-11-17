@@ -28,7 +28,6 @@ package of the name of a rock it depends on is refused.
 
 import json
 import os
-import platform
 import re
 import shlex
 import shutil
@@ -41,6 +40,7 @@ from rocks_catalog_helpers import (
     LEVELS,
     fetch_manifest,
     load_catalog,
+    platforms,
     registry,
     rock_modules,
     skip_reason,
@@ -57,7 +57,8 @@ if not LEVEL:
 if LEVEL not in LEVELS:
     pytest.fail(f"TT_TEST_ROCKS_LEVEL={LEVEL}: not one of {', '.join(LEVELS)}", pytrace=False)
 
-SYSTEM = platform.system().lower()
+# linux or darwin, and on Linux the distribution: what an os of a skip names.
+PLATFORMS = platforms()
 TEMPLATE = None
 TEMPLATE_VERSION = None
 EXPECTED_TARANTOOL = None
@@ -128,7 +129,10 @@ class Probe:
             LOGS.mkdir(parents=True, exist_ok=True)
             self.log = LOGS / f"{rock}.log"
             with self.log.open("a") as log:
-                log.write(f"=== {rock}: level {LEVEL}, {SYSTEM}, {time.ctime()}, in {project}\n")
+                log.write(
+                    f"=== {rock}: level {LEVEL}, {' '.join(sorted(PLATFORMS))}, "
+                    f"{time.ctime()}, in {project}\n",
+                )
 
     def tt(self, *args, timeout=600, shown=None):
         """Run tt in the project and return its output; fail with the tail of
@@ -197,7 +201,7 @@ def copy_template(project):
 @pytest.mark.parametrize("rock", sorted(MANIFEST))
 def test_rock(tt_cmd, tmp_path, rock):
     entry = CATALOG["rocks"].get(rock) or {}
-    reason = skip_reason(entry, SYSTEM, LEVEL)
+    reason = skip_reason(entry, PLATFORMS, LEVEL)
     if reason:
         pytest.skip(reason)
 
