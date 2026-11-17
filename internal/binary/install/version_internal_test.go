@@ -2,6 +2,11 @@ package install
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +18,7 @@ import (
 	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/download"
 )
 
 // releaseTestSource is a source of tt that lists the tags of its releases
@@ -518,5 +524,92 @@ func TestInstallTarantoolBefore3(t *testing.T) {
 				test.ctx.requestedVersion)
 			assert.NoDirExists(t, ".tarantool")
 		})
+	}
+}
+
+// untrustedCertificateError is what a request to a TLS server whose
+// certificate the system does not trust fails with, as on a system without
+// its CA certificates.
+func untrustedCertificateError(t *testing.T) error {
+	t.Helper()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(server.Close)
+
+	client := download.Client{HTTP: &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: x509.NewCertPool(), MinVersion: tls.VersionTLS12},
+	}}}
+
+	response, err := client.Get(t.Context(), server.URL)
+	if err == nil {
+		_ = response.Body.Close()
+	}
+
+	require.Error(t, err)
+
+	return fmt.Errorf("fetch the index: %w", err)
+}
+
+// TestResolveInstallVersionUntrustedCertificate reports a source of
+// prebuilt builds whose TLS certificate cannot be verified, with git there
+// or not, rather than leave the version to the Git tags: git reaches its
+// servers with the CA certificates of the same system.
+func TestResolveInstallVersionUntrustedCertificate(t *testing.T) {
+	const untrusted = "the TLS certificate of 127.0.0.1 cannot be verified: x509: " +
+		"certificate signed by unknown authority; install the CA certificates of the system " +
+		"(ca-certificates), or set SSL_CERT_FILE or SSL_CERT_DIR to a CA bundle"
+
+	certificateErr := untrustedCertificateError(t)
+
+	for _, test := range []struct {
+		name string
+		ctx  InstallCtx
+		want string
+	}{
+		{
+			name: "tarantool release",
+			ctx:  InstallCtx{Program: binary.ProgramCe, requestedVersion: "3.9.0"},
+			want: "'tt binary install' cannot list the prebuilt tarantool in test-source: " +
+				untrusted,
+		},
+		{
+			name: "latest tarantool", ctx: InstallCtx{Program: binary.ProgramCe},
+			want: "'tt binary install' cannot list the prebuilt tarantool in test-source: " +
+				untrusted,
+		},
+		{
+			name: "tt mask", ctx: InstallCtx{Program: binary.ProgramTt, requestedVersion: "2.15"},
+			want: "'tt binary install' cannot list the prebuilt tt in test-source: " + untrusted,
+		},
+		{
+			name: "latest tt", ctx: InstallCtx{Program: binary.ProgramTt},
+			want: "'tt binary install' cannot list the prebuilt tt in test-source: " + untrusted,
+		},
+	} {
+		for _, git := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/git=%t", test.name, git), func(t *testing.T) {
+				calls := func() []string { return nil }
+				if git {
+					calls = fakeGitTags(t, "3.9.0", "v2.15.2", "v3.0.0-alpha.2")
+				} else {
+					t.Setenv("PATH", t.TempDir())
+				}
+
+				tarantool, tt := versionTestSources()
+
+				tarantool.listErr = certificateErr
+				tt.releasesErr, tt.latestErr = certificateErr, certificateErr
+				setTestBundleSources(t, tarantool, tt)
+
+				_, err := resolveInstallVersion(test.ctx)
+				require.EqualError(t, err, test.want)
+
+				var certificate *download.CertificateError
+
+				require.ErrorAs(t, err, &certificate)
+				require.NotErrorIs(t, err, errGitRequired)
+				assert.Empty(t, calls(), "git is not asked")
+			})
+		}
 	}
 }

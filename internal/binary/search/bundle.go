@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/download"
 )
 
 var errNoPackagesFoundForThisOSOrReleaseVersion = errors.New(
@@ -61,7 +62,9 @@ func searchVersionsBundles(searchCtx *SearchCtx) (version.VersionSlice, error) {
 // prebuilt builds has for the host (binary.PrebuiltVersions), those tt
 // binary install resolves a version among there. It warns that they are
 // all it lists. No source, a source that fails and one with no build for
-// the host are errors that say git is required.
+// the host are errors that say git is required, but a source whose TLS
+// certificate cannot be verified (download.CertificateError): git would
+// not verify it either, with the CA certificates of the same system.
 func searchVersionsPrebuilt(ctx context.Context, program binary.Program) (
 	version.VersionSlice, error,
 ) {
@@ -73,6 +76,11 @@ func searchVersionsPrebuilt(ctx context.Context, program binary.Program) (
 	}
 
 	versions, err := binary.PrebuiltVersions(ctx, source, program)
+	if certificate, ok := download.AsCertificateError(err); ok {
+		return nil, fmt.Errorf("'tt binary search' cannot list the prebuilt %s in %s: %w",
+			program, source.Name(), certificate)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("%w to %s: %w; install git", errGitRequired, lookup, err)
 	}
