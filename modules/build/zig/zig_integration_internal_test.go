@@ -180,6 +180,13 @@ func runTarantool(t *testing.T, tarantool, file, script string) string {
 	return string(out)
 }
 
+// The tests below build in Debug, which zig compiles in seconds, but
+// TestBuildsAModuleAndAProgram: it builds in the mode of a block that names
+// none, ReleaseSafe, so that the --release of the default reaches a real zig
+// once. In a release mode zig compiles a program, or a module of
+// zig-tarantool, with LLVM, some 20 seconds of a CPU each, and caches it in
+// the work directory of the build alone, a new one in each test.
+
 // TestBuildsAModuleAndAProgram builds a project of no dependency with one
 // block, which names both: the module installArtifact installs as
 // libanswer.so, which Tarantool loads, and the program it runs.
@@ -358,7 +365,8 @@ func TestBuildsAModuleAndAProgramOfZigTarantool(t *testing.T) {
 	writeFiles(t, dirs.Component, consumerProject(relativeDep(t, dirs.Component, checkout)))
 
 	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
-		map[string]any{"module": "hello", "bin": "hello-client"}, false)), harness.Printed())
+		map[string]any{"module": "hello", "bin": "hello-client", "optimize": "Debug"}, false)),
+		harness.Printed())
 
 	module := filepath.Join(dirs.Modules, "hello"+ext)
 	program := filepath.Join(dirs.Programs, "hello-client")
@@ -520,7 +528,7 @@ func TestBuildsAModuleOfAFetchedDependency(t *testing.T) {
         }`))
 
 	require.NoError(t, harness.Run(t.Context(), validate(t, component(),
-		map[string]any{"module": "hello"}, false)), harness.Printed())
+		map[string]any{"module": "hello", "optimize": "Debug"}, false)), harness.Printed())
 
 	module := filepath.Join(dirs.Modules, "hello"+ext)
 	assert.FileExists(t, module)
