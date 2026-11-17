@@ -1944,6 +1944,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   built against: tt puts the directory of its link, `.tarantool/bin`,
   first in `PATH`, unless `PATH` finds that `tarantool` already, so a
   `tarantool` of `PATH` that is another one no longer runs in its place.
+- `tt binary install tarantool` installs the prebuilt release on Gentoo
+  rather than building it from source: the check of the platform looked
+  for `libgcc_s.so.1` next to the glibc loader only, and Gentoo keeps it in
+  the directory of GCC, which `/etc/ld.so.conf` names. The check looks in
+  the directories of `ld.so.conf` and the files it includes too, after
+  that of the loader, as the loader does.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
