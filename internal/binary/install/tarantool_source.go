@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/cmakepolicy"
@@ -183,7 +183,7 @@ func copyLocalTarantool(localPath, buildPath, ref string,
 
 	log.Infof("Local files found, installing from them...")
 
-	err := copy.Copy(localPath, buildPath)
+	err := cp.Copy(localPath, buildPath)
 	if err != nil {
 		return fmt.Errorf("failed to copy local tarantool sources: %w", err)
 	}

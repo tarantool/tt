@@ -17,7 +17,7 @@ TLS-бэкенды описаны в разделе [Установка](get-sta
 - Python 3 с пакетами из `test/requirements.txt`;
 - Tarantool 3.3 или новее;
 - [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
-  2.14.0: `mage lint:golang` отказывается работать с другой версией, а
+  2.15.0: `mage lint:golang` отказывается работать с другой версией, а
   `GOLANGCI_LINT` задаёт имя исполняемого файла, если он называется не
   `golangci-lint` в `PATH`;
 - [lichen](https://github.com/uw-labs/lichen#install) в `~/go/bin`;

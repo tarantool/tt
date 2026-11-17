@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
@@ -79,7 +79,7 @@ func TestCopyTemplateDirectory(t *testing.T) {
 	dstDir := t.TempDir()
 	workDir2 := t.TempDir()
 
-	require.NoError(t, copy.Copy("testdata/copy_template", workDir2))
+	require.NoError(t, cp.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
 
@@ -105,7 +105,7 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 	dstDir := t.TempDir()
 	workDir2 := t.TempDir()
 
-	require.NoError(t, copy.Copy("testdata/copy_template", workDir2))
+	require.NoError(t, cp.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
 
@@ -131,7 +131,7 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 func TestCopyTemplateByName(t *testing.T) {
 	workDir := t.TempDir()
 
-	require.NoError(t, copy.Copy("testdata/copy_template/templates", workDir))
+	require.NoError(t, cp.Copy("testdata/copy_template/templates", workDir))
 
 	createCtx := create_ctx.CreateCtx{TemplateName: "basic", WorkDir: workDir}
 	templateCtx := app_template.NewTemplateContext()

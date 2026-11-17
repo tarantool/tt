@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
@@ -25,7 +25,7 @@ func TestRunHooks(t *testing.T) {
 	templateCtx.Manifest.PreHook = "pre-gen.sh"
 	templateCtx.Manifest.PostHook = "post-gen.sh"
 
-	require.NoError(t, copy.Copy("testdata/hooks", workDir))
+	require.NoError(t, cp.Copy("testdata/hooks", workDir))
 
 	runPreHook := steps.RunHook{HookType: "pre"}
 	runPostHook := steps.RunHook{HookType: "post"}

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
@@ -14,7 +14,7 @@ import (
 
 func TestManifestLoad(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/sample", workDir))
+	require.NoError(t, cp.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 

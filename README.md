@@ -179,7 +179,7 @@ To run tests:
 - [Python3](https://www.python.org/downloads/), with the packages of
     `test/requirements.txt` (see [Run tests](#run-tests))
 - [Tarantool 3.3+](https://www.tarantool.io/en/download/os-installation/)
-- [golangci-lint 2.14.0](https://golangci-lint.run/usage/install/#local-installation):
+- [golangci-lint 2.15.0](https://golangci-lint.run/usage/install/#local-installation):
     `mage lint:golang` refuses another version; `GOLANGCI_LINT` names the
     executable when it is not `golangci-lint` in `PATH`
 - [lichen](https://github.com/uw-labs/lichen#install), in `~/go/bin`

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/create/builtin_templates"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
@@ -109,7 +109,7 @@ func copyTemplateFromPath(templatePath, workDir, appPath string) error {
 	if util.IsDir(templatePath) {
 		log.Infof("Using template from %s", templatePath)
 
-		err := copy.Copy(templatePath, appPath)
+		err := cp.Copy(templatePath, appPath)
 		if err != nil {
 			return fmt.Errorf("template copying failed: %w", err)
 		}

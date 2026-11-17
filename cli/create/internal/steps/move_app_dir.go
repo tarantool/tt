@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
@@ -38,7 +38,7 @@ func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 		}
 	}
 
-	err = copy.Copy(templateCtx.AppPath, templateCtx.TargetAppPath)
+	err = cp.Copy(templateCtx.AppPath, templateCtx.TargetAppPath)
 	if err != nil {
 		return fmt.Errorf("failed to copy the application to %s: %w",
 			templateCtx.TargetAppPath, err)

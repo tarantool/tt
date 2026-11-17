@@ -41,7 +41,7 @@ const (
 	testDir = "test"
 
 	lintConfig  = ".golangci.yml"
-	lintVersion = "2.14.0"
+	lintVersion = "2.15.0"
 	lintExeEnv  = "GOLANGCI_LINT"
 )
 
@@ -65,7 +65,7 @@ var (
 	}
 
 	// lintVersionRe pulls the version out of `golangci-lint version`, which
-	// prints e.g. "golangci-lint has version 2.14.0 built with go1.27.1 from ...".
+	// prints e.g. "golangci-lint has version 2.15.0 built with go1.27.4 from ...".
 	lintVersionRe = regexp.MustCompile(`\bversion v?(\d+)\.(\d+)\.(\d+)\b`)
 )
 

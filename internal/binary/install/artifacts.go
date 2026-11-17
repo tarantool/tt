@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/otiai10/copy"
+	cp "github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
@@ -63,7 +63,7 @@ func copyProgramArtifact(directory string, artifact programArtifact) error {
 
 		share := filepath.Join(directory, filepath.FromSlash(shareDir))
 
-		err = copy.Copy(artifact.share+"/", share+"/")
+		err = cp.Copy(artifact.share+"/", share+"/")
 		if err != nil {
 			return fmt.Errorf("failed to copy %s: %w", shareDir, err)
 		}
@@ -132,11 +132,11 @@ func copyHeaders(srcPath, destPath string) error {
 	}
 
 	if !strings.HasSuffix(srcPath, "/") {
-		// copy.Copy expects the directory path to end with '/'.
+		// cp.Copy expects the directory path to end with '/'.
 		srcPath += "/"
 	}
 
-	err = copy.Copy(srcPath, destPath+"/")
+	err = cp.Copy(srcPath, destPath+"/")
 	if err != nil {
 		return fmt.Errorf("failed to copy headers: %w", err)
 	}
