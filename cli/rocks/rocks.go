@@ -202,6 +202,13 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 		return err
 	}
 
+	// A rock build that runs tarantool runs this one, the tarantool of the
+	// project with no .env/activate.sh sourced included.
+	err = tarantool.PrependPath(cmdCtx.Cli.TarantoolCli.Executable, tarantoolPrefixDir)
+	if err != nil {
+		return err
+	}
+
 	// LuaRocks is given headers that are none when there are none, so that
 	// a rock of Lua alone installs without them.
 	luarocksIncludeDir, removeStub, err := includeDirOf(prefix, args)

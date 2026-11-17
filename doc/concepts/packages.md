@@ -156,7 +156,9 @@ manifest.
 
 - A build backend finds the programs of the project's `.tarantool/bin` -
   what `tt binary` and `tt wasm prepare` installed - ahead of `PATH`, with or
-  without `.env/activate.sh`.
+  without `.env/activate.sh`. The build of a dependency rock finds the
+  project's `tarantool` there as well: a rock that runs `tarantool` by
+  name, as the cmake of a rock that looks for it does, runs that one.
 - A `make` or `shell` build with `incremental = true` is skipped while
   nothing it depends on changed; see [Incremental builds](#incremental-builds).
 - A `.wasm` file a component lays out, or its build writes into `share/`,

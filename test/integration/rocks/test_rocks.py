@@ -236,6 +236,60 @@ def test_rocks_make_native_rock_with_project_headers(tt_cmd, tmp_path):
     assert os.path.isfile(tmp_path / ".rocks" / "lib" / "tarantool" / "native.so")
 
 
+# A rock whose build runs tarantool by name, as the cmake of a rock that
+# looks for it with find_program does, and tells which one it found.
+WHICH_TARANTOOL_ROCKSPEC = """package = "which"
+version = "scm-1"
+source = {url = "."}
+build = {
+    type = "command",
+    build_command = "command -v tarantool > tarantool.path",
+    install = {lua = {which = "which.lua"}},
+}
+"""
+
+
+def test_rocks_make_runs_the_tarantool_of_the_project(tt_cmd, tmp_path):
+    # The build of a rock runs the tarantool of the project, with no
+    # .env/activate.sh sourced: its .tarantool/bin goes first in PATH, ahead
+    # of the tarantool on PATH, which is another file. LuaRocks wants the
+    # headers of Lua for a rock of the command type.
+    tarantool = shutil.which("tarantool")
+    if tarantool is None:
+        pytest.skip("tarantool is not found")
+    headers = os.path.join(os.path.dirname(os.path.dirname(tarantool)), "include", "tarantool")
+    if not os.path.isfile(os.path.join(headers, "lua.h")):
+        pytest.skip("the headers of tarantool are not found next to it")
+
+    with open(tmp_path / "app.manifest.toml", "w") as f:
+        f.write("manifest_version = '0.1'\n\n[package]\nname = 'which'\n")
+
+    root = tmp_path / ".tarantool"
+    installation = root / "versions" / "tarantool" / "tarantool_3.8.1"
+    os.makedirs(installation)
+    with open(installation / "tarantool", "w") as f:
+        f.write(f'#!/bin/sh\nexec "{tarantool}" "$@"\n')
+    os.chmod(installation / "tarantool", 0o755)
+    os.makedirs(root / "bin")
+    os.symlink(installation / "tarantool", root / "bin" / "tarantool")
+    os.makedirs(root / "include")
+    os.symlink(headers, root / "include" / "tarantool")
+
+    with open(tmp_path / "which-scm-1.rockspec", "w") as f:
+        f.write(WHICH_TARANTOOL_ROCKSPEC)
+    with open(tmp_path / "which.lua", "w") as f:
+        f.write("return {}\n")
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "make"],
+        cwd=tmp_path,
+        env=dict(os.environ, PWD=str(tmp_path)),
+    )
+    assert rc == 0, output
+    with open(tmp_path / "tarantool.path") as f:
+        assert f.read() == f"{root / 'bin' / 'tarantool'}\n"
+
+
 def test_rocks_admin_module(tt_cmd, tmp_path):
     repo_path = os.path.join(tmp_path, "rocks_repo")
     os.mkdir(repo_path)

@@ -1935,6 +1935,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Tarantool once per command: a command that resolves the prefix more than
   once, `tt emmylua prepare` installing the rocks say, printed it each
   time.
+- The build of a rock in a project with a Tarantool of its own,
+  `.tarantool/bin/tarantool`, and none on `PATH` - a dependency that
+  `tt package build` or `install` builds, or a rock of `tt rocks` - no
+  longer fails when it runs `tarantool`: the cmake of `cv` stopped on
+  `tarantool not found in PATH`, and that of `cartridge-cli` had no
+  `cartridge` to install. A rock build runs the Tarantool the rock is
+  built against: tt puts the directory of its link, `.tarantool/bin`,
+  first in `PATH`, unless `PATH` finds that `tarantool` already, so a
+  `tarantool` of `PATH` that is another one no longer runs in its place.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
