@@ -120,10 +120,21 @@ def coredump_alt(tmp_path_factory, alt_tarantool) -> Path:
 
 
 @pytest.fixture(scope="session")
-def coredump_packed(tt_cmd, coredump):
+def coredump_pack(tt_cmd, coredump):
+    """The exit code and the output of tt coredump pack of coredump, run in
+    the directory of the core once for the session.
+
+    test_coredump_pack checks them, and the tests of unpack and inspect take
+    the archive. It is the same command on the same core, and a pack, which
+    reads the whole core of a gigabyte or so, takes about 10 s."""
     cmd = [tt_cmd, "coredump", "pack", coredump.as_posix()]
-    rc, _ = run_command_and_get_output(cmd, cwd=coredump.parents[0])
-    assert rc == 0
+    return run_command_and_get_output(cmd, cwd=coredump.parents[0])
+
+
+@pytest.fixture(scope="session")
+def coredump_packed(coredump, coredump_pack):
+    rc, output = coredump_pack
+    assert rc == 0, output
     files = glob.glob(os.path.join(os.path.dirname(coredump), "*.tar.gz"))
     assert len(files) == 1
     return files[0]
@@ -155,11 +166,11 @@ def test_coredump_pack_no_such_file(tt_cmd, tmp_path):
 
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
-def test_coredump_pack(tt_cmd, tmp_path, coredump):
-    cmd = [tt_cmd, "coredump", "pack", coredump]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
-    assert rc == 0
+def test_coredump_pack(coredump, coredump_pack):
+    rc, output = coredump_pack
+    assert rc == 0, output
     assert re.search(r"Core was successfully packed.", output)
+    assert len(list(coredump.parent.glob("*.tar.gz"))) == 1
 
 
 def check_tarantool_in_archive(tmp_path, expected_tarantool):
