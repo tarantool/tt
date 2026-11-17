@@ -15,7 +15,12 @@ import (
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
-const filePollInterval = 500 * time.Millisecond
+const (
+	// filePollInterval is how often waitForFile looks for its file.
+	filePollInterval = 10 * time.Millisecond
+	// fileWaitTimeout is how long waitForFile looks for it.
+	fileWaitTimeout = 5 * time.Second
+)
 
 // startLaunched runs the watchdog of inst as tt instance start --watchdog
 // runs it: from the launch tt instance start resolves inst to, which fails
@@ -40,21 +45,23 @@ func startForegroundLaunched(inst *InstanceCtx, echo io.Writer) (int, error) {
 	return StartForeground(&cmdcontext.CmdCtx{}, &launch, echo)
 }
 
-// waitForFile waits for the file to appear.
-func waitForFile(filePath string) int {
-	retries := 10
-	for retries > 0 {
-		time.Sleep(filePollInterval)
+// waitForFile waits for the file to appear and reports whether it did
+// within fileWaitTimeout.
+func waitForFile(filePath string) bool {
+	deadline := time.Now().Add(fileWaitTimeout)
 
+	for {
 		_, err := os.Stat(filePath)
 		if err == nil {
-			break
+			return true
 		}
 
-		retries--
-	}
+		if time.Now().After(deadline) {
+			return false
+		}
 
-	return retries
+		time.Sleep(filePollInterval)
+	}
 }
 
 // lockedBuffer is a buffer written by the watchdog and the output of
