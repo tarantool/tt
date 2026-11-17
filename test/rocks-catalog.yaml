@@ -34,7 +34,7 @@ packages:
     - libproj-dev # gis
     - librdkafka-dev # kafka, tnt-kafka
     - libsasl2-dev # memcached
-    - libzookeeper-mt-dev # zookeeper
+    - libzookeeper-st-dev # zookeeper: libzookeeper_st
   brew:
     - cyrus-sasl # memcached
     - geos # gis
