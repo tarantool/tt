@@ -245,9 +245,34 @@ const symbolicFunctions = "-Wl,-Bsymbolic-functions"
 // functions (symbolicFunctions): on Linux, but by zig cc and zig c++, whose
 // lld refuses -Bsymbolic-functions as an unsupported linker argument. ld.bfd,
 // gold, lld and mold of a gcc or a clang take it. A two-level namespace
-// of macOS binds a call of a bundle to a function it defines already.
+// of macOS binds a call of a module, a bundle or a dylib of zig
+// (linksDylib), to a function it defines already.
 func bindsLocally(target build.Target, linker []string) bool {
 	return target.OS == "linux" && !isZig(linker)
+}
+
+// linksDylib reports whether the module for target is linked by the
+// compiler of the words linker as a dylib (zigDylibFlags) rather than with
+// libFlag of its toolchain: on darwin, by zig cc and zig c++, whose linker
+// crashes on -bundle -undefined dynamic_lookup, and takes -bundle without
+// -undefined for the link of a program, one that needs _main. zig has no
+// bundle, only executables and dylibs.
+func linksDylib(target build.Target, linker []string) bool {
+	return target.OS == darwinOS && isZig(linker)
+}
+
+// zigDylibFlags are the flags that link the module out of darwin by zig cc
+// or zig c++ (linksDylib) in place of libFlag: -shared makes a dylib, which
+// dlopen, and so require and package.loadlib, load as they load a bundle,
+// the symbols of Tarantool resolved when it is loaded as those of a bundle
+// are. zig names a dylib by its -o, a path of the build machine, so
+// -install_name names it @rpath/<the file of out>, as the copy of a library
+// of bundle is named (darwinBundleCommands).
+func zigDylibFlags(out string) []string {
+	return []string{
+		"-shared", "-undefined", "dynamic_lookup", "-all_load",
+		"-Wl,-install_name,@rpath/" + filepath.Base(out),
+	}
 }
 
 // zigCompilers are the commands of zig that are compilers of C and C++.
@@ -272,9 +297,11 @@ const cxxName = "c++"
 // environment ends the line, as go-luarocks has it. The rest mirrors the
 // builtin build of go-luarocks. The flags of the compilers are not given:
 // a flag both need, -pthread or -fsanitize=address, is in cflags or cxxflags
-// and in ldflags. The calls of the module to its own functions are bound to
-// them when symbolic is set (bindsLocally), and the static C++ library
-// (staticLibstdcxx) is linked when staticCXX is set (linksLibstdcxx).
+// and in ldflags. LIBFLAG is libFlag of tools, or the flags of a dylib of zig
+// (zigDylibFlags) when dylib is set (linksDylib). The calls of the module to
+// its own functions are bound to them when symbolic is set (bindsLocally),
+// and the static C++ library (staticLibstdcxx) is linked when staticCXX is
+// set (linksLibstdcxx).
 //
 // ldflags and rpath come from config, each merged (append-only) with its
 // overlay of platforms for goos, and the libraries from libs
@@ -287,13 +314,17 @@ const cxxName = "c++"
 // directory of the process. The loader looks where rpath says, $ORIGIN the
 // directory of the module (rpathFlag).
 func linkArgs(config Config, tools toolchain, env envFlags, libs libraryArgs, goos string,
-	symbolic, staticCXX bool, objects []string, out string,
+	symbolic, staticCXX, dylib bool, objects []string, out string,
 ) []string {
 	overlay := config.Platforms[goos]
 
 	args := make([]string, 0, initialArgsCap+len(objects))
 
-	args = append(args, tools.libFlag...)
+	if dylib {
+		args = append(args, zigDylibFlags(out)...)
+	} else {
+		args = append(args, tools.libFlag...)
+	}
 
 	if symbolic {
 		args = append(args, symbolicFunctions)
@@ -437,7 +468,8 @@ func planOf(config Config, tools toolchain, env envFlags, pkg pkgFlags, libs lib
 	built.linker = linkerOf(config, tools)
 	built.link = concat(built.linker,
 		linkArgs(config, tools, env, libs, c.Target.OS, bindsLocally(c.Target, built.linker),
-			linksLibstdcxx(c.Target, c.Static, built.cxx, built.linker), paths, built.out))
+			linksLibstdcxx(c.Target, c.Static, built.cxx, built.linker),
+			linksDylib(c.Target, built.linker), paths, built.out))
 
 	return built
 }

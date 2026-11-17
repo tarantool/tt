@@ -712,6 +712,7 @@ type toolchain struct {
 	// libFlag are the flags that link a module Tarantool loads: -shared,
 	// or -bundle -undefined dynamic_lookup -all_load on darwin, whose
 	// loader resolves the symbols of Tarantool when it loads the module.
+	// zig cc and zig c++ link a dylib on darwin instead (linksDylib).
 	libFlag []string
 	// origin is how the loader of the target names the directory of the
 	// module in an rpath: $ORIGIN, @loader_path on darwin.

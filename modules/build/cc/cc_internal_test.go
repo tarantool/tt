@@ -264,7 +264,7 @@ func TestPkgConfigPlacement(t *testing.T) {
 	}
 
 	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(),
-		libsOf(sampleConfig(), linux.OS, samplePkgFlags()), linux.OS, true, false,
+		libsOf(sampleConfig(), linux.OS, samplePkgFlags()), linux.OS, true, false, false,
 		[]string{"/w/a.o"}, "/out/mymod.so")
 	assert.Equal(t, []string{
 		"-lm", "-lz", "-llinlib", "-L/opt/ssl/lib", "-lssl", "-lcrypto", "-pthread",
@@ -429,7 +429,7 @@ func TestPlanLibrariesOfBundle(t *testing.T) {
 	assert.Equal(t, []string{originToken}, libs.rpath)
 	assert.Contains(t, libs.files, "/opt/lib/libfoo.so.1.2")
 
-	args := linkArgs(config, linuxToolchain(), noEnvFlags(), libs, "linux", true, false,
+	args := linkArgs(config, linuxToolchain(), noEnvFlags(), libs, "linux", true, false, false,
 		[]string{"/w/a.o"}, "/out/m.so")
 	assert.Equal(t, "-Wl,-rpath,$ORIGIN", args[len(args)-1])
 
@@ -441,7 +441,7 @@ func TestPlanLibrariesOfBundle(t *testing.T) {
 		false, nil)
 	assert.Equal(t, []string{"/stage/lib/libfoo.1.dylib", "-lbar"}, libs.args)
 
-	args = linkArgs(config, darwinToolchain(), noEnvFlags(), libs, "darwin", false, false,
+	args = linkArgs(config, darwinToolchain(), noEnvFlags(), libs, "darwin", false, false, false,
 		[]string{"/w/a.o"}, "/out/m.dylib")
 	assert.Equal(t, "-Wl,-rpath,@loader_path", args[len(args)-1])
 
@@ -695,7 +695,7 @@ func TestLinkArgsLinuxPlacement(t *testing.T) {
 	t.Parallel()
 
 	args := linkArgs(sampleConfig(), linuxToolchain(), noEnvFlags(),
-		libsOf(sampleConfig(), linux.OS, noPkgFlags()), linux.OS, true, false,
+		libsOf(sampleConfig(), linux.OS, noPkgFlags()), linux.OS, true, false, false,
 		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.so")
 
 	want := []string{
@@ -724,7 +724,7 @@ func TestLinkArgsDarwinPlacement(t *testing.T) {
 	t.Parallel()
 
 	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(),
-		libsOf(sampleConfig(), darwin.OS, noPkgFlags()), darwin.OS, false, false,
+		libsOf(sampleConfig(), darwin.OS, noPkgFlags()), darwin.OS, false, false, false,
 		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
 
 	want := []string{
@@ -743,13 +743,52 @@ func TestLinkArgsDarwinPlacement(t *testing.T) {
 	assert.Equal(t, want, args)
 }
 
+// TestLinkArgsDarwinDylibOfZig pins the link of a module of darwin by zig cc
+// or zig c++: a dylib named @rpath/<its file>, in place of the bundle, the
+// rest of the line as it is of a bundle.
+func TestLinkArgsDarwinDylibOfZig(t *testing.T) {
+	t.Parallel()
+
+	args := linkArgs(sampleConfig(), darwinToolchain(), noEnvFlags(),
+		libsOf(sampleConfig(), darwin.OS, noPkgFlags()), darwin.OS, false, false, true,
+		[]string{"/w/a.o", "/w/b.o"}, "/out/mymod.dylib")
+
+	assert.Equal(t, []string{
+		"-shared", "-undefined", "dynamic_lookup", "-all_load",
+		"-Wl,-install_name,@rpath/mymod.dylib",
+		"-Wl,--as-needed", "-Wl,-dead_strip",
+		"-o", "/out/mymod.dylib",
+		"/w/a.o", "/w/b.o",
+		"-L/lib/base",
+		"-L/lib/dar",
+		"-lm", "-lz", "-ldarlib",
+		"-Wl,-rpath,@loader_path", "-Wl,-rpath,/opt/lib", "-Wl,-rpath,@loader_path/dar",
+	}, args)
+	assert.NotContains(t, args, "-bundle")
+}
+
+// TestLinksDylib pins that a module of darwin is linked a dylib by zig cc
+// and zig c++, whose linker crashes on -bundle, and a bundle by any other
+// compiler, and that a module of Linux is no dylib of zigDylibFlags.
+func TestLinksDylib(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, linksDylib(darwin, []string{"zig", "cc"}))
+	assert.True(t, linksDylib(darwin, []string{"/opt/zig-0.17.1/zig", "c++"}))
+	assert.True(t, linksDylib(darwin, []string{"wrap", "zig", "cc", "-target", "aarch64-macos"}))
+	assert.False(t, linksDylib(darwin, []string{"cc"}))
+	assert.False(t, linksDylib(darwin, []string{"ccache", "clang++"}))
+	assert.False(t, linksDylib(linux, []string{"zig", "cc"}))
+	assert.False(t, linksDylib(linux, []string{"cc"}))
+}
+
 // TestLinkArgsUserFlagsComeLast pins that LDFLAGS of the environment ends the
 // line and that no flag of a compiler reaches the link.
 func TestLinkArgsUserFlagsComeLast(t *testing.T) {
 	t.Parallel()
 
 	args := linkArgs(sampleConfig(), linuxToolchain(), userEnvFlags(),
-		libsOf(sampleConfig(), linux.OS, noPkgFlags()), linux.OS, true, false,
+		libsOf(sampleConfig(), linux.OS, noPkgFlags()), linux.OS, true, false, false,
 		[]string{"/w/a.o"}, "/out/mymod.so")
 
 	assert.Equal(t, "-Wl,-z,now", args[len(args)-1])
@@ -769,13 +808,13 @@ func TestLinkArgsStaticLibstdcxx(t *testing.T) {
 	objects := []string{"/w/a.o"}
 
 	static := linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(), noLibs(), linux.OS,
-		true, true, objects, "/out/m.so")
+		true, true, false, objects, "/out/m.so")
 	assert.Equal(t, []string{
 		"-shared", "-Wl,-Bsymbolic-functions", "-static-libstdc++", "-Wl,--exclude-libs,ALL",
 		"-o", "/out/m.so", "/w/a.o",
 	}, static)
 	assert.NotContains(t, linkArgs(moduleConfig("a.cpp"), linuxToolchain(), noEnvFlags(),
-		noLibs(), linux.OS, true, false, objects, "/out/m.so"), "-static-libstdc++")
+		noLibs(), linux.OS, true, false, false, objects, "/out/m.so"), "-static-libstdc++")
 
 	gxx := []string{"c++"}
 

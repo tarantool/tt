@@ -522,7 +522,11 @@ $(LDLIBS)` has them, so that `-Wl,--as-needed` acts on the `-l` that follow;
 after the one of the build; `<os>` is `linux` or `darwin`, the OSes tt
 builds for, and another, `macos` say, is an error. On macOS `-shared` is
 `-bundle -undefined dynamic_lookup -all_load`, and no
-`-Wl,-Bsymbolic-functions` is given.
+`-Wl,-Bsymbolic-functions` is given. The linker of `zig cc` and `zig c++`
+crashes on `-bundle`, so they link the module as a dylib, which Tarantool
+loads as it loads a bundle: `-shared -undefined dynamic_lookup -all_load
+-Wl,-install_name,@rpath/<module>.dylib`, the install name in place of the
+path of `-o`, which is of the machine the module is built on.
 
 On Linux `-Wl,-Bsymbolic-functions` binds the calls of the module to the
 functions it defines itself. Without it the loader resolves a call to a
@@ -531,7 +535,7 @@ module that defines `curl_easy_init`, which Tarantool Enterprise exports
 with the 80 other functions of curl it links in, called the one of
 Tarantool even from within itself. The variables of the module are left
 as they are. `zig cc` and `zig c++` refuse the flag, and their link goes
-without it. On macOS a call of a bundle to a function it defines is bound
+without it. On macOS a call of a module to a function it defines is bound
 to it at its link, by the two-level namespace, without a flag.
 
 Once the module is linked, tt compares the functions and the variables it

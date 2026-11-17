@@ -526,6 +526,41 @@ func TestRun(t *testing.T) {
 	}
 }
 
+// TestRunOfZig checks the link of a module by zig cc: with neither
+// -Bsymbolic-functions on Linux, which zig refuses, nor -bundle on darwin,
+// whose linker of zig crashes on it, but a dylib there, named @rpath/<its
+// file> rather than by the path of the machine it is linked on.
+func TestRunOfZig(t *testing.T) {
+	t.Parallel()
+
+	link := map[string][]string{
+		"linux": {"-shared"},
+		"darwin": {
+			"-shared", "-undefined", "dynamic_lookup", "-all_load",
+			"-Wl,-install_name,@rpath/a.b.dylib",
+		},
+	}
+
+	for _, goos := range []string{"linux", "darwin"} {
+		harness, bld := fakeHarness(t, LuaC(),
+			map[string]any{"module": "a.b", "sources": []any{"a.c"}},
+			map[string]string{"CC": "zig cc", "CFLAGS": "", "LDFLAGS": ""})
+		facts := harness.Context
+
+		writeTool(t, harness, "zig", fakeCC)
+
+		facts.Target.OS = goos
+
+		require.NoError(t, harness.Run(t.Context(), bld))
+
+		out := filepath.Join(facts.Dirs.Modules, "a.b"+facts.Target.ModuleExt())
+		object := filepath.Join(facts.Dirs.Work, "obj", objectName("a.c"))
+
+		assert.Equal(t, "zig cc "+strings.Join(link[goos], " ")+" -o "+out+" "+object,
+			calls(t, harness)[1], goos)
+	}
+}
+
 // TestRunMixed checks that a build of C and C++ compiles each source with
 // the compiler and the flags of its language and links with the C++
 // compiler, the static C++ library on Linux with static = true.

@@ -570,6 +570,55 @@ func TestLuaCMixedModuleOfZig(t *testing.T) {
 	assert.False(t, linked, "nothing changed")
 }
 
+// TestLuaCModuleOfZigForMacOS builds a lua-c module for macOS with zig cc on a
+// host of any OS, as zig links for another: its linker, which crashes on
+// -bundle, links a dylib, and names it @rpath/m.dylib rather than by the
+// path of its -o, one of the machine it is linked on.
+func TestLuaCModuleOfZigForMacOS(t *testing.T) {
+	t.Parallel()
+
+	zig, err := exec.LookPath("zig")
+	if err != nil {
+		t.Skipf("zig not found in PATH: %v", err)
+	}
+
+	// The module declares what it calls of Lua: no header of Tarantool is
+	// read.
+	includeDir := filepath.Join(t.TempDir(), "include", "tarantool")
+	require.NoError(t, os.MkdirAll(includeDir, 0o750))
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"m.c": "int lua_settop(void *, int);\n" +
+			"int luaopen_m(void *L) { lua_settop(L, 0); return 0; }\n",
+	})
+
+	harness.Context.Target = build.Target{OS: "darwin", Arch: "arm64"}
+
+	log := &wrapLog{path: filepath.Join(t.TempDir(), "wrap.log"), read: 0}
+	bld := wrappedBuildOf(t, harness, LuaC(),
+		map[string]any{"module": "m", "sources": []any{"m.c"}}, log,
+		map[string]string{"CC": zig + " cc -target aarch64-macos"})
+
+	// zig keeps what it builds for a target in its global cache, so the
+	// test takes long once.
+	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+
+	module := filepath.Join(harness.Context.Dirs.Modules, "m.dylib")
+
+	file, err := macho.Open(module)
+	require.NoError(t, err)
+
+	kind, cpu := file.Type, file.Cpu
+
+	require.NoError(t, file.Close())
+	assert.Equal(t, macho.TypeDylib, kind)
+	assert.Equal(t, macho.CpuArm64, cpu)
+
+	id, err := machoDylibID(module)
+	require.NoError(t, err)
+	assert.Equal(t, "@rpath/m.dylib", id)
+}
+
 // wrapper is a compiler wrapper that logs each run, its arguments, to
 // $WRAP_LOG and runs them: CC="wrap cc" counts the runs of cc.
 const wrapper = `#!/bin/sh
