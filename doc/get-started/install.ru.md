@@ -62,7 +62,7 @@ Tarantool CLI version 3.0.0-alpha.1, linux/amd64. commit: 1508ce9 (v3.0.0-alpha.
 который генерирует mage, как описано в
 [README tt 2](https://github.com/tarantool/tt#build-from-source).
 
-## Сборка из исходников {#build-from-source}
+## Сборка из исходного кода {#build-from-source}
 
 Понадобятся [Go](https://go.dev/doc/install) 1.27.4 или новее,
 [Mage](https://magefile.org/) и Git.
@@ -81,7 +81,7 @@ $ ./tt version
 > относится к 2.x, поэтому собранный файл сообщает версию 2.x. `tt new`
 > записывает в манифест `tt = ">=3.0.0"`, и `tt package pack` после этого
 > отказывается класть такой tt в архив. Чтобы упаковывать приложение
-> бинарным файлом, собранным из исходников, задайте ему версию 3.x:
+> бинарным файлом, собранным из исходного кода, задайте ему версию 3.x:
 >
 > ```console
 > $ go build -ldflags "-X github.com/tarantool/tt/v3/cli/version.gitTag=3.0.0" -o tt ./cli
@@ -106,7 +106,7 @@ $ . <(tt completion bash)
 ```
 
 Поддерживаются также `zsh` и `fish`. Автодополнение предлагает команды,
-внешние модули и цели команд `tt instance`: приложения до `:` и их инстансы
+внешние модули и цели команд `tt instance`: приложения до `:` и их экземпляры
 после.
 
 ## Tarantool {#tarantool}
@@ -119,9 +119,9 @@ Community Edition 3.0 и новее.
 ## Зависимости времени выполнения {#runtime-dependencies}
 
 - Git и Mage — для `tt binary install tt`, когда tt собирается из
-  исходников, и Git — для `tt binary search tt`.
+  исходного кода, и Git — для `tt binary search tt`.
 - Git, CMake, `make` и компиляторы C и C++ — для
-  `tt binary install tarantool`, когда Tarantool собирается из исходников:
+  `tt binary install tarantool`, когда Tarantool собирается из исходного кода:
   на платформе без готового бинарного файла, для коммита или pull request,
   а также с `--source-build`.
 - Компилятор C — для rock-модулей и компонентов с частью на C.

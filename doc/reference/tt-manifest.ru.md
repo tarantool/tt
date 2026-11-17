@@ -103,7 +103,7 @@ bar = { module = "github.com/acme/tools", version = "v0.3.0", package = "github.
 | `exclude` | нет | исключённые стандартные модули, по имени; `"builtin"` эквивалентно `builtin = false`. Запрещено при `standard = false` |
 | `builtin` | `true`, `false`, когда `exclude` содержит `builtin` | собственные команды tt, модуль `builtin` |
 | `external_modules` | `true` | [внешние модули](../how-to/external-modules.md) и `tt modules` |
-| `bundle_sources` | `["customer-zone", "rws", "github"]` | откуда `tt binary install` и `tt binary search` берут готовые сборки продуктов, по порядку; продукт спрашивают у первого источника, у которого он есть: `customer-zone` - личный кабинет tarantool.io, с флагом `--credentials-file`, для Tarantool Enterprise, SDK, TCM и tt-ee; `rws` - статические RPM-пакеты rws.tarantool.org, для Tarantool Community 3 на Linux с glibc; `github` - релизы tt на GitHub, для tt и его последнего релиза. Без личного кабинета эти продукты ставятся только из `--local-dir`; без `rws` или `github` каждая версия Tarantool Community или tt собирается из исходников. `[]` - ни одного источника |
+| `bundle_sources` | `["customer-zone", "rws", "github"]` | откуда `tt binary install` и `tt binary search` берут готовые сборки продуктов, по порядку; продукт спрашивают у первого источника, у которого он есть: `customer-zone` - личный кабинет tarantool.io, с флагом `--credentials-file`, для Tarantool Enterprise, SDK, TCM и tt-ee; `rws` - статические RPM-пакеты rws.tarantool.org, для Tarantool Community 3 на Linux с glibc; `github` - релизы tt на GitHub, для tt и его последнего релиза. Без личного кабинета эти продукты ставятся только из `--local-dir`; без `rws` или `github` каждая версия Tarantool Community или tt собирается из исходного кода. `[]` - ни одного источника |
 
 Версия дистрибутива берётся из `git describe` в каталоге манифеста; за ней
 следует `VERSION_LABEL`.
@@ -112,9 +112,9 @@ bar = { module = "github.com/acme/tools", version = "v0.3.0", package = "github.
 
 Стандартные модули - это модули из репозитория ядра, с которыми собирается
 официальный tt: `aeon`, `build`, `emmylua` и `wasm` в tt 3.0.0-alpha.3. В
-модуле `build` находятся backend'ы сборки tt (см.
+модуле `build` находятся бэкенды сборки tt (см.
 [манифест приложения](app-manifest.md#componentsnamebuild)); у самого ядра
-собственных backend'ов нет. `wasm` содержит команду `tt wasm` и проверку
+собственных бэкендов нет. `wasm` содержит команду `tt wasm` и проверку
 файлов `.wasm` пакета. Пакет `standard` ядра,
 `github.com/tarantool/tt/v3/standard`, перечисляет их, поэтому модули,
 добавленные более новым ядром, попадают в дистрибутив без правки его
@@ -186,7 +186,7 @@ tt, см. поля `builtin` и `exclude` секции `[distribution]`. Мод�
 | `version` | коммит ядра для модуля из репозитория ядра, `latest` для любого другого | запрос версии Go; не допускается вместе с `path`, а также для модуля из репозитория ядра, который следует за ядром |
 | `path` | | локальный каталог с модулем относительно каталога манифеста |
 | `package` | корневой пакет модуля | путь импорта пакета с конструктором; пакет из `module` |
-| `symbol` | `New` | конструктор: экспортируемый идентификатор с типом `func(sdk.Services) []sdk.Mount` либо `func(sdk.Services) sdk.Module` для модуля, предоставляющего backend'ы сборки или проверки файлов пакета |
+| `symbol` | `New` | конструктор: экспортируемый идентификатор с типом `func(sdk.Services) []sdk.Mount` либо `func(sdk.Services) sdk.Module` для модуля, предоставляющего бэкенды сборки или проверки файлов пакета |
 | `kind` | `tt-module` | единственный существующий тип |
 | `source` | `path` при указанном `path`, иначе `registry` | |
 
