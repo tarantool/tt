@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from utils import sha256_of, write_rock_index
+from utils import LoopbackHTTPServer, sha256_of, write_rock_index
 
 MODULE = b"\x7fELF not a module: tt packs and installs it, and nothing loads it\n"
 
@@ -51,8 +51,8 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-def serve(handler) -> tuple[http.server.ThreadingHTTPServer, str]:
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+def serve(handler) -> tuple[LoopbackHTTPServer, str]:
+    server = LoopbackHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
 

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from utils import LoopbackHTTPServer
+
 # The rock repository the `tt rocks` suite already ships: a LuaRocks `manifest`
 # next to two versions of `stat`. Serving it over loopback is what lets the
 # dependency commands resolve for real without a network, and it keeps the
@@ -254,7 +256,7 @@ def _rock_server_running():
     that stops it early and the teardown that stops it late both run.
     """
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(ROCKS_REPO))
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server = LoopbackHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
