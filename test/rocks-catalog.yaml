@@ -14,8 +14,11 @@
 # on macOS; python3 test/ci.py rocks-packages apt|brew prints the list.
 #
 # rocks: an entry per rock, of
-#   skip: why the rock is not checked; with os: [linux, darwin] or levels:
-#     [project, user, system, os], it is not checked on those only;
+#   skip: why the rock is not checked; with os or levels: [project, user,
+#     system, os], it is not checked on those only. os takes linux, darwin
+#     and the distributions of Linux by the ID of /etc/os-release, alone or
+#     with the major number of its VERSION_ID: [gentoo, rocky-8] skips the
+#     rock on Gentoo and on Rocky Linux 8;
 #   constraint: the version constraint of tt package add NAME CONSTRAINT;
 #   require: the modules to require, instead of those the check takes: the
 #     Lua modules of the fewest dots the rock installed, or its C modules
