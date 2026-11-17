@@ -3,7 +3,6 @@ package install
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
@@ -16,18 +15,25 @@ var errCouldNotGetInstalledVersionCommitHash = errors.New(
 )
 
 // isUpdatePossible asks whether to check master and compares its head with the installed commit.
+//
+// A confirmation not given is the default answer, no: the installed master
+// is kept, and tt says so. Under --no-prompt or off a terminal it is not
+// given unless --yes gives it.
 func isUpdatePossible(installCtx InstallCtx, pathToBin string, kind versionKind,
 	isBinExecutable bool,
 ) (bool, error) {
-	if !isBinExecutable || kind != versionKindMaster || installCtx.skipMasterUpdate {
+	if !isBinExecutable || kind != versionKindMaster {
 		return false, nil
 	}
 
-	answer, err := binary.AskConfirm(os.Stdin, "The 'master' version of the "+
-		installCtx.Program.String()+" has already been installed.\n"+
+	answer, err := installCtx.confirm("The 'master' version of the " +
+		installCtx.Program.String() + " has already been installed.\n" +
 		"Would you like to update it if there are newer commits available?")
 	if err != nil {
-		return false, err
+		log.Warnf("The installed master of %s is kept, not checked for newer commits: %v",
+			installCtx.Program, err)
+
+		return false, nil
 	}
 
 	if !answer {

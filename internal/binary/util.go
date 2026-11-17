@@ -2,7 +2,6 @@ package binary
 
 import (
 	"archive/tar"
-	"bufio"
 	"compress/gzip"
 	"context"
 	"errors"
@@ -38,31 +37,6 @@ const (
 	OsMacos
 	OsUnknown
 )
-
-// AskConfirm asks the user for confirmation and returns true if yes.
-func AskConfirm(ioReader io.Reader, question string) (bool, error) {
-	reader := bufio.NewReader(ioReader)
-
-	for {
-		_, _ = fmt.Fprintf(os.Stdout, "%s [y/n]: ", question)
-
-		resp, err := reader.ReadString('\n')
-
-		resp = strings.ToLower(strings.TrimSpace(resp))
-
-		if err != nil {
-			return false, fmt.Errorf("cannot read the answer: %w", err)
-		}
-
-		if resp == "y" || resp == "yes" {
-			return true, nil
-		}
-
-		if resp == "n" || resp == "no" {
-			return false, nil
-		}
-	}
-}
 
 // BitHas32 checks if a bit is set in b.
 func BitHas32(b, flag uint32) bool { return b&flag != 0 }

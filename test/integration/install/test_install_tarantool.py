@@ -426,11 +426,11 @@ def test_install_tarantool_existing_master(tt_cmd, tmp_path, local_tarantool_bui
             "--force",
         ],
     )
-    rc, output = run_command_and_get_output(
-        args,
-        cwd=tmp_path,
-        input="y\n" if update else None,
-    )
+    # The question of an update is asked on a terminal only: --yes answers
+    # it, and --no-prompt keeps the installed master.
+    if update:
+        args.append("--yes")
+    rc, output = run_command_and_get_output(args, cwd=tmp_path)
     assert rc == 0, output
     assert (root / "bin" / "tarantool").resolve() == binary
     assert (root / "include" / "tarantool").resolve() == headers
@@ -714,9 +714,9 @@ def test_install_tarantool_docker_existing_master(tt_cmd, tmp_path, docker_taran
             "--local-repo",
             "distfiles",
             "--use-docker",
+            "--yes",
         ],
         cwd=tmp_path,
-        input="y\n",
     )
     assert rc == 0, output
     assert "Found newest commit of tarantool in master" in output

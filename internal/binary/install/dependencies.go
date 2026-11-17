@@ -2,6 +2,8 @@ package install
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +27,11 @@ const (
 	// Arch Linux.
 	opensslName = "openssl"
 )
+
+// errUnknownOS is wrapped by the error of a build of Tarantool on an OS tt
+// does not know the packages of, whose dependencies it cannot check, when
+// the build without the check is not confirmed.
+var errUnknownOS = errors.New("cannot check the build dependencies on an unknown OS")
 
 type missingPackagesError string
 
@@ -320,19 +327,7 @@ func dependenciesInstalledOn(installCtx InstallCtx, program binary.Program,
 
 		programs, packages, known = tarantoolDependencies(family, installCtx.Dynamic)
 		if !known {
-			answer, err := binary.AskConfirm(os.Stdin,
-				"Unknown OS, can't check if dependencies"+
-					" are installed.\n"+
-					"Proceed without checking?")
-			if err != nil {
-				return err
-			}
-
-			if !answer {
-				return binary.ErrCmdAbort
-			}
-
-			return nil
+			return confirmUncheckedBuild(installCtx)
 		}
 	case binary.ProgramUnknown, binary.ProgramEe, binary.ProgramTtEe,
 		binary.ProgramTcm, binary.ProgramSDK:
@@ -368,6 +363,27 @@ func dependenciesInstalledOn(installCtx InstallCtx, program binary.Program,
 	log.Error("The operation requires some dependencies.")
 
 	return missingPackagesError(missingPackagesMessage(family, missingPack, missingPackSrc))
+}
+
+// confirmUncheckedBuild asks whether to build Tarantool on an OS tt does
+// not know the packages of, without checking the dependencies of the build.
+// A no aborts the installation. A confirmation that cannot be asked, under
+// --no-prompt or off a terminal, fails it at once, with nothing read: the
+// error points at --yes, which answers yes, and at --force, which skips the
+// check and the question with it.
+func confirmUncheckedBuild(installCtx InstallCtx) error {
+	confirmed, err := installCtx.confirm("Unknown OS, can't check if dependencies" +
+		" are installed.\n" +
+		"Proceed without checking?")
+	if err != nil {
+		return fmt.Errorf("%w: %w, or --force to skip the check", errUnknownOS, err)
+	}
+
+	if !confirmed {
+		return binary.ErrCmdAbort
+	}
+
+	return nil
 }
 
 // appendMissing appends name to missing unless it is there already.

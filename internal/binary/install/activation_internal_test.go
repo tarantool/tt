@@ -14,9 +14,8 @@ import (
 func activationTestContext(t *testing.T, program binary.Program, delivery string) InstallCtx {
 	t.Helper()
 
-	ctx := InstallCtx{
-		Program: program, Scope: binary.ScopeProject, Force: true, skipMasterUpdate: true,
-	}
+	// No Confirm: an installed master is kept, not asked about.
+	ctx := InstallCtx{Program: program, Scope: binary.ScopeProject, Force: true}
 
 	switch delivery {
 	case "prebuilt":
