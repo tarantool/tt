@@ -267,9 +267,10 @@ def rocks_packages(args):
     against, as rocks-catalog.yaml lists them for a package manager."""
     packages = (yaml.safe_load(ROCKS_CATALOG.read_text()) or {}).get("packages") or {}
     names = packages.get(args.manager) or []
+    # The atoms of emerge are category/name.
+    name_pattern = r"[A-Za-z0-9][A-Za-z0-9.+@_-]*(/[A-Za-z0-9][A-Za-z0-9.+_-]*)?"
     if not isinstance(names, list) or not all(
-        isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+@_-]*", name)
-        for name in names
+        isinstance(name, str) and re.fullmatch(name_pattern, name) for name in names
     ):
         raise ValueError(f"packages.{args.manager} of rocks-catalog.yaml: not a list of names")
     print(" ".join(names))
@@ -295,7 +296,7 @@ def main():
     mirror.add_argument("--dir", required=True, type=Path)
     mirror.add_argument("--tt-cmd", required=True, type=Path)
     packages = commands.add_parser("rocks-packages")
-    packages.add_argument("manager", choices=["apt", "brew"])
+    packages.add_argument("manager", choices=["apt", "brew", "dnf", "emerge", "pacman"])
     args = parser.parse_args()
     if args.command == "rocks-mirror":
         return rocks_mirror(args)
