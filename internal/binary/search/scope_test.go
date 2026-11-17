@@ -2,9 +2,13 @@ package search_test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -499,6 +503,22 @@ func TestSearchVersionsWithoutGit(t *testing.T) {
 func TestSearchVersionsWithoutGitFails(t *testing.T) {
 	const required = "'git' is required for 'tt binary search' to list the versions of "
 
+	// A TLS server whose certificate the system does not trust, as on a
+	// system without its CA certificates.
+	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(server.Close)
+
+	client := &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: x509.NewCertPool(), MinVersion: tls.VersionTLS12},
+	}}
+
+	response, certificateErr := client.Get(server.URL) //nolint:noctx // A test request.
+	if certificateErr == nil {
+		_ = response.Body.Close()
+	}
+
+	require.Error(t, certificateErr)
+
 	for _, test := range []struct {
 		name    string
 		program binary.Program
@@ -527,6 +547,15 @@ func TestSearchVersionsWithoutGitFails(t *testing.T) {
 		{
 			name: "no source", program: binary.ProgramCe, noSources: true,
 			want: required + "tarantool: install git",
+		},
+		{
+			// git would not verify it either, with the same CA certificates.
+			name: "untrusted certificate", program: binary.ProgramCe,
+			change: func(tarantool, _ *prebuiltTestSource) { tarantool.err = certificateErr },
+			want: "'tt binary search' cannot list the prebuilt tarantool in test-source: the " +
+				"TLS certificate of 127.0.0.1 cannot be verified: x509: certificate signed by " +
+				"unknown authority; install the CA certificates of the system " +
+				"(ca-certificates), or set SSL_CERT_FILE or SSL_CERT_DIR to a CA bundle",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

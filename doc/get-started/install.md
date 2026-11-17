@@ -146,13 +146,18 @@ and newer is supported.
   a commit or a pull request, or with `--source-build`. tt checks them and
   names the packages that are missing (see
   [Build dependencies](../how-to/binaries.md#build-dependencies)).
+- The CA certificates of the system (`ca-certificates`), for the downloads
+  of `tt binary install` and `tt binary search`, or `SSL_CERT_FILE` or
+  `SSL_CERT_DIR` set to a CA bundle. Without them tt says it cannot verify
+  the certificate of the server.
 - A C compiler, for rocks and components with a C part.
 - `curl` or `wget`, `zip` and `unzip`, for `tt rocks`, which runs LuaRocks.
 
 <!-- TODO(writers): check whether tt rocks still needs curl/zip/unzip: it
 runs the LuaRocks backend of go-luarocks. tt package does not need them. -->
 
-A prebuilt release of Tarantool or tt needs none of them, Git included:
+A prebuilt release of Tarantool or tt needs none of the build tools, Git
+included, only the CA certificates:
 `tt binary install tarantool 3.9` finds the release among the prebuilt
 binaries there are (see [Choose a version](../how-to/binaries.md#choose-a-version)).
 Without Git, `tt binary search tarantool` and `tt binary search tt` list

@@ -1131,6 +1131,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   to work`. With git, they list the Git tags and `master`, as before; a
   `--local-repo` search without git names the repository whose tags it
   could not read.
+- `tt binary install` and `tt binary search` of tarantool and tt on a host
+  without CA certificates, a bare debian:12 say, fail with `'tt binary
+  install' cannot list the prebuilt tarantool in rws: the TLS certificate
+  of rws.tarantool.org cannot be verified: x509: certificate signed by
+  unknown authority; install the CA certificates of the system
+  (ca-certificates), or set SSL_CERT_FILE or SSL_CERT_DIR to a CA bundle`,
+  with git there or not. A certificate the source of prebuilt binaries
+  cannot verify is no longer left to the Git tags, which git reaches with
+  the same CA certificates: the error began with `'git' is required` and
+  advised to install git, which fixed it on Debian only because apt
+  installs ca-certificates with git.
 - A `c` or `lua-c` module of macOS links with `zig cc` and `zig c++`
   (`CC="zig cc"`): the linker of zig crashed on `-bundle -undefined
   dynamic_lookup`, and the build failed with `linking: signal: segmentation
