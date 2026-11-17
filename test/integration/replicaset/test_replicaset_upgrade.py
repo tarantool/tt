@@ -3,9 +3,17 @@ import shutil
 import subprocess
 import tempfile
 
+import pytest
 from replicaset_helpers import copy_application, start_application, stop_application
 
-from utils import inst_lib_dir, run_command_and_get_output, wait_file
+from utils import get_tarantool_full_version, inst_lib_dir, run_command_and_get_output, wait_file
+
+# A replica that joins while its master runs DDL can miss rows of the final
+# join, tarantool/tarantool#11028: storage-002-b of vshard_app fails to apply
+# an INSERT into _index of the space the storage creates in box.once, and does
+# not start. Tarantool fixed it in 3.7.2, 3.8.1 and 3.9.0.
+TARANTOOL_VERSION = get_tarantool_full_version()
+JOIN_DURING_DDL_FIXED = TARANTOOL_VERSION >= (3, 8, 1) or (3, 7, 2) <= TARANTOOL_VERSION < (3, 8, 0)
 
 
 def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
@@ -82,6 +90,11 @@ def test_upgrade_custom_app_dummy_replicaset(tt_cmd):
             stop_application(tt_cmd, app_name, test_app_path, [])
 
 
+@pytest.mark.skipif(
+    not JOIN_DURING_DDL_FIXED,
+    reason="a replica joining during DDL misses rows: tarantool/tarantool#11028, "
+    "fixed in 3.7.2, 3.8.1, 3.9.0",
+)
 def test_upgrade_downgraded_cluster_replicasets(tt_cmd, vshard_app):
     app = vshard_app
     app_name = app.app_name

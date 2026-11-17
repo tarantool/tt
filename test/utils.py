@@ -915,6 +915,28 @@ def get_tarantool_version(tarantool_bin="tarantool"):
     return int(match.group("major")), int(match.group("minor"))
 
 
+def get_tarantool_full_version(tarantool_bin="tarantool"):
+    """(major, minor, patch) of the Tarantool, (0, 0, 0) with none: for a
+    fix that came in a patch release, which get_tarantool_version can't tell.
+    """
+    try:
+        output = subprocess.run(
+            [tarantool_bin, "--version"],
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+            check=True,
+        ).stdout
+    except FileNotFoundError:
+        return 0, 0, 0
+
+    match = re.match(r"Tarantool\s+(Enterprise\s+)?(\d+)\.(\d+)\.(\d+)", output)
+
+    assert match is not None
+
+    return int(match.group(2)), int(match.group(3)), int(match.group(4))
+
+
 def get_tarantool_commit(tarantool_bin="tarantool"):
     try:
         tt_process = subprocess.Popen(
