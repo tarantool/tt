@@ -13,25 +13,42 @@ from ci import backend_skips
 
 PACKAGE = "github.com/tarantool/tt/modules/build/cargo"
 
+# A package of each module of the build backends, as a run of every unit test
+# has them.
+BACKENDS = [
+    PACKAGE,
+    "github.com/tarantool/tt/sdk/build",
+    "github.com/tarantool/tt/v3/cli/manifest/build",
+]
 
-def events(test, reason):
+
+def skipped(test, reason, package=PACKAGE):
     """The go test -json events of a test that skipped for reason."""
     return [
-        {"Action": "run", "Package": PACKAGE, "Test": test},
-        {"Action": "output", "Package": PACKAGE, "Test": test, "Output": f"=== RUN   {test}\n"},
+        {"Action": "run", "Package": package, "Test": test},
+        {"Action": "output", "Package": package, "Test": test, "Output": f"=== RUN   {test}\n"},
         {
             "Action": "output",
-            "Package": PACKAGE,
+            "Package": package,
             "Test": test,
             "Output": f"    backend_internal_test.go:553: {reason}\n",
         },
         {
             "Action": "output",
-            "Package": PACKAGE,
+            "Package": package,
             "Test": test,
             "Output": f"--- SKIP: {test} (0.00s)\n",
         },
-        {"Action": "skip", "Package": PACKAGE, "Test": test},
+        {"Action": "skip", "Package": package, "Test": test},
+    ]
+
+
+def passed(test, package):
+    """The go test -json events of a test that passed."""
+    return [
+        {"Action": "run", "Package": package, "Test": test},
+        {"Action": "output", "Package": package, "Test": test, "Output": f"=== RUN   {test}\n"},
+        {"Action": "pass", "Package": package, "Test": test},
     ]
 
 
@@ -41,15 +58,20 @@ class BackendSkipsTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.dir = Path(temporary.name)
 
-    def write(self, *tests):
+    def write(self, *tests, ran=BACKENDS):
+        """Write the events of tests, (test, reason[, package]) that skipped,
+        and of a test of each package of ran that passed."""
         path = self.dir / "go.json"
         with path.open("w", encoding="utf-8") as file:
             # Not every line of go test -json is an event.
             file.write("go: downloading something\n")
-            for test, reason in tests:
-                for event in events(test, reason):
+            for test in tests:
+                for event in skipped(*test):
                     file.write(json.dumps(event) + "\n")
-            file.write(json.dumps({"Action": "pass", "Package": PACKAGE}) + "\n")
+            for package in ran:
+                for event in passed("TestRuns", package):
+                    file.write(json.dumps(event) + "\n")
+                file.write(json.dumps({"Action": "pass", "Package": package}) + "\n")
         return str(path)
 
     def run_main(self, runner_os, path):
@@ -104,6 +126,25 @@ class BackendSkipsTest(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertIn("Skipped tests: 0, unexpected: 0", out)
+
+    def test_a_skip_of_another_package_is_not_looked_at(self):
+        path = self.write(
+            ("TestDocker", "docker is not running", "github.com/tarantool/tt/v3/cli/docker"),
+        )
+
+        code, out, _ = self.run_main("Linux", path)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Skipped tests: 0, unexpected: 0", out)
+
+    def test_a_backend_that_did_not_run_fails(self):
+        path = self.write(ran=BACKENDS[:2])
+
+        code, out, summary = self.run_main("Linux", path)
+
+        self.assertEqual(code, 1)
+        self.assertIn("No test of github.com/tarantool/tt/v3/cli/manifest/build ran", out)
+        self.assertIn("No test of github.com/tarantool/tt/v3/cli/manifest/build ran", summary)
 
 
 if __name__ == "__main__":

@@ -100,10 +100,15 @@ jobs:
       - name: Set up the toolchains of the build backends
         uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
 
+      # The events of the tests are what the check of the skips reads.
       - name: Go tests including Docker integration
+        env:
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: mage unit:full
 
       - name: Check that no build backend test skipped for a missing tool
+        env:
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: ci/build-backend-skips.sh
 
   # The Go tests on Linux arm64: the build backends link and load modules of
@@ -134,11 +139,16 @@ jobs:
       - name: Set up the toolchains of the build backends
         uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
 
-      # go-docker runs the Docker tests on amd64.
+      # go-docker runs the Docker tests on amd64. The events of the tests are
+      # what the check of the skips reads.
       - name: Go tests with integration, excluding Docker
+        env:
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: mage unit:fullSkipDocker
 
       - name: Check that no build backend test skipped for a missing tool
+        env:
+          TT_TEST_JSON_DIR: ${{ runner.temp }}/go-test-json
         run: ci/build-backend-skips.sh
 
   it-ce:

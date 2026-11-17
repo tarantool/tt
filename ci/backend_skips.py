@@ -1,4 +1,5 @@
-"""Report the tests a go test -json run skipped, and fail on those it must not.
+"""Report the tests of the build backends a go test -json run skipped, and fail
+on those it must not.
 
 The tests of the build backends skip when a tool they need is missing: cargo,
 zig, a Rust target, tarantool, pkg-config's zlib. CI installs all of them
@@ -6,7 +7,8 @@ zig, a Rust target, tarantool, pkg-config's zlib. CI installs all of them
 went missing and the backend went untested. A test may still skip for the
 platform it runs on: a static program is built for Linux alone, ELF files are
 read on Linux, Mach-O files on macOS. Those reasons are listed below per OS;
-any other skip fails.
+any other skip fails. The skips of the other packages, which the files of a
+whole run of the unit tests have as well, are not looked at.
 
 Usage: backend_skips.py --os Linux|macOS FILE...  (the output of go test -json)
 """
@@ -17,6 +19,15 @@ import os
 import re
 import sys
 from collections import defaultdict
+
+# The packages of the tests of the build backends: those of the modules
+# modules/build and sdk/build, and cli/manifest/build of the root one. The
+# files are to have tests of each, or the backends went untested in another
+# way.
+BACKENDS = ("modules/build", "sdk/build", "v3/cli/manifest/build")
+BACKEND_PACKAGES = re.compile(
+    r"^github\.com/tarantool/tt/(" + "|".join(map(re.escape, BACKENDS)) + r")(/|$)",
+)
 
 # The reasons a test may skip for, by the runner OS ($RUNNER_OS).
 PLATFORM_REASONS = {
@@ -46,27 +57,42 @@ HOST_REASONS = [
 ]
 
 
-def skips(paths):
-    """Yield (package, test, reason) of each skipped test of the files."""
-    output = defaultdict(list)
-
+def events(paths):
+    """Yield the events of the tests of the build backends in the files."""
     for path in paths:
         with open(path, encoding="utf-8") as file:
             for line in file:
+                # Not every line of go test -json is an event.
                 try:
                     event = json.loads(line)
                 except json.JSONDecodeError:
                     continue
 
-                test = event.get("Test")
-                if not test:
-                    continue
+                if (
+                    isinstance(event, dict)
+                    and event.get("Test")
+                    and BACKEND_PACKAGES.match(event.get("Package", ""))
+                ):
+                    yield event
 
-                key = (event.get("Package", ""), test)
-                if event.get("Action") == "output":
-                    output[key].append(event.get("Output", ""))
-                elif event.get("Action") == "skip":
-                    yield key[0], test, reason(output[key])
+
+def skips(paths):
+    """Yield (package, test, reason) of each skipped test of a build backend in the files."""
+    output = defaultdict(list)
+
+    for event in events(paths):
+        key = (event["Package"], event["Test"])
+        if event.get("Action") == "output":
+            output[key].append(event.get("Output", ""))
+        elif event.get("Action") == "skip":
+            yield key[0], key[1], reason(output[key])
+
+
+def missing(paths):
+    """The modules of BACKENDS no test of the files is of."""
+    ran = {BACKEND_PACKAGES.match(event["Package"]).group(1) for event in events(paths)}
+
+    return [backend for backend in BACKENDS if backend not in ran]
 
 
 def reason(lines):
@@ -99,13 +125,17 @@ def main():
     if found:
         report += "\n".join(rows) + "\n"
 
+    absent = missing(args.files)
+    for backend in absent:
+        report += f"\n❌ No test of github.com/tarantool/tt/{backend} ran.\n"
+
     print(report)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as file:
             file.write(report)
 
-    return 1 if unexpected else 0
+    return 1 if unexpected or absent else 0
 
 
 if __name__ == "__main__":
