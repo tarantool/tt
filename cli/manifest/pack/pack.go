@@ -64,6 +64,11 @@ type Options struct {
 	// Product, Locked, Component and FetchOnly come from the fields above,
 	// Check is pack's own, and Now is pinned by buildTime unless already set.
 	// Warn is taken over only when Options.Warn is non-nil.
+	//
+	// Build.Target is the platform the package is built and packed for: the
+	// rock is the binary rock of that platform, and the archive is labeled
+	// with it. The archive of another platform than the machine is packed
+	// WithoutDeps alone: _runtime/ and the dependencies are the machine's.
 	Build build.Options
 	// Runtime describes where the runtime components come from. Ignored when
 	// WithoutDeps is set.
@@ -206,7 +211,7 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 			return nil, err
 		}
 
-		err = stripDebugInfo(ctx, own)
+		err = stripDebugInfo(ctx, own, built.Target)
 		if err != nil {
 			return nil, err
 		}
@@ -217,10 +222,10 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 		return nil, err
 	}
 
-	// The archive is labeled with the host platform as soon as it carries a
-	// native file, so a file built for another one has to fail here rather
-	// than on the machine it is installed on.
-	err = checkNativeFiles(natives, native.Host())
+	// The archive is labeled with the platform the package was built for as
+	// soon as it carries a native file, so a file built for another one has
+	// to fail here rather than on the machine it is installed on.
+	err = checkNativeFiles(natives, built.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +237,7 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 		}
 	}
 
-	token := platformToken(!opts.WithoutDeps, len(natives) > 0)
+	token := platformToken(built.Target, !opts.WithoutDeps, len(natives) > 0)
 	dest := filepath.Join(outputDir(opts),
 		archiveName(man.Package.Name, built.Version.SemVer, token))
 

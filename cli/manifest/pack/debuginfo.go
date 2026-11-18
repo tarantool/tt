@@ -42,7 +42,7 @@ func (opts Options) stripsDebugInfo() bool {
 }
 
 // checkDebugInfo checks the DebugInfo of opts, and that a pack that strips
-// has the tool to strip with (stripCommand), before anything is built.
+// has the tool to strip with (stripCommandOf), before anything is built.
 func checkDebugInfo(opts Options) error {
 	if opts.DebugInfo != "" && !slices.Contains(debugInfoModes, opts.DebugInfo) {
 		return stateErrorf("%w %q: want %s", errDebugInfo, opts.DebugInfo,
@@ -53,7 +53,7 @@ func checkDebugInfo(opts Options) error {
 		return nil
 	}
 
-	_, err := stripCommand(runtime.GOOS, exec.LookPath)
+	_, err := stripCommandOf(opts.Build.Target, exec.LookPath)
 
 	return err
 }
@@ -61,6 +61,10 @@ func checkDebugInfo(opts Options) error {
 // stripper returns the argv that writes the native file in as out without
 // its debug information.
 type stripper func(in, out string) []string
+
+// stripDebug is the option of the strip of binutils, of objcopy and of
+// llvm-strip that drops the debug information and keeps the symbols.
+const stripDebug = "--strip-debug"
 
 // stripCommand returns the stripper of the native files of goos: strip -S
 // on darwin, strip --strip-debug elsewhere, else objcopy --strip-debug of
@@ -77,14 +81,14 @@ func stripCommand(goos string, lookPath func(string) (string, error)) (stripper,
 		return func(in, out string) []string { return []string{path, "-S", "-o", out, in} }, nil
 	case err == nil:
 		return func(in, out string) []string {
-			return []string{path, "--strip-debug", "-o", out, in}
+			return []string{path, stripDebug, "-o", out, in}
 		}, nil
 	}
 
 	objcopy, objcopyErr := lookPath("objcopy")
 	if objcopyErr == nil {
 		return func(in, out string) []string {
-			return []string{objcopy, "--strip-debug", in, out}
+			return []string{objcopy, stripDebug, in, out}
 		}, nil
 	}
 
@@ -92,16 +96,45 @@ func stripCommand(goos string, lookPath func(string) (string, error)) (stripper,
 		errNoStrip, err)
 }
 
-// stripDebugInfo writes each of files without its debug information, in
-// place: the tool writes a new file beside it, which replaces it, so that a
-// file of the stage that shares its data with one of the project - a hard
-// link - leaves that one as it is.
-func stripDebugInfo(ctx context.Context, files []string) error {
+// crossStrip is the tool a pack of a build for another platform than the
+// machine strips with: llvm-strip strips the ELF and Mach-O files of every
+// platform, where the strip of binutils strips those of the machine alone.
+const crossStrip = "llvm-strip"
+
+// stripCommandOf returns the stripper of the native files a build for target
+// made (build.Result.Target): that of the machine (stripCommand) for the
+// machine, and llvm-strip --strip-debug, found in PATH with lookPath, for
+// another platform.
+func stripCommandOf(target native.Platform, lookPath func(string) (string, error)) (
+	stripper, error,
+) {
+	if target == native.Host() || target == (native.Platform{OS: "", Arch: ""}) {
+		return stripCommand(runtime.GOOS, lookPath)
+	}
+
+	path, err := lookPath(crossStrip)
+	if err != nil {
+		return nil, stateErrorf("%w: a pack for %s, another platform than the machine, "+
+			"strips with %s, which strips the files of every platform, and it is not in "+
+			"PATH: %w", errNoStrip, target, crossStrip, err)
+	}
+
+	return func(in, out string) []string {
+		return []string{path, stripDebug, "-o", out, in}
+	}, nil
+}
+
+// stripDebugInfo writes each of files, native files a build for target made,
+// without its debug information, in place: the tool (stripCommandOf) writes
+// a new file beside it, which replaces it, so that a file of the stage that
+// shares its data with one of the project - a hard link - leaves that one as
+// it is.
+func stripDebugInfo(ctx context.Context, files []string, target native.Platform) error {
 	if len(files) == 0 {
 		return nil
 	}
 
-	command, err := stripCommand(runtime.GOOS, exec.LookPath)
+	command, err := stripCommandOf(target, exec.LookPath)
 	if err != nil {
 		return err
 	}
@@ -191,9 +224,12 @@ func ownNativeFiles(stageDir string, built *build.Result) ([]string, error) {
 // package is packed from, into a directory under temp, and strips the debug
 // information of its native files there, all of them made by the builds of
 // the package: the stage is that of the build, which the package in .rocks
-// was installed from, and stays as it is. It returns the copy, with the
-// cleanup that removes it.
-func strippedStage(ctx context.Context, temp, stage string) (string, func(), error) {
+// was installed from, and stays as it is. target is the platform the build
+// was for (stripCommandOf). It returns the copy, with the cleanup that
+// removes it.
+func strippedStage(ctx context.Context, temp, stage string, target native.Platform) (
+	string, func(), error,
+) {
 	dir, err := os.MkdirTemp(temp, "stripped-")
 	if err != nil {
 		return "", nil, fmt.Errorf("creating a directory under %s: %w", temp, err)
@@ -204,7 +240,7 @@ func strippedStage(ctx context.Context, temp, stage string) (string, func(), err
 
 	err = copyTree(stage, copied)
 	if err == nil {
-		err = stripStage(ctx, copied)
+		err = stripStage(ctx, copied, target)
 	}
 
 	if err != nil {
@@ -216,8 +252,9 @@ func strippedStage(ctx context.Context, temp, stage string) (string, func(), err
 	return copied, cleanup, nil
 }
 
-// stripStage strips the debug information of the native files of stage.
-func stripStage(ctx context.Context, stage string) error {
+// stripStage strips the debug information of the native files of stage,
+// which a build for target made.
+func stripStage(ctx context.Context, stage string, target native.Platform) error {
 	natives, err := native.Files(stage)
 	if err != nil {
 		return err
@@ -228,5 +265,5 @@ func stripStage(ctx context.Context, stage string) error {
 		files = append(files, filepath.Join(stage, filepath.FromSlash(file.Name)))
 	}
 
-	return stripDebugInfo(ctx, files)
+	return stripDebugInfo(ctx, files, target)
 }

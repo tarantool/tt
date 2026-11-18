@@ -28,8 +28,8 @@ const (
 	// FormatTt is the .tt archive of the package: an application to install.
 	FormatTt = "tt"
 	// FormatRock is the rock of the package, for other projects to depend
-	// on: the binary rock of the host, or the .all rock of a package with no
-	// native file, and its rockspec beside it.
+	// on: the binary rock of the platform it was built for, or the .all rock
+	// of a package with no native file, and its rockspec beside it.
 	FormatRock = "rock"
 	// FormatRockSrc is the source rock of the package, for a platform with
 	// no binary rock: the rockspec of the rock and the files of the project,
@@ -53,6 +53,10 @@ const (
 	sourcePath = "path"
 	// tarantoolRock is the name a rockspec depends on Tarantool by.
 	tarantoolRock = "tarantool"
+	// darwinOS is the GOOS of macOS, and luaRocksDarwin the name LuaRocks
+	// gives it, in the arch of a rock and in its supported_platforms.
+	darwinOS       = "darwin"
+	luaRocksDarwin = "macosx"
 )
 
 // nativeModuleExts end the names of the native modules Tarantool loads: .so,
@@ -71,6 +75,11 @@ var (
 	// errNoRock reports a product packed as a rock that has no rock of its
 	// own (manifest.ProductRock).
 	errNoRock = errors.New("the product has no rock of its own")
+	// errCrossDeps reports a .tt archive with its dependencies of a build
+	// for another platform: the runtime and the dependencies it carries are
+	// those of the machine.
+	errCrossDeps = errors.New("a .tt archive with its dependencies is packed for the " +
+		"machine tt runs on alone")
 )
 
 // checkFormats reports a format pack does not make, or options of the .tt
@@ -84,6 +93,14 @@ func checkFormats(opts Options) error {
 	}
 
 	if opts.makes(FormatTt) {
+		if opts.cross() && !opts.WithoutDeps {
+			return stateErrorf("%w, %s: its _runtime/ is the Tarantool and the tt of this "+
+				"machine, and its .rocks/ the dependencies built for it; pack the archive for "+
+				"%s with --without-deps, whose dependencies are installed where it is "+
+				"installed, or pack --format rock", errCrossDeps, native.Host(),
+				opts.Build.Target)
+		}
+
 		return nil
 	}
 
@@ -95,6 +112,14 @@ func checkFormats(opts Options) error {
 	}
 
 	return nil
+}
+
+// cross reports whether the pack builds the package for another platform
+// than the machine tt runs on (build.Options.Target).
+func (opts Options) cross() bool {
+	target := opts.Build.Target
+
+	return target != (native.Platform{OS: "", Arch: ""}) && target != native.Host()
 }
 
 // makes reports whether the pack makes format.
@@ -189,7 +214,8 @@ type rockResult struct {
 // installed into .rocks/, but for other projects: it leaves rocks.lua out,
 // the rocks being theirs to resolve, and its rockspec declares the ranges of
 // the manifest, as rock, which declareRock made before the build, has them.
-// It is the binary rock of the host when the stage holds a native
+// It is the binary rock of the platform the build was for - the host, or the
+// target of a build for another platform - when the stage holds a native
 // file or a file in lib/, and an .all rock otherwise, so the arch of a rock
 // is never a choice: a module built for the host in an .all rock would
 // install on any machine and fail there.
@@ -218,8 +244,7 @@ func packRocks(
 	result := rockResult{Rock: "", SrcRock: "", Rockspec: filepath.Join(dir, base+rockspecExt)}
 
 	if opts.makes(FormatRock) {
-		result.Rock, err = packBinaryRock(ctx, opts, built.Manifest, built.Stage,
-			built.RocksLua, dir, spec)
+		result.Rock, err = packBinaryRock(ctx, opts, built, dir, spec)
 		if err != nil {
 			return rockResult{}, err
 		}
@@ -272,16 +297,18 @@ func componentPaths(man *manifest.Manifest, product string) []string {
 	return paths
 }
 
-// packBinaryRock packs stage as the rock of spec into dir and returns its
-// path: the binary rock of the host, or the .all rock (rockArch), with the
-// license files of the package in its doc/ and without rocksLua, the
-// rocks.lua of the stage if the build generated one (rockFiles), and its
-// native files without their debug information when the pack strips it
-// (strippedStage).
+// packBinaryRock packs the stage of built as the rock of spec into dir and
+// returns its path: the binary rock of the platform the build was for, or
+// the .all rock (rockArch), with the license files of the package in its
+// doc/ and without the rocks.lua of the stage, if the build generated one
+// (rockFiles), and its native files without their debug information when
+// the pack strips it (strippedStage).
 func packBinaryRock(ctx context.Context,
-	opts Options, man *manifest.Manifest, stage, rocksLua, dir string, spec *luarocks.Rockspec,
+	opts Options, built *build.Result, dir string, spec *luarocks.Rockspec,
 ) (string, error) {
-	arch, err := rockArch(stage)
+	man, stage, rocksLua := built.Manifest, built.Stage, built.RocksLua
+
+	arch, err := rockArch(stage, built.Target)
 	if err != nil {
 		return "", err
 	}
@@ -306,7 +333,7 @@ func packBinaryRock(ctx context.Context,
 	}
 
 	if opts.stripsDebugInfo() {
-		stripped, cleanup, err := strippedStage(ctx, temp, stage)
+		stripped, cleanup, err := strippedStage(ctx, temp, stage, built.Target)
 		if err != nil {
 			return "", err
 		}
@@ -407,25 +434,26 @@ func rockFiles(
 	})
 }
 
-// rockArch is the LuaRocks arch of the rock of stage: the host's when it holds
-// a native file, ELF or Mach-O, which has to be one of the host
+// rockArch is the LuaRocks arch of the rock of stage, which a build for
+// target made (build.Result.Target): that of target (rockArchOf) when it
+// holds a native file, ELF or Mach-O, which has to be one of target
 // (checkNativeFiles), or a file in lib/ named as a native module is
 // (holdsModules); all otherwise, whatever else lib/ holds - a .wasm that a
 // build put among the modules runs anywhere, as the .tt archive of the same
 // files says (native.Files).
-func rockArch(stage string) (string, error) {
+func rockArch(stage string, target native.Platform) (string, error) {
 	natives, err := native.Files(stage)
 	if err != nil {
 		return "", fmt.Errorf("finding the native files of the rock: %w", err)
 	}
 
-	err = checkNativeFiles(natives, native.Host())
+	err = checkNativeFiles(natives, target)
 	if err != nil {
 		return "", err
 	}
 
 	if len(natives) > 0 {
-		return remote.HostArch(), nil
+		return rockArchOf(target), nil
 	}
 
 	hasModules, err := holdsModules(filepath.Join(stage, stageLib))
@@ -434,10 +462,32 @@ func rockArch(stage string) (string, error) {
 	}
 
 	if hasModules {
-		return remote.HostArch(), nil
+		return rockArchOf(target), nil
 	}
 
 	return rockArchAll, nil
+}
+
+// rockArchOf is the LuaRocks arch of the binary rocks of platform, as
+// LuaRocks names the arch of a machine (cfg.arch): <os>-<cpu>, macosx for
+// darwin, x86_64 and aarch64 for amd64 and arm64. It is remote.HostArch for
+// the machine tt runs on, the arch the rocks of a project are installed of.
+func rockArchOf(platform native.Platform) string {
+	if platform == native.Host() {
+		return remote.HostArch()
+	}
+
+	osName := platform.OS
+	if osName == darwinOS {
+		osName = luaRocksDarwin
+	}
+
+	cpu := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[platform.Arch]
+	if cpu == "" {
+		cpu = platform.Arch
+	}
+
+	return osName + "-" + cpu
 }
 
 // holdsModules reports whether the directory dir holds a file named as a
@@ -613,8 +663,8 @@ func rockPlatforms(platforms []string) []string {
 		switch goos {
 		case "linux":
 			name = "linux"
-		case "darwin":
-			name = "macosx"
+		case darwinOS:
+			name = luaRocksDarwin
 		default:
 			return nil
 		}

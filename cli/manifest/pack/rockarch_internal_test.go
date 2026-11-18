@@ -4,12 +4,15 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-luarocks/remote"
+
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
 // wasmComponent is the preamble of a WebAssembly component, which is
@@ -74,11 +77,60 @@ func TestRockArch(t *testing.T) {
 			stage := t.TempDir()
 			writeTree(t, stage, test.files)
 
-			arch, err := rockArch(stage)
+			arch, err := rockArch(stage, native.Host())
 			require.NoError(t, err)
 			assert.Equal(t, test.arch, arch)
 		})
 	}
+}
+
+// TestRockArchOf checks the LuaRocks arch of a platform: that of go-luarocks
+// for the machine, and the names LuaRocks gives the others.
+func TestRockArchOf(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, remote.HostArch(), rockArchOf(native.Host()))
+
+	for platform, arch := range map[native.Platform]string{
+		{OS: "linux", Arch: "amd64"}:  "linux-x86_64",
+		{OS: "linux", Arch: "arm64"}:  "linux-aarch64",
+		{OS: "darwin", Arch: "amd64"}: "macosx-x86_64",
+		{OS: "darwin", Arch: "arm64"}: "macosx-aarch64",
+	} {
+		assert.Equal(t, arch, rockArchOf(platform), platform.String())
+	}
+}
+
+// TestRockArchOfATarget checks that the rock of a build for another platform
+// is the binary rock of that platform, and that a native file of the machine
+// in it fails the pack, as one of another platform fails that of the
+// machine.
+func TestRockArchOfATarget(t *testing.T) {
+	t.Parallel()
+
+	other := native.Platform{OS: runtime.GOOS, Arch: "arm64"}
+	if runtime.GOARCH == "arm64" {
+		other.Arch = "amd64"
+	}
+
+	stage := t.TempDir()
+	writeTree(t, stage, map[string]string{"lib/app/fast.so": "not a binary"})
+
+	arch, err := rockArch(stage, other)
+	require.NoError(t, err)
+	assert.Equal(t, rockArchOf(other), arch)
+
+	host, err := os.Executable()
+	require.NoError(t, err)
+
+	program, err := os.ReadFile(host)
+	require.NoError(t, err)
+
+	writeTree(t, stage, map[string]string{"lib/app/fast.so": string(program)})
+
+	_, err = rockArch(stage, other)
+	require.ErrorIs(t, err, errForeignNative)
+	assert.Contains(t, err.Error(), "the archive is packed for "+other.String())
 }
 
 // wasmLibraryManifest is a library whose build puts a WebAssembly component
