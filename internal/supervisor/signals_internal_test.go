@@ -57,11 +57,11 @@ func TestReloadSignalOfSpec(t *testing.T) {
 	cases := []struct {
 		name   string
 		reload syscall.Signal
-		want   []string
+		want   []syscall.Signal
 	}{
 		{name: "another signal", reload: syscall.SIGUSR1,
-			want: []string{syscall.SIGUSR1.String(), syscall.SIGUSR2.String()}},
-		{name: "none", reload: 0, want: []string{syscall.SIGUSR2.String()}},
+			want: []syscall.Signal{syscall.SIGUSR1, syscall.SIGUSR2}},
+		{name: "none", reload: 0, want: []syscall.Signal{syscall.SIGUSR2}},
 	}
 
 	for _, test := range cases {
@@ -89,12 +89,22 @@ func TestReloadSignalOfSpec(t *testing.T) {
 			waitReady(t, dir, started.Pid)
 
 			// SIGUSR2, forwarded after it, marks when the reload is over.
+			// The engine sends the two in that order, but the child may
+			// record them the other way round: each of its threads can take
+			// one of them from the kernel, and the one that runs its handler
+			// first is recorded first. So every signal wanted is waited
+			// for, and the records are compared regardless of their order.
 			sup.send(syscall.SIGHUP, syscall.SIGUSR2)
-			waitSignals(t, dir, started.Pid, syscall.SIGUSR2)
+			waitSignals(t, dir, started.Pid, test.want...)
+
+			want := make([]string, 0, len(test.want))
+			for _, sig := range test.want {
+				want = append(want, sig.String())
+			}
 
 			recorded, err := os.ReadFile(helperFile(dir, "signals", started.Pid))
 			require.NoError(t, err)
-			assert.Equal(t, test.want, strings.Split(strings.TrimSpace(string(recorded)), "\n"))
+			assert.ElementsMatch(t, want, strings.Split(strings.TrimSpace(string(recorded)), "\n"))
 			assert.Equal(t, int32(1), reloads.Load())
 
 			sup.send(syscall.SIGTERM)
