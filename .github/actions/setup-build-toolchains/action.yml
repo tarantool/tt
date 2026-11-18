@@ -3,9 +3,11 @@ description: >-
   Installs what the tests of the build backends (modules/build, the cargo
   and native library tests of test/integration/package) need beyond the CE
   environment, so that they run instead of skipping: Rust with the musl
-  target of the host on Linux, zig with a checkout of zig-tarantool
-  (TT_TEST_ZIG_TARANTOOL), and zlib known to pkg-config on macOS. Run it
-  after prepare-ce-test-env, which installs Go, cc, cmake and Tarantool.
+  target of the host on Linux and the gnu and musl targets of the other
+  architecture of Linux, which the cargo builds for another platform link
+  with zig, zig with a checkout of zig-tarantool (TT_TEST_ZIG_TARANTOOL),
+  and zlib known to pkg-config on macOS. Run it after prepare-ce-test-env,
+  which installs Go, cc, cmake and Tarantool.
 
 inputs:
   zig-version:
@@ -19,14 +21,16 @@ runs:
   using: composite
   steps:
     # The hosted images have rustup; the action makes the toolchain the same
-    # on all of them and adds the target a static program is built for.
+    # on all of them and adds the target a static program is built for, and
+    # those of the other architecture, which a build for it links with zig.
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
       with:
         toolchain: stable
         targets: >-
-          ${{ runner.os == 'Linux' &&
-          (runner.arch == 'ARM64' && 'aarch64-unknown-linux-musl' || 'x86_64-unknown-linux-musl') || '' }}
+          ${{ runner.os == 'Linux' && (runner.arch == 'ARM64' &&
+          'aarch64-unknown-linux-musl,x86_64-unknown-linux-gnu,x86_64-unknown-linux-musl' ||
+          'x86_64-unknown-linux-musl,aarch64-unknown-linux-gnu,aarch64-unknown-linux-musl') || '' }}
 
     - name: Set up zig
       uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1

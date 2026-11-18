@@ -913,7 +913,9 @@ needs.
 
 - A program needs no loader and no shared library. `go`, `cargo` and
   `zig` are asked to build one so, for Linux only - `cargo` builds the
-  binary for musl, and the module of the same block as any module; `zig`
+  binary for musl, the target `<arch>-unknown-linux-musl`, which the build
+  checks is installed and `rustup target add` installs, and the module of
+  the same block as any module; `zig`
   builds a program of a block without a module for musl, `-Dtarget=<arch>-linux-musl`,
   when the `build.zig` takes `-Dtarget` and `options` names no `target`,
   and one of a block with a module for the target of the module; what
