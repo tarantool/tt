@@ -203,11 +203,16 @@ func (e *Engine) ResolveDevExtra(
 func (e *Engine) resolveOnce(
 	ctx context.Context, man *manifest.Manifest, pins Pins,
 ) (*manifest.Lock, []string, error) {
+	// The runtime pins are the caller's: they come from bundle sources and
+	// installations, not from rock servers (cli/manifest/runtimepin).
 	lock := &manifest.Lock{
 		LockVersion:      manifest.LockVersion,
 		ManifestVersion:  man.ManifestVersion,
 		GeneratedBy:      e.generatedBy,
 		ManifestHash:     man.Hash(),
+		Tarantool:        "",
+		Tt:               "",
+		Tcm:              "",
 		BundledTarantool: "",
 		BundledTt:        "",
 		BundledTcm:       "",

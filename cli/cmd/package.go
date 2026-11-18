@@ -32,9 +32,11 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
 	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/runtimepin"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 	oldrocks "github.com/tarantool/tt/v3/cli/rocks"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/binary"
 	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 	"github.com/tarantool/tt/v3/internal/systemd"
@@ -335,7 +337,10 @@ func newPackageUpdateCmd() *cobra.Command {
 			"asked for. With NAME only that dependency is freed and every other " +
 			"version is held, so the diff stays confined to it and whatever its " +
 			"new version requires. No declaration is changed — app.manifest.toml " +
-			"is not touched at all — and nothing is fetched into .rocks/.",
+			"is not touched at all — and nothing is fetched into .rocks/. With no " +
+			"NAME the versions of tarantool, tt and TCM the lock pins are chosen " +
+			"afresh too, as tt package resolve chooses a missing one: the " +
+			"installation of the project first.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := ""
@@ -357,7 +362,7 @@ func runPackageUpdate(name string) error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	opts, err := dependencyOptions()
+	opts, err := runtimeDependencyOptions(ctx)
 	if err != nil {
 		return err
 	}
@@ -382,7 +387,17 @@ func newPackageResolveCmd() *cobra.Command {
 			"build. Nothing is fetched into .rocks/ and no component build " +
 			"backend runs. Every version the lock already holds is kept: a hand " +
 			"edit to one dependency is not a request to upgrade the others, and " +
-			"pulling newer registry versions is what tt package update is for.",
+			"pulling newer registry versions is what tt package update is for. " +
+			"The lock pins the exact tarantool, tt and, with [platform].tcm, TCM " +
+			"the project runs on too, in tarantool_version, tt_version and " +
+			"tcm_version: a pin that still satisfies [platform] is kept; else the " +
+			"version installed in the project is pinned, the active one first; " +
+			"else the tarantool and the tt this tt runs with; else the newest " +
+			"release the sources of prebuilt archives have, those tt binary " +
+			"install takes. A program none of them has a version of is left " +
+			"unpinned with a warning. tt package download mirrors the pinned " +
+			"programs, tt binary install installs them and tt package pack " +
+			"bundles them.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackageResolve())
@@ -399,7 +414,7 @@ func runPackageResolve() error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	opts, err := dependencyOptions()
+	opts, err := runtimeDependencyOptions(ctx)
 	if err != nil {
 		return err
 	}
@@ -466,6 +481,7 @@ func runPackageDeps(format *output.FormatFlag) error {
 		Logger:   nil,
 		Warn:     func(msg string) { log.Warn(msg) },
 		Backends: buildreg.Process(),
+		Runtime:  nil,
 	})
 	if err != nil {
 		return err
@@ -526,7 +542,42 @@ func dependencyOptionsWith(
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 		Backends:   buildreg.Process(),
+		Runtime:    nil,
 	}, nil
+}
+
+// runtimeDependencyOptions is dependencyOptions for the commands that pin the
+// runtime of the project in its lock too: tt package resolve and tt package
+// update.
+func runtimeDependencyOptions(ctx context.Context) (deps.Options, error) {
+	opts, err := dependencyOptions()
+	if err != nil {
+		return opts, err
+	}
+
+	opts.Runtime = runtimePinning(ctx, opts.ProjectDir, opts.Tarantool)
+
+	return opts, nil
+}
+
+// runtimePinning says where tt package resolve and tt package update look
+// for the versions of tarantool, tt and TCM they pin in the lock of the
+// project in projectDir (runtimepin.Pin): its installations, the tarantool
+// of tntInfo and this tt, and the sources of prebuilt archives.
+func runtimePinning(ctx context.Context, projectDir string,
+	tntInfo manifestrocks.TarantoolInfo,
+) *runtimepin.Options {
+	flavor := ""
+	if tntInfo.Executable != "" {
+		flavor = pack.DetectTarantoolFlavor(ctx, tntInfo.Executable)
+	}
+
+	return &runtimepin.Options{
+		ProjectRoot: scope.ProjectRoot(projectDir),
+		Tarantool:   runtimepin.Active{Version: tntInfo.Version, Flavor: flavor},
+		Tt:          runtimepin.Active{Version: coreVersion(), Flavor: ""},
+		Releases:    binary.ReleaseIDs,
+	}
 }
 
 // printResolution reports a run that resolved the lock again without editing

@@ -174,16 +174,28 @@ func checkLock(dir string, exe Executable) []string {
 			lockFileName, err)}
 	}
 
-	if !found || lock.BundledTarantool == "" {
+	if !found {
+		return nil
+	}
+
+	// A project's own lock pins its tarantool (tarantool_version); the lock
+	// of an application unpacked from an archive says what the archive
+	// bundles as well, and that is what it was packed with.
+	wanted, verb := lock.BundledTarantool, "bundles"
+	if wanted == "" {
+		wanted, verb = lock.Tarantool, "pins"
+	}
+
+	if wanted == "" {
 		return nil
 	}
 
 	// The lock records the version alone, so an installation of that
-	// version is taken for the bundled tarantool whichever product it is.
-	if slices.Contains(installationIDs(exe.Program, lock.BundledTarantool), exe.Version) {
+	// version is taken for the locked tarantool whichever product it is.
+	if slices.Contains(installationIDs(exe.Program, wanted), exe.Version) {
 		return nil
 	}
 
-	return []string{fmt.Sprintf("the project runs %s %s (%s), but %s bundles %s",
-		exe.Program, exe.Version, exe.Path, lockFileName, lock.BundledTarantool)}
+	return []string{fmt.Sprintf("the project runs %s %s (%s), but %s %s %s",
+		exe.Program, exe.Version, exe.Path, lockFileName, verb, wanted)}
 }

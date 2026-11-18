@@ -4691,6 +4691,14 @@ hand gets its lock back in step without waiting for a build. Nothing is fetched
 into .rocks/ and no component build backend runs. Every version the lock already
 holds is kept: a hand edit to one dependency is not a request to upgrade the
 others, and pulling newer registry versions is what tt package update is for.
+The lock pins the exact tarantool, tt and, with [platform].tcm, TCM the project
+runs on too, in tarantool_version, tt_version and tcm_version: a pin that still
+satisfies [platform] is kept; else the version installed in the project is
+pinned, the active one first; else the tarantool and the tt this tt runs with;
+else the newest release the sources of prebuilt archives have, those tt binary
+install takes. A program none of them has a version of is left unpinned with a
+warning. tt package download mirrors the pinned programs, tt binary install
+installs them and tt package pack bundles them.
 
 USAGE
   tt package resolve [flags]
@@ -4803,7 +4811,9 @@ never makes a lock stale by itself, so a build keeps the versions it has until
 an update is asked for. With NAME only that dependency is freed and every other
 version is held, so the diff stays confined to it and whatever its new version
 requires. No declaration is changed — app.manifest.toml is not touched at all —
-and nothing is fetched into .rocks/.
+and nothing is fetched into .rocks/. With no NAME the versions of tarantool, tt
+and TCM the lock pins are chosen afresh too, as tt package resolve chooses a
+missing one: the installation of the project first.
 
 USAGE
   tt package update [NAME] [flags]

@@ -197,8 +197,25 @@ func TestResolveProjectLockMismatch(t *testing.T) {
 		active  installation
 		lock    string // Lock contents; empty means no lock.
 		bundled string
+		pinned  string // tarantool_version of the lock.
 		warning string // Empty means no warning.
 	}{
+		{
+			name:   "pinned",
+			active: ce("3.8.1"), pinned: "3.8.1",
+		},
+		{
+			name:   "pinned another version",
+			active: ce("3.8.1"), pinned: "3.9.0",
+			warning: "the project runs tarantool 3.8.1 (%s), " +
+				"but app.manifest.lock pins 3.9.0",
+		},
+		{
+			name:   "bundled over pinned",
+			active: ce("3.8.1"), pinned: "3.8.1", bundled: "3.9.0",
+			warning: "the project runs tarantool 3.8.1 (%s), " +
+				"but app.manifest.lock bundles 3.9.0",
+		},
 		{
 			name:   "matching",
 			active: ce("3.8.1"), bundled: "3.8.1",
@@ -246,6 +263,8 @@ func TestResolveProjectLockMismatch(t *testing.T) {
 			dir, target := project(t, testCase.active)
 
 			switch {
+			case testCase.pinned != "":
+				writePinnedLock(t, dir, testCase.bundled, testCase.pinned)
 			case testCase.bundled != "" || testCase.lock == "write":
 				writeLock(t, dir, testCase.bundled)
 			case testCase.lock != "":

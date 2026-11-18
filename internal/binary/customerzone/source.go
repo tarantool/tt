@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -32,7 +33,10 @@ type Source struct {
 	credentialsFile string
 }
 
-var _ bundle.FlagSource = (*Source)(nil)
+var (
+	_ bundle.FlagSource      = (*Source)(nil)
+	_ binary.PromptingSource = (*Source)(nil)
+)
 
 // New returns the customer zone. It logs in with the credentials of
 // --credentials-file, or of TT_CLI_EE_USERNAME and TT_CLI_EE_PASSWORD, or
@@ -59,6 +63,14 @@ func (*Source) Products() []string {
 func (s *Source) RegisterFlags(_ string, flags *pflag.FlagSet) {
 	flags.StringVar(&s.credentialsFile, credentialsFlag, "",
 		"File containing customer-zone login and password on separate lines")
+}
+
+// Prompts implements binary.PromptingSource: the customer zone asks for the
+// login and the password when neither --credentials-file nor
+// TT_CLI_EE_USERNAME and TT_CLI_EE_PASSWORD give them.
+func (s *Source) Prompts() bool {
+	return s.credentialsFile == "" && os.Getenv(connect.EnvSdkUsername) == "" &&
+		os.Getenv(connect.EnvSdkPassword) == ""
 }
 
 // List implements bundle.Source.
