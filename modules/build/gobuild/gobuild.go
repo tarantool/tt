@@ -4,9 +4,11 @@
 // component are not laid out unless its include names them: Go sources are
 // no files of a package, and the fixtures of their tests are not either.
 //
-// The target platform is that of the build, GOOS and GOARCH, and cgo is off
-// unless the block turns it on: a program without cgo is static and runs
-// whatever the glibc of the machine it is installed on.
+// The target platform is that of the build, GOOS and GOARCH, another than
+// the machine tt runs on too (build.Backend.Cross), and cgo is off unless
+// the block turns it on: a program without cgo is static and runs whatever
+// the glibc of the machine it is installed on. A build with cgo is made for
+// the machine alone, whose C compiler cgo runs.
 //
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
@@ -74,7 +76,9 @@ func Backend() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: true,
 		Hook:           false,
-		Cross:          false,
+		// go builds for another platform with GOOS and GOARCH, but with cgo
+		// (Preflight).
+		Cross: true,
 	}
 }
 
@@ -136,11 +140,23 @@ func (b goBuild) Programs() ([]string, bool) {
 	return []string{b.program}, true
 }
 
-// Preflight checks that a static program is not asked for darwin and that go
-// is in the PATH of the build.
+// Preflight checks that a static program is not asked for darwin, that a
+// build for another platform than the machine tt runs on is made without
+// cgo, and that go is in the PATH of the build.
+//
+// go compiles and links the Go of a program for any platform it has a port
+// to, but cgo compiles the C of the program with the C compiler of CC, the
+// machine's: a build with cgo = true for another platform is refused,
+// wrapping build.ErrTarget, rather than fail at the compile.
 func (b goBuild) Preflight(_ context.Context, c *build.Context) error {
 	if b.static && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
+	}
+
+	if b.config.Cgo && c.Target.Cross() {
+		return fmt.Errorf("%w: cgo = true compiles C with the C compiler of the machine, %s, "+
+			"and the build is for %s; build it there, or without cgo", build.ErrTarget,
+			build.HostTarget(), c.Target)
 	}
 
 	_, err := c.LookPath(goTool)
