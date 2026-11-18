@@ -1,0 +1,74 @@
+name: SDK API
+
+# Fails a pull request that changes the API of an SDK module, a go.mod under
+# sdk/, incompatibly with its merge base: a module built outside tt on the
+# SDK before it may no longer build. A compatible change is only listed in
+# the summary. The sdk-breaking label lets an incompatible change through:
+# adding or removing a label runs the check again, and the newest run on the
+# head is the one the check of the pull request shows.
+#
+# The check run of the job sdk-api is what the rules of v3 require. It is not
+# a part of ci-ok: a pull request from a branch of this repository gets ci-ok
+# from the push of the branch, which has no labels, and a label runs no push.
+# So the workflow runs for pull requests only, from forks too, with a
+# read-only token and no secrets; a skipped job of the same name in a push
+# run would leave a passing check of that name on the same commit. A pull
+# request that changes nothing under sdk/ passes in a few seconds.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  # The run of a later event of the same head, a label, replaces the running one.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.27.4'
+
+jobs:
+  sdk-api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The go.mod and go.sum of the modules are under sdk/ too, so a change
+      # of a dependency of the SDK is compared as well.
+      - name: Look for changes of the SDK
+        id: sdk
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          base=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          if git diff --quiet "$base" "$HEAD_SHA" -- sdk; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            echo "Nothing under sdk/ changed since the merge base $base." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.sdk.outputs.changed == 'true'
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: '**/go.sum'
+
+      - name: Install apidiff
+        if: steps.sdk.outputs.changed == 'true'
+        run: go install golang.org/x/exp/cmd/apidiff@v0.0.0-20261014143641-f0251eb4aa3e
+
+      - name: Compare the SDK API with the merge base
+        if: steps.sdk.outputs.changed == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 ci/pr_notes.py api --base "$BASE_SHA" --head "$HEAD_SHA"

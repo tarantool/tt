@@ -104,6 +104,46 @@ $ mage lint:spell
 $ mage lint:modules  # go.mod and go.sum are tidy and verified
 ```
 
+## Pull requests
+
+CI checks the head of a pull request: `ci-ok` sums up the tests and the
+linters, and `sdk-api` checks the API of the SDK. The notes of the
+`pr-notes` job, gitlint of the commit messages and whether `CHANGELOG.md`
+changed, never fail. Labels of the pull request change what runs:
+
+- `full-ci` runs the full CI as well, whose status is `full-ok`;
+- `no-changelog` tells the notes that the change needs no entry in
+  `CHANGELOG.md`;
+- `sdk-breaking` lets an incompatible change of the SDK API through.
+
+### The API of the SDK
+
+A tt module written outside this repository builds on the SDK, the Go
+modules under `sdk/`, at a commit of tt (see
+[Write a tt module](how-to/write-a-module.md)). `sdk-api` compares the API
+of every SDK module of a pull request with that of its merge base, with
+[apidiff](https://pkg.go.dev/golang.org/x/exp/cmd/apidiff), and fails on an
+incompatible change: an exported name removed or changed, a constant given
+another value, a method added to an interface that a module could
+implement, `sdk.Services` or `sdk.Project` say, a package or a module
+removed. A compatible change - a new name, package or module - passes and
+is listed in the summary of the check. A pull request that changes nothing
+under `sdk/`, where the `go.mod` and `go.sum` of the modules are too, passes
+at once.
+
+An incompatible change made on purpose needs the `sdk-breaking` label:
+adding or removing a label runs the check again, and with the label it
+passes and lists the changes. The check runs locally too, with the apidiff
+CI installs:
+
+```console
+$ go install golang.org/x/exp/cmd/apidiff@v0.0.0-20261014143641-f0251eb4aa3e
+$ python3 ci/pr_notes.py api --base origin/v3 --head HEAD
+```
+
+It exits with 1 on an incompatible change; `--allow-incompatible` reports
+the change and exits with 0.
+
 ## The documentation
 
 The site is built from `doc/` with [Zensical](https://zensical.org/)
