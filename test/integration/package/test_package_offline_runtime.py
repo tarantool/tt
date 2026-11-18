@@ -282,6 +282,33 @@ def test_binary_install_checks_the_sha256_of_the_mirror(tt_cmd, mirror, airgap):
     assert not installation.exists()
 
 
+def test_package_install_keeps_share_and_license(tt_cmd, project, tmp_path):
+    """tt package install lays the tarantool a with-deps archive bundles as tt
+    binary installs it: with share/tarantool, the EmmyLua stubs among it, and
+    the license files, not the executable and the headers alone."""
+    env = offline_env(XDG_CACHE_HOME=str(tmp_path / "cache"))
+    packed = run(tt_cmd, project, "package", "pack", env=env)
+    assert packed.returncode == 0, packed.stderr
+    archives = list((project / "_build" / "pack").glob("*.tt"))
+    assert len(archives) == 1, archives
+
+    host = make_project(tmp_path / "host")
+    manifest = host / "app.manifest.toml"
+    manifest.write_text(manifest.read_text().replace("'offline-app'", "'host'"))
+
+    installed = run(tt_cmd, host, "package", "install", str(archives[0]), env=env)
+    assert installed.returncode == 0, installed.stderr
+
+    installation = host / ".tarantool" / "versions" / "tarantool" / f"tarantool_{TARANTOOL}"
+    assert (installation / "tarantool").is_file()
+    assert (installation / "include" / "tarantool" / "module.h").is_file()
+    assert (installation / "share" / "tarantool" / "emmylua" / "box.lua").read_text() == (
+        "---@meta\n"
+    )
+    assert (installation / "LICENSE").read_text() == "the license of tarantool\n"
+    assert (installation / "AUTHORS").read_text() == "the authors of tarantool\n"
+
+
 def test_download_without_a_pin_fails(tt_cmd, tmp_path):
     """A program the lock pins no version of cannot be mirrored: the download
     says that tt package resolve pins it."""

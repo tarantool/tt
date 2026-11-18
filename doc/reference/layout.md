@@ -197,9 +197,17 @@ VERSION
 .templates/...
 .rocks/...
 _runtime/tarantool/bin/tarantool
+_runtime/tarantool/include/tarantool/...
+_runtime/tarantool/share/tarantool/...   # the EmmyLua stubs of 3.9 and later among them
+_runtime/tarantool/LICENSE, AUTHORS
 _runtime/tt/bin/tt
 _runtime/tcm/bin/tcm           # with [platform].tcm set
 ```
+
+`tt package install` lays each component of `_runtime/` out under
+`versions/` of the scope as `tt binary install` lays the product out: the
+executable and the license files at the top and, of tarantool,
+`include/tarantool/` and `share/tarantool/`.
 
 A signed archive also has `hashes.json`, `env_hashes.json` and their `.sig`
 files; see [Sign packages](../how-to/sign-packages.md).

@@ -406,6 +406,42 @@ func TestBundleRuntimeFromProjectInstallations(t *testing.T) {
 	assert.FileExists(t, filepath.Join(stageDir, "_runtime", "tt", "bin", "tt"))
 }
 
+// TestBundleRuntimeTakesTheWholeInstallation: what tt binary installed of a
+// tarantool goes into _runtime/ - the headers, share/tarantool with the
+// EmmyLua stubs, the license and the list of the authors - so that tt
+// package install lays out the installation tt binary would.
+func TestBundleRuntimeTakesTheWholeInstallation(t *testing.T) {
+	root := t.TempDir()
+	fakeInstallation(t, root, binary.ProgramCe, "3.9.0")
+	fakeInstallation(t, root, binary.ProgramTt, "3.0.0")
+	writeTree(t, binary.InstallationPath(root, binary.ProgramCe, "3.9.0"), map[string]string{
+		"share/tarantool/emmylua/box.lua": "---@meta\n",
+		"LICENSE":                         "BSD-2-Clause",
+		"AUTHORS":                         "the authors",
+	})
+
+	stageDir := t.TempDir()
+
+	_, err := bundleRuntime(stageDir, RuntimeOptions{
+		CacheDir:    filepath.Join(t.TempDir(), "empty"),
+		ProjectRoot: root,
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=3.0.0,<4.0.0"),
+		},
+	})
+	require.NoError(t, err)
+
+	tarantool := filepath.Join(stageDir, "_runtime", "tarantool")
+	assert.FileExists(t, filepath.Join(tarantool, "share", "tarantool", "emmylua", "box.lua"))
+	assert.FileExists(t, filepath.Join(tarantool, "include", "tarantool", "module.h"))
+	assert.FileExists(t, filepath.Join(tarantool, "LICENSE"))
+
+	authors, err := os.ReadFile(filepath.Join(tarantool, "AUTHORS"))
+	require.NoError(t, err)
+	assert.Equal(t, "the authors", string(authors))
+}
+
 // TestBundleRuntimeProjectInstallationsKeepFlavorAndCache: an [ee]
 // requirement takes the Enterprise installation and never the Community one,
 // an SDK component is not taken, and the cache still comes first.

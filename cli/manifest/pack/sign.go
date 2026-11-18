@@ -107,8 +107,9 @@ func signStage(stageDir, projectDir string, signer integrity.Signer) error {
 // signRuntime signs the bundled component name, when the archive carries it,
 // in the layout tt package install lays it out in, which is the layout of a
 // tt binary installation: the executable at the top, taken from bin/ or from
-// the top of the component, and for tarantool the headers under
-// include/tarantool/ (install's runtimeMapper). Nothing else of the component
+// the top of the component, the license files at the top, and for tarantool
+// the headers under include/tarantool/ and the Lua files under
+// share/tarantool/ (install's runtimeMapper). Nothing else of the component
 // is installed, so nothing else is listed. The hashes file goes into the
 // component in _runtime/, and install lays it next to the executable.
 func signRuntime(stageDir, name string, signer integrity.Signer) error {
@@ -130,13 +131,24 @@ func signRuntime(stageDir, name string, signer integrity.Signer) error {
 
 	files := []integrity.SignedFile{{Path: name, Source: executable}}
 
-	if name == runtimeTarantool {
-		headers, err := runtimeHeaders(dir, name)
-		if err != nil {
-			return err
-		}
+	for _, license := range tarantoolLicenseFiles {
+		source := filepath.Join(dir, license)
 
-		files = append(files, headers...)
+		info, err := os.Stat(source)
+		if err == nil && info.Mode().IsRegular() {
+			files = append(files, integrity.SignedFile{Path: license, Source: source})
+		}
+	}
+
+	if name == runtimeTarantool {
+		for _, tree := range []string{path.Join(includeDirName, name), runtimeShareDir} {
+			signed, err := runtimeTree(dir, tree, name)
+			if err != nil {
+				return err
+			}
+
+			files = append(files, signed...)
+		}
 	}
 
 	err = signer.SignFiles(dir, files)
@@ -172,17 +184,18 @@ func runtimeExecutable(dir, name string) (string, error) {
 	}
 }
 
-// runtimeHeaders lists the headers of the bundled tarantool in dir under
-// include/<name>/, by the paths they are installed at.
-func runtimeHeaders(dir, name string) ([]integrity.SignedFile, error) {
-	root := filepath.Join(dir, includeDirName, name)
+// runtimeTree lists the files of the bundled component name in dir under
+// tree, a slash-separated path - include/tarantool/ and share/tarantool/ of
+// tarantool - by the paths they are installed at.
+func runtimeTree(dir, tree, name string) ([]integrity.SignedFile, error) {
+	root := filepath.Join(dir, filepath.FromSlash(tree))
 
 	_, err := os.Stat(root)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 
-	var headers []integrity.SignedFile
+	var files []integrity.SignedFile
 
 	err = filepath.WalkDir(root, func(file string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -198,15 +211,15 @@ func runtimeHeaders(dir, name string) ([]integrity.SignedFile, error) {
 			return err //nolint:wrapcheck // Wrapped once below.
 		}
 
-		headers = append(headers, integrity.SignedFile{Path: filepath.ToSlash(rel), Source: file})
+		files = append(files, integrity.SignedFile{Path: filepath.ToSlash(rel), Source: file})
 
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("signing the headers of the bundled %s: %w", name, err)
+		return nil, fmt.Errorf("signing %s of the bundled %s: %w", tree, name, err)
 	}
 
-	return headers, nil
+	return files, nil
 }
 
 // templateRuns checks the instance records of every template the stage
