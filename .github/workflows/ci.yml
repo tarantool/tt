@@ -3,7 +3,8 @@ name: CI
 # ci-ok joins all required checks on the exact PR head. Pushes publish it
 # here; for a fork pull request, which runs CE only with a read-only token,
 # fork-status.yml publishes the result of its ce-result job. EE secrets are
-# used only by pushes in tarantool/tt.
+# used only by pushes in tarantool/tt. The SDK API check, which depends on
+# the labels of a pull request, is required on its own: sdk-api.yml.
 on:
   push:
     branches: ['**']
@@ -294,6 +295,7 @@ jobs:
       shard: ${{ matrix.shard }}
       marker: not slow and not slow_ee and not notarantool and not tarantool_master
 
+  # Notes that never fail CI. The SDK API check, which does, is sdk-api.yml.
   pr-notes:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
@@ -306,19 +308,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: '**/go.sum'
-
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install review tools
-        run: |
-          python3 -m pip install gitlint==0.19.1
-          go install golang.org/x/exp/cmd/apidiff@v0.0.0-20261014143641-f0251eb4aa3e
+        run: python3 -m pip install gitlint==0.19.1
 
       - name: Commit messages
         continue-on-error: true
@@ -333,13 +328,6 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python3 ci/pr_notes.py changelog --base "$BASE_SHA" --head "$HEAD_SHA"
-
-      - name: SDK API changes
-        continue-on-error: true
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 ci/pr_notes.py api --base "$BASE_SHA" --head "$HEAD_SHA"
 
       - name: Upload PR notes
         if: always()

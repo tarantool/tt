@@ -6,6 +6,8 @@ __pycache__
 .venv
 coverage
 dist
+# The reports of ci/pr_notes.py.
+/pr-notes/
 
 # The documentation site: generated command reference, the build, and the
 # projects ci/doc_site.py builds the translations from. Zensical ignores
