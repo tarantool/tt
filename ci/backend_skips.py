@@ -54,6 +54,9 @@ HOST_REASONS = [
     # The platforms of a universal program of macOS, /usr/bin/true, are
     # listed with "and": "darwin-amd64 and darwin-arm64".
     r"runs on .+, not on \S+ alone",
+    # A build for another platform than the machine is checked for every
+    # platform of a table but the one of the machine, which is no other.
+    r"^\S+ is the machine$",
 ]
 
 

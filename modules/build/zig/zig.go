@@ -11,6 +11,11 @@
 // helpers of zig-tarantool (addModule, installModule) a module is installed
 // under the name Tarantool loads it by.
 //
+// A build for another platform than the machine tt runs on
+// (build.Backend.Cross) passes the zig target triple of the platform as
+// -Dtarget, which a build.zig takes with b.standardTargetOptions: zig has
+// what it links for every target in itself.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package zig
@@ -77,7 +82,7 @@ var releaseModes = map[string]string{
 }
 
 // zigArches maps a GOARCH to the architecture of a zig target triple, for a
-// static program.
+// static program and a build for another platform (zigTarget).
 var zigArches = map[string]string{
 	"amd64": "x86_64",
 	"arm64": "aarch64",
@@ -128,7 +133,8 @@ func Backend() build.Backend {
 		Exclude:        []string{"/" + prefixDir + "/", "/" + pkgDir + "/"},
 		NoSourceLayout: false,
 		Hook:           false,
-		Cross:          false,
+		// zig builds for the platform its -Dtarget names (targetArg).
+		Cross: true,
 	}
 }
 
@@ -251,11 +257,23 @@ func (b zigBuild) Programs() ([]string, bool) {
 	return []string{b.bin}, true
 }
 
-// Preflight checks that a static program is not asked for darwin and that
-// zig is in the PATH of the build.
+// Preflight checks that a static program is not asked for darwin, that a
+// build for another platform than the machine tt runs on names no target of
+// its own in its options, and that zig is in the PATH of the build.
+//
+// A build for another platform passes the target of the platform as
+// -Dtarget (targetArg): a target of the options, which names the platform
+// the build.zig builds for whatever the build is for, is refused, wrapping
+// build.ErrTarget.
 func (b zigBuild) Preflight(_ context.Context, c *build.Context) error {
 	if b.static && b.bin != "" && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
+	}
+
+	if _, own := b.config.Options["target"]; own && c.Target.Cross() {
+		return fmt.Errorf("%w: options.target names the target the build.zig builds for, and "+
+			"the build is for %s, which the backend passes as -Dtarget itself; leave target "+
+			"out of options", build.ErrTarget, c.Target)
 	}
 
 	_, err := c.LookPath(zigTool)
@@ -298,9 +316,10 @@ func (b zigBuild) Inputs(ctx context.Context, c *build.Context) ([]string, error
 
 // Run runs zig build in the working directory, installing into
 // <work>/zig-out, keeping its cache in <work>/zig-cache and, for zig 0.17 and
-// later, the packages it fetches in <work>/zig-pkg (see dirArgs), then copies
-// the module from its lib/ (see copyModule) and the program from its bin/
-// (see copyProgram), as the block asks for them.
+// later, the packages it fetches in <work>/zig-pkg (see dirArgs), with the
+// -Dtarget of the build (see targetArg), then copies the module from its
+// lib/ (see copyModule) and the program from its bin/ (see copyProgram), as
+// the block asks for them.
 func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(ctx, c)
 	if err != nil {
@@ -312,17 +331,9 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	target := ""
-
-	if b.wantsMusl(c.Target) {
-		accepts, err := b.acceptsTarget(ctx, c, dirs)
-		if err != nil {
-			return err
-		}
-
-		if accepts {
-			target = zigArches[c.Target.Arch] + "-linux-musl"
-		}
+	target, err := b.targetArg(ctx, c, dirs)
+	if err != nil {
+		return err
 	}
 
 	err = c.Run(c.Command(ctx, zigTool, b.args(c.Dirs.Work, dirs, target, c.Jobs)...))
@@ -344,6 +355,58 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	}
 
 	return copyProgram(prefix, b.bin, c.Dirs.Programs)
+}
+
+// targetArg returns the zig target triple the build passes as -Dtarget, or
+// none for the default of zig, the machine: for a build for another
+// platform than the machine tt runs on, that of the platform (zigTarget),
+// which the build.zig is to take, as b.standardTargetOptions declares it -
+// one that does not is refused, wrapping build.ErrTarget, since zig would
+// build it for the machine; and for a static program alone for Linux
+// (wantsMusl), <arch>-linux-musl, when the build.zig takes it. dirs are the
+// directories of zig of the build (dirArgs), which zig build --help takes.
+func (b zigBuild) targetArg(ctx context.Context, c *build.Context, dirs []string) (
+	string, error,
+) {
+	cross := c.Target.Cross()
+	musl := b.wantsMusl(c.Target)
+
+	if !cross && !musl {
+		return "", nil
+	}
+
+	accepts, err := b.acceptsTarget(ctx, c, dirs)
+
+	switch {
+	case err != nil:
+		return "", err
+	case cross && !accepts:
+		return "", fmt.Errorf("%w: the build.zig of %s declares no -Dtarget, as "+
+			"b.standardTargetOptions does, so zig builds it for the machine alone, %s, and "+
+			"the build is for %s", build.ErrTarget, c.Dirs.Cwd, build.HostTarget(), c.Target)
+	case !accepts:
+		return "", nil
+	default:
+		return zigTarget(c.Target, musl), nil
+	}
+}
+
+// zigTarget is the zig target triple of platform: <arch>-macos for darwin;
+// for linux <arch>-linux-musl for a static program (musl), which links the
+// C library in, and <arch>-linux-gnu otherwise, whose glibc is that zig has
+// for the target, as Tarantool, which loads a module, is built against
+// glibc.
+func zigTarget(platform build.Target, musl bool) string {
+	arch := zigArches[platform.Arch]
+
+	switch {
+	case platform.OS == darwinOS:
+		return arch + "-macos"
+	case musl:
+		return arch + "-linux-musl"
+	default:
+		return arch + "-linux-gnu"
+	}
 }
 
 // wantsMusl reports whether the build asks for the program to be built for
