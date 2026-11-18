@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -58,6 +59,39 @@ func TestStripCommand(t *testing.T) {
 
 	_, err = stripCommand("darwin", lookPathOf("objcopy"))
 	require.ErrorIs(t, err, errNoStrip, "objcopy does not strip Mach-O")
+}
+
+// TestStripCommandOf pins the tool that strips the files of a build: that of
+// the machine for the machine, and llvm-strip for another platform, whose
+// files the strip of the machine may not read, and an error naming it when
+// there is none.
+func TestStripCommandOf(t *testing.T) {
+	t.Parallel()
+
+	host, err := stripCommand(runtime.GOOS, lookPathOf("strip"))
+	require.NoError(t, err)
+
+	for _, target := range []native.Platform{native.Host(), {OS: "", Arch: ""}} {
+		command, err := stripCommandOf(target, lookPathOf("strip", "llvm-strip"))
+		require.NoError(t, err)
+		assert.Equal(t, host("in", "out"), command("in", "out"))
+	}
+
+	other := native.Platform{OS: "linux", Arch: "arm64"}
+	if other == native.Host() {
+		other.Arch = "amd64"
+	}
+
+	command, err := stripCommandOf(other, lookPathOf("strip", "llvm-strip"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/bin/llvm-strip", "--strip-debug", "-o", "out", "in"},
+		command("in", "out"))
+
+	_, err = stripCommandOf(other, lookPathOf("strip", "objcopy"))
+	require.ErrorIs(t, err, errNoStrip)
+	require.ErrorIs(t, err, exec.ErrNotFound)
+	assert.Contains(t, err.Error(), "--debuginfo strip needs strip: a pack for "+
+		other.String()+", another platform than the machine, strips with llvm-strip")
 }
 
 // TestCheckDebugInfo pins the values of --debuginfo.
@@ -196,7 +230,7 @@ func TestStrippedStage(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(stage, "lua"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(stage, "lua", "init.lua"), []byte("x"), 0o600))
 
-	copied, cleanup, err := strippedStage(t.Context(), t.TempDir(), stage)
+	copied, cleanup, err := strippedStage(t.Context(), t.TempDir(), stage, native.Host())
 	require.NoError(t, err)
 
 	assert.False(t, hasDebugInfo(t, filepath.Join(copied, "helper")))

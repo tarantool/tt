@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
 func TestPlatformToken(t *testing.T) {
@@ -40,9 +42,16 @@ func TestPlatformToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, platformToken(tt.withDeps, tt.hasNative))
+			assert.Equal(t, tt.want, platformToken(native.Host(), tt.withDeps, tt.hasNative))
 		})
 	}
+
+	// The archive of a build for another platform is labeled with it.
+	arm := native.Platform{OS: "linux", Arch: "arm64"}
+
+	assert.Equal(t, "linux-arm64", platformToken(arm, false, true))
+	assert.Equal(t, "linux-arm64", platformToken(arm, true, false))
+	assert.Equal(t, anyToken, platformToken(arm, false, false))
 }
 
 func TestArchiveName(t *testing.T) {
