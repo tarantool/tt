@@ -60,9 +60,9 @@ type acquired struct {
 }
 
 // TestStaleTakeover has many acquirers race for one stale pid file, round
-// after round: exactly one of them may own it. They do not retry a busy
-// lock, which would only have every loser wait busyWait for a winner that
-// keeps the file until the round is over.
+// after round: exactly one of them may own it. They do not retry a lock an
+// owner holds, which would only have every loser wait busyWait for a winner
+// that keeps the file until the round is over.
 func TestStaleTakeover(t *testing.T) {
 	const (
 		rounds    = 300
@@ -118,9 +118,9 @@ func TestStaleTakeover(t *testing.T) {
 
 // TestExclusive has acquirers take, hold and release one pid file in a loop:
 // however acquiring and releasing interleave, no two of them may own it at
-// once. They do not retry a busy lock: one that waits for the file sees it
-// replaced by every owner that comes and goes meanwhile, until it gives up
-// on a file that keeps being replaced.
+// once. They do not retry a lock an owner holds: one that waits for the file
+// sees it replaced by every owner that comes and goes meanwhile, until it
+// gives up on a file that keeps being replaced.
 func TestExclusive(t *testing.T) {
 	const (
 		acquirers = 8
@@ -582,7 +582,7 @@ func TestOwner(t *testing.T) {
 // TestOwnerRacesAcquire has readers probe a pid file while acquirers take
 // and release it: a reader never sees a file that an acquirer holds as
 // stale, and an acquirer is refused only with ErrBusy. The acquirers do not
-// retry a busy lock, as in TestExclusive.
+// retry a lock an owner holds, as in TestExclusive.
 func TestOwnerRacesAcquire(t *testing.T) {
 	const (
 		readers   = 4
@@ -838,9 +838,9 @@ func TestAcquireLinkless(t *testing.T) {
 	}
 }
 
-// TestBusyWait pins that Acquire and RemoveFor wait out a lock held for a
-// moment, as Owner holds it to probe a file, and still refuse a file whose
-// lock stays held, once busyWait is over.
+// TestBusyWait pins that Acquire and RemoveFor wait out a lock held shared,
+// as Owner holds it to probe a file, past busyWait, and still refuse a file
+// whose lock stays held exclusively, once busyWait is over.
 func TestBusyWait(t *testing.T) {
 	dir := t.TempDir()
 	gone := deadPid(t)
@@ -858,12 +858,16 @@ func TestBusyWait(t *testing.T) {
 		return func() { require.NoError(t, file.Close()) }
 	}
 
+	// Held past busyWait, as probes in a loop can keep it held at every
+	// retry, a shared lock is still no owner's.
+	probed := busyWait + busyWait/4
+
 	t.Run("a probe is waited out", func(t *testing.T) {
 		path := filepath.Join(dir, "probed.pid")
 		require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(gone)), 0o600))
 
 		release := holdLock(t, path, syscall.LOCK_SH)
-		time.AfterFunc(busyWait/4, release)
+		time.AfterFunc(probed, release)
 
 		file, err := Acquire(path, os.Getpid())
 		require.NoError(t, err)
@@ -871,11 +875,29 @@ func TestBusyWait(t *testing.T) {
 
 		// The file names this process now, which is not gone.
 		release = holdLock(t, path, syscall.LOCK_SH)
-		time.AfterFunc(busyWait/4, release)
+		time.AfterFunc(probed, release)
 
 		removed, err := RemoveFor(path, os.Getpid(), 0, nil)
 		require.NoError(t, err)
 		assert.True(t, removed)
+	})
+
+	t.Run("probes without a break are given up on", func(t *testing.T) {
+		path := filepath.Join(dir, "kept.pid")
+		require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(gone)), 0o600))
+
+		release := holdLock(t, path, syscall.LOCK_SH)
+		defer release()
+
+		file, err := os.OpenFile(path, os.O_RDWR, 0)
+		require.NoError(t, err)
+
+		defer func() { require.NoError(t, file.Close()) }()
+
+		// A deadline probedWait ago leaves no time for probes either.
+		err = lock(file, path, time.Now().Add(-probedWait))
+		require.ErrorIs(t, err, errProbed)
+		assert.NotErrorIs(t, err, ErrBusy, "a probe taken for an owner")
 	})
 
 	t.Run("an owner is refused after busyWait", func(t *testing.T) {
@@ -885,10 +907,12 @@ func TestBusyWait(t *testing.T) {
 		release := holdLock(t, path, syscall.LOCK_EX)
 		defer release()
 
+		// The owner is told from a probe, and not waited out as one.
 		started := time.Now()
 		_, err := Acquire(path, os.Getpid())
 		require.ErrorIs(t, err, ErrBusy)
 		assert.GreaterOrEqual(t, time.Since(started), busyWait)
+		assert.Less(t, time.Since(started), probedWait)
 
 		started = time.Now()
 
@@ -896,13 +920,17 @@ func TestBusyWait(t *testing.T) {
 		require.ErrorIs(t, err, ErrBusy)
 		assert.False(t, removed)
 		assert.GreaterOrEqual(t, time.Since(started), busyWait)
+		assert.Less(t, time.Since(started), probedWait)
 	})
 }
 
 // TestAcquireUnderProbes has a reader probe a pid file in a tight loop, as a
 // tt instance status polled in a loop does, while the file is taken over and
 // removed again and again: neither Acquire nor RemoveFor may take a probe
-// for an owner.
+// for an owner. They retry a busy lock for no time at all here, so that any
+// probe one of them meets is one it has to tell from an owner, rather than
+// one it has to outlast for busyWait, which probes in a loop can keep busy
+// on a loaded machine.
 func TestAcquireUnderProbes(t *testing.T) {
 	const rounds = 300
 
@@ -937,13 +965,13 @@ func TestAcquireUnderProbes(t *testing.T) {
 	for round := range rounds {
 		require.NoError(t, os.WriteFile(path, []byte(gone), 0o600))
 
-		file, err := Acquire(path, os.Getpid())
+		file, err := acquire(path, os.Getpid(), 0)
 		require.NoError(t, err, "round %d", round)
 
 		// Left in place, the file names this process, unlocked.
 		require.NoError(t, file.Keep())
 
-		removed, err := RemoveFor(path, os.Getpid(), 0, nil)
+		removed, err := removeFor(path, os.Getpid(), 0, nil)
 		require.NoError(t, err, "round %d", round)
 		assert.True(t, removed)
 	}
