@@ -11,10 +11,29 @@ import (
 )
 
 // Target is the platform a component is built for, as GOOS and GOARCH name
-// it: the machine tt runs on, since tt does not build for another.
+// it: the machine tt runs on ([HostTarget]), or the platform tt package
+// build --target names, which only the builds of a backend that says it
+// builds for another platform are made for ([Backend.Cross]).
 type Target struct {
 	OS   string
 	Arch string
+}
+
+// HostTarget returns the platform of the machine tt runs on.
+func HostTarget() Target {
+	return Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
+}
+
+// String names the platform as tt names one, <os>-<arch>: linux-arm64.
+func (t Target) String() string {
+	return t.OS + "-" + t.Arch
+}
+
+// Cross reports whether t is another platform than the machine tt runs on:
+// a build for it is made with a toolchain for that platform, and what it
+// makes does not run where it is built.
+func (t Target) Cross() bool {
+	return t != HostTarget()
 }
 
 // ModuleExt returns the extension of a compiled module Tarantool loads on
@@ -180,7 +199,9 @@ type Host interface {
 type Context struct {
 	// Component is the component built.
 	Component Component
-	// Target is the platform it is built for.
+	// Target is the platform it is built for: the machine tt runs on, or
+	// another one for a backend that builds for another ([Backend.Cross]).
+	// TT_PLATFORM_OS and TT_PLATFORM_ARCH of Env name it.
 	Target Target
 	// Dirs are the directories of the build.
 	Dirs Dirs

@@ -124,6 +124,9 @@ func Backend() build.Backend {
 		Exclude:        []string{"/target/"},
 		NoSourceLayout: false,
 		Hook:           false,
+		// rustc builds for the Rust target of another platform, and zig cc
+		// links for another Linux one (cross.go).
+		Cross: true,
 	}
 }
 

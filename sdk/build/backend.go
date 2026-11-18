@@ -138,6 +138,31 @@ type Backend struct {
 	// hook too, given the zero Component, and the build runs in a Context
 	// whose Hook is set ([Context.Hook]).
 	Hook bool
+	// Cross lets the builds of the backend be for another platform than the
+	// machine tt runs on, the one tt package build --target names: their
+	// [Context.Target] is that platform, and they make what they make for
+	// it, with a toolchain for it. A component of a backend without Cross
+	// fails such a build before anything is built ([Backend.CheckTarget]).
+	// A build of a backend with Cross that cannot be made for the target -
+	// the go backend with cgo, which needs a C compiler of the target -
+	// refuses it in its Preflight with an error wrapping [ErrTarget]. The
+	// core checks the programs and the modules a build made against the
+	// target, whatever the backend.
+	Cross bool
+}
+
+// CheckTarget reports, wrapping [ErrTarget], a build of the backend for
+// target that the backend does not make: one for another platform than the
+// machine tt runs on, of a backend without [Backend.Cross]. The core checks
+// every component it is to build so before anything is built, and buildtest
+// checks a run so.
+func (b Backend) CheckTarget(target Target) error {
+	if b.Cross || !target.Cross() {
+		return nil
+	}
+
+	return fmt.Errorf("%w: the %s backend builds for the machine tt runs on alone, %s, "+
+		"and the build is for %s", ErrTarget, b.Name, HostTarget(), target)
 }
 
 // Typed returns the New of a backend whose Config returns a *C, a fresh
@@ -173,6 +198,13 @@ var ErrNoTool = errors.New("build tool not found")
 // Tarantool, and has none: [Tarantool.IncludeDir] of its Context is empty. A
 // [Preflighter] wraps it, so that the core adds where it looked for them.
 var ErrNoHeaders = errors.New("tarantool development headers not found")
+
+// ErrTarget reports a build that cannot be made for its [Context.Target]: a
+// build for another platform than the machine tt runs on of a backend
+// without [Backend.Cross] ([Backend.CheckTarget]), or one its [Preflighter]
+// refuses the platform of, as the go backend refuses one with cgo. The core
+// fails the build with it before anything is built, with exit code 1.
+var ErrTarget = errors.New("the build cannot be made for the target platform")
 
 // ErrNotProduced reports a build that made a file of a type its backend does
 // not produce ([Backend.Produces]): one it left in the directory of that type

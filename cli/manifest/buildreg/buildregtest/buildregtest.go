@@ -17,6 +17,9 @@
 //   - both makes a module, a program or both, as cargo does, and leaves its
 //     tool's target/ out of the layout;
 //   - tree copies the files output lists itself, as cmake does.
+//
+// make, shell and both build for another platform (build.Backend.Cross), as
+// make, shell and cargo do; the others do not.
 package buildregtest
 
 import (
@@ -123,6 +126,7 @@ func Make() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: false,
 		Hook:           true,
+		Cross:          true,
 	}
 }
 
@@ -151,6 +155,7 @@ func Shell() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: false,
 		Hook:           true,
+		Cross:          true,
 	}
 }
 
@@ -256,6 +261,7 @@ func Exe() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: true,
 		Hook:           false,
+		Cross:          false,
 	}
 }
 
@@ -329,6 +335,7 @@ func Lib() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: false,
 		Hook:           false,
+		Cross:          false,
 	}
 }
 
@@ -416,6 +423,10 @@ func Both() build.Backend {
 		Exclude:        []string{"/target/"},
 		NoSourceLayout: false,
 		Hook:           false,
+		// It says it builds for another platform, as cargo does, and builds
+		// for the host all the same: what it made fails the checks of the
+		// target.
+		Cross: true,
 	}
 }
 
@@ -495,6 +506,7 @@ func Tree() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: false,
 		Hook:           false,
+		Cross:          false,
 	}
 }
 

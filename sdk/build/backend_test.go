@@ -75,6 +75,51 @@ func TestModuleExt(t *testing.T) {
 	assert.Equal(t, ".dylib", build.Target{OS: "darwin", Arch: "arm64"}.ModuleExt())
 }
 
+// TestTarget: the host is the platform of the machine, named <os>-<arch>,
+// and a target is a cross one when it is another.
+func TestTarget(t *testing.T) {
+	t.Parallel()
+
+	host := build.HostTarget()
+
+	assert.Equal(t, build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}, host)
+	assert.Equal(t, runtime.GOOS+"-"+runtime.GOARCH, host.String())
+	assert.Equal(t, "linux-arm64", build.Target{OS: "linux", Arch: "arm64"}.String())
+	assert.False(t, host.Cross())
+	assert.True(t, otherTarget().Cross())
+}
+
+// otherTarget is a platform other than the machine of the test.
+func otherTarget() build.Target {
+	if runtime.GOARCH == "arm64" {
+		return build.Target{OS: runtime.GOOS, Arch: "amd64"}
+	}
+
+	return build.Target{OS: runtime.GOOS, Arch: "arm64"}
+}
+
+// TestCheckTarget: a backend builds for the machine whatever it says, and
+// for another platform only with Cross; the refusal names the backend and
+// both platforms.
+func TestCheckTarget(t *testing.T) {
+	t.Parallel()
+
+	backend := build.Backend{Name: "c", Cross: false}
+
+	require.NoError(t, backend.CheckTarget(build.HostTarget()))
+
+	err := backend.CheckTarget(otherTarget())
+	require.ErrorIs(t, err, build.ErrTarget)
+	assert.Equal(t, "the build cannot be made for the target platform: the c backend builds "+
+		"for the machine tt runs on alone, "+build.HostTarget().String()+", and the build is "+
+		"for "+otherTarget().String(), err.Error())
+
+	backend.Cross = true
+
+	require.NoError(t, backend.CheckTarget(otherTarget()))
+	require.NoError(t, backend.CheckTarget(build.HostTarget()))
+}
+
 func TestDirsOf(t *testing.T) {
 	t.Parallel()
 

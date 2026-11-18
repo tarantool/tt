@@ -74,6 +74,7 @@ func Backend() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: true,
 		Hook:           false,
+		Cross:          false,
 	}
 }
 

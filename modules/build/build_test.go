@@ -34,3 +34,19 @@ func TestNew(t *testing.T) {
 
 	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c", "zig"}, names)
 }
+
+// TestCross: the backends that build for another platform than the machine
+// tt runs on, with tt package build --target.
+func TestCross(t *testing.T) {
+	t.Parallel()
+
+	var cross []string
+
+	for _, backend := range build.Backends() {
+		if backend.Cross {
+			cross = append(cross, backend.Name)
+		}
+	}
+
+	assert.Equal(t, []string{"make", "shell", "cargo"}, cross)
+}
