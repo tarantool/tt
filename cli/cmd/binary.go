@@ -150,9 +150,22 @@ not know, tt asks whether to build without the check, and over an installed
 master it asks whether to look for newer commits. It asks on a terminal
 only, and --yes answers yes. Off a terminal or under --no-prompt, without
 --yes, the build on an unknown OS fails and the installed master is kept.
+
+In the project scope of a project, a product given no version is the version
+app.manifest.lock pins (tt package resolve pins it): tarantool, or
+tarantool-ee for an [ee] project, tt, and tcm.
+
+A mirror tt package download made, among the rock servers of --registry,
+TT_REGISTRIES or [platform].registries of the project, is asked first, with
+no network, for every product it has a build of the version of, Community
+tarantool and tt included: a prebuilt one, checked against the sha256 its
+index lists. A version no mirror has is installed as without one.
 `,
 		Example: `# Install the latest Tarantool release for this project.
   $ tt binary install tarantool
+
+  # Install the tarantool the lock pins from a mirror, with no network.
+  $ tt binary install tarantool --registry ./mirror
 
   # Install tt for the current user.
   $ tt binary install tt --scope user
@@ -171,6 +184,7 @@ only, and --yes answers yes. Off a terminal or under --no-prompt, without
 	// are: with --yes, and on a terminal only.
 	installCmd.PersistentFlags().BoolVarP(&instanceYes, "yes", "y", false,
 		"Answer yes to the questions of the installation")
+	addBinaryRegistryFlag(installCmd)
 
 	installCtx.Confirm = confirm
 
@@ -524,6 +538,27 @@ func internalInstallModule(base binary.BinaryContext, installCtx install.Install
 	var err error
 
 	installCtx.BinaryContext = base
+
+	// A project pins the version of what it runs on; with no version asked,
+	// that is the one installed into it. A build of something else - from a
+	// directory, a repository, a development build - is not a pinned one.
+	projectDir := projectForInstall(base.Scope)
+	if len(args) == 0 && installCtx.FromBuild == "" && installCtx.LocalRepo == "" &&
+		!installCtx.DevBuild {
+		args = pinnedInstallArgs(cmdCtx.CommandName, projectDir)
+	}
+
+	if installCtx.FromBuild == "" && installCtx.LocalRepo == "" {
+		request, err := requestOf(cmdCtx.CommandName, args)
+		if err != nil {
+			return err
+		}
+
+		err = installFromMirrors(request.Program, request.Version, projectDir)
+		if err != nil {
+			return err
+		}
+	}
 
 	err = install.FillCtx(cmdCtx, &installCtx, args)
 	if err != nil {

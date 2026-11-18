@@ -276,6 +276,51 @@ installed version.
 `tt binary search <product>` takes the same flags. Put the flag after the
 product name; a relative `DIR` is taken from the current directory.
 
+## Install from a mirror
+
+`tt package download --dir DIR` puts the tarantool, the tt and the TCM the
+lock of a project pins into `DIR/binaries/` (see
+[A mirror for offline builds](../concepts/rock-servers.md#a-mirror-for-offline-builds)).
+On a machine with no network, `tt binary install` takes them from there:
+
+```console
+$ tt binary install tarantool --registry ./mirror
+   • Installing tarantool 3.9.0, the version app.manifest.lock pins
+   • Installing tarantool from mirror /home/user/mirror
+   ...
+$ TT_REGISTRIES=./mirror tt binary install tt
+$ TT_REGISTRIES=./mirror tt package build --locked
+```
+
+In the project scope of a project, a product given no version is the
+version `app.manifest.lock` pins: `tarantool` installs the pinned
+tarantool, or tarantool-ee for an `[ee]` project; `tt` the pinned tt or
+tt-ee; `tcm` the pinned TCM. A version given is taken as it is.
+
+The mirrors are the directories among the rock servers of the command:
+`--registry`, which may be repeated, else `TT_REGISTRIES`, else
+`[platform].registries` of the project, as for `tt package`. A mirror that
+has a build of the version asked for, of any product, is asked before the
+sources of tt, with no network: a Community tarantool or tt is a prebuilt
+one, not a build from source, and every archive is checked against the
+sha256 the index of the mirror lists, so a changed one is refused and
+nothing is installed. A version no mirror has is installed as it is
+without `--registry`. The installed tarantool has its headers in
+`include/tarantool/` and the EmmyLua stubs of Tarantool 3.9 and later in
+`share/tarantool/`, so `tt package build` builds modules against it and
+`tt emmylua` finds its stubs.
+
+A machine with no tt at all gets one from the mirror by hand: the archive
+of tt is a gzip-compressed tar with the executable `tt` at its root.
+
+```console
+$ tar -xzf mirror/binaries/tt-3.0.0-linux-amd64.tar.gz tt
+$ ./tt binary install tt --registry ./mirror
+```
+
+The second command installs that tt as a `tt binary` installation of the
+project, linked from `.tarantool/bin/tt`.
+
 ## Search
 
 ```console

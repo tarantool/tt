@@ -1114,6 +1114,16 @@ master it asks whether to look for newer commits. It asks on a terminal
 only, and --yes answers yes. Off a terminal or under --no-prompt, without
 --yes, the build on an unknown OS fails and the installed master is kept.
 
+In the project scope of a project, a product given no version is the version
+app.manifest.lock pins (tt package resolve pins it): tarantool, or
+tarantool-ee for an [ee] project, tt, and tcm.
+
+A mirror tt package download made, among the rock servers of --registry,
+TT_REGISTRIES or [platform].registries of the project, is asked first, with
+no network, for every product it has a build of the version of, Community
+tarantool and tt included: a prebuilt one, checked against the sha256 its
+index lists. A version no mirror has is installed as without one.
+
 USAGE
   tt binary install [flags] <command> [command flags]
 
@@ -1124,11 +1134,15 @@ COMMANDS
   tt            Install tt Community or Enterprise Edition
 
 FLAGS
-  -f, --force       Skip dependency checks, and the question of an unknown OS
-  -h, --help        help for install
-      --no-clean    Keep temporary files
-      --reinstall   Reinstall an existing version
-  -y, --yes         Answer yes to the questions of the installation
+  -f, --force                  Skip dependency checks, and the question of an
+                               unknown OS
+  -h, --help                   help for install
+      --no-clean               Keep temporary files
+      --registry stringArray   Mirror tt package download made to install from
+                               first, offline; repeatable, replaces
+                               TT_REGISTRIES
+      --reinstall              Reinstall an existing version
+  -y, --yes                    Answer yes to the questions of the installation
 
 GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
@@ -1137,6 +1151,9 @@ GLOBAL FLAGS
 EXAMPLES
   # Install the latest Tarantool release for this project.
   $ tt binary install tarantool
+
+  # Install the tarantool the lock pins from a mirror, with no network.
+  $ tt binary install tarantool --registry ./mirror
 
   # Install tt for the current user.
   $ tt binary install tt --scope user
@@ -1208,12 +1225,17 @@ FLAGS
       --use-docker                Build Tarantool in an Ubuntu Docker container
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks, and the question of an unknown OS
-      --no-clean       Keep temporary files
-      --reinstall      Reinstall an existing version
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
-  -y, --yes            Answer yes to the questions of the installation
+  -f, --force                  Skip dependency checks, and the question of an
+                               unknown OS
+      --no-clean               Keep temporary files
+      --registry stringArray   Mirror tt package download made to install from
+                               first, offline; repeatable, replaces
+                               TT_REGISTRIES
+      --reinstall              Reinstall an existing version
+      --scope string           Scope: project, user or system (default
+                               "project")
+  -V, --verbose                Show diagnostic output and build commands
+  -y, --yes                    Answer yes to the questions of the installation
 
 EXAMPLES
   # Build and install Tarantool from the local repository.
@@ -1266,12 +1288,17 @@ FLAGS
                                   archives (tarantool-enterprise-sdk-*.tar.gz)
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks, and the question of an unknown OS
-      --no-clean       Keep temporary files
-      --reinstall      Reinstall an existing version
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
-  -y, --yes            Answer yes to the questions of the installation
+  -f, --force                  Skip dependency checks, and the question of an
+                               unknown OS
+      --no-clean               Keep temporary files
+      --registry stringArray   Mirror tt package download made to install from
+                               first, offline; repeatable, replaces
+                               TT_REGISTRIES
+      --reinstall              Reinstall an existing version
+      --scope string           Scope: project, user or system (default
+                               "project")
+  -V, --verbose                Show diagnostic output and build commands
+  -y, --yes                    Answer yes to the questions of the installation
 
 EXAMPLES
   # Install the latest stable SDK for this project.
@@ -1306,12 +1333,17 @@ FLAGS
       --local-dir string          Directory containing tcm standalone archives
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks, and the question of an unknown OS
-      --no-clean       Keep temporary files
-      --reinstall      Reinstall an existing version
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
-  -y, --yes            Answer yes to the questions of the installation
+  -f, --force                  Skip dependency checks, and the question of an
+                               unknown OS
+      --no-clean               Keep temporary files
+      --registry stringArray   Mirror tt package download made to install from
+                               first, offline; repeatable, replaces
+                               TT_REGISTRIES
+      --reinstall              Reinstall an existing version
+      --scope string           Scope: project, user or system (default
+                               "project")
+  -V, --verbose                Show diagnostic output and build commands
+  -y, --yes                    Answer yes to the questions of the installation
 
 === tt binary install tt --help
 Install tt Community or Enterprise Edition.
@@ -1351,12 +1383,17 @@ FLAGS
       --source-build              Always build tt Community releases from source
 
 GLOBAL FLAGS
-  -f, --force          Skip dependency checks, and the question of an unknown OS
-      --no-clean       Keep temporary files
-      --reinstall      Reinstall an existing version
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
-  -y, --yes            Answer yes to the questions of the installation
+  -f, --force                  Skip dependency checks, and the question of an
+                               unknown OS
+      --no-clean               Keep temporary files
+      --registry stringArray   Mirror tt package download made to install from
+                               first, offline; repeatable, replaces
+                               TT_REGISTRIES
+      --reinstall              Reinstall an existing version
+      --scope string           Scope: project, user or system (default
+                               "project")
+  -V, --verbose                Show diagnostic output and build commands
+  -y, --yes                    Answer yes to the questions of the installation
 
 EXAMPLES
   # Install the latest tt release for the current user.

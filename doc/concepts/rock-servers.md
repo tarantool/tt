@@ -243,6 +243,18 @@ $ tt package download --dir ../mirror
 indexed 2 program(s) in .../mirror/binaries
 ```
 
+On the machine with no network, the programs are installed from the mirror
+explicitly, and the build installs nothing itself:
+
+```console
+$ tt binary install tarantool --registry ../mirror
+$ tt binary install tt --registry ../mirror
+$ TT_REGISTRIES=$PWD/../mirror tt package build --locked
+```
+
+See [Install from a mirror](../how-to/binaries.md#install-from-a-mirror).
+`tt package resolve` there pins a missing version from the mirror too.
+
 `tt wasm rock` packs a server of the same kind for the `wasm` rock of
 tarantool-wasm: the rock of every platform of a release, with its index; see
 [Run WebAssembly components](../how-to/wasm-components.md#share-the-rock).

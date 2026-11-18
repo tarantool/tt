@@ -559,18 +559,24 @@ func runtimeDependencyOptions(ctx context.Context) (deps.Options, error) {
 		return opts, err
 	}
 
-	opts.Runtime = runtimePinning(ctx, opts.ProjectDir, opts.Tarantool)
+	opts.Runtime, err = runtimePinning(ctx, opts.ProjectDir, opts.Tarantool)
 
-	return opts, nil
+	return opts, err
 }
 
 // runtimePinning says where tt package resolve and tt package update look
 // for the versions of tarantool, tt and TCM they pin in the lock of the
 // project in projectDir (runtimepin.Pin): its installations, the tarantool
-// of tntInfo and this tt, and the sources of prebuilt archives.
+// of tntInfo and this tt, and the sources of prebuilt archives, the mirrors
+// of programs among the rock servers of the command first.
 func runtimePinning(ctx context.Context, projectDir string,
 	tntInfo manifestrocks.TarantoolInfo,
-) *runtimepin.Options {
+) (*runtimepin.Options, error) {
+	_, err := useBinaryMirrors(packageRegistries, projectDir)
+	if err != nil {
+		return nil, err
+	}
+
 	flavor := ""
 	if tntInfo.Executable != "" {
 		flavor = pack.DetectTarantoolFlavor(ctx, tntInfo.Executable)
@@ -581,7 +587,7 @@ func runtimePinning(ctx context.Context, projectDir string,
 		Tarantool:   runtimepin.Active{Version: tntInfo.Version, Flavor: flavor},
 		Tt:          runtimepin.Active{Version: coreVersion(), Flavor: ""},
 		Releases:    binary.ReleaseIDs,
-	}
+	}, nil
 }
 
 // printResolution reports a run that resolved the lock again without editing
