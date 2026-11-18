@@ -1179,6 +1179,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The watchdog of an instance, `tt daemon` and `tt tcm` started while their
+  pid file was probed again and again, as by `tt instance status` run in a
+  loop, could fail to come up on a loaded machine with "the pid file belongs
+  to a running process", and the removal of a stale pid file could fail the
+  same way. A probe holds the lock of the file, shared, for a few
+  microseconds, and a lock found busy at every retry for 200 ms was taken
+  for an owner's, however it was held. A lock held shared is now told from
+  the exclusive lock of an owner and waited out: only probes that keep the
+  file locked for 5 s more get it refused, with "the pid file is kept
+  locked by readers".
 - `tt coredump pack` no longer reads and compresses the holes of a core
   dump. A core is mostly holes, the pages of the mappings the process
   never touched: that of a bare `tarantool` is 1.1 GB long and takes 11 MB
