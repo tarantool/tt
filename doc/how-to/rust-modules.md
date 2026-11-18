@@ -13,6 +13,10 @@ official tt and every distribution that takes the standard modules have:
 
 ## Write the crate
 
+<!-- TestBuildsTheModuleOfTheHowTo of modules/build/cargo builds the first
+toml block with name = "fastrs", the rust block of luaopen_myapp_fastrs and
+runs the lua block of box.schema.func.create in Tarantool: keep them whole. -->
+
 In `libs/fastrs/` of a package named `myapp`, `Cargo.toml`:
 
 ```toml
@@ -267,5 +271,9 @@ it.
 
 `cargo` and `rustc` are yours to install, from [rustup](https://rustup.rs):
 tt installs neither, and looks for `cargo` on `PATH`. The `tarantool`
-crate wants rustc 1.67.1 or newer. The module links against the C library
-of the machine it is built on: build it on the oldest system it runs on.
+crate 11 wants rustc 1.89 or newer, its `rust-version`. Its default
+features build `openssl-sys`, which needs the development files of OpenSSL,
+`libssl-dev` on Debian and Ubuntu, `openssl-devel` on Fedora, `openssl@3`
+of Homebrew on macOS; `default-features = false` leaves them out, with the
+network client of the crate. The module links against the C library of the
+machine it is built on: build it on the oldest system it runs on.

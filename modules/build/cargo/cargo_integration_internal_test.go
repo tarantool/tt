@@ -3,11 +3,15 @@
 package cargo
 
 import (
+	"context"
 	"debug/elf"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,4 +175,163 @@ func TestBuildsForAnotherLinux(t *testing.T) {
 		harness.Printed())
 	requireELF(t, module, goarch)
 	assert.False(t, requireELF(t, program, goarch), "a static program has no loader")
+}
+
+// howTo is the how-to whose example crate TestBuildsTheModuleOfTheHowTo
+// builds, from the directory of the package of the test.
+var howTo = filepath.Join("..", "..", "..", "doc", "how-to", "rust-modules.md")
+
+// codeBlocks returns the code blocks of the markdown file at path whose
+// language is lang, in order.
+func codeBlocks(t *testing.T, path, lang string) []string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var (
+		blocks []string
+		block  strings.Builder
+		inside bool
+	)
+
+	for line := range strings.Lines(string(data)) {
+		switch trimmed := strings.TrimRight(line, "\n"); {
+		case !inside && trimmed == "```"+lang:
+			inside = true
+
+			block.Reset()
+		case inside && trimmed == "```":
+			inside = false
+
+			blocks = append(blocks, block.String())
+		case inside:
+			block.WriteString(line)
+		}
+	}
+
+	return blocks
+}
+
+// codeBlock returns the first code block of the how-to of lang that has
+// mark.
+func codeBlock(t *testing.T, lang, mark string) string {
+	t.Helper()
+
+	for _, block := range codeBlocks(t, howTo, lang) {
+		if strings.Contains(block, mark) {
+			return block
+		}
+	}
+
+	require.Failf(t, "no code block", "%s has no %s block with %q", howTo, lang, mark)
+
+	return ""
+}
+
+// requireCrates writes the Cargo.lock of the crate in dir and fetches its
+// crates, which needs crates.io, and skips the test when cargo cannot.
+func requireCrates(t *testing.T, dir string) {
+	t.Helper()
+
+	for _, args := range [][]string{{"generate-lockfile"}, {"fetch", "--locked"}} {
+		cmd := exec.CommandContext(t.Context(), cargoTool, args...)
+
+		cmd.Dir = dir
+
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Skipf("cargo %s cannot fetch the crates of crates.io: %s", args[0],
+				strings.TrimSpace(string(out)))
+		}
+	}
+}
+
+// requireTarantool returns the tarantool of PATH, and skips the rest of the
+// test without one.
+func requireTarantool(t *testing.T) string {
+	t.Helper()
+
+	tarantool, err := exec.LookPath("tarantool")
+	if err != nil {
+		t.Skip("tarantool is not in PATH: the module is not loaded")
+	}
+
+	return tarantool
+}
+
+// runTarantool runs the Lua script in Tarantool in a directory whose .rocks
+// holds the module file as lib/tarantool/<namespace>/<file>, and returns
+// what it printed.
+func runTarantool(t *testing.T, tarantool, file, namespace, script string) string {
+	t.Helper()
+
+	app := t.TempDir()
+	lib := filepath.Join(app, ".rocks", "lib", "tarantool", namespace)
+	require.NoError(t, build.CopyFile(filepath.Join(lib, filepath.Base(file)), file))
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, tarantool, "-e", script)
+
+	cmd.Dir = app
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	return string(out)
+}
+
+// TestBuildsTheModuleOfTheHowTo builds the example crate of Build a module
+// in Rust, its Cargo.toml and src/lib.rs as the how-to has them, of the
+// tarantool crate of crates.io, as the module of the component fastrs of
+// the package myapp, and runs the Lua of the how-to in Tarantool: require
+// of the module and its function mul, and the C stored procedure add of
+// box.schema.func.create. Then it downloads the crates into a mirror, as tt
+// package download does, and builds the module again from the mirror with
+// an empty CARGO_HOME and a proxy that refuses every connection, which
+// Tarantool loads as well. The crates are fetched from crates.io: the test
+// is skipped when they cannot be.
+func TestBuildsTheModuleOfTheHowTo(t *testing.T) {
+	t.Parallel()
+	requireCargo(t, "")
+
+	component := build.Component{
+		Name: "fastrs", Path: "libs/fastrs", Namespace: "myapp", Package: "myapp", Wants: nil,
+	}
+	harness := buildtest.New(t, Backend(), component)
+	dirs := harness.Context.Dirs
+
+	noTargetDir(harness)
+	writeFiles(t, dirs.Component, map[string]string{
+		"Cargo.toml": codeBlock(t, "toml", `name = "fastrs"`),
+		"src/lib.rs": codeBlock(t, "rust", "luaopen_myapp_fastrs"),
+	})
+	requireCrates(t, dirs.Component)
+
+	tarantool := requireTarantool(t)
+	module := filepath.Join(dirs.Modules, "fastrs"+harness.Context.Target.ModuleExt())
+	script := "box.cfg{log_level = 1}\n" + codeBlock(t, "lua", "box.schema.func.create") +
+		"io.write('called') os.exit(0)\n"
+	bld := validate(t, component, nil, false)
+
+	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+	assert.Equal(t, "called", runTarantool(t, tarantool, module, "myapp", script))
+
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+
+	require.NoError(t, harness.Vendor(t.Context(), bld, mirror), harness.Printed())
+
+	vendored, err := filepath.Glob(filepath.Join(mirror, "tarantool-11.*"))
+	require.NoError(t, err)
+	assert.Len(t, vendored, 1, "the tarantool crate is vendored")
+	require.NoError(t, os.Remove(module))
+
+	harness.Context.Env["CARGO_HOME"] = t.TempDir()
+	harness.Context.Env["CARGO_HTTP_PROXY"] = "http://127.0.0.1:9"
+	harness.Context.Vendored = mirror
+
+	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+	assert.Equal(t, "called", runTarantool(t, tarantool, module, "myapp", script))
 }
