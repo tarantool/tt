@@ -66,6 +66,8 @@ The backends that build programs:
   --target linux/arm64` builds it for another platform with `GOOS` and
   `GOARCH`, unless `cgo = true`, which compiles C with the C compiler of the
   machine (see [Other platforms](../reference/app-manifest.md#other-platforms)).
+  The modules it requires can be downloaded ahead; see
+  [Build offline](#build-offline).
 - `cargo`: `cargo build` of the binary `bin`, in the `release` profile
   unless `profile` says otherwise, in `_build/cargo/`; `package`,
   `features`. A block that names `module` too builds the module of the
@@ -99,6 +101,47 @@ writes them into `TT_OUTPUT_DIR`.
 no shared library, and the build checks that it got one; the programs of
 `cmake`, `make` and `shell` are only checked. The toolchain must be on
 `PATH`. See the [manifest reference](../reference/app-manifest.md#componentsname).
+
+## Build offline
+
+go downloads the modules `go.mod` requires on the first build of a machine,
+from `GOPROXY`, and a private one from its repository. `tt package
+download` with no arguments downloads them ahead, with the rocks of the
+lock, into the mirror it makes:
+
+```console
+$ tt package download --dir ../mirror
+indexed 0 rock(s) in .../mirror
+.../mirror/go
+downloaded what 1 component(s) build with into .../mirror/go
+```
+
+It runs `go mod download` for each go component as a build downloads: with
+the `GOPROXY`, `GOPRIVATE` and git credentials of the environment, a module
+the module cache has being taken from there. Every module the build needs,
+which `go.sum` pins, goes into `go/` of the mirror in the layout of a Go
+module proxy, `<module>/@v/<version>.zip` with its `.mod` and `.info`. The
+components of the project share it, and so do other projects downloaded
+into the same mirror; running it again after a change of `go.sum` adds the
+new modules and keeps the others. `go.mod` and `go.sum` are not written. A
+module that requires modules and has no `go.sum` fails the download: run
+`go mod tidy` and keep `go.sum` with the sources. One with a `vendor/`
+directory downloads nothing, and builds from it.
+
+A build whose rock servers have the mirror builds from it, with no network:
+
+```console
+$ TT_REGISTRIES=$PWD/../mirror tt package build
+```
+
+go runs with `GOPROXY=file://.../mirror/go` alone, `GOSUMDB=off`, no
+private module and `-mod=readonly`: every module is still checked against
+`go.sum`, and a module the mirror lacks, of a `go.sum` changed since the
+download, fails the build, which names the mirror and `tt package
+download`. The first rock server that is a directory with `go/` is the one
+taken. The Go toolchain is not in the mirror: a `go` or `toolchain` line of
+`go.mod` newer than the go of `PATH` needs that toolchain installed. The go
+components of a path dependency are downloaded with those of the project.
 
 ## How it runs
 

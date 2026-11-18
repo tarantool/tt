@@ -211,6 +211,10 @@ say what that is, into a directory of the backend in DIR. The crates the
 `Cargo.lock` of a `cargo` component pins go into `DIR/cargo`, and a build
 whose servers have DIR builds them offline, as
 [Build a module in Rust](../how-to/rust-modules.md#build-offline) shows.
+The modules the `go.sum` of a `go` component pins go into `DIR/go`, in the
+layout of a Go module proxy, which a build from the mirror takes as its
+`GOPROXY`; see
+[Run an external process](../how-to/external-processes.md#build-offline).
 The components of the path dependencies of the lock are downloaded so too.
 
 `tt wasm rock` packs a server of the same kind for the `wasm` rock of

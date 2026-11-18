@@ -1710,7 +1710,8 @@ func newPackageDownloadCmd() *cobra.Command {
 			"themselves is downloaded too, into a directory of their backend, " +
 			"DIR/<backend>, which a build that has DIR among its servers takes it " +
 			"from, offline: the crates the Cargo.lock of a cargo component pins " +
-			"go into DIR/cargo. Re-running " +
+			"go into DIR/cargo, the modules the go.sum of a go component pins " +
+			"into DIR/go, a Go module proxy. Re-running " +
 			"overwrites and re-indexes, so a mirror can be extended in place. " +
 			"Each written path is printed to stdout.",
 		Args: cobra.ArbitraryArgs,

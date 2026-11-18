@@ -221,6 +221,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   fails the build, and a build for macOS on another system is refused. The
   C toolchain of the machine linked for the machine alone, so such a build
   failed at the link.
+- `tt package download` with no arguments downloads the modules of every
+  `go` component of the project and of its path dependencies too, those its
+  `go.mod` requires and `go.sum` pins, with `go mod download` as a build
+  downloads them - `GOPROXY`, `GOPRIVATE`, the module cache first - into
+  `DIR/go/<module>/@v/<version>.{info,mod,zip,ziphash}`, the layout of a Go
+  module proxy, which the components share and a second download extends;
+  `go.mod` and `go.sum` are not written. A build whose rock servers have the
+  mirror, `TT_REGISTRIES=DIR tt package build`, builds with
+  `GOPROXY=file://DIR/go` alone, `GOSUMDB=off`, no private module and
+  `-mod=readonly`, and downloads nothing: every module is checked against
+  `go.sum`, and a module the mirror lacks fails the build, naming the mirror
+  and `tt package download`. A component with requirements and no `go.sum`
+  fails the download; one with a `vendor` directory downloads nothing and
+  builds from it. The Go toolchain a `go` or `toolchain` line asks for is
+  not mirrored. The first build of a go component on a machine needed the
+  network to download its modules.
 - `tt package download` with no arguments downloads the crates of every
   `cargo` component of the project and of its path dependencies too, those
   their `Cargo.lock` pins, of crates.io and of git, with `cargo vendor
