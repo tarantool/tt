@@ -293,7 +293,7 @@ func TestPreflight(t *testing.T) {
 	})
 
 	// A static module is only checked after the build, and on macOS one that
-	// needs libSystem alone passes.
+	// needs libSystem alone passes. A build for macOS is made on macOS.
 	t.Run("a static module for darwin", func(t *testing.T) {
 		t.Parallel()
 
@@ -301,10 +301,18 @@ func TestPreflight(t *testing.T) {
 		writeTool(t, harness.Context.Dirs.Tools, "")
 		writeLockfile(t, harness)
 
-		harness.Context.Target = darwin
+		harness.Context.Target = build.Target{OS: darwinOS, Arch: runtime.GOARCH}
 
-		require.NoError(t,
-			validate(t, module(), nil, true).Preflight(t.Context(), harness.Context))
+		err := validate(t, module(), nil, true).Preflight(t.Context(), harness.Context)
+		if runtime.GOOS == darwinOS {
+			require.NoError(t, err)
+
+			return
+		}
+
+		require.ErrorIs(t, err, ErrCrossDarwin)
+		assert.Contains(t, err.Error(), "a build for darwin-"+runtime.GOARCH+" on linux-"+
+			runtime.GOARCH+" cannot link against the SDK of macOS; build it on macOS")
 	})
 
 	t.Run("a platform cargo has no target for", func(t *testing.T) {
@@ -378,9 +386,29 @@ func TestPreflight(t *testing.T) {
 	})
 }
 
+// fakeRustc writes a rustc into the tools directory of harness whose
+// --print target-libdir --target <triple> names a directory of the target,
+// and makes those of installed, and returns where it makes them.
+func fakeRustc(t *testing.T, harness *buildtest.Harness, installed ...string) string {
+	t.Helper()
+
+	root := filepath.Join(t.TempDir(), "rustlib")
+
+	for _, triple := range installed {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, triple, "lib"), 0o750))
+	}
+
+	writeProgram(t, harness.Context.Dirs.Tools, rustcTool, `echo "`+root+`/$4/lib"`)
+
+	return root
+}
+
 // fakeCargo writes a cargo into the tools directory of harness that records
 // its working directory, its arguments and the target directory it was
-// given, at <state>/cargo.args and <state>/cargo.env, and the arguments of
+// given, at <state>/cargo.args and <state>/cargo.env, the variables CC_* and
+// AR_* of every run whose names are of the spelling tt sets, the triple
+// with underscores, at <state>/cargo.ccenv - the sh of macOS passes on a
+// name with dashes, AR_<triple> of the user, which dash drops - and the arguments of
 // every run, one run a line, at <state>/cargo.runs, makes a binary agent
 // and a library agent_lib in the target directory, and reports both as
 // cargo does, among a line of a build script; it fails when FAKE_FAIL is
@@ -397,6 +425,7 @@ func fakeCargo(t *testing.T, harness *buildtest.Harness) string {
 printf '%s\n' "$PWD" "$@" > "`+log+`.args"
 printf '%s\n' "$*" >> "`+log+`.runs"
 printf '%s\n' "${CARGO_TARGET_DIR-unset}" > "`+log+`.env"
+env | grep -E '^(CC|AR)_[A-Za-z0-9_]*=' | sort >> "`+log+`.ccenv"
 dir=${CARGO_TARGET_DIR:-$CARGO_BUILD_TARGET_DIR}
 mkdir -p "$dir"
 echo bin > "$dir/agent"
@@ -505,6 +534,7 @@ func TestRunCopiesTheLibraryAndTheBinary(t *testing.T) {
 		facts := harness.Context
 		log := fakeCargo(t, harness)
 
+		fakeRustc(t, harness, cargoArches[runtime.GOARCH]+"-unknown-linux-musl")
 		noTargetDir(harness)
 
 		require.NoError(t, harness.Run(t.Context(), validate(t, both(),
@@ -610,14 +640,16 @@ func TestRunOfAStaticBinaryNamesTheTarget(t *testing.T) {
 	}
 
 	harness := buildtest.New(t, Backend(), program())
+	target := arch + "-unknown-linux-musl"
+
 	fakeCargo(t, harness)
+	fakeRustc(t, harness, target)
 
 	harness.Context.Env["FAKE_FAIL"] = "1"
 
 	err := harness.Run(t.Context(), validate(t, program(), nil, true))
 	require.Error(t, err)
 
-	target := arch + "-unknown-linux-musl"
 	assert.Contains(t, err.Error(), "a static build is made for the target "+target+
 		", which rustup target add "+target+" installs")
 }
@@ -734,6 +766,139 @@ func TestRunFromAMirror(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "the build takes the crates from "+mirror+", offline, "+
 		"which tt package download fills from the Cargo.lock of the package")
+}
+
+// TestRunForAnotherLinux: a build for another Linux platform names the gnu
+// target of the module and the musl one of a static program, and links each
+// with the script of zig cc of its target, which the build scripts that
+// compile C get too, with that of zig ar; a linker the environment names is
+// kept.
+func TestRunForAnotherLinux(t *testing.T) {
+	t.Parallel()
+
+	arch := cargoArches[otherArch()]
+	gnu, musl := arch+"-unknown-linux-gnu", arch+"-unknown-linux-musl"
+
+	harness := buildtest.New(t, Backend(), both())
+	dirs := harness.Context.Dirs
+	log := fakeCargo(t, harness)
+
+	fakeRustc(t, harness, gnu, musl)
+	writeProgram(t, dirs.Tools, zigTool, "")
+	noTargetDir(harness)
+
+	harness.Context.Target = build.Target{OS: linuxOS, Arch: otherArch()}
+
+	bld := validate(t, both(), map[string]any{"module": "agent_lib", "bin": "agent"}, true)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	scripts := filepath.Join(dirs.State, crossDirName)
+	runs := readLines(t, log+".runs")
+	require.Len(t, runs, 2)
+
+	for i, triple := range []string{gnu, musl} {
+		cc := filepath.Join(scripts, zigTriple(triple)+"-cc")
+
+		assert.Contains(t, runs[i], "--target "+triple+
+			` --config target.`+triple+`.linker="`+cc+`"`)
+		assert.FileExists(t, filepath.Join(scripts, zigTriple(triple)+"-ar"))
+	}
+
+	assert.Equal(t, []string{
+		"AR_" + envKey(gnu, false) + "=" + filepath.Join(scripts, zigTriple(gnu)+"-ar"),
+		"CC_" + envKey(gnu, false) + "=" + filepath.Join(scripts, zigTriple(gnu)+"-cc"),
+		"AR_" + envKey(musl, false) + "=" + filepath.Join(scripts, zigTriple(musl)+"-ar"),
+		"CC_" + envKey(musl, false) + "=" + filepath.Join(scripts, zigTriple(musl)+"-cc"),
+	}, readLines(t, log+".ccenv"))
+
+	// The linker and the compilers of the environment are the user's.
+	require.NoError(t, os.Remove(log+".runs"))
+	require.NoError(t, os.Remove(log+".ccenv"))
+
+	harness.Context.Env["CARGO_TARGET_"+envKey(gnu, true)+"_LINKER"] = "my-ld"
+	harness.Context.Env["TARGET_CC"] = "my-cc"
+	harness.Context.Env["AR_"+gnu] = "my-ar"
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	runs = readLines(t, log+".runs")
+	assert.NotContains(t, runs[0], ".linker=")
+	assert.Contains(t, runs[1], "target."+musl+".linker=")
+	assert.Equal(t, []string{
+		"AR_" + envKey(musl, false) + "=" + filepath.Join(scripts, zigTriple(musl)+"-ar"),
+	}, readLines(t, log+".ccenv"))
+}
+
+// TestPreflightOfAnotherPlatform: a build for another platform needs the
+// Rust target installed, and zig for Linux; one for macOS on another system
+// is refused (TestPreflight).
+func TestPreflightOfAnotherPlatform(t *testing.T) {
+	t.Parallel()
+
+	arch := cargoArches[otherArch()]
+	gnu := arch + "-unknown-linux-gnu"
+	linux := build.Target{OS: linuxOS, Arch: otherArch()}
+
+	t.Run("no zig", func(t *testing.T) {
+		t.Parallel()
+
+		harness := buildtest.New(t, Backend(), module())
+
+		harness.Context.Env["PATH"] = t.TempDir()
+		harness.Context.Target = linux
+
+		writeTool(t, harness.Context.Dirs.Tools, "")
+		writeLockfile(t, harness)
+		fakeRustc(t, harness, gnu)
+
+		err := validate(t, module(), nil, false).Preflight(t.Context(), harness.Context)
+		require.ErrorIs(t, err, build.ErrNoTool)
+		assert.Contains(t, err.Error(), "a build for linux-"+otherArch()+" on "+runtime.GOOS+
+			"-"+runtime.GOARCH+` links with zig cc, and "zig" is not in PATH`)
+	})
+
+	t.Run("no Rust target", func(t *testing.T) {
+		t.Parallel()
+
+		harness := buildtest.New(t, Backend(), module())
+
+		harness.Context.Target = linux
+
+		writeTool(t, harness.Context.Dirs.Tools, "")
+		writeLockfile(t, harness)
+		writeProgram(t, harness.Context.Dirs.Tools, zigTool, "")
+
+		root := fakeRustc(t, harness)
+
+		err := validate(t, module(), nil, false).Preflight(t.Context(), harness.Context)
+		require.ErrorIs(t, err, ErrNoRustTarget)
+		assert.Contains(t, err.Error(), "the Rust target is not installed: "+gnu+", no "+
+			filepath.Join(root, gnu, "lib")+"; rustup target add "+gnu+" installs it")
+	})
+
+	// RUSTC of the environment is the rustc cargo runs, and the one asked.
+	t.Run("the rustc of RUSTC", func(t *testing.T) {
+		t.Parallel()
+
+		harness := buildtest.New(t, Backend(), module())
+
+		harness.Context.Target = linux
+
+		writeTool(t, harness.Context.Dirs.Tools, "")
+		writeLockfile(t, harness)
+		writeProgram(t, harness.Context.Dirs.Tools, zigTool, "")
+		fakeRustc(t, harness)
+
+		mine := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(mine, "lib"), 0o750))
+		writeProgram(t, mine, "my-rustc", `echo "`+mine+`/lib"`)
+
+		harness.Context.Env[rustcEnv] = filepath.Join(mine, "my-rustc")
+
+		require.NoError(t,
+			validate(t, module(), nil, false).Preflight(t.Context(), harness.Context))
+	})
 }
 
 // The backend is run below on the real cargo, on crates small enough to

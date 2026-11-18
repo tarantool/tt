@@ -231,7 +231,9 @@ func (b cargoBuild) Programs() ([]string, bool) {
 }
 
 // Preflight checks that a static program is not asked for darwin, that the
-// platform has a target, that cargo is in the PATH of the build and that the
+// platform has a target, that cargo is in the PATH of the build, that the
+// Rust targets of the build are installed and, for another platform than
+// the machine tt runs on, that it can be linked (checkTargets), and that the
 // workspace of the package has a Cargo.lock (findLockfile).
 func (b cargoBuild) Preflight(ctx context.Context, c *build.Context) error {
 	if b.static && b.bin != "" && c.Target.OS == darwinOS {
@@ -247,6 +249,11 @@ func (b cargoBuild) Preflight(ctx context.Context, c *build.Context) error {
 	if err != nil {
 		return fmt.Errorf("%w: the %s backend runs %q, which is not in PATH",
 			build.ErrNoTool, Name, cargoTool)
+	}
+
+	err = b.checkTargets(ctx, c)
+	if err != nil {
+		return err
 	}
 
 	_, err = findLockfile(ctx, c)
@@ -478,14 +485,24 @@ func tomlString(s string) string {
 // runBinary builds the binary in the working directory as
 // cargo build --profile <profile> --bin <bin> and copies it to
 // <programs>/<bin>; sources are the options of the crates of a mirror
-// (vendoredArgs).
+// (vendoredArgs), and a build for another Linux platform links with zig
+// (crossArgs).
 func (b cargoBuild) runBinary(ctx context.Context, c *build.Context, sources []string) error {
 	target, err := b.target(c.Target, true)
 	if err != nil {
 		return err
 	}
 
-	stdout, err := c.Output(command(ctx, c, b.args(target, c.Jobs, sources)...))
+	options, env, err := crossArgs(ctx, c, target)
+	if err != nil {
+		return err
+	}
+
+	cmd := command(ctx, c, b.args(target, c.Jobs, slices.Concat(sources, options))...)
+
+	cmd.Env = append(cmd.Env, env...)
+
+	stdout, err := c.Output(cmd)
 	if err != nil {
 		if b.static {
 			return fmt.Errorf("%w; a static build is made for the target %s, "+
@@ -519,15 +536,25 @@ func (b cargoBuild) runBinary(ctx context.Context, c *build.Context, sources []s
 // alone: its symbols of Tarantool are left to the loader, -undefined
 // dynamic_lookup, as those of a C module are, and the dependencies are built
 // as cargo builds them anyway. sources are the options of the crates of a
-// mirror (vendoredArgs).
+// mirror (vendoredArgs), and a build for another Linux platform links with
+// zig (crossArgs).
 func (b cargoBuild) runModule(ctx context.Context, c *build.Context, sources []string) error {
 	target, err := b.target(c.Target, false)
 	if err != nil {
 		return err
 	}
 
-	stdout, err := c.Output(command(ctx, c,
-		b.moduleArgs(target, c.Target.OS, c.Jobs, sources)...))
+	options, env, err := crossArgs(ctx, c, target)
+	if err != nil {
+		return err
+	}
+
+	cmd := command(ctx, c,
+		b.moduleArgs(target, c.Target.OS, c.Jobs, slices.Concat(sources, options))...)
+
+	cmd.Env = append(cmd.Env, env...)
+
+	stdout, err := c.Output(cmd)
 	if err != nil {
 		return err
 	}

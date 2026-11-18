@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- A `cargo` build checks that the Rust targets it names are installed
+  before anything is built, asking `rustc --print target-libdir --target
+  <triple>` of the toolchain cargo runs, and fails with exit code 2 naming
+  `rustup target add <triple>`: the musl target of a static program, which
+  cargo reported as a missing `std` after it had compiled the module. A
+  build for another Linux platform than the machine tt runs on, which the
+  SDK can ask for (`build.Context.Target`), builds the module for the gnu
+  target of that platform and a static program for the musl one, and links
+  them with `zig cc -target <arch>-linux-<abi>`, as cargo-zigbuild does,
+  through a script tt writes into `_build/cargo-zig/` and names with
+  `--config target.<triple>.linker`; the build scripts that compile C get
+  it as `CC_<triple>`, with `zig ar` as `AR_<triple>`. A linker or a
+  compiler the environment names for the target is kept, zig not on `PATH`
+  fails the build, and a build for macOS on another system is refused. The
+  C toolchain of the machine linked for the machine alone, so such a build
+  failed at the link.
 - `tt package download` with no arguments downloads the crates of every
   `cargo` component of the project and of its path dependencies too, those
   their `Cargo.lock` pins, of crates.io and of git, with `cargo vendor

@@ -221,6 +221,48 @@ project that depends on the rock builds it from the crates the lock pins,
 which cargo downloads, a mirror of the project or not: its download does
 not download them.
 
+## Rust targets and other platforms
+
+A build for the machine tt runs on names no `--target`, so that the
+configuration of the project for its host builds applies, but a static
+program: `static = true` builds it for `<arch>-unknown-linux-musl`, whose
+standard library is rustup's to install. The build checks that every
+target it names is installed before anything is built, with `rustc --print
+target-libdir --target <triple>` of the toolchain cargo runs, the one
+`RUSTC` names or `rust-toolchain.toml` selects:
+
+```console
+$ tt package build
+   ⨯ building component "fastrs": the Rust target is not installed: x86_64-unknown-linux-musl, no .../lib/rustlib/x86_64-unknown-linux-musl/lib; rustup target add x86_64-unknown-linux-musl installs it
+$ rustup target add x86_64-unknown-linux-musl
+```
+
+`tt package build` builds for the machine it runs on. The backend builds
+for another platform too, when the build it runs in is for one
+(`build.Context.Target` of the SDK). A build for another Linux platform,
+`linux/arm64` on an `x86_64` machine say, needs the Rust targets of that
+platform, `aarch64-unknown-linux-gnu` for the module and
+`aarch64-unknown-linux-musl` for a static program, and zig on `PATH`: the
+C toolchain of the machine links for the machine alone, so cargo links
+with `zig cc -target aarch64-linux-gnu`, as
+[cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) does. tt
+writes the script that runs it into `_build/cargo-zig/` and names it as the
+linker of the target with `--config target.<triple>.linker=...`; the build
+scripts that compile C with the `cc` crate get it as `CC_<triple>`, and
+`zig ar` as `AR_<triple>`. A linker the environment names,
+`CARGO_TARGET_<TRIPLE>_LINKER`, and a `CC_<triple>`, `TARGET_CC`,
+`AR_<triple>` or `TARGET_AR` of it are kept. The module and the program
+link against the C library zig has for the target, glibc 2.31 by default
+with zig 0.17, not that of the machine. A build for macOS is made on
+macOS, whose SDK cargo links against: one on Linux fails before anything
+is built.
+
+The default features of the `tarantool` crate build `openssl-sys`, which
+needs the development files of OpenSSL of the target: for another platform
+there are none, and the build fails. `tarantool = { version = "11",
+default-features = false }` leaves out its network client, and OpenSSL with
+it.
+
 ## The toolchain
 
 `cargo` and `rustc` are yours to install, from [rustup](https://rustup.rs):
