@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/deps"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
@@ -355,6 +356,7 @@ func BuildProject(ctx context.Context, opts sdk.BuildOptions) (*build.Result, er
 		fetchOnly:  false,
 		rebuild:    opts.Rebuild,
 		jobs:       opts.Jobs,
+		target:     native.Platform{OS: "", Arch: ""},
 		registries: opts.Registries,
 		showOutput: opts.ShowOutput,
 		args:       opts.Args,
@@ -410,6 +412,7 @@ func ComponentContext(opts sdk.BuildContextOptions) (*sdkbuild.Context, sdkbuild
 		ShowOutput: cmdCtx.Cli.Verbose,
 		Rebuild:    false,
 		Jobs:       opts.Jobs,
+		Target:     native.Platform{OS: "", Arch: ""},
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
@@ -493,6 +496,7 @@ func FetchRocks(ctx context.Context, registries []string) error {
 		fetchOnly:  true,
 		rebuild:    false,
 		jobs:       0,
+		target:     native.Platform{OS: "", Arch: ""},
 		registries: registries,
 		showOutput: false,
 		args:       nil,

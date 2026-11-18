@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt package build --target OS/ARCH` and `tt package pack --target
+  OS/ARCH` build the components of the package for another platform than
+  the machine tt runs on: `linux/amd64`, `linux/arm64`, `darwin/amd64` or
+  `darwin/arm64`, also spelled `linux-arm64`, with `aarch64` and `x86_64`
+  for the architecture; another one is a usage error. The builds get the
+  platform in `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`: `cargo` builds for
+  the Rust target of it and links one of Linux with zig cc, `go` sets
+  `GOOS` and `GOARCH`, `zig` passes `-Dtarget=<arch>-linux-gnu`, the musl
+  one for a static program and `<arch>-macos` for darwin, to a build.zig
+  that takes it, and `make` and `shell` read the variables. A `c`, `lua-c`
+  or `cmake` component, which compiles with the toolchain of the machine,
+  fails the build with exit code 1 before a hook or anything else runs,
+  naming the component, the backend and both platforms, and so do a `go`
+  build with `cgo = true`, a `zig` one whose build.zig takes no `-Dtarget`
+  or whose `options` name a target, and a `cargo` one for darwin off
+  macOS. The native modules a build made are checked against the platform
+  of the build, as its programs were, for the machine too: a module of
+  another platform fails the build with exit code 2 rather than where
+  Tarantool loads it. A build for another platform keeps its state in
+  `_build/target/<os>-<arch>/` - the stage, the records of the components
+  and of the incremental builds, `TT_BUILD_DIR` of each component and the
+  target directory of cargo - so that it neither takes what a build for
+  the machine made as up to date nor removes it, and installs the package
+  into `_build/target/<os>-<arch>/tree/` rather than into `.rocks/`, whose
+  rocks are those of the machine; the dependencies and the path
+  dependencies are installed into `.rocks/` and built for the machine as
+  for any build. `tt package pack --target` makes the binary rock of the
+  platform, `<rock>-<version>.linux-aarch64.rock` for `linux/arm64`, and
+  the `.tt` archive labeled with it, `<package>-<version>-linux-arm64.tt`,
+  with `--without-deps` alone: the archive with its dependencies, which
+  would carry the Tarantool, the tt and the rocks of the machine, is
+  refused before the build. `--debuginfo strip` of such a pack strips with
+  `llvm-strip`. `tt package clean COMPONENT` cleans what the builds for
+  every platform made of it. Every build was for the machine tt runs on:
+  the SDK could ask a backend for another platform, the commands could not.
 - A build backend of the SDK says whether its builds are made for another
   platform than the machine tt runs on, `build.Backend.Cross`: such a
   build gets that platform in `build.Context.Target`, and

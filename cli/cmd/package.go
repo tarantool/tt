@@ -27,6 +27,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/deps"
 	"github.com/tarantool/tt/v3/cli/manifest/install"
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/pack"
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
 	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
@@ -53,7 +54,11 @@ var (
 	packageRebuild bool
 	// packageJobs is -j, --jobs: the most jobs each component build runs at
 	// once, 0 leaving it to the backends (build.Options.Jobs).
-	packageJobs        int
+	packageJobs int
+	// packageTarget is --target of tt package build and pack: the platform
+	// the components are built for, the machine tt runs on when it is the
+	// zero one (build.Options.Target).
+	packageTarget      native.Platform
 	packageWithoutDeps bool
 	// packageIntegrityKey is --with-integrity-check of tt package pack: the
 	// private key that signs the archive. The flag exists only when the
@@ -1118,7 +1123,12 @@ func newPackageBuildCmd() *cobra.Command {
 			"-j N runs at most N jobs at once in each component build, one a CPU by " +
 			"default: the backend hands N to its tool, and a make or shell build " +
 			"reads it as TT_BUILD_JOBS. It changes no input: a component built with " +
-			"other -j is not built again.",
+			"other -j is not built again.\n\n" +
+			targetHelp + " The build keeps its state in _build/target/<os>-<arch>/ and " +
+			"installs the package into the tree there, _build/target/<os>-<arch>/tree/, " +
+			"not into .rocks/, whose rocks are those of this machine; the dependencies " +
+			"are installed into .rocks/ and built for this machine as ever. tt package " +
+			"pack --target packs what it built.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackage(args, false))
@@ -1133,9 +1143,61 @@ func newPackageBuildCmd() *cobra.Command {
 		"build the incremental components even when nothing changed, and every "+
 			"component in an empty TT_BUILD_DIR")
 	sdk.AddJobsFlag(buildCmd, &packageJobs)
+	addTargetFlag(buildCmd)
 	addRegistryFlag(buildCmd)
 
 	return buildCmd
+}
+
+// targetHelp is the paragraph of the help of tt package build and pack that
+// says what --target builds.
+const targetHelp = "--target OS/ARCH builds the components for another platform than " +
+	"the machine tt runs on: linux/amd64, linux/arm64, darwin/amd64 or darwin/arm64, " +
+	"also spelled linux-arm64, with aarch64 and x86_64 for the architecture. A cargo, " +
+	"go, zig, make or shell build is made for it, and told it in TT_PLATFORM_OS and " +
+	"TT_PLATFORM_ARCH; a c, lua-c or cmake one, which compiles with the toolchain of " +
+	"this machine, fails the build before anything is built, and so does a go build " +
+	"with cgo, and a cargo one for darwin off macOS. The modules and the programs a " +
+	"build made are checked against the platform."
+
+// targetValue is the value of --target: a platform tt builds for
+// (native.ParsePlatform), the zero one, the machine tt runs on, by default.
+type targetValue struct {
+	target *native.Platform
+}
+
+// String returns the platform as GOOS/GOARCH, or nothing for the zero one.
+func (v targetValue) String() string {
+	if v.target == nil || *v.target == (native.Platform{OS: "", Arch: ""}) {
+		return ""
+	}
+
+	return v.target.OS + "/" + v.target.Arch
+}
+
+// Set parses the platform, refusing one tt does not build for.
+func (v targetValue) Set(text string) error {
+	platform, err := native.ParsePlatform(text)
+	if err != nil {
+		return err
+	}
+
+	*v.target = platform
+
+	return nil
+}
+
+// Type names the type of the value in the help.
+func (targetValue) Type() string {
+	return "OS/ARCH"
+}
+
+// addTargetFlag declares --target on a command that builds the components of
+// a project, bound to packageTarget.
+func addTargetFlag(cmd *cobra.Command) {
+	cmd.Flags().Var(targetValue{target: &packageTarget}, "target",
+		"build the components for the platform `OS/ARCH`, such as linux/arm64, instead of "+
+			"the machine tt runs on")
 }
 
 // newPackageFetchCmd wires `tt package fetch`.
@@ -1193,6 +1255,12 @@ func newPackagePackCmd() *cobra.Command {
 			"on the rock builds it " +
 			"from the source rock, with its manifest, where the server has no " +
 			"rock of the platform.\n\n" +
+			targetHelp + " The rock is then the binary rock of that platform, " +
+			"<rock>-<version>.linux-aarch64.rock for linux/arm64, and the .tt archive, " +
+			"labeled with it, <package>-<version>-linux-arm64.tt, is packed " +
+			"--without-deps alone: the Tarantool, the tt and the dependencies it " +
+			"would bundle are those of this machine. --debuginfo strip strips them " +
+			"with llvm-strip, which strips the files of every platform.\n\n" +
 			"The paths of what the pack made are printed to stdout, one per line.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1208,6 +1276,7 @@ func newPackagePackCmd() *cobra.Command {
 		"build the incremental components even when nothing changed, and every "+
 			"component in an empty TT_BUILD_DIR")
 	sdk.AddJobsFlag(packCmd, &packageJobs)
+	addTargetFlag(packCmd)
 	packCmd.Flags().BoolVar(&packageWithoutDeps, "without-deps", false,
 		"pack without _runtime/ and without foreign dependencies in .rocks/")
 	packCmd.Flags().StringSliceVar(&packageFormats, "format", []string{pack.FormatTt},
@@ -1295,6 +1364,7 @@ func runPackagePack() error {
 			ShowOutput: cmdCtx.Cli.Verbose,
 			Rebuild:    packageRebuild,
 			Jobs:       packageJobs,
+			Target:     packageTarget,
 			Now:        time.Time{},
 			Logger:     luarocksLogger(),
 			Warn:       nil,
@@ -1393,7 +1463,7 @@ func runPackage(args []string, fetchOnly bool) error {
 		component = args[0]
 	}
 
-	return buildPackage(ctx, packageRun{
+	run := packageRun{
 		product:    packageProduct,
 		component:  component,
 		components: nil,
@@ -1401,10 +1471,34 @@ func runPackage(args []string, fetchOnly bool) error {
 		fetchOnly:  fetchOnly,
 		rebuild:    packageRebuild,
 		jobs:       packageJobs,
+		target:     native.Platform{OS: "", Arch: ""},
 		registries: packageRegistries,
 		showOutput: false,
 		args:       nil,
-	})
+	}
+
+	if fetchOnly {
+		return buildPackage(ctx, run)
+	}
+
+	run.target = packageTarget
+
+	projectDir, err := packageRootDir()
+	if err != nil {
+		return err
+	}
+
+	result, err := buildPackageResult(ctx, projectDir, run)
+	if err != nil {
+		return err
+	}
+
+	if result.Target != native.Host() {
+		log.Infof("built %s for %s into %s: a build for another platform is not "+
+			"installed into .rocks/", result.Manifest.Package.Name, result.Target, result.Tree)
+	}
+
+	return nil
 }
 
 // packageRun is what one run of the build pipeline is asked to do: the
@@ -1426,6 +1520,9 @@ type packageRun struct {
 	// jobs is the most jobs each component build runs at once, as -j sets
 	// it (build.Options.Jobs).
 	jobs int
+	// target is the platform the components are built for, as --target
+	// sets it; the zero one is the machine tt runs on (build.Options.Target).
+	target native.Platform
 	// registries are the rock servers of --registry.
 	registries []string
 	// showOutput shows what the tools print, as --verbose does.
@@ -1484,6 +1581,7 @@ func buildPackageResult(ctx context.Context, projectDir string, run packageRun) 
 		ShowOutput: cmdCtx.Cli.Verbose || run.showOutput,
 		Rebuild:    run.rebuild,
 		Jobs:       run.jobs,
+		Target:     run.target,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
@@ -1726,6 +1824,7 @@ func vendorProjectInto(ctx context.Context, projectDir, dir string) error {
 		ShowOutput: cmdCtx.Cli.Verbose,
 		Rebuild:    false,
 		Jobs:       0,
+		Target:     native.Platform{OS: "", Arch: ""},
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
