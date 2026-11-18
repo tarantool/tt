@@ -204,6 +204,65 @@ _runtime/tcm/bin/tcm           # with [platform].tcm set
 A signed archive also has `hashes.json`, `env_hashes.json` and their `.sig`
 files; see [Sign packages](../how-to/sign-packages.md).
 
+## A mirror
+
+`tt package download --dir DIR` makes DIR a rock server that a machine with
+no network builds from (see
+[A mirror for offline builds](../concepts/rock-servers.md#a-mirror-for-offline-builds)):
+
+```text
+DIR/
+├── manifest, manifest-5.1, ...       # the LuaRocks manifests
+├── tt-rocks-index.json               # the rock index
+├── checks-3.4.1-1.all.rock           # the rocks of the lock
+├── cargo/                            # what a build backend downloads, by backend
+└── binaries/                         # the programs the lock pins, for this machine
+    ├── tt-binaries-index.json
+    ├── tarantool-3.9.0-linux-amd64.tar.gz
+    └── tt-3.0.0-linux-amd64.tar.gz
+```
+
+`binaries/` holds the tarantool, the tt and, with `[platform].tcm`, the TCM
+`app.manifest.lock` pins, as `<product>[-<flavor>]-<version>-<os>-<arch>.tar.gz`.
+A download with `--no-binaries` writes no `binaries/`.
+An archive of tarantool or tt is the archive of the Community product tt
+defines: the executable at the root and, of tarantool, its headers in
+`include/tarantool/`, the Lua files of `share/tarantool/`, the EmmyLua stubs
+of Tarantool 3.9 and later among them, and the license files. An archive of
+tarantool-ee, tt-ee or TCM is the archive of the customer zone. Each archive
+is listed in `tt-binaries-index.json` with its sha256:
+
+```json
+{
+  "format": 1,
+  "binaries": [
+    {
+      "product": "tarantool",
+      "version": "3.9.0",
+      "os": "linux",
+      "arch": "amd64",
+      "file": "tarantool-3.9.0-linux-amd64.tar.gz",
+      "sha256": "...",
+      "size": 24152380
+    },
+    {
+      "product": "tarantool-ee",
+      "version": "3.4.1-0-r63",
+      "flavor": ["gc64"],
+      "os": "linux",
+      "arch": "amd64",
+      "file": "tarantool-ee-gc64-3.4.1-0-r63-linux-amd64.tar.gz",
+      "sha256": "...",
+      "size": 151234567
+    }
+  ]
+}
+```
+
+`product` is the product as `tt binary` names it, the edition in it;
+`version` and `flavor` are those of the build; `os` and `arch` are those of
+Go, `linux` or `darwin` and `amd64` or `arm64`.
+
 ## The user cache
 
 `tt wasm` and `tt emmylua` keep what they download under `tt/` of the user

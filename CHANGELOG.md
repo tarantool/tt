@@ -177,6 +177,30 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   archive, so nothing said which tarantool, tt and TCM a project was
   resolved for; the lock format is unchanged otherwise, and a tt that does
   not know the keys reads the lock as before.
+- `tt package download` with no arguments puts the tarantool, the tt and,
+  with `[platform].tcm`, the TCM the lock pins into the mirror too, for the
+  machine it runs on: `DIR/binaries/<product>[-<flavor>]-<version>-<os>-<arch>.tar.gz`,
+  listed with product, version, flavours, platform, file, sha256 and size
+  in `DIR/binaries/tt-binaries-index.json`. The installation of exactly
+  that version in the project is repacked, with no network, into the
+  archive the product is installed from - tarantool and tt in the format
+  of the Community products `sdk/bundle` defines, with the headers, the
+  Lua files of `share/tarantool` and the license files of a tarantool, TCM
+  and tt-ee as the archive of the customer zone with the executable at its
+  root; else the archive is downloaded from the source `tt binary install`
+  takes the product from, checked against the sha256 the source lists, and
+  tarantool-ee always so, since an installation does not say whether it is
+  a gc64 build. A tarantool archive without `include/tarantool/module.h` is
+  refused, one of Tarantool 3.9 or later without its EmmyLua stubs is a
+  warning, and a program the lock pins no version of, or one `[platform]`
+  no longer allows, fails the download saying that `tt package resolve`
+  pins it and `--no-binaries` skips the programs, after the others are
+  downloaded. With `--no-binaries` no programs are downloaded, and the lock
+  need not pin them. A second
+  download replaces the archive of the same build and keeps the rest of
+  the mirror. The mirror held the rocks and what the build backends
+  download, and a machine with no network had no way to get the programs
+  the project runs on.
 - `tt package build --target OS/ARCH` and `tt package pack --target
   OS/ARCH` build the components of the package for another platform than
   the machine tt runs on: `linux/amd64`, `linux/arm64`, `darwin/amd64` or

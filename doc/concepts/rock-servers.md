@@ -220,6 +220,29 @@ component pins go into `DIR/zig`, each in the directory of its hash; see
 [Build a module in Zig](../how-to/zig-modules.md#build-offline).
 The components of the path dependencies of the lock are downloaded so too.
 
+Without arguments, download downloads the programs the project runs on as
+well: the tarantool, the tt and, with `[platform].tcm`, the TCM whose exact
+versions `app.manifest.lock` pins (see
+[the pinned runtime](../reference/app-manifest.md#the-pinned-runtime)), for
+this machine, into `DIR/binaries/` with an index of their sha256 (see
+[A mirror](../reference/layout.md#a-mirror)). The installation of exactly
+that version in the project is repacked, with no network; one the project
+does not have is downloaded from where `tt binary install` downloads it. A
+tarantool comes with its headers, which modules are built with, and with the
+EmmyLua stubs Tarantool 3.9 and later ship; an archive without the headers is
+refused, and a tarantool 3.9 or later without the stubs is a warning. A
+program the lock pins no version of fails the download: `tt package resolve`
+pins it. With `--no-binaries` no programs are downloaded and the lock need not
+pin them: the mirror holds the rocks and what the builds download.
+
+```console
+$ tt package resolve
+$ tt package download --dir ../mirror
+.../mirror/binaries/tarantool-3.9.0-linux-amd64.tar.gz
+.../mirror/binaries/tt-3.0.0-linux-amd64.tar.gz
+indexed 2 program(s) in .../mirror/binaries
+```
+
 `tt wasm rock` packs a server of the same kind for the `wasm` rock of
 tarantool-wasm: the rock of every platform of a release, with its index; see
 [Run WebAssembly components](../how-to/wasm-components.md#share-the-rock).

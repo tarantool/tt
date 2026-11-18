@@ -102,6 +102,10 @@ var packageRegistries []string
 // packageDownloadDir is --dir of `tt package download`.
 var packageDownloadDir string
 
+// packageDownloadNoBinaries is --no-binaries of `tt package download`: the
+// programs the lock pins are not put into DIR/binaries.
+var packageDownloadNoBinaries bool
+
 // packageIndexFile and packageIndexBaseURL are --index and --base-url of
 // `tt package index`: the index to write and where the files it lists are
 // downloaded from.
@@ -1766,7 +1770,7 @@ func newPackageDownloadCmd() *cobra.Command {
 			"of a zig component pins, with zig 0.17 or later, into DIR/zig. " +
 			"Re-running " +
 			"overwrites and re-indexes, so a mirror can be extended in place. " +
-			"Each written path is printed to stdout.",
+			"Each written path is printed to stdout." + downloadBinariesHelp,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackageDownload(args))
@@ -1775,6 +1779,8 @@ func newPackageDownloadCmd() *cobra.Command {
 
 	downloadCmd.Flags().StringVar(&packageDownloadDir, "dir", "",
 		"directory to download into (default: the current directory)")
+	downloadCmd.Flags().BoolVar(&packageDownloadNoBinaries, noBinariesFlag, false,
+		noBinariesUsage)
 	addRegistryFlag(downloadCmd)
 
 	return downloadCmd
@@ -1848,7 +1854,16 @@ func runPackageDownload(args []string) error {
 		return nil
 	}
 
-	return vendorProjectInto(ctx, projectDir, dir)
+	err = vendorProjectInto(ctx, projectDir, dir)
+	if err != nil {
+		return err
+	}
+
+	if packageDownloadNoBinaries {
+		return nil
+	}
+
+	return downloadBinariesInto(ctx, projectDir, dir)
 }
 
 // vendorProjectInto downloads into the mirror dir what the builds of the

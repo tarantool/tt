@@ -117,14 +117,22 @@ def source_server(tmp_path, tt_cmd):
         stop()
 
 
-def offline_env(mirror: Path) -> dict[str, str]:
-    """The environment of a build against mirror alone, with no network."""
-    env = dict(os.environ, TT_REGISTRIES=str(mirror))
+def without_network(**extra: str) -> dict[str, str]:
+    """The environment with every proxy dead, so a run reaches nothing beyond
+    loopback, which no proxy is asked for: tt package resolve, which asks
+    GitHub for the tt releases when it cannot pin tt otherwise, warns and pins
+    none."""
+    env = dict(os.environ, **extra)
     for proxy in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy", "ALL_PROXY"):
         env[proxy] = DEAD_PROXY
     for bypass in ("NO_PROXY", "no_proxy"):
         env.pop(bypass, None)
     return env
+
+
+def offline_env(mirror: Path) -> dict[str, str]:
+    """The environment of a build against mirror alone, with no network."""
+    return without_network(TT_REGISTRIES=str(mirror))
 
 
 def run(tt_cmd, cwd: Path, *args: str, env=None) -> subprocess.CompletedProcess:
@@ -176,7 +184,7 @@ def test_mirror_of_a_rockspec_builds_offline(tt_cmd, tmp_path, source_server, ta
     project.mkdir()
     (project / "app.manifest.toml").write_text(MANIFEST.format(server=server, table=table))
 
-    resolved = run(tt_cmd, project, "package", "resolve")
+    resolved = run(tt_cmd, project, "package", "resolve", env=without_network())
     assert resolved.returncode == 0, resolved.stderr
 
     lock = (project / "app.manifest.lock").read_text()
@@ -186,10 +194,14 @@ def test_mirror_of_a_rockspec_builds_offline(tt_cmd, tmp_path, source_server, ta
     else:
         assert "artifacts" not in lock
 
-    downloaded = run(tt_cmd, project, "package", "download", "--dir", "../mirror")
+    # tt = '>=3.1.0' leaves tt unpinned, and the programs are not what this
+    # mirrors: --no-binaries leaves them out.
+    args = ("package", "download", "--dir", "../mirror", "--no-binaries")
+    downloaded = run(tt_cmd, project, *args, env=without_network())
     assert downloaded.returncode == 0, downloaded.stderr
     mirror = tmp_path / "mirror"
     assert_mirrored(mirror, downloaded.stdout)
+    assert not (mirror / "binaries").exists()
 
     shutil.rmtree(repo)
     stop()
