@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tarantool/go-luarocks/remote"
+
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/log"
@@ -37,6 +39,10 @@ type builder struct {
 	// version is TT_VERSION, empty before the version is derived: when the
 	// builds are only preflighted.
 	version string
+	// mirrors are the rock servers of the build that are directories, in
+	// the order the build queries them: where a build looks for what tt
+	// package download put there for its backend (vendoredDir).
+	mirrors []string
 }
 
 // newBuilder returns the builder of the builds of proj into stage, at the
@@ -55,7 +61,49 @@ func newBuilder(opts Options, proj project, stage string, ver version.Version) b
 			Executable: opts.Tarantool.Executable,
 		},
 		version: ver.SemVer,
+		mirrors: localRegistries(opts, proj),
 	}
+}
+
+// localRegistries returns the rock servers of a build of opts of proj that
+// are directories, in order: the mirrors tt package download makes are.
+// None for a source rock of a server (project.fromServer). The list was
+// checked when the build settled it, so an error leaves none.
+func localRegistries(opts Options, proj project) []string {
+	if proj.man == nil || proj.fromServer {
+		return nil
+	}
+
+	registries, err := effectiveRegistries(opts, proj.man)
+	if err != nil {
+		return nil
+	}
+
+	var dirs []string
+
+	for _, registry := range registries {
+		if dir, local := remote.LocalServerPath(registry.URL); local {
+			dirs = append(dirs, dir)
+		}
+	}
+
+	return dirs
+}
+
+// vendoredDir returns the directory of the backend in the first of the
+// mirrors that has one, <mirror>/<backend>, where tt package download put
+// what the Vendor of its builds downloaded (sdkbuild.Vendorer), or none.
+func (b builder) vendoredDir(backend string) string {
+	for _, mirror := range b.mirrors {
+		dir := filepath.Join(mirror, backend)
+
+		info, err := os.Stat(dir)
+		if err == nil && info.IsDir() {
+			return dir
+		}
+	}
+
+	return ""
 }
 
 // componentRun is a component of a build with its backend and the build
@@ -140,6 +188,7 @@ func (b builder) component(name string) (componentRun, error) {
 		Static:    component.Build.StaticValue(),
 		Args:      slices.Clone(b.opts.Args),
 		Jobs:      b.opts.Jobs,
+		Vendored:  b.vendoredDir(backend.Name),
 		Hook:      false,
 		Log:       buildLogger(backend.Name),
 		Warn:      b.warn,
@@ -196,6 +245,7 @@ func (b builder) hookContext(hook manifest.Hook, backend string) *sdkbuild.Conte
 		Locked:    b.opts.Locked,
 		Static:    false,
 		Jobs:      b.opts.Jobs,
+		Vendored:  b.vendoredDir(backend),
 		Hook:      true,
 		Log:       buildLogger(backend),
 		Warn:      b.warn,

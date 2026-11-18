@@ -216,6 +216,15 @@ type Context struct {
 	// incremental build, and a build with other Jobs is skipped as one with
 	// the same would be.
 	Jobs int
+	// Vendored is the directory of the backend in a mirror among the rock
+	// servers of the build: <mirror>/<backend> of the first rock server that
+	// is a directory and has one, which tt package download filled with what
+	// [Vendorer.Vendor] of the components downloaded. A build given one takes
+	// from it what its tool would download, and downloads nothing: the
+	// mirror is what an offline build has. Empty when no rock server of the
+	// build has one, and for the build of the source rock of a server, which
+	// the download does not download for: the build downloads what it needs.
+	Vendored string
 	// Hook is set for the build of a lifecycle hook ([Backend.Hook]), which
 	// runs around the builds of all the components rather than for one:
 	// Component is the zero one, Dirs has no Component, Work, Modules, Share

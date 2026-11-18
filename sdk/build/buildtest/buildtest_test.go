@@ -322,6 +322,40 @@ func TestHarnessClean(t *testing.T) {
 	require.NoError(t, harness.Clean(t.Context(), touchBuild{file: "made.txt"}))
 }
 
+// vendorBuild is a Build whose Vendor writes, into the directory it is
+// given, whether its Context is locked.
+type vendorBuild struct{ genBuild }
+
+var _ build.Vendorer = vendorBuild{}
+
+func (vendorBuild) Vendor(_ context.Context, c *build.Context, dir string) error {
+	err := os.MkdirAll(dir, 0o750)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filepath.Join(dir, "locked"), []byte(strconv.FormatBool(c.Locked)), 0o600)
+}
+
+// TestHarnessVendor runs the Vendor of a Vendorer into the directory given,
+// in a locked Context, and downloads nothing of a Build that is no
+// Vendorer.
+func TestHarnessVendor(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, touch(), component())
+	dir := filepath.Join(t.TempDir(), "mirror", "touch")
+
+	require.NoError(t, harness.Vendor(t.Context(), vendorBuild{}, dir))
+
+	data, err := os.ReadFile(filepath.Join(dir, "locked"))
+	require.NoError(t, err)
+	assert.Equal(t, "true", string(data))
+	assert.False(t, harness.Context.Locked, "the harness is left as it was")
+
+	require.NoError(t, harness.Vendor(t.Context(), touchBuild{file: "made.txt"}, dir))
+}
+
 func TestHarnessBin(t *testing.T) {
 	t.Parallel()
 

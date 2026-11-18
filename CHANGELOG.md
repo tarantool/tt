@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- A build backend whose tool downloads what it builds with can download it
+  ahead into the mirror `tt package download` makes: a build of the SDK
+  that is a `build.Vendorer` is asked, by `tt package download` with no
+  arguments, after the rocks of the lock, to download what the build of its
+  component would into `DIR/<backend>`, for every component of the project
+  and of the path dependencies of its lock, and a build whose rock servers have
+  that mirror gets the directory in `build.Context.Vendored`, of the first
+  server that is a directory and has one, to build from it offline.
+  `buildtest.Harness.Vendor` runs it in a test. A mirror held the rocks
+  alone, and a component whose tool downloads needed the network.
 - `tt binary install --yes` (`-y`) answers yes to the questions of the
   installation: whether to build Tarantool from source on an OS whose
   packages tt does not know without checking the dependencies, and whether

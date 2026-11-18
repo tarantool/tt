@@ -119,7 +119,7 @@ func Clean(ctx context.Context, opts Options, clean CleanOptions) (*CleanResult,
 	}
 
 	result := &CleanResult{Removed: nil, Rocks: nil, Cleaned: nil, Hook: false}
-	cleaner := newProjectCleaner(opts, man)
+	cleaner := newProjectRuns(opts, man)
 
 	err = cleaner.runCleaners(ctx, components, clean.DryRun, result)
 	if err != nil {
@@ -174,9 +174,11 @@ func cleanedComponents(man *manifest.Manifest, names []string) ([]string, error)
 	return components, nil
 }
 
-// projectCleaner makes the Contexts of the Clean of the backends and of the
-// clean hook of the package of a project, as a build of it would.
-type projectCleaner struct {
+// projectRuns makes the Contexts a backend runs in out of a build of the
+// package of a project, as a build of it would: those of the Clean of the
+// backends and of the clean hook of tt package clean, and of the Vendor of
+// the backends of tt package download (Vendor).
+type projectRuns struct {
 	opts Options
 	man  *manifest.Manifest
 	// version is the version of the package, derived when first asked for;
@@ -185,16 +187,16 @@ type projectCleaner struct {
 	derived bool
 }
 
-// newProjectCleaner returns the cleaner of the project of opts, whose
-// manifest is man.
-func newProjectCleaner(opts Options, man *manifest.Manifest) *projectCleaner {
+// newProjectRuns returns the runs of the project of opts, whose manifest is
+// man.
+func newProjectRuns(opts Options, man *manifest.Manifest) *projectRuns {
 	// The run asks the build for the Contexts of a build, and builds nothing:
 	// it never builds, so the build run has neither Args nor --rebuild.
 	opts.Args = nil
 	opts.Rebuild = false
 	opts.Locked = false
 
-	return &projectCleaner{
+	return &projectRuns{
 		opts:    opts,
 		man:     man,
 		version: version.Version{},
@@ -205,7 +207,7 @@ func newProjectCleaner(opts Options, man *manifest.Manifest) *projectCleaner {
 // builder returns the builder of the product named product. The version is
 // that of the package, or none when it cannot be derived: a clean does not
 // need one, and a project with no git and no VERSION file is still cleaned.
-func (p *projectCleaner) builder(product string) builder {
+func (p *projectRuns) builder(product string) builder {
 	if !p.derived {
 		ver, err := version.Derive(p.opts.ProjectDir)
 		if err == nil {
@@ -226,7 +228,7 @@ func (p *projectCleaner) builder(product string) builder {
 // productOf returns the product the Context of the Clean of the component
 // name is that of: the default product when it builds the component, else
 // the first product by name that does, else the default one.
-func (p *projectCleaner) productOf(name string) string {
+func (p *projectRuns) productOf(name string) string {
 	defaultName, product, ok := p.man.DefaultProduct()
 	if ok && slices.Contains(product.Components, name) {
 		return defaultName
@@ -245,7 +247,7 @@ func (p *projectCleaner) productOf(name string) string {
 
 // runCleaners runs the Clean of the build of each of components whose build
 // is a sdkbuild.Cleaner, or with dryRun records only which would run.
-func (p *projectCleaner) runCleaners(
+func (p *projectRuns) runCleaners(
 	ctx context.Context, components []string, dryRun bool, result *CleanResult,
 ) error {
 	for _, name := range components {
@@ -288,7 +290,7 @@ func (p *projectCleaner) runCleaners(
 
 // runHook runs the clean hook of the package, when the manifest declares
 // one, or with dryRun records only that it would run.
-func (p *projectCleaner) runHook(ctx context.Context, dryRun bool, result *CleanResult) error {
+func (p *projectRuns) runHook(ctx context.Context, dryRun bool, result *CleanResult) error {
 	if _, ok := p.man.Hooks[hookClean]; !ok {
 		return nil
 	}

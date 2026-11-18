@@ -640,6 +640,11 @@ type project struct {
 	// closure is the closure of product as the lock pins it, which rocks.lua
 	// of a top-level build lists; runBuild sets it once the lock is gated.
 	closure []manifest.LockDependency
+	// fromServer is set for the source rock of a rock server, unpacked: its
+	// builds are given no mirror of the rock servers of the build
+	// (sdkbuild.Context.Vendored), which tt package download does not fill
+	// for it, and download what they need.
+	fromServer bool
 }
 
 // packageProject is the project of the package itself, its state in its own
