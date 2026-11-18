@@ -28,6 +28,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/printing"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/core"
+	"github.com/tarantool/tt/v3/standard"
 )
 
 // mainCaseEnv selects, in a process the tests start, the program TestMain
@@ -90,6 +91,15 @@ var mainCases = map[string]func() int{
 	"bundle-sources": func() int {
 		return core.Main(core.Modules{"builtin": core.Builtin},
 			core.WithBundleSources(tcmSource{}, core.CustomerZone()))
+	},
+	// standard is tt as its main package builds it: the builtin commands and
+	// the standard modules, the build backends of tt among them.
+	"standard": func() int {
+		modules := standard.Modules()
+
+		modules["builtin"] = core.Builtin
+
+		return core.Main(modules)
 	},
 }
 

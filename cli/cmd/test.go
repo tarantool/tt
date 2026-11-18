@@ -12,6 +12,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
 )
 
@@ -124,9 +125,11 @@ func runTest(subPaths, luatestArgs []string) error {
 		ShowOutput: cmdCtx.Cli.Verbose,
 		Rebuild:    false,
 		Jobs:       testJobs,
-		Now:        time.Time{},
-		Logger:     luarocksLogger(),
-		Warn:       func(msg string) { log.Warn(msg) },
+		// The tests run on the machine, and so do the modules they load.
+		Target: native.Platform{OS: "", Arch: ""},
+		Now:    time.Time{},
+		Logger: luarocksLogger(),
+		Warn:   func(msg string) { log.Warn(msg) },
 
 		// The output of tt test is the runner's: what the build removed goes
 		// to the log, beside the warnings.

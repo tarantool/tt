@@ -4181,6 +4181,19 @@ the backend hands N to its tool, and a make or shell build reads it as
 TT_BUILD_JOBS. It changes no input: a component built with other -j is not built
 again.
 
+--target OS/ARCH builds the components for another platform than the machine tt
+runs on: linux/amd64, linux/arm64, darwin/amd64 or darwin/arm64, also spelled
+linux-arm64, with aarch64 and x86_64 for the architecture. A cargo, go, zig,
+make or shell build is made for it, and told it in TT_PLATFORM_OS and
+TT_PLATFORM_ARCH; a c, lua-c or cmake one, which compiles with the toolchain of
+this machine, fails the build before anything is built, and so does a go build
+with cgo, and a cargo one for darwin off macOS. The modules and the programs a
+build made are checked against the platform. The build keeps its state in
+_build/target/<os>-<arch>/ and installs the package into the tree there,
+_build/target/<os>-<arch>/tree/, not into .rocks/, whose rocks are those of this
+machine; the dependencies are installed into .rocks/ and built for this machine
+as ever. tt package pack --target packs what it built.
+
 USAGE
   tt package build [COMPONENT] [flags]
 
@@ -4201,6 +4214,9 @@ FLAGS
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
+      --target OS/ARCH         build the components for the platform OS/ARCH,
+                               such as linux/arm64, instead of the machine tt
+                               runs on
 
 GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
@@ -4469,6 +4485,20 @@ Tarantool headers; the manifest and the lock are checked as a build checks them.
 A project that depends on the rock builds it from the source rock, with its
 manifest, where the server has no rock of the platform.
 
+--target OS/ARCH builds the components for another platform than the machine tt
+runs on: linux/amd64, linux/arm64, darwin/amd64 or darwin/arm64, also spelled
+linux-arm64, with aarch64 and x86_64 for the architecture. A cargo, go, zig,
+make or shell build is made for it, and told it in TT_PLATFORM_OS and
+TT_PLATFORM_ARCH; a c, lua-c or cmake one, which compiles with the toolchain of
+this machine, fails the build before anything is built, and so does a go build
+with cgo, and a cargo one for darwin off macOS. The modules and the programs a
+build made are checked against the platform. The rock is then the binary rock of
+that platform, <rock>-<version>.linux-aarch64.rock for linux/arm64, and the .tt
+archive, labeled with it, <package>-<version>-linux-arm64.tt, is packed
+--without-deps alone: the Tarantool, the tt and the dependencies it would bundle
+are those of this machine. --debuginfo strip strips them with llvm-strip, which
+strips the files of every platform.
+
 The paths of what the pack made are printed to stdout, one per line.
 
 USAGE
@@ -4505,6 +4535,9 @@ FLAGS
                                and [platform].registries)
       --revision int           LuaRocks revision of the rock: raise it to
                                publish a new build of a version (default 1)
+      --target OS/ARCH         build the components for the platform OS/ARCH,
+                               such as linux/arm64, instead of the machine tt
+                               runs on
       --without-deps           pack without _runtime/ and without foreign
                                dependencies in .rocks/
 

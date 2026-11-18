@@ -11,6 +11,8 @@
 package native
 
 import (
+	"errors"
+	"fmt"
 	"runtime"
 	"slices"
 	"strings"
@@ -56,10 +58,59 @@ func SupportedOS() []string {
 	return oses
 }
 
-// Host returns the platform of the machine tt runs on, the only one tt
-// builds and packs for until it learns to build for another.
+// Host returns the platform of the machine tt runs on, the one tt builds and
+// packs for unless tt package build --target names another.
 func Host() Platform {
 	return Platform{OS: runtime.GOOS, Arch: runtime.GOARCH}
+}
+
+// ErrUnknownPlatform reports a platform ParsePlatform does not take: a
+// spelling of none, or one tt does not build for.
+var ErrUnknownPlatform = errors.New("unknown platform")
+
+// osAliases and archAliases are the other names ParsePlatform takes of an OS
+// and an architecture: those of LuaRocks and of uname.
+var (
+	osAliases   = map[string]string{"macos": darwinOS, "macosx": darwinOS}
+	archAliases = map[string]string{"x86_64": archAmd64, "aarch64": archArm64}
+)
+
+// ParsePlatform parses a platform as tt package build --target names one:
+// <os>/<arch>, as Go spells GOOS/GOARCH, linux/arm64, or <os>-<arch>, as the
+// token of an archive and [platform].platforms spell it, linux-arm64. The
+// OS is linux or darwin, macos and macosx being darwin; the architecture
+// amd64 or arm64, x86_64 and aarch64 being those; in any case. The platform
+// is to be one tt builds for (Supported): another is ErrUnknownPlatform.
+func ParsePlatform(text string) (Platform, error) {
+	spelled := strings.ToLower(text)
+
+	osName, arch, ok := strings.Cut(spelled, "/")
+	if !ok {
+		osName, arch, _ = strings.Cut(spelled, "-")
+	}
+
+	if alias, ok := osAliases[osName]; ok {
+		osName = alias
+	}
+
+	if alias, ok := archAliases[arch]; ok {
+		arch = alias
+	}
+
+	platform := Platform{OS: osName, Arch: arch}
+	if slices.Contains(Supported(), platform) {
+		return platform, nil
+	}
+
+	names := make([]string, 0, len(Supported()))
+	for _, supported := range Supported() {
+		names = append(names, supported.OS+"/"+supported.Arch)
+	}
+
+	last := len(names) - 1
+
+	return Platform{OS: "", Arch: ""}, fmt.Errorf("%w %q: want %s or %s", ErrUnknownPlatform,
+		text, strings.Join(names[:last], ", "), names[last])
 }
 
 // Describe renders the platforms of a native file for a message:

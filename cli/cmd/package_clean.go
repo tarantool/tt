@@ -12,6 +12,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -104,6 +105,7 @@ func cleanProjectIn(ctx context.Context, projectDir string, clean build.CleanOpt
 		ShowOutput: cmdCtx.Cli.Verbose,
 		Rebuild:    false,
 		Jobs:       0,
+		Target:     native.Platform{OS: "", Arch: ""},
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
