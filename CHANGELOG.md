@@ -221,6 +221,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   fails the build, and a build for macOS on another system is refused. The
   C toolchain of the machine linked for the machine alone, so such a build
   failed at the link.
+- `tt package download` with no arguments fetches, with zig 0.17 or later,
+  the packages of every `zig` component of the project and of its path
+  dependencies too, those its `build.zig.zon` pins by their `.hash`, of its
+  dependencies and the lazy ones among them, with `zig build --fetch=all`
+  into `DIR/zig/<hash>/`, which the components share and a second download
+  extends. A `.url` dependency without a `.hash` fails the download, and
+  so does zig 0.16 for a `build.zig.zon`. A build whose rock servers have
+  the mirror, `TT_REGISTRIES=DIR tt package build`, checks with `zig build
+  --fetch=all --system DIR/zig` that the mirror has every package, then
+  builds with `--pkg-dir DIR/zig`, over a `ZIG_LOCAL_PKG_DIR` too, and
+  fetches nothing; the build itself gets no `--system`, which would enable
+  every system integration of the `build.zig`. A package the mirror lacks
+  fails the build before zig builds, naming the mirror and `tt package
+  download`. The first build of a zig component with dependencies on a
+  machine needed the network to fetch its packages.
 - `tt package download` with no arguments downloads the modules of every
   `go` component of the project and of its path dependencies too, those its
   `go.mod` requires and `go.sum` pins, with `go mod download` as a build

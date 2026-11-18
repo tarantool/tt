@@ -8,6 +8,8 @@ import (
 	"context"
 	"debug/elf"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -532,6 +534,43 @@ func packTarball(t *testing.T, dir, top, path string) {
 	require.NoError(t, file.Close())
 }
 
+// fetchedHash returns the hash of the package of tarball, as zig fetch --save
+// pins it, here as name in a project of its own. zig 0.17.1 fetch without
+// --save keeps the package in the global cache with the top directory of the
+// tarball, and a build of that hash then fails: "hash mismatch".
+func fetchedHash(t *testing.T, tarball, name string) string {
+	t.Helper()
+
+	scratch := t.TempDir()
+	writeFiles(t, scratch, map[string]string{
+		"build.zig": "pub fn build(b: *@import(\"std\").Build) void {\n    _ = b;\n}\n",
+		"build.zig.zon": `.{
+    .name = .hello,
+    .version = "0.1.0",
+    .fingerprint = 0x3610a686cc406856,
+    .dependencies = .{},
+    .paths = .{""},
+}
+`,
+	})
+
+	fetch := exec.CommandContext(t.Context(), zigTool, "fetch", "--save="+name,
+		"--pkg-dir", filepath.Join(scratch, "zig-pkg"), tarball)
+
+	fetch.Dir = scratch
+
+	out, err := fetch.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	zon, err := os.ReadFile(filepath.Join(scratch, "build.zig.zon"))
+	require.NoError(t, err)
+
+	match := regexp.MustCompile(`\.hash = "([^"]+)"`).FindSubmatch(zon)
+	require.NotNil(t, match, string(zon))
+
+	return string(match[1])
+}
+
 // TestBuildsAModuleOfAFetchedDependency builds the project of the how-to
 // whose dependency zig-tarantool is fetched by a .url and a .hash, as
 // zig fetch --save pins it: here a tarball of the checkout, so that the test
@@ -546,39 +585,7 @@ func TestBuildsAModuleOfAFetchedDependency(t *testing.T) {
 	tarball := filepath.Join(t.TempDir(), "zig-tarantool.tar.gz")
 	packTarball(t, checkout, "zig-tarantool", tarball)
 
-	// zig fetch --save, as the how-to runs it, pins the package by its hash,
-	// here in a project of its own. zig 0.17.1 fetch without --save keeps the
-	// package in the global cache with the top directory of the tarball, and
-	// a build of that hash then fails: "hash mismatch".
-	scratch := t.TempDir()
-	writeFiles(t, scratch, map[string]string{
-		"build.zig": "pub fn build(b: *@import(\"std\").Build) void {\n    _ = b;\n}\n",
-		"build.zig.zon": `.{
-    .name = .hello,
-    .version = "0.1.0",
-    .fingerprint = 0x3610a686cc406856,
-    .dependencies = .{},
-    .paths = .{""},
-}
-`,
-	})
-
-	fetch := exec.CommandContext(t.Context(), zigTool, "fetch", "--save=tarantool",
-		"--pkg-dir", filepath.Join(scratch, "zig-pkg"), tarball)
-
-	fetch.Dir = scratch
-
-	out, err := fetch.CombinedOutput()
-	require.NoError(t, err, string(out))
-
-	zon, err := os.ReadFile(filepath.Join(scratch, "build.zig.zon"))
-	require.NoError(t, err)
-
-	match := regexp.MustCompile(`\.hash = "([^"]+)"`).FindSubmatch(zon)
-	require.NotNil(t, match, string(zon))
-
-	hash := string(match[1])
-
+	hash := fetchedHash(t, tarball, "tarantool")
 	harness := buildtest.New(t, Backend(), component())
 	dirs := harness.Context.Dirs
 	ext := harness.Context.Target.ModuleExt()
@@ -599,4 +606,232 @@ func TestBuildsAModuleOfAFetchedDependency(t *testing.T) {
 	tarantool := requireTarantool(t)
 	assert.Equal(t, "42", runTarantool(t, tarantool, module,
 		"io.write(tostring(require('hello').mul(6, 7))) os.exit(0)"))
+}
+
+// proxyVars are the variables zig takes its HTTP proxy from.
+var proxyVars = []string{
+	"http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY",
+}
+
+// deadProxy is a proxy that refuses every connection: the discard port of
+// the machine, where nothing listens.
+const deadProxy = "http://127.0.0.1:9"
+
+// globalCacheDir returns the global cache of zig, as zig env names it.
+func globalCacheDir(t *testing.T) string {
+	t.Helper()
+
+	out, err := exec.CommandContext(t.Context(), zigTool, "env").Output()
+	require.NoError(t, err)
+
+	match := regexp.MustCompile(`\.global_cache_dir = "([^"]+)"`).FindSubmatch(out)
+	require.NotNil(t, match, string(out))
+
+	return string(match[1])
+}
+
+// servePackage packs the zig package name of files, whose build.zig.zon is
+// zon, into <served>/<name>.tar.gz, and returns its hash.
+func servePackage(t *testing.T, served, name, zon string, files map[string]string) string {
+	t.Helper()
+
+	src := filepath.Join(t.TempDir(), name)
+
+	writeFiles(t, src, files)
+	writeFiles(t, src, map[string]string{"build.zig.zon": zon})
+
+	tarball := filepath.Join(served, name+".tar.gz")
+	packTarball(t, src, name, tarball)
+
+	return fetchedHash(t, tarball, name)
+}
+
+// moduleBuild is the build.zig of a package whose module name is the file
+// <name>.zig.
+func moduleBuild(name string) string {
+	return `const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    _ = b.addModule("` + name + `", .{ .root_source_file = b.path("` + name + `.zig") });
+}
+`
+}
+
+// offlineProject returns the project of a program answer-cli, which prints 42,
+// of the package answer, which depends on the package num, and of the lazy
+// package extra, all three served over HTTP by server from served, and the
+// hashes of the packages. Each package carries nonce, so that their hashes
+// are of the test alone.
+func offlineProject(t *testing.T, server, served, nonce string) (map[string]string, []string) {
+	t.Helper()
+
+	zon := func(name, fingerprint, deps string) string {
+		return `.{
+    .name = .` + name + `,
+    .version = "1.0.0",
+    .fingerprint = ` + fingerprint + `,
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{` + deps + `},
+    .paths = .{ "build.zig", "build.zig.zon", "` + name + `.zig" },
+}
+`
+	}
+
+	dep := func(name, hash, lazy string) string {
+		return `
+        .` + name + ` = .{
+            .url = "` + server + "/" + name + `.tar.gz",
+            .hash = "` + hash + `",` + lazy + `
+        },
+`
+	}
+
+	num := servePackage(t, served, "num", zon("num", "0xdc43af6e8a3653eb", ""),
+		map[string]string{
+			"build.zig": moduleBuild("num"),
+			"num.zig":   "// " + nonce + "\npub const value: i32 = 40;\n",
+		})
+	extra := servePackage(t, served, "extra", zon("extra", "0x4d3f0d650544ea18", ""),
+		map[string]string{
+			"build.zig": moduleBuild("extra"),
+			"extra.zig": "// " + nonce + "\npub const value: i32 = 2;\n",
+		})
+	answer := servePackage(t, served, "answer",
+		zon("answer", "0xdadd4a2517c54d28", dep("num", num, "")), map[string]string{
+			"build.zig": `const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const num = b.dependency("num", .{});
+    const answer = b.addModule("answer", .{ .root_source_file = b.path("answer.zig") });
+    answer.addImport("num", num.module("num"));
+}
+`,
+			"answer.zig": "const num = @import(\"num\");\n\n" +
+				"pub const value: i32 = num.value + 2;\n",
+		})
+
+	return map[string]string{
+		"build.zig.zon": `.{
+    .name = .hello,
+    .version = "0.1.0",
+    .fingerprint = 0x3610a686cc406856,
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{` + dep("answer", answer, "") +
+			dep("extra", extra, "\n            .lazy = true,") + `},
+    .paths = .{ "build.zig", "build.zig.zon", "main.zig" },
+}
+`,
+		"build.zig": `const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+    const exe = b.addExecutable(.{
+        .name = "answer-cli",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    exe.root_module.addImport("answer", b.dependency("answer", .{}).module("answer"));
+    if (b.lazyDependency("extra", .{})) |extra| {
+        exe.root_module.addImport("extra", extra.module("extra"));
+    }
+    b.installArtifact(exe);
+}
+`,
+		"main.zig": `const std = @import("std");
+const answer = @import("answer");
+const extra = @import("extra");
+
+pub fn main() void {
+    std.debug.print("{d}\n", .{answer.value + extra.value - 2});
+}
+`,
+	}, []string{answer, num, extra}
+}
+
+// TestBuildsOfflineFromTheMirror vendors the packages of a project, served
+// over HTTP - a dependency, its own dependency and a lazy one - then stops
+// the server, removes the packages from the global cache of zig and builds
+// from the mirror with a proxy that refuses every connection: there is
+// nothing to fetch from, so the build fetched nothing. Without the mirror
+// the same build fails.
+//
+// The global cache of zig is that of the user, not an empty one: zig 0.17
+// compiles its build runner into the global cache, minutes of a CPU in an
+// empty one, and fetches nothing into it but the tarballs of the packages,
+// p/<hash>.tar.gz, which the test removes - its packages are of the test
+// alone.
+func TestBuildsOfflineFromTheMirror(t *testing.T) {
+	t.Parallel()
+	requireZig(t)
+	requirePkgDir(t)
+
+	served := t.TempDir()
+	server := httptest.NewServer(http.FileServer(http.Dir(served)))
+
+	t.Cleanup(server.Close)
+
+	files, hashes := offlineProject(t, server.URL, served, filepath.Base(t.TempDir()))
+
+	cached := make([]string, 0, len(hashes))
+	for _, hash := range hashes {
+		cached = append(cached, filepath.Join(globalCacheDir(t), "p", hash+".tar.gz"))
+	}
+
+	uncache := func() {
+		for _, path := range cached {
+			require.NoError(t, os.RemoveAll(path))
+		}
+	}
+
+	t.Cleanup(uncache)
+
+	harness := buildtest.New(t, Backend(), program())
+	dirs := harness.Context.Dirs
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+	bld := validate(t, program(), map[string]any{"bin": "answer-cli", "optimize": "Debug"}, false)
+
+	writeFiles(t, dirs.Component, files)
+
+	// zig connects to the server itself.
+	for _, proxy := range proxyVars {
+		harness.Context.Env[proxy] = ""
+	}
+
+	require.NoError(t, harness.Vendor(t.Context(), bld, mirror), harness.Printed())
+
+	for _, hash := range hashes {
+		assert.FileExists(t, filepath.Join(mirror, hash, "build.zig.zon"))
+	}
+
+	// Nothing to fetch from.
+	server.Close()
+	uncache()
+
+	for _, proxy := range proxyVars {
+		harness.Context.Env[proxy] = deadProxy
+	}
+
+	require.Error(t, harness.Run(t.Context(), bld), "a build of no mirror fetches")
+	assert.Contains(t, harness.Printed(), server.URL+"/answer.tar.gz",
+		"zig failed to fetch the package")
+
+	harness.Context.Vendored = mirror
+
+	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+	assert.Equal(t, "42", runProgram(t, filepath.Join(dirs.Programs, "answer-cli")))
+
+	entries, err := os.ReadDir(mirror)
+	require.NoError(t, err)
+	assert.Len(t, entries, len(hashes), "the build wrote nothing into the mirror")
+
+	for i, hash := range hashes {
+		assert.NoDirExists(t, filepath.Join(dirs.Work, "zig-pkg", hash))
+		assert.NoFileExists(t, cached[i], "the build fetched nothing")
+	}
+
+	assert.NoDirExists(t, filepath.Join(dirs.Component, "zig-pkg"))
 }

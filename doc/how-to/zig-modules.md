@@ -285,12 +285,57 @@ The archive of `tt package pack` carries the module and the program, built
 for the machine it is packed on, and the instances of an installed version
 load and run them as in the project.
 
+## Build offline
+
+zig fetches the packages of `build.zig.zon`, of a `.url` each pinned by
+its `.hash`, on the first build of a machine. With zig 0.17 and later,
+`tt package download` with no arguments fetches them ahead, with the rocks
+of the lock, into the mirror it makes:
+
+```console
+$ tt package download --dir ../mirror
+indexed 0 rock(s) in .../mirror
+.../mirror/zig
+downloaded what 1 component(s) build with into .../mirror/zig
+```
+
+It runs `zig build --fetch=all` for each zig component, into a directory of
+its own: every package the `build.zig.zon` pins, of its dependencies too
+and the lazy ones among them, checked against its `.hash`, goes into
+`zig/<hash>/` of the mirror. The components of the project share it, and
+so do other projects downloaded into the same mirror; running it again
+after a change of `build.zig.zon` adds the new packages and keeps the
+others. A dependency of a `.url` without a `.hash` fails the download, as
+it fails `zig build`: `zig fetch --save` writes both. A `.path` dependency
+is not fetched, but its own dependencies are. zig 0.16, which keeps the
+packages in its global cache, fails the download of a `build.zig.zon`.
+
+A build whose rock servers have the mirror builds from it, with no network:
+
+```console
+$ TT_REGISTRIES=$PWD/../mirror tt package build
+```
+
+It checks first, with `zig build --fetch=all --system`, which fetches
+nothing, that the mirror has every package, then builds with `zig/` of the
+mirror for `--pkg-dir`, over a `ZIG_LOCAL_PKG_DIR` too: zig finds each
+package in the directory of its hash, as in a `zig-pkg/` it fetched them
+into, and fetches none, and nothing is written into the mirror. The build
+itself is given no `--system`, which would enable every system
+integration of the `build.zig` too: it is made as it is with the network.
+A package the mirror lacks, of a `build.zig.zon` changed since the
+download, fails the build before zig builds anything, naming the mirror
+and `tt package download`. The first rock server that is a directory with
+`zig/` is the one taken. The zig components of a path dependency are
+downloaded with those of the project.
+
 ## The toolchain
 
 zig fetches the dependencies of `build.zig.zon` itself, as it builds, into
 its global cache, and zig 0.17 into `_build/component/<component>/zig-pkg/`
 from there: `tt package fetch` does not run the build, and
-`tt package build --locked` keeps the lock of tt, not zig off the network.
+`tt package build --locked` keeps the lock of tt, not zig off the network;
+a mirror of `tt package download` does (see [Build offline](#build-offline)).
 The hashes of `build.zig.zon` pin what zig fetches. The module links
 against the C library of the machine it is built on: build it on the
 oldest system it runs on.

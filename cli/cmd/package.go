@@ -1711,7 +1711,9 @@ func newPackageDownloadCmd() *cobra.Command {
 			"DIR/<backend>, which a build that has DIR among its servers takes it " +
 			"from, offline: the crates the Cargo.lock of a cargo component pins " +
 			"go into DIR/cargo, the modules the go.sum of a go component pins " +
-			"into DIR/go, a Go module proxy. Re-running " +
+			"into DIR/go, a Go module proxy, and the packages the build.zig.zon " +
+			"of a zig component pins, with zig 0.17 or later, into DIR/zig. " +
+			"Re-running " +
 			"overwrites and re-indexes, so a mirror can be extended in place. " +
 			"Each written path is printed to stdout.",
 		Args: cobra.ArbitraryArgs,

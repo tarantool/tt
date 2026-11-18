@@ -17,12 +17,14 @@ import (
 )
 
 // A build of zig says what it makes, names its programs, checks what it
-// needs first and names what else an incremental build reads.
+// needs first, names what else an incremental build reads and downloads its
+// packages ahead into a mirror.
 var (
 	_ build.Producer     = zigBuild{}
 	_ build.ProgramNamer = zigBuild{}
 	_ build.Preflighter  = zigBuild{}
 	_ build.InputHasher  = zigBuild{}
+	_ build.Vendorer     = zigBuild{}
 )
 
 // component is the component hello, in the directory hello, which wants
@@ -81,7 +83,11 @@ func writeTool(t *testing.T, dir, body string) {
 // fakeZig writes a zig into the tools directory of harness. zig version
 // prints FAKE_ZIG_VERSION, 0.17.1 when it is not set; zig build --help prints
 // the options of a build.zig, with -Dtarget unless FAKE_NO_TARGET is set;
-// zig build records its working directory and its arguments at
+// zig build --fetch=all --system checks the packages of a mirror, and fails
+// saying a package is not found when FAKE_MISSING is set; zig build
+// --fetch=all without --system fetches into its --pkg-dir the packages
+// answer-1.0.0-AAAA and num-1.0.0-BBBB, and leaves a temporary directory of
+// a fetch there; zig build records its working directory and its arguments at
 // <state>/zig.args and the arguments of every run, one run a line, at
 // <state>/zig.runs, and installs into the prefix of its -p the modules
 // hello.so, libplain.so and a/b.dylib and the program hello-client, saying so
@@ -97,7 +103,25 @@ func fakeZig(t *testing.T, harness *buildtest.Harness) string {
 fi
 [ -n "$FAKE_FAIL" ] && exit 1
 printf '%s\n' "$*" >> "`+log+`.runs"
-case " $* " in *" --help "*)
+case " $* " in *" --system "*)
+	if [ -n "$FAKE_MISSING" ]; then
+		echo "error: package not found at 'mirror/num-1.0.0-BBBB'" >&2
+		exit 1
+	fi
+	exit 0;;
+*" --fetch=all "*)
+	pkg=
+	while [ $# -gt 0 ]; do
+		[ "$1" = --pkg-dir ] && pkg=$2
+		shift
+	done
+	mkdir -p "$pkg/answer-1.0.0-AAAA" "$pkg/num-1.0.0-BBBB/src" "$pkg/.tmp-0123"
+	echo answer > "$pkg/answer-1.0.0-AAAA/build.zig.zon"
+	echo num > "$pkg/num-1.0.0-BBBB/src/num.zig"
+	ln -s src/num.zig "$pkg/num-1.0.0-BBBB/root.zig"
+	echo partial > "$pkg/.tmp-0123/build.zig.zon"
+	exit 0;;
+*" --help "*)
 	echo '  -Doptimize=[enum]            Prioritize performance, safety, or binary size'
 	[ -z "$FAKE_NO_TARGET" ] &&
 		echo '  -Dtarget=[string]            The CPU architecture, OS, and ABI to build for'
@@ -787,6 +811,203 @@ func TestPreflightOfAnotherPlatform(t *testing.T) {
 		"the target the build.zig builds for, and the build is for "+otherTarget().String()+
 		", which the backend passes as -Dtarget itself; leave target out of options",
 		err.Error())
+}
+
+// writeManifest writes a build.zig.zon into the working directory of harness.
+func writeManifest(t *testing.T, harness *buildtest.Harness) {
+	t.Helper()
+
+	require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, manifestName),
+		[]byte(".{ .name = .hello, .dependencies = .{} }\n"), 0o600))
+}
+
+// TestVendorFetchesThePackages: the packages of build.zig.zon are fetched with
+// zig build --fetch=all into a directory of the download, and each one the
+// mirror does not have is copied into it, its symbolic links too; one the
+// mirror has stays as it is, and what a fetch left is not copied. The
+// directory of the download is removed.
+func TestVendorFetchesThePackages(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeZig(t, harness)
+	dir := filepath.Join(t.TempDir(), "mirror", Name)
+	bld := validate(t, component(), map[string]any{"module": "hello"}, false)
+
+	writeManifest(t, harness)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "answer-1.0.0-AAAA"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "answer-1.0.0-AAAA", "kept"), nil, 0o600))
+
+	require.NoError(t, harness.Vendor(t.Context(), bld, dir))
+
+	runs := readLines(t, log+".runs")
+	require.Len(t, runs, 1)
+
+	args := strings.Fields(runs[0])
+	require.Len(t, args, 6, runs[0])
+	assert.Equal(t, []string{"build", "--fetch=all", "--cache-dir"}, args[:3])
+	assert.Equal(t, "--pkg-dir", args[4])
+
+	scratch := filepath.Dir(args[5])
+	assert.Equal(t, filepath.Join(scratch, "zig-cache"), args[3])
+	assert.Equal(t, filepath.Join(scratch, "zig-pkg"), args[5])
+	assert.NoDirExists(t, scratch, "the directory of the download is removed")
+
+	data, err := os.ReadFile(filepath.Join(dir, "num-1.0.0-BBBB", "root.zig"))
+	require.NoError(t, err)
+	assert.Equal(t, "num\n", string(data))
+
+	link, err := os.Readlink(filepath.Join(dir, "num-1.0.0-BBBB", "root.zig"))
+	require.NoError(t, err)
+	assert.Equal(t, "src/num.zig", link)
+
+	assert.FileExists(t, filepath.Join(dir, "answer-1.0.0-AAAA", "kept"))
+	assert.NoFileExists(t, filepath.Join(dir, "answer-1.0.0-AAAA", manifestName))
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	assert.Equal(t, []string{"answer-1.0.0-AAAA", "num-1.0.0-BBBB"}, names)
+	assert.NoDirExists(t, filepath.Join(harness.Context.Dirs.Cwd, "zig-pkg"))
+	assert.NoDirExists(t, filepath.Join(harness.Context.Dirs.Cwd, ".zig-cache"))
+}
+
+// TestVendorOfNoManifest: a working directory without build.zig.zon has no
+// package to fetch, and zig is not run.
+func TestVendorOfNoManifest(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeZig(t, harness)
+	dir := filepath.Join(t.TempDir(), "mirror", Name)
+
+	require.NoError(t, harness.Vendor(t.Context(),
+		validate(t, component(), map[string]any{"module": "hello"}, false), dir))
+	assert.NoFileExists(t, log+".runs")
+	assert.NoDirExists(t, dir)
+}
+
+// TestVendorOfAnOlderZig: a zig older than 0.17, which keeps the packages in
+// its global cache, fails the download of a build.zig.zon, and fetches
+// nothing; and so does a failed fetch, saying what pins the packages.
+func TestVendorOfAnOlderZig(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeZig(t, harness)
+	dir := filepath.Join(t.TempDir(), "mirror", Name)
+	bld := validate(t, component(), map[string]any{"module": "hello"}, false)
+
+	writeManifest(t, harness)
+
+	harness.Context.Env["FAKE_ZIG_VERSION"] = "0.16.0"
+
+	err := harness.Vendor(t.Context(), bld, dir)
+	require.ErrorIs(t, err, ErrMirrorZig)
+	assert.Equal(t, "the packages of a mirror need zig 0.17 or later: the download of the "+
+		"packages into the mirror is made with the packages of build.zig.zon in a directory of "+
+		"their own (--pkg-dir), and zig 0.16.0 keeps them in its global cache; install zig "+
+		"0.17, or build with the network and no mirror", err.Error())
+	assert.NoFileExists(t, log+".runs")
+
+	harness.Context.Env["FAKE_ZIG_VERSION"] = "0.17.1"
+	harness.Context.Env["FAKE_FAIL"] = "1"
+
+	err = harness.Vendor(t.Context(), bld, dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "; the download takes the packages build.zig.zon pins by "+
+		"the .hash of each, which zig fetch --save writes")
+	assert.NoDirExists(t, dir)
+}
+
+// TestRunFromAMirror: a build of a build.zig.zon given a mirror checks with
+// zig build --fetch=all --system that the mirror has every package, then
+// builds with the mirror for its --pkg-dir, over a ZIG_LOCAL_PKG_DIR of the
+// env too; a package the mirror lacks fails the build before it runs, saying
+// where the packages are taken from.
+func TestRunFromAMirror(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeZig(t, harness)
+	work := harness.Context.Dirs.Work
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+	bld := validate(t, component(), map[string]any{"module": "hello"}, false)
+
+	writeManifest(t, harness)
+
+	harness.Context.Vendored = mirror
+	harness.Context.Env["ZIG_LOCAL_PKG_DIR"] = "/srv/zig-pkg"
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	dirs := []string{"--cache-dir", filepath.Join(work, "zig-cache"), "--pkg-dir", mirror}
+
+	runs := readLines(t, log+".runs")
+	require.Len(t, runs, 2)
+	assert.Equal(t, strings.Join(append([]string{"build", "--fetch=all", "--system", mirror},
+		dirs...), " "), runs[0])
+	assert.Equal(t, append(append([]string{"build", "-p", filepath.Join(work, "zig-out")},
+		dirs...), "--release=safe"), readLines(t, log+".args")[1:])
+
+	require.NoError(t, os.Remove(log+".runs"))
+
+	harness.Context.Env["FAKE_MISSING"] = "1"
+
+	err := harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "; the build takes the packages of build.zig.zon from "+
+		mirror+", offline, which tt package download fills: run it again after a change of "+
+		"build.zig.zon")
+	assert.Len(t, readLines(t, log+".runs"), 1, "zig built nothing")
+	assert.Contains(t, harness.Printed(), "package not found")
+}
+
+// TestRunFromAMirrorOfNoManifest: a build of no build.zig.zon has no package
+// to take from a mirror, and builds as it does without one.
+func TestRunFromAMirrorOfNoManifest(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeZig(t, harness)
+
+	harness.Context.Vendored = filepath.Join(t.TempDir(), "mirror", Name)
+	harness.Context.Env["FAKE_ZIG_VERSION"] = "0.16.0"
+
+	require.NoError(t, harness.Run(t.Context(),
+		validate(t, component(), map[string]any{"module": "hello"}, false)))
+
+	runs := readLines(t, log+".runs")
+	require.Len(t, runs, 1)
+	assert.NotContains(t, runs[0], "--pkg-dir")
+	assert.NotContains(t, runs[0], "--system")
+}
+
+// TestRunFromAMirrorOfAnOlderZig: a zig older than 0.17 cannot take the
+// packages from a mirror, and the build fails before zig runs.
+func TestRunFromAMirrorOfAnOlderZig(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeZig(t, harness)
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+
+	writeManifest(t, harness)
+
+	harness.Context.Vendored = mirror
+	harness.Context.Env["FAKE_ZIG_VERSION"] = "0.16.0"
+
+	err := harness.Run(t.Context(), validate(t, component(), map[string]any{"module": "hello"},
+		false))
+	require.ErrorIs(t, err, ErrMirrorZig)
+	assert.Contains(t, err.Error(), "a build from the mirror "+mirror+" is made with the "+
+		"packages of build.zig.zon in a directory of their own (--pkg-dir), and zig 0.16.0")
+	assert.NoFileExists(t, log+".runs")
 }
 
 // TestInputs: an incremental build reads the version of zig and build.zig
