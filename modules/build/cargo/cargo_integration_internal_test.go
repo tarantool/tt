@@ -160,7 +160,7 @@ func TestBuildsForAnotherLinux(t *testing.T) {
 	writeFiles(t, dirs.Component, crossCrate)
 	generateLockfile(t, dirs.Component)
 
-	harness.Context.Target = build.Target{OS: linuxOS, Arch: goarch}
+	harness.SetTarget(build.Target{OS: linuxOS, Arch: goarch})
 
 	fields := map[string]any{"module": "agent_lib", "bin": "agent", "profile": "dev"}
 	module := filepath.Join(dirs.Modules, "agent_lib.so")

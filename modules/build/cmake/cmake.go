@@ -90,6 +90,9 @@ func Backend() build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: false,
 		Hook:           false,
+		// The project is configured with the toolchain of the machine; a
+		// toolchain file of another platform is the project's to give.
+		Cross: false,
 	}
 }
 

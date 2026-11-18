@@ -176,10 +176,12 @@ const Version = "0.0.0-dev.0"
 // The variables of the environment of a build the Context of a harness
 // keeps in step with its facts.
 const (
-	versionKey    = "TT_VERSION"
-	prefixKey     = "TT_TARANTOOL_PREFIX"
-	includeDirKey = "TT_TARANTOOL_INCLUDE_DIR"
-	jobsKey       = "TT_BUILD_JOBS"
+	versionKey      = "TT_VERSION"
+	prefixKey       = "TT_TARANTOOL_PREFIX"
+	includeDirKey   = "TT_TARANTOOL_INCLUDE_DIR"
+	jobsKey         = "TT_BUILD_JOBS"
+	platformOSKey   = "TT_PLATFORM_OS"
+	platformArchKey = "TT_PLATFORM_ARCH"
 )
 
 // errNoHook reports a harness of hooks of a backend that runs none.
@@ -211,8 +213,8 @@ type Harness struct {
 // directories of the build, and <tmp>/link/<component> its Link, beside
 // which a test puts what another component made for linking
 // ([build.Dirs.LinkOf]). All of them but the tree exist. The target is
-// the machine the test runs on, and no Tarantool is known
-// ([Harness.SetTarantool] tells one).
+// the machine the test runs on ([Harness.SetTarget] sets another), and no
+// Tarantool is known ([Harness.SetTarantool] tells one).
 // The Env has the TT_* variables the core sets for the build of a
 // component: TT_OUTPUT_DIR, TT_PROJECT_ROOT, TT_PACKAGE, TT_COMPONENT_NAME,
 // TT_VERSION ([Version]), TT_PLATFORM_OS, TT_PLATFORM_ARCH, TT_BUILD_DIR
@@ -261,7 +263,7 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 		}
 	}
 
-	target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
+	target := build.HostTarget()
 
 	return newHarness(backend, build.Context{
 		Component: component,
@@ -273,8 +275,8 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 			"TT_PROJECT_ROOT":   dirs.Project,
 			"TT_PACKAGE":        component.Package,
 			"TT_COMPONENT_NAME": component.Name,
-			"TT_PLATFORM_OS":    target.OS,
-			"TT_PLATFORM_ARCH":  target.Arch,
+			platformOSKey:       target.OS,
+			platformArchKey:     target.Arch,
 			"TT_BUILD_DIR":      dirs.Work,
 			versionKey:          Version,
 			jobsKey:             strconv.Itoa(runtime.NumCPU()),
@@ -336,7 +338,7 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 		}
 	}
 
-	target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
+	target := build.HostTarget()
 
 	return newHarness(backend, build.Context{
 		Component: build.Component{Name: "", Path: "", Namespace: "", Package: "", Wants: nil},
@@ -344,12 +346,12 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 		Dirs:      dirs,
 		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: "", Executable: ""},
 		Env: map[string]string{
-			"TT_PROJECT_ROOT":  dirs.Project,
-			"TT_PACKAGE":       "demo",
-			"TT_PLATFORM_OS":   target.OS,
-			"TT_PLATFORM_ARCH": target.Arch,
-			versionKey:         Version,
-			jobsKey:            strconv.Itoa(runtime.NumCPU()),
+			"TT_PROJECT_ROOT": dirs.Project,
+			"TT_PACKAGE":      "demo",
+			platformOSKey:     target.OS,
+			platformArchKey:   target.Arch,
+			versionKey:        Version,
+			jobsKey:           strconv.Itoa(runtime.NumCPU()),
 		},
 		Fresh:    false,
 		Locked:   false,
@@ -407,6 +409,19 @@ func (h *Harness) SetTarantool(tarantool build.Tarantool) {
 func (h *Harness) SetJobs(jobs int) {
 	h.Context.Jobs = jobs
 	h.Context.Env[jobsKey] = strconv.Itoa(h.Context.JobsOrCPUs())
+}
+
+// SetTarget sets the platform the build is for, as tt package build
+// --target sets it: the Target of the Context, and TT_PLATFORM_OS and
+// TT_PLATFORM_ARCH of the Env. The harness runs a build for any target, of
+// any backend, so that a test checks what a backend does for a platform it
+// has no toolchain of, with a fake compiler; the core refuses a build for
+// another platform than the machine of a backend without
+// [build.Backend.Cross] before it runs ([build.Backend.CheckTarget]).
+func (h *Harness) SetTarget(target build.Target) {
+	h.Context.Target = target
+	h.Context.Env[platformOSKey] = target.OS
+	h.Context.Env[platformArchKey] = target.Arch
 }
 
 // Run runs bld, a build of the backend of the harness, as the core runs a

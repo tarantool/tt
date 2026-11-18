@@ -86,6 +86,9 @@ func backend(name string) build.Backend {
 		Exclude:        nil,
 		NoSourceLayout: false,
 		Hook:           false,
+		// CC and CXX of the machine compile for the machine, and no
+		// compiler of another platform is looked for.
+		Cross: false,
 	}
 }
 

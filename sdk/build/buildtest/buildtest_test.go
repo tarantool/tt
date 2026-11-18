@@ -508,6 +508,52 @@ func TestHarnessJobs(t *testing.T) {
 	}
 }
 
+// otherTarget is a platform other than the machine of the test.
+func otherTarget() build.Target {
+	if runtime.GOARCH == "arm64" {
+		return build.Target{OS: runtime.GOOS, Arch: "amd64"}
+	}
+
+	return build.Target{OS: runtime.GOOS, Arch: "arm64"}
+}
+
+// TestHarnessTarget: the target is the machine of the test, of a build and
+// of a hook, and SetTarget sets it and TT_PLATFORM_OS and TT_PLATFORM_ARCH.
+// The harness runs the build for it, of a backend without Cross too, which
+// the core would refuse.
+func TestHarnessTarget(t *testing.T) {
+	t.Parallel()
+
+	hook := touch()
+
+	hook.Hook = true
+
+	other := otherTarget()
+
+	for _, harness := range []*buildtest.Harness{
+		buildtest.New(t, touch(), component()), buildtest.NewHook(t, hook),
+	} {
+		assert.Equal(t, build.HostTarget(), harness.Context.Target)
+
+		harness.SetTarget(other)
+
+		assert.Equal(t, other, harness.Context.Target)
+
+		out, err := harness.Context.Output(harness.Context.Command(t.Context(), "sh", "-c",
+			`printf %s-%s "$TT_PLATFORM_OS" "$TT_PLATFORM_ARCH"`))
+		require.NoError(t, err)
+		assert.Equal(t, other.String(), string(out))
+	}
+
+	harness := buildtest.New(t, touch(), component())
+
+	harness.SetTarget(other)
+
+	require.ErrorIs(t, touch().CheckTarget(harness.Context.Target), build.ErrTarget)
+	require.NoError(t, harness.Run(t.Context(), touchBuild{file: "made.txt"}))
+	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Modules, "made.txt"))
+}
+
 // dataBuild makes a data file.
 type dataBuild struct{}
 

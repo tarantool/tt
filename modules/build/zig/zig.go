@@ -128,6 +128,7 @@ func Backend() build.Backend {
 		Exclude:        []string{"/" + prefixDir + "/", "/" + pkgDir + "/"},
 		NoSourceLayout: false,
 		Hook:           false,
+		Cross:          false,
 	}
 }
 

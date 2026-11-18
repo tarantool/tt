@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- A build backend of the SDK says whether its builds are made for another
+  platform than the machine tt runs on, `build.Backend.Cross`: such a
+  build gets that platform in `build.Context.Target`, and
+  `build.Backend.CheckTarget` refuses a build for another platform of a
+  backend without it, wrapping `build.ErrTarget`, which a `Preflight` that
+  cannot build for the target wraps too. `make`, `shell` and `cargo` are
+  such backends; `c`, `lua-c` and `cmake` are not, since they compile with
+  the toolchain of the machine. `build.HostTarget` is the platform of the
+  machine, `build.Target.String` names a platform `<os>-<arch>` and
+  `build.Target.Cross` tells another one, and
+  `buildtest.Harness.SetTarget` sets the target of a test with
+  `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. The target was always the
+  machine, and a backend had no way to say it built for another one.
 - A `cargo` build checks that the Rust targets it names are installed
   before anything is built, asking `rustc --print target-libdir --target
   <triple>` of the toolchain cargo runs, and fails with exit code 2 naming

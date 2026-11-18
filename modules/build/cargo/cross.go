@@ -45,17 +45,13 @@ const (
 
 var (
 	// ErrCrossDarwin reports a build for macOS on another system: cargo links
-	// a library or a program of macOS against the SDK of macOS.
-	ErrCrossDarwin = errors.New("a build for darwin is made on macOS")
+	// a library or a program of macOS against the SDK of macOS. It is a
+	// build that cannot be made for its target, build.ErrTarget.
+	ErrCrossDarwin = fmt.Errorf("%w: a build for darwin is made on macOS", build.ErrTarget)
 	// ErrNoRustTarget reports a Rust target whose standard library the
 	// toolchain has not installed.
 	ErrNoRustTarget = errors.New("the Rust target is not installed")
 )
-
-// isCross reports whether platform is not the machine tt runs on.
-func isCross(platform build.Target) bool {
-	return platform.OS != runtime.GOOS || platform.Arch != runtime.GOARCH
-}
 
 // checkTargets checks what the build for the platform of c needs besides
 // cargo: the standard library of every Rust target the build names
@@ -63,9 +59,8 @@ func isCross(platform build.Target) bool {
 // zig in the PATH of the build for one of Linux; one of macOS on another
 // system is refused.
 func (b cargoBuild) checkTargets(ctx context.Context, c *build.Context) error {
-	if isCross(c.Target) {
-		where := fmt.Sprintf("a build for %s-%s on %s-%s", c.Target.OS, c.Target.Arch,
-			runtime.GOOS, runtime.GOARCH)
+	if c.Target.Cross() {
+		where := fmt.Sprintf("a build for %s on %s", c.Target, build.HostTarget())
 
 		switch c.Target.OS {
 		case darwinOS:
@@ -180,7 +175,7 @@ func envKey(triple string, upper bool) string {
 func crossArgs(ctx context.Context, c *build.Context, triple string) ([]string, []string,
 	error,
 ) {
-	if !isCross(c.Target) || c.Target.OS != linuxOS || triple == "" {
+	if !c.Target.Cross() || c.Target.OS != linuxOS || triple == "" {
 		return nil, nil, nil
 	}
 
