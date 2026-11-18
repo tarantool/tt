@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/manifest/state"
@@ -191,10 +193,9 @@ func placeRuntimes(opts Options, archive *Archive, header *Header, root string) 
 
 	for _, component := range missing {
 		if opts.Integrity != nil {
-			err = opts.Integrity.VerifyTree(filepath.Join(stage, component.dir))
+			err = verifyRuntime(opts, archive, filepath.Join(stage, component.dir), component)
 			if err != nil {
-				return nil, stateErrorf("the bundled %s of %s: integrity check failed: %w",
-					component, archive.Path(), err)
+				return nil, err
 			}
 		}
 
@@ -247,12 +248,24 @@ func layable(opts Options, component bundledRuntime) bool {
 	return false
 }
 
+// runtimeLicenses are the license files a component keeps at its top, as tt
+// binary keeps them at the top of an installation.
+//
+//nolint:gochecknoglobals // A constant list.
+var runtimeLicenses = []string{"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING", "AUTHORS"}
+
+// runtimeShareDir is where a bundled tarantool keeps its Lua files, the
+// EmmyLua stubs of its built-in modules among them: share/tarantool/.
+const runtimeShareDir = "share/tarantool"
+
 // runtimeMapper maps the archive's _runtime/ onto one directory per component
 // in the staging directory, shaped the way tt binary installs a product: the
 // executable at the top, taken from bin/ or, for the flat Enterprise SDK,
-// from the top of the component; and for tarantool, the headers under
-// include/tarantool/. Nothing else of _runtime/ is installed, as tt binary
-// installs nothing else either.
+// from the top of the component, and the license files at the top; for
+// tarantool, the headers under include/tarantool/ and the Lua files under
+// share/tarantool/, the EmmyLua stubs tt emmylua finds beside the executable
+// among them. Nothing else of _runtime/ is installed, as tt binary installs
+// nothing else either.
 func runtimeMapper(components []bundledRuntime) func(string) (string, bool) {
 	return func(name string) (string, bool) {
 		rest, ok := strings.CutPrefix(name, runtimeDirName+"/")
@@ -272,18 +285,93 @@ func runtimeMapper(components []bundledRuntime) func(string) (string, bool) {
 			switch {
 			case inside == runtimeBinDir+"/"+exec || inside == exec:
 				return dir + "/" + exec, true
-			case isRuntimeHashes(inside):
+			case isRuntimeHashes(inside), slices.Contains(runtimeLicenses, inside):
 				// The signature of a component lists what is laid out here,
 				// and goes with it (pack's signRuntime).
 				return dir + "/" + inside, true
 			case component.program.IsTarantool() &&
-				strings.HasPrefix(inside, binary.IncDirName+"/"+exec+"/"):
+				(strings.HasPrefix(inside, binary.IncDirName+"/"+exec+"/") ||
+					strings.HasPrefix(inside, runtimeShareDir+"/")):
 				return dir + "/" + inside, true
 			}
 		}
 
 		return "", false
 	}
+}
+
+// verifyRuntime checks the signature of the component extracted into tree, a
+// signed install's. An archive packed by a tt that signed the executable and
+// the headers alone carries share/tarantool and the license files unsigned:
+// its tree is checked again without them, and they are left out of the
+// installation with a warning rather than the archive refused. Files an
+// archive carries unsigned are never installed.
+func verifyRuntime(opts Options, archive *Archive, tree string, component bundledRuntime) error {
+	err := opts.Integrity.VerifyTree(tree)
+	if err == nil {
+		return nil
+	}
+
+	licenses := make([]string, 0, len(runtimeLicenses))
+	for _, name := range runtimeLicenses {
+		licenses = append(licenses, filepath.Join(tree, name))
+	}
+
+	// share/tarantool alone, and then the license files too: the license is
+	// signed by a tt that signs share/tarantool, and was by none before.
+	var left []string
+
+	for _, unsigned := range []struct {
+		what  string
+		paths []string
+	}{
+		// share/ holds share/tarantool alone (runtimeMapper).
+		{runtimeShareDir, []string{filepath.Join(tree, path.Dir(runtimeShareDir))}},
+		{"the license files", licenses},
+	} {
+		removed, removeErr := removeUnsigned(unsigned.paths)
+		if removeErr != nil {
+			return removeErr
+		}
+
+		if !removed {
+			continue
+		}
+
+		left = append(left, unsigned.what)
+
+		if opts.Integrity.VerifyTree(tree) == nil {
+			opts.warn(fmt.Sprintf("the bundled %s of %s does not sign %s; not installed",
+				component, archive.Path(), strings.Join(left, " and ")))
+
+			return nil
+		}
+	}
+
+	return stateErrorf("the bundled %s of %s: integrity check failed: %w",
+		component, archive.Path(), err)
+}
+
+// removeUnsigned removes the paths, what a component extracted for
+// installation may carry unsigned, and reports whether there was any.
+func removeUnsigned(paths []string) (bool, error) {
+	removed := false
+
+	for _, path := range paths {
+		_, err := os.Lstat(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+
+		err = os.RemoveAll(path)
+		if err != nil {
+			return removed, fmt.Errorf("removing %s: %w", path, err)
+		}
+
+		removed = true
+	}
+
+	return removed, nil
 }
 
 // moveRuntime renames one extracted component into its installation

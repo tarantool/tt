@@ -174,11 +174,12 @@ func TestPackSignsArchive(t *testing.T) {
 	assert.Contains(t, entries["env_hashes.json"], `"app.manifest.toml"`)
 	assert.NotContains(t, entries["env_hashes.json"], "_runtime")
 
-	// The runtime is listed as it is installed: the executable at the top.
+	// The runtime is listed as it is installed: the executable and the
+	// license at the top, the headers in include/tarantool.
 	assert.Contains(t, entries["_runtime/tarantool/env_hashes.json"], `"tarantool"`)
 	assert.Contains(t, entries["_runtime/tarantool/env_hashes.json"],
 		`"include/tarantool/module.h"`)
-	assert.NotContains(t, entries["_runtime/tarantool/env_hashes.json"], "LICENSE")
+	assert.Contains(t, entries["_runtime/tarantool/env_hashes.json"], `"LICENSE"`)
 
 	// The package without its runtime is what an install lays out, and it
 	// checks as a whole.
@@ -190,7 +191,7 @@ func TestPackSignsArchive(t *testing.T) {
 		switch {
 		case inRuntime && rest == "bin/tarantool":
 			runtime["tarantool"] = content
-		case inRuntime && rest != "" && rest != "LICENSE" && rest != "bin/":
+		case inRuntime && rest != "" && rest != "bin/":
 			runtime[rest] = content
 		case !inRuntime && !strings.HasPrefix(name, runtimeDirName+"/"):
 			version[name] = content

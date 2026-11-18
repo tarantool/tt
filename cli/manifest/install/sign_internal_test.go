@@ -9,8 +9,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
@@ -97,6 +99,14 @@ func runtimeCache(t *testing.T) string {
 func packRoundtrip(t *testing.T, signer integrity.Signer) string {
 	t.Helper()
 
+	return packRoundtripWith(t, signer, runtimeCache(t))
+}
+
+// packRoundtripWith is packRoundtrip with the runtime of the runtime cache
+// cache.
+func packRoundtripWith(t *testing.T, signer integrity.Signer, cache string) string {
+	t.Helper()
+
 	src := t.TempDir()
 	writeSource(t, src, map[string]string{
 		"app.manifest.toml":                 roundtripManifest,
@@ -111,7 +121,7 @@ func packRoundtrip(t *testing.T, signer integrity.Signer) string {
 		ProjectDir: src,
 		OutputDir:  filepath.Join(src, "_out"),
 		Signer:     signer,
-		Runtime:    pack.RuntimeOptions{CacheDir: runtimeCache(t)},
+		Runtime:    pack.RuntimeOptions{CacheDir: cache},
 		Build: build.Options{
 			TtVersion: "tt test",
 			Tarantool: rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.1.0"},
@@ -196,6 +206,93 @@ func TestInstallSignedArchive(t *testing.T) {
 		require.NoError(t, checks.VerifyFile(dir,
 			filepath.Join(dir, component.program.Exec())))
 	}
+
+	// The license of the tarantool is signed and installed with it.
+	assert.FileExists(t, filepath.Join(binary.InstallationPath(root, binary.ProgramCe, "3.1.0"),
+		"LICENSE"))
+}
+
+// TestInstallSignedLeavesOutWhatIsNotSigned: share/tarantool an archive
+// carries unsigned, as one an older tt packed does, is not installed, and
+// neither is a license it does not sign; the rest of the runtime checks and
+// is installed. Nothing unsigned is installed.
+func TestInstallSignedLeavesOutWhatIsNotSigned(t *testing.T) {
+	signer, checks := signingKeys(t)
+	signed := readEntries(t, packRoundtrip(t, signer))
+
+	// What a tt that signed neither the license nor share/tarantool packed.
+	unlicensed := runtimeCache(t)
+	require.NoError(t, os.Remove(filepath.Join(unlicensed, "tarantool", "ce", "3.1.0", "LICENSE")))
+
+	old := readEntries(t, packRoundtripWith(t, signer, unlicensed))
+
+	old["_runtime/tarantool/LICENSE"] = "BSD-2-Clause"
+
+	for name, test := range map[string]struct {
+		entries map[string]string
+		warning string
+		license bool
+	}{
+		"share": {
+			entries: signed, license: true,
+			warning: "does not sign share/tarantool; not installed",
+		},
+		"share and license": {
+			entries: old, license: false,
+			warning: "does not sign share/tarantool and the license files; not installed",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := userRoot(t)
+
+			entries := map[string]string{
+				"_runtime/tarantool/share/tarantool/evil.lua": "os.exit(1)\n",
+			}
+			maps.Copy(entries, test.entries)
+
+			archive := filepath.Join(t.TempDir(), "round-app-1.0.0.tt")
+			writeTarZst(t, archive, entries)
+
+			var warned warnings
+
+			_, err := Run(context.Background(), Options{
+				ProjectDir: t.TempDir(),
+				Scope:      ScopeUser,
+				Archives:   []string{archive},
+				Yes:        true,
+				Integrity:  checks,
+				Warn:       warned.add,
+			})
+			require.NoError(t, err)
+
+			dir := binary.InstallationPath(root, binary.ProgramCe, "3.1.0")
+			require.NoError(t, checks.VerifyTree(dir))
+			assert.NoDirExists(t, filepath.Join(dir, "share"))
+			assert.NoFileExists(t, filepath.Join(dir, "AUTHORS"))
+			assert.Equal(t, test.license, fileExists(filepath.Join(dir, "LICENSE")))
+			assert.FileExists(t, filepath.Join(dir, "include", "tarantool", "module.h"))
+			assert.Contains(t, strings.Join(warned, "\n"), test.warning)
+		})
+	}
+
+	// A license that is not signed where the license is signed is no older
+	// archive but a changed one, and is refused.
+	userRoot(t)
+
+	signed["_runtime/tarantool/AUTHORS"] = "nobody\n"
+
+	archive := filepath.Join(t.TempDir(), "round-app-1.0.0.tt")
+	writeTarZst(t, archive, signed)
+
+	err := installSigned(t, archive, checks)
+	require.ErrorContains(t, err, "integrity check failed")
+}
+
+// fileExists reports whether path is a file.
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+
+	return err == nil && info.Mode().IsRegular()
 }
 
 func TestInstallSignedRefusals(t *testing.T) {

@@ -32,6 +32,19 @@ const (
 // carry. The first one found beside the binary is bundled as LICENSE.
 var tarantoolLicenseNames = []string{"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"}
 
+// tarantoolAuthorsName is the list of the authors of Tarantool, which goes
+// with its license: the one beside the license found is bundled as AUTHORS.
+const tarantoolAuthorsName = "AUTHORS"
+
+// tarantoolLicenseFiles are the license files a bundled component keeps at
+// its top, as tt binary keeps them at the top of an installation: tt package
+// install lays them out, and a signed archive signs them.
+var tarantoolLicenseFiles = append(slices.Clone(tarantoolLicenseNames), tarantoolAuthorsName)
+
+// runtimeShareDir is where a bundled tarantool keeps its Lua files, the
+// EmmyLua stubs of its built-in modules among them.
+const runtimeShareDir = "share/tarantool"
+
 // runtimeSource describes one resolved runtime component ready to be bundled.
 type runtimeSource struct {
 	// Name is the _runtime/ subdirectory: tarantool, tt or tcm.
@@ -799,7 +812,7 @@ func bundleTarantoolLicense(dst string, src runtimeSource, warn func(string)) er
 
 			_, err := os.Stat(path)
 			if err == nil {
-				return copyFile(path, filepath.Join(dst, "LICENSE"))
+				return bundleLicenseFrom(dir, path, dst)
 			}
 		}
 	}
@@ -810,4 +823,23 @@ func bundleTarantoolLicense(dst string, src runtimeSource, warn func(string)) er
 	}
 
 	return nil
+}
+
+// bundleLicenseFrom bundles the license at license, found in dir, as
+// LICENSE into dst, and the AUTHORS of dir beside it when there is one, as
+// tt binary keeps both in an installation.
+func bundleLicenseFrom(dir, license, dst string) error {
+	err := copyFile(license, filepath.Join(dst, "LICENSE"))
+	if err != nil {
+		return err
+	}
+
+	authors := filepath.Join(dir, tarantoolAuthorsName)
+
+	info, err := os.Stat(authors)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil //nolint:nilerr // No list of the authors is bundled without one.
+	}
+
+	return copyFile(authors, filepath.Join(dst, tarantoolAuthorsName))
 }

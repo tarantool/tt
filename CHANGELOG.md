@@ -1672,6 +1672,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   line, so that a line comment of it commented out the rest, and failed
   with `'end' expected near '<eof>'` where it ran over iproto; tt stripped
   the comments of its own scripts for this.
+- `tt package install` of a with-deps archive lays the tarantool it bundles
+  out as `tt binary install` does: with `share/tarantool`, where `tt
+  emmylua` finds the EmmyLua stubs of Tarantool 3.9 and later beside the
+  executable, and with the license files of every component at its top,
+  not the executable and the headers alone. `tt package pack` bundles the
+  `AUTHORS` found beside the license of a tarantool too, and signs the
+  license files and `share/tarantool` of a runtime with the rest of it. A
+  signed install of an archive that carries them unsigned, as one an older
+  tt packed does, leaves them out with a warning, and installs nothing
+  unsigned.
 - The watchdog of an instance, `tt daemon` and `tt tcm` started while their
   pid file was probed again and again, as by `tt instance status` run in a
   loop, could fail to come up on a loaded machine with "the pid file belongs

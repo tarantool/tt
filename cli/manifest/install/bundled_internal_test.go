@@ -59,6 +59,11 @@ func TestInstallUserLaysRuntimeOnce(t *testing.T) {
 		readFile(t, filepath.Join(installation, "tarantool")))
 	assert.FileExists(t, filepath.Join(installation, "include", "tarantool", "module.h"))
 	assert.FileExists(t, filepath.Join(root, "versions", "tt", "tt_3.2.0", "tt"))
+	// share/tarantool, where tt emmylua finds the stubs, and the license go
+	// along, as tt binary installs them.
+	assert.Equal(t, "return 1\n",
+		readFile(t, filepath.Join(installation, "share", "tarantool", "some", "init.lua")))
+	assert.Equal(t, "BSD\n", readFile(t, filepath.Join(installation, "LICENSE")))
 
 	// The shape tt binary installs, and nothing else of _runtime/.
 	entries, err := os.ReadDir(installation)
@@ -69,7 +74,7 @@ func TestInstallUserLaysRuntimeOnce(t *testing.T) {
 		names = append(names, entry.Name())
 	}
 
-	assert.ElementsMatch(t, []string{"tarantool", "include"}, names)
+	assert.ElementsMatch(t, []string{"tarantool", "include", "share", "LICENSE"}, names)
 	require.NoError(t, binary.ValidateInstallation(root,
 		binary.Selection{Program: binary.ProgramCe, ID: fullVersion}),
 		"tt binary takes it for a complete installation")
