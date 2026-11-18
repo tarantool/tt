@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -69,8 +70,11 @@ func newPathManifests(
 	opts Options, adapter *rocks.Adapter, closures ...[]manifest.LockDependency,
 ) pathManifests {
 	// The components and the arguments of the consumer's build are of its
-	// own components, not of those of a dependency.
+	// own components, not of those of a dependency. A dependency is built
+	// for the machine tt runs on whatever the target of the consumer's
+	// build: it is installed into .rocks/, the machine's.
 	opts.Component, opts.Components, opts.Args = "", nil, nil
+	opts.Target = native.Platform{OS: "", Arch: ""}
 
 	return pathManifests{opts: opts, adapter: adapter, pinned: pinnedClosure(closures...)}
 }

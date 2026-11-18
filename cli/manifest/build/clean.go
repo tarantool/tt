@@ -81,7 +81,9 @@ type CleanedRock struct {
 // whole project, the clean hook, then what the core made. A clean of the
 // whole project removes every entry of _build/ but the lock file; a clean of
 // components removes the directory of the intermediate files of each, its
-// records and its files in the stages. Either removes the rock of the
+// records and its files in the stages, of the builds for the machine and for
+// every other platform, and the trees of those (removeTargetsState). Either
+// removes the rock of the
 // package from .rocks/: it is installed whole, and a rock that still held
 // the files of a component cleaned would have require load what the clean
 // said was gone; the next build installs it again.
@@ -135,6 +137,12 @@ func Clean(ctx context.Context, opts Options, clean CleanOptions) (*CleanResult,
 		}
 	} else {
 		result.Removed, err = removeComponentsState(stateDir, man, components, clean.DryRun)
+		if err == nil {
+			var targets []string
+
+			targets, err = removeTargetsState(opts.ProjectDir, man, components, clean.DryRun)
+			result.Removed = append(result.Removed, targets...)
+		}
 	}
 
 	if err != nil {
@@ -412,6 +420,58 @@ func removeComponentsState(
 	_, err = writeResults(stateDir, man, results)
 
 	return removed, err
+}
+
+// removeTargetsState is removeComponentsState for the state of every build
+// of the package of the project at projectDir for another platform there is
+// (targetStateDir), and removes the tree of each target too, or with dryRun
+// lists it only: it holds the rock of the package alone (targetTree), which
+// would still hold the files of the components cleaned, and the next build
+// for the platform installs it again.
+func removeTargetsState(
+	projectDir string, man *manifest.Manifest, components []string, dryRun bool,
+) ([]string, error) {
+	dirs, err := filepath.Glob(filepath.Join(projectDir, buildDirName, targetDirName, "*"))
+	if err != nil {
+		return nil, fmt.Errorf("finding the builds for other platforms: %w", err)
+	}
+
+	var removed []string
+
+	for _, dir := range dirs {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+
+		state, err := removeComponentsState(dir, man, components, dryRun)
+
+		removed = append(removed, state...)
+
+		if err != nil {
+			return removed, err
+		}
+
+		tree := targetTree(dir)
+
+		_, err = os.Lstat(tree)
+		if err != nil {
+			continue
+		}
+
+		removed = append(removed, tree)
+
+		if dryRun {
+			continue
+		}
+
+		err = os.RemoveAll(tree)
+		if err != nil {
+			return removed, fmt.Errorf("removing %s: %w", tree, err)
+		}
+	}
+
+	return removed, nil
 }
 
 // removeFromStages removes the files the records of the stages under

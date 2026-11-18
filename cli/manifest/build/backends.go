@@ -16,7 +16,6 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
-	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
@@ -32,9 +31,12 @@ type builder struct {
 	opts  Options
 	proj  project
 	stage string
-	// target is the platform the build is for: the machine tt runs on.
+	// target is the platform the build is for: the machine tt runs on, or
+	// Options.Target.
 	target sdkbuild.Target
-	// tarantool is the Tarantool the build is for.
+	// tarantool is the Tarantool the build is for: that of the machine, its
+	// headers, and its tarantool but for a build for another platform, which
+	// it cannot load what such a build makes with.
 	tarantool sdkbuild.Tarantool
 	// version is TT_VERSION, empty before the version is derived: when the
 	// builds are only preflighted.
@@ -48,17 +50,22 @@ type builder struct {
 // newBuilder returns the builder of the builds of proj into stage, at the
 // version ver.
 func newBuilder(opts Options, proj project, stage string, ver version.Version) builder {
-	host := native.Host()
+	target := opts.target()
 	prefix, includeDir := tarantoolDirs(opts.Tarantool)
+
+	executable := opts.Tarantool.Executable
+	if opts.cross() {
+		executable = ""
+	}
 
 	return builder{
 		opts:   opts,
 		proj:   proj,
 		stage:  stage,
-		target: sdkbuild.Target{OS: host.OS, Arch: host.Arch},
+		target: sdkbuild.Target{OS: target.OS, Arch: target.Arch},
 		tarantool: sdkbuild.Tarantool{
 			Prefix: prefix, IncludeDir: includeDir, Version: opts.Tarantool.Version,
-			Executable: opts.Tarantool.Executable,
+			Executable: executable,
 		},
 		version: ver.SemVer,
 		mirrors: localRegistries(opts, proj),
@@ -284,6 +291,12 @@ func (b builder) warn(warning string) {
 // A tool is looked for where the build looks for it: in the PATH of the
 // component's [build].env, after .tarantool/bin of the project being built -
 // the package, or a path dependency in its own directory.
+//
+// A build for another platform than the machine tt runs on fails here for
+// the first component whose backend does not build for another
+// (sdkbuild.Backend.CheckTarget), and for one whose Preflight refuses the
+// platform, with exit code 1: the build can be made for the machine, or
+// another backend can make it.
 func (b builder) preflight(ctx context.Context, components []string) error {
 	for _, name := range components {
 		if b.proj.man.Components[name].Build == nil {
@@ -291,6 +304,10 @@ func (b builder) preflight(ctx context.Context, components []string) error {
 		}
 
 		run, err := b.component(name)
+		if err == nil {
+			err = run.backend.CheckTarget(b.target)
+		}
+
 		if err != nil {
 			return sdk.Errorf(sdk.ExitFailure, "building component %q: %w", name, err)
 		}
@@ -301,7 +318,12 @@ func (b builder) preflight(ctx context.Context, components []string) error {
 		}
 
 		err = preflighter.Preflight(ctx, run.context)
-		if err != nil {
+
+		switch {
+		case err == nil:
+		case errors.Is(err, sdkbuild.ErrTarget):
+			return sdk.Errorf(sdk.ExitFailure, "building component %q: %w", name, err)
+		default:
 			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name,
 				b.explainNoHeaders(err))
 		}
@@ -513,7 +535,13 @@ func (b builder) runComponent(
 	}
 
 	if static {
-		err = checkStaticModule(b.opts, run.name, moduleFiles(run.context.Dirs.Modules,
+		// The glibc the tarantool of the machine needs says nothing of the
+		// machines a module of another platform loads on (newBuilder).
+		opts := b.opts
+
+		opts.Tarantool.Executable = b.tarantool.Executable
+
+		err = checkStaticModule(opts, run.name, moduleFiles(run.context.Dirs.Modules,
 			made.Modules, compAbsPath, laidOut))
 		if err != nil {
 			return madeFiles{}, false, err
