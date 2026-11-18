@@ -24,6 +24,7 @@ var (
 	_ build.ProgramNamer = fullBuild{}
 	_ build.InputHasher  = fullBuild{}
 	_ build.Cleaner      = fullBuild{}
+	_ build.Vendorer     = fullBuild{}
 )
 
 func (fullBuild) Preflight(context.Context, *build.Context) error          { return nil }
@@ -31,11 +32,17 @@ func (fullBuild) Produces() []build.Result                                 { ret
 func (fullBuild) Programs() ([]string, bool)                               { return nil, false }
 func (fullBuild) Inputs(context.Context, *build.Context) ([]string, error) { return nil, nil }
 func (fullBuild) Clean(context.Context, *build.Context) error              { return nil }
+func (fullBuild) Vendor(context.Context, *build.Context, string) error     { return nil }
 
 // cleanWithoutContext is a Build whose Clean takes no context.
 type cleanWithoutContext struct{ plainBuild }
 
 func (cleanWithoutContext) Clean(*build.Context) error { return nil }
+
+// vendorWithoutDir is a Build whose Vendor is told no directory.
+type vendorWithoutDir struct{ plainBuild }
+
+func (vendorWithoutDir) Vendor(context.Context, *build.Context) error { return nil }
 
 // oldPreflight is a Build whose Preflight is that of an older SDK.
 type oldPreflight struct{ plainBuild }
@@ -91,6 +98,9 @@ func TestValidateBuild(t *testing.T) {
 		{"a Clean without a context", cleanWithoutContext{}, `Clean of its build ` +
 			`build_test.cleanWithoutContext is func(*build.Context) error, not ` +
 			`func(context.Context, *build.Context) error of build.Cleaner`},
+		{"a Vendor without a directory", vendorWithoutDir{}, `Vendor of its build ` +
+			`build_test.vendorWithoutDir is func(context.Context, *build.Context) error, not ` +
+			`func(context.Context, *build.Context, string) error of build.Vendorer`},
 		{"no build", nil, `invalid build backend "demo": New returned a nil Build`},
 	} {
 		t.Run(test.name, func(t *testing.T) {

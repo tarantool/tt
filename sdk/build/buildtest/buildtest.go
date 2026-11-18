@@ -279,14 +279,15 @@ func New(tb testing.TB, backend build.Backend, component build.Component) *Harne
 			versionKey:          Version,
 			jobsKey:             strconv.Itoa(runtime.NumCPU()),
 		},
-		Fresh:  false,
-		Locked: false,
-		Static: false,
-		Args:   nil,
-		Jobs:   0,
-		Hook:   false,
-		Log:    nil,
-		Warn:   nil,
+		Fresh:    false,
+		Locked:   false,
+		Static:   false,
+		Args:     nil,
+		Jobs:     0,
+		Vendored: "",
+		Hook:     false,
+		Log:      nil,
+		Warn:     nil,
 	})
 }
 
@@ -350,14 +351,15 @@ func NewHook(tb testing.TB, backend build.Backend) *Harness {
 			versionKey:         Version,
 			jobsKey:            strconv.Itoa(runtime.NumCPU()),
 		},
-		Fresh:  false,
-		Locked: false,
-		Static: false,
-		Args:   nil,
-		Jobs:   0,
-		Hook:   true,
-		Log:    nil,
-		Warn:   nil,
+		Fresh:    false,
+		Locked:   false,
+		Static:   false,
+		Args:     nil,
+		Jobs:     0,
+		Vendored: "",
+		Hook:     true,
+		Log:      nil,
+		Warn:     nil,
 	})
 }
 
@@ -464,6 +466,31 @@ func (h *Harness) Clean(ctx context.Context, bld build.Build) error {
 	}
 
 	return cleaner.Clean(ctx, h.Context)
+}
+
+// Vendor runs the Vendor of bld, a build of the backend of the harness, into
+// dir, as tt package download runs it, when bld is a [build.Vendorer]: bld
+// is checked ([build.Backend.ValidateBuild]) first, and the Context is that
+// of the harness with Locked set, as the download sets it. A build that is
+// no Vendorer downloads nothing, and Vendor returns nil.
+func (h *Harness) Vendor(ctx context.Context, bld build.Build, dir string) error {
+	err := h.backend.ValidateBuild(bld)
+	if err != nil {
+		return err
+	}
+
+	vendorer, ok := bld.(build.Vendorer)
+	if !ok {
+		return nil
+	}
+
+	locked := h.Context.Locked
+
+	h.Context.Locked = true
+
+	defer func() { h.Context.Locked = locked }()
+
+	return vendorer.Vendor(ctx, h.Context, dir)
 }
 
 // preflight runs the Preflight of preflighter in facts with TT_VERSION of

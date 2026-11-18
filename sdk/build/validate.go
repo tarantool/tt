@@ -148,12 +148,14 @@ var optionalInterfaces = []struct {
 	{"Links", reflect.TypeFor[Linker]()},
 	{"Inputs", reflect.TypeFor[InputHasher]()},
 	{"Clean", reflect.TypeFor[Cleaner]()},
+	{"Vendor", reflect.TypeFor[Vendorer]()},
 }
 
 // ValidateBuild checks bld, a Build New of b returned: that a method of it
 // named as the method of an optional interface - Preflight, Produces,
-// Programs, Links, Inputs, Clean - makes it that interface ([Preflighter],
-// [Producer], [ProgramNamer], [Linker], [InputHasher], [Cleaner]). The core finds
+// Programs, Links, Inputs, Clean, Vendor - makes it that interface
+// ([Preflighter], [Producer], [ProgramNamer], [Linker], [InputHasher],
+// [Cleaner], [Vendorer]). The core finds
 // these interfaces by type assertion, so a method of another signature,
 // written for an older SDK, or one of a pointer receiver on a Build New
 // returns as a value, would never be called: the check it makes, the inputs

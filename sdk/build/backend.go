@@ -373,6 +373,34 @@ type Cleaner interface {
 	Clean(ctx context.Context, c *Context) error
 }
 
+// Vendorer is a Build whose tool downloads what it builds with - the crates
+// of cargo - and can download it ahead of the build, for a build that is to
+// download nothing. tt package download, which makes a mirror of what an
+// offline build of the project needs, asks every component of the project,
+// after the rocks of its lock, and a build whose rock servers have that
+// mirror gets the directory Vendor filled in [Context.Vendored].
+//
+// dir is the directory of the backend in the mirror, <mirror>/<backend>,
+// which every component of the backend downloaded into the mirror shares, of
+// other projects too: what Vendor puts there is told apart by name and
+// version, and what is there already stays, as the mirror is extended in
+// place. Vendor downloads what the locks of the sources pin - a component
+// whose sources pin nothing fails it - and the build takes from the mirror
+// what those locks pin. dir may not exist yet.
+//
+// c is a Context as that of a build of the component - the same Dirs, Env
+// and PATH - but for [Context.Args], which are empty, Fresh and Static,
+// which are false, and Locked, which is set: what is downloaded is what is
+// locked. Its directories may not exist. ctx is that of the download: a
+// command Vendor runs is made with it ([Context.Command]). An error fails
+// the download, with exit code 2.
+//
+// The core finds a Vendorer by a type assertion; a method Vendor of another
+// signature is refused ([Backend.ValidateBuild]) rather than never called.
+type Vendorer interface {
+	Vendor(ctx context.Context, c *Context, dir string) error
+}
+
 // FileCheck checks the files of a package whose names end with Suffix,
 // whatever component and backend made them: the files the layout of every
 // component copies into the package, and the data files ([Data]) the build

@@ -610,7 +610,7 @@ of the manifest reference has where every `to` is installed.
 A build may implement more interfaces. The core asks for each with a type
 assertion, so a method of another signature would never be called: the
 core refuses a build whose `Preflight`, `Produces`, `Programs`, `Links`,
-`Inputs` or `Clean` is not the method of the interface, or is a method of a pointer while
+`Inputs`, `Clean` or `Vendor` is not the method of the interface, or is a method of a pointer while
 `New` returns a value, when it checks the manifest, with exit code 1:
 
 ```text
@@ -660,6 +660,7 @@ too. The other interfaces:
   `c` and `lua-c` are linkers by their `link`.
 - `build.InputHasher`: see the next section.
 - `build.Cleaner`: see [Clean](#clean).
+- `build.Vendorer`: see [Offline builds](#offline-builds).
 
 ## Incremental builds
 
@@ -792,6 +793,28 @@ What the project itself generates beside the sources, which no backend
 knows of, is for the `[hooks.clean]` of its manifest, which a clean of the
 whole package runs after the backends; see
 [the reference](../reference/app-manifest.md#hookspre_build-hookspost_build-and-hooksclean).
+
+## Offline builds
+
+`tt package download --dir DIR`, with no arguments, makes DIR a mirror of
+what an offline build of the project needs: the rocks of its lock, and what
+the builds of its components download themselves, as cargo downloads the
+crates of a package. A backend whose tool downloads is a `build.Vendorer`:
+`Vendor(ctx, c, dir)` downloads into `dir`, `DIR/<backend>`, what the build
+of the component would, as the lock of the sources pins it. The components
+of the backend share `dir`, those of other projects downloaded into the same
+mirror too: name what you put there by its name and version, and keep what
+is there, since a mirror is extended in place. `c` is the Context of a build
+of the component with `Locked` set, and a failed `Vendor` fails the download
+with exit code 2.
+
+A build whose rock servers have the mirror, `TT_REGISTRIES=DIR tt package
+build`, is given `DIR/<backend>` in `c.Vendored`, of the first server that
+is a directory and has one: take from it what the tool would download, and
+download nothing. Without one `c.Vendored` is empty and the build downloads
+as ever. In a test, `harness.Vendor(ctx, bld,
+dir)` runs the `Vendor` of a build as the download does, and setting
+`harness.Context.Vendored` makes a build from a mirror.
 
 ## The lock of the project
 

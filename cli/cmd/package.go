@@ -1607,7 +1607,11 @@ func newPackageDownloadCmd() *cobra.Command {
 			"luarocks pack <rockspec> makes it: the sources its source.url " +
 			"names are fetched now, a git repository at the tag or branch the " +
 			"rockspec pins, and the download fails if they cannot be. A rock " +
-			"whose build itself downloads still needs the network. Re-running " +
+			"whose build itself downloads still needs the network. With no " +
+			"arguments, what the builds of the components of the project download " +
+			"themselves is downloaded too, into a directory of their backend, " +
+			"DIR/<backend>, which a build that has DIR among its servers takes it " +
+			"from, offline. Re-running " +
 			"overwrites and re-indexes, so a mirror can be extended in place. " +
 			"Each written path is printed to stdout.",
 		Args: cobra.ArbitraryArgs,
@@ -1686,6 +1690,60 @@ func runPackageDownload(args []string) error {
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "indexed %d rock(s) in %s\n", len(written), dir)
+
+	if len(refs) > 0 || projectDir == "" {
+		return nil
+	}
+
+	return vendorProjectInto(ctx, projectDir, dir)
+}
+
+// vendorProjectInto downloads into the mirror dir what the builds of the
+// components of the project in projectDir download themselves, the crates of
+// cargo (build.Vendor), each backend into dir/<backend>, and prints those
+// directories.
+func vendorProjectInto(ctx context.Context, projectDir, dir string) error {
+	//nolint:contextcheck // tarantool --version is asked once, and takes no context.
+	tntInfo, err := buildTarantoolInfo()
+	if err != nil {
+		return err
+	}
+
+	result, err := build.Vendor(ctx, build.Options{
+		ProjectDir: projectDir,
+		Product:    "",
+		Component:  "",
+		Components: nil,
+		Args:       nil,
+		Locked:     true,
+		FetchOnly:  false,
+		TtVersion:  lockStamp(),
+		Tarantool:  tntInfo,
+		Registries: manifestrocks.Sources{
+			Flag: nil, Env: nil, Manifest: nil, WorkingDir: "", ProjectDir: "",
+		},
+		ShowOutput: cmdCtx.Cli.Verbose,
+		Rebuild:    false,
+		Jobs:       0,
+		Now:        time.Time{},
+		Logger:     luarocksLogger(),
+		Warn:       func(msg string) { log.Warn(msg) },
+		Removed:    nil,
+		Check:      nil,
+		Backends:   buildreg.Process(),
+	}, dir)
+	if err != nil {
+		return err
+	}
+
+	for _, path := range result.Dirs {
+		_, _ = fmt.Fprintln(os.Stdout, path)
+	}
+
+	if len(result.Components) > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "downloaded what %d component(s) build with into %s\n",
+			len(result.Components), strings.Join(result.Dirs, ", "))
+	}
 
 	return nil
 }

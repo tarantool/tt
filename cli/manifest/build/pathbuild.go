@@ -109,13 +109,14 @@ func pathState(projectDir, name string) string {
 // fetch is told to install as it is.
 func (p pathManifests) buildPathManifest(ctx context.Context, dep manifest.LockDependency) error {
 	return p.buildManifest(ctx, manifestBuild{
-		dep:       dep,
-		dir:       manifest.PathFrom(p.opts.ProjectDir, dep.Path),
-		state:     pathState(p.opts.ProjectDir, dep.Name),
-		revision:  1,
-		what:      "path dependency",
-		stale:     "run tt package resolve to bring the lock back in step",
-		warnHooks: false,
+		dep:        dep,
+		dir:        manifest.PathFrom(p.opts.ProjectDir, dep.Path),
+		state:      pathState(p.opts.ProjectDir, dep.Name),
+		revision:   1,
+		what:       "path dependency",
+		stale:      "run tt package resolve to bring the lock back in step",
+		warnHooks:  false,
+		fromServer: false,
 	})
 }
 
@@ -139,6 +140,8 @@ type manifestBuild struct {
 	// reads its manifest (resolve.PathManifest.Warnings), rather than every
 	// build; a source rock is not resolved from its manifest.
 	warnHooks bool
+	// fromServer is set for a source rock (project.fromServer).
+	fromServer bool
 }
 
 // buildManifest builds the package of build and installs it into the
@@ -167,7 +170,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 	// Not a top-level build: the rock of a dependency carries no rocks.lua.
 	proj := project{
 		dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product,
-		pinned: p.pinned, topLevel: false, closure: nil,
+		pinned: p.pinned, topLevel: false, closure: nil, fromServer: build.fromServer,
 	}
 
 	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
