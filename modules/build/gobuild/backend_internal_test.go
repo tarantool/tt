@@ -3,6 +3,8 @@ package gobuild
 import (
 	"context"
 	"debug/elf"
+	"debug/macho"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,6 +168,7 @@ func TestBackend(t *testing.T) {
 	assert.Equal(t, build.OutputNone, backend.OutputFrom)
 	assert.False(t, backend.Incremental)
 	assert.False(t, backend.Hook)
+	assert.True(t, backend.Cross)
 
 	fields, err := backend.Fields()
 	require.NoError(t, err)
@@ -237,11 +240,15 @@ func TestRunSelectsTheTarget(t *testing.T) {
 printf '%s\n' "$GOOS" "$GOARCH" "$CGO_ENABLED" "$CC" > "`+log+`.env"
 `)
 
-	facts.Target = build.Target{OS: "linux", Arch: "arm64"}
+	other := otherTarget()
+
+	harness.SetTarget(other)
+
 	facts.Env["GOOS"] = "darwin"
 	facts.Env["CGO_ENABLED"] = "1"
 	facts.Env["CC"] = "musl-gcc"
 
+	require.NoError(t, Backend().CheckTarget(other))
 	require.NoError(t, harness.Run(t.Context(), validate(t, map[string]any{
 		"package": "./cmd/gw", "name": "gateway",
 	}, false)))
@@ -256,13 +263,85 @@ printf '%s\n' "$GOOS" "$GOARCH" "$CGO_ENABLED" "$CC" > "`+log+`.env"
 
 	env, err := os.ReadFile(log + ".env")
 	require.NoError(t, err)
-	assert.Equal(t, "linux\narm64\n0\nmusl-gcc\n", string(env))
+	assert.Equal(t, other.OS+"\n"+other.Arch+"\n0\nmusl-gcc\n", string(env))
+
+	// cgo is for the machine alone.
+	harness.SetTarget(build.HostTarget())
 
 	require.NoError(t, harness.Run(t.Context(), validate(t, map[string]any{"cgo": true}, false)))
 
 	env, err = os.ReadFile(log + ".env")
 	require.NoError(t, err)
-	assert.Equal(t, "linux\narm64\n1\nmusl-gcc\n", string(env))
+	assert.Equal(t, runtime.GOOS+"\n"+runtime.GOARCH+"\n1\nmusl-gcc\n", string(env))
+}
+
+// otherTarget is a platform other than the machine of the test: its OS on
+// the other architecture.
+func otherTarget() build.Target {
+	if runtime.GOARCH == "arm64" {
+		return build.Target{OS: runtime.GOOS, Arch: "amd64"}
+	}
+
+	return build.Target{OS: runtime.GOOS, Arch: "arm64"}
+}
+
+// TestPreflightOfAnotherPlatform: a build for another platform than the
+// machine is refused with cgo, before go runs, wrapping build.ErrTarget, and
+// passes without it.
+func TestPreflightOfAnotherPlatform(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	writeTool(t, harness.Context.Dirs.Tools, "exit 1")
+
+	harness.SetTarget(otherTarget())
+
+	err := harness.Run(t.Context(), validate(t, map[string]any{"cgo": true}, false))
+	require.ErrorIs(t, err, build.ErrTarget)
+	assert.Equal(t, fmt.Sprintf("preflight: the build cannot be made for the target platform: "+
+		"cgo = true compiles C with the C compiler of the machine, %s, and the build is for "+
+		"%s; build it there, or without cgo", build.HostTarget(), otherTarget()), err.Error())
+
+	preflighter, ok := validate(t, nil, false).(build.Preflighter)
+	require.True(t, ok)
+	require.NoError(t, preflighter.Preflight(t.Context(), harness.Context))
+}
+
+// TestBuildsForAnotherPlatform builds a program with the real go for the
+// other architecture of the machine, which go makes without a C toolchain,
+// and checks that it is a program of that platform.
+func TestBuildsForAnotherPlatform(t *testing.T) {
+	t.Parallel()
+
+	harness := goHarness(t, false)
+	other := otherTarget()
+
+	harness.SetTarget(other)
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, map[string]any{
+		"package": "./cmd/gw",
+	}, false)), harness.Printed())
+
+	program := filepath.Join(harness.Context.Dirs.Programs, "gw")
+
+	switch runtime.GOOS {
+	case "linux":
+		file, err := elf.Open(program)
+		require.NoError(t, err)
+
+		defer func() { _ = file.Close() }()
+
+		assert.Equal(t, map[string]elf.Machine{"amd64": elf.EM_X86_64,
+			"arm64": elf.EM_AARCH64}[other.Arch], file.Machine)
+	case "darwin":
+		file, err := macho.Open(program)
+		require.NoError(t, err)
+
+		defer func() { _ = file.Close() }()
+
+		assert.Equal(t, map[string]macho.Cpu{"amd64": macho.CpuAmd64,
+			"arm64": macho.CpuArm64}[other.Arch], file.Cpu)
+	}
 }
 
 // TestRunJobs: the jobs of the build are -p of go build, and with none go
