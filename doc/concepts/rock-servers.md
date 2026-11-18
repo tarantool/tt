@@ -215,6 +215,9 @@ The modules the `go.sum` of a `go` component pins go into `DIR/go`, in the
 layout of a Go module proxy, which a build from the mirror takes as its
 `GOPROXY`; see
 [Run an external process](../how-to/external-processes.md#build-offline).
+With zig 0.17 and later, the packages the `build.zig.zon` of a `zig`
+component pins go into `DIR/zig`, each in the directory of its hash; see
+[Build a module in Zig](../how-to/zig-modules.md#build-offline).
 The components of the path dependencies of the lock are downloaded so too.
 
 `tt wasm rock` packs a server of the same kind for the `wasm` rock of

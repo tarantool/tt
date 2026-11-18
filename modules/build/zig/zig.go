@@ -16,6 +16,11 @@
 // -Dtarget, which a build.zig takes with b.standardTargetOptions: zig has
 // what it links for every target in itself.
 //
+// With zig 0.17 and later, the packages of build.zig.zon are downloaded ahead
+// into the mirror tt package download makes (build.Vendorer), each in the
+// directory of its hash, and a build given the mirror
+// (build.Context.Vendored) takes them from there, offline.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package zig
@@ -26,6 +31,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -44,6 +50,14 @@ const Name = "zig"
 const zigTool = "zig"
 
 const (
+	// buildCommand is the command of zig that runs a build.zig.
+	buildCommand = "build"
+	// fetchAll is the option of zig build that fetches the packages of
+	// build.zig.zon, of its dependencies and the lazy ones too, and exits.
+	fetchAll = "--fetch=all"
+)
+
+const (
 	// prefixDir is the directory of the work directory of the build zig build
 	// installs into, its -p: lib/ and bin/ of it hold what it built.
 	prefixDir = "zig-out"
@@ -58,6 +72,11 @@ const (
 	// pkgDirEnv is the variable that names the directory of the packages
 	// for zig: a build whose env sets it is given no --pkg-dir.
 	pkgDirEnv = "ZIG_LOCAL_PKG_DIR"
+	// manifestName is the manifest of a zig package, beside its build.zig:
+	// its dependencies, each of a url pinned by its .hash, or of a path.
+	manifestName = "build.zig.zon"
+	// mirrorDirPerm is the mode of a directory made in the mirror.
+	mirrorDirPerm os.FileMode = 0o755
 )
 
 // pkgDirSince is the first version of zig that keeps the packages it fetched
@@ -96,6 +115,10 @@ var (
 	// errNoArtifact reports a build that did not install what its block
 	// names.
 	errNoArtifact = errors.New("zig build installed no")
+	// ErrMirrorZig reports a zig older than pkgDirSince for the packages of a
+	// mirror: an older zig keeps them in its global cache, where a mirror
+	// cannot be given it.
+	ErrMirrorZig = errors.New("the packages of a mirror need zig 0.17 or later")
 )
 
 var (
@@ -316,10 +339,11 @@ func (b zigBuild) Inputs(ctx context.Context, c *build.Context) ([]string, error
 
 // Run runs zig build in the working directory, installing into
 // <work>/zig-out, keeping its cache in <work>/zig-cache and, for zig 0.17 and
-// later, the packages it fetches in <work>/zig-pkg (see dirArgs), with the
-// -Dtarget of the build (see targetArg), then copies the module from its
-// lib/ (see copyModule) and the program from its bin/ (see copyProgram), as
-// the block asks for them.
+// later, the packages it fetches in <work>/zig-pkg, or taking them from the
+// mirror of the build (see dirArgs, checkMirror), with the -Dtarget of the
+// build (see targetArg), then copies the module from its lib/ (see
+// copyModule) and the program from its bin/ (see copyProgram), as the block
+// asks for them.
 func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(ctx, c)
 	if err != nil {
@@ -329,6 +353,13 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	dirs, err := dirArgs(ctx, c)
 	if err != nil {
 		return err
+	}
+
+	if usesMirror(c) {
+		err = checkMirror(ctx, c, dirs)
+		if err != nil {
+			return err
+		}
 	}
 
 	target, err := b.targetArg(ctx, c, dirs)
@@ -355,6 +386,52 @@ func (b zigBuild) Run(ctx context.Context, c *build.Context) error {
 	}
 
 	return copyProgram(prefix, b.bin, c.Dirs.Programs)
+}
+
+// Vendor fetches the packages the build.zig.zon of the working directory
+// pins, of its dependencies too, the lazy ones among them, into dir, as zig
+// build --fetch=all fetches them, each into the directory of its hash, which
+// every package of the mirror shares: they are fetched into a directory of
+// their own, then each one dir does not have is copied there, and those that
+// are there stay. zig checks each package against its .hash, and fails a
+// dependency of a url that has none; one of a path is not fetched, but its
+// own dependencies are. zig keeps the tarball of each package in its global
+// cache too, as a fetch of a build does. A working directory without
+// build.zig.zon fetches nothing; a zig older than pkgDirSince fails it
+// (ErrMirrorZig).
+func (b zigBuild) Vendor(ctx context.Context, c *build.Context, dir string) error {
+	_, err := c.LookPath(zigTool)
+	if err != nil {
+		return fmt.Errorf("%w: the %s backend runs %q, which is not in PATH",
+			build.ErrNoTool, Name, zigTool)
+	}
+
+	if !hasManifest(c) {
+		return nil
+	}
+
+	err = checkPkgDir(ctx, c, "the download of the packages into the mirror")
+	if err != nil {
+		return err
+	}
+
+	scratch, err := os.MkdirTemp("", "tt-zig-vendor-")
+	if err != nil {
+		return fmt.Errorf("creating the directory of the download: %w", err)
+	}
+
+	defer func() { _ = os.RemoveAll(scratch) }()
+
+	fetched := filepath.Join(scratch, pkgDir)
+
+	err = c.Run(c.Command(ctx, zigTool, buildCommand, fetchAll,
+		"--cache-dir", filepath.Join(scratch, cacheDir), "--pkg-dir", fetched))
+	if err != nil {
+		return fmt.Errorf("%w; the download takes the packages %s pins by the .hash of each, "+
+			"which zig fetch --save writes", err, manifestName)
+	}
+
+	return mergePackages(fetched, dir)
 }
 
 // targetArg returns the zig target triple the build passes as -Dtarget, or
@@ -429,7 +506,7 @@ func (b zigBuild) wantsMusl(platform build.Target) bool {
 func (b zigBuild) acceptsTarget(ctx context.Context, c *build.Context, dirs []string) (
 	bool, error,
 ) {
-	help, err := c.Output(c.Command(ctx, zigTool, append([]string{"build", "--help"},
+	help, err := c.Output(c.Command(ctx, zigTool, append([]string{buildCommand, "--help"},
 		dirs...)...))
 	if err != nil {
 		return false, err
@@ -446,9 +523,24 @@ func (b zigBuild) acceptsTarget(ctx context.Context, c *build.Context, dirs []st
 // ZIG_LOCAL_PKG_DIR. Without one, zig 0.17 fetches the
 // dependencies of build.zig.zon into zig-pkg/ beside it, which the layout
 // leaves out (Backend.Exclude).
+//
+// A build of a build.zig.zon given a mirror (usesMirror) takes the packages
+// from it: its --pkg-dir is the directory of the mirror, whatever
+// ZIG_LOCAL_PKG_DIR says, where zig finds each package in the directory of
+// its hash, as in a zig-pkg/ it fetched them into, and fetches none; a zig
+// older than pkgDirSince fails it (ErrMirrorZig).
 func dirArgs(ctx context.Context, c *build.Context) ([]string, error) {
 	args := append(make([]string, 0, 4), //nolint:mnd // Two options of a value each.
 		"--cache-dir", filepath.Join(c.Dirs.Work, cacheDir))
+
+	if usesMirror(c) {
+		err := checkPkgDir(ctx, c, "a build from the mirror "+c.Vendored)
+		if err != nil {
+			return nil, err
+		}
+
+		return append(args, "--pkg-dir", c.Vendored), nil
+	}
 
 	cmd := c.Command(ctx, zigTool, "version")
 
@@ -502,6 +594,201 @@ func takesPkgDir(version string) bool {
 	return pre == ""
 }
 
+// usesMirror reports whether the build takes the packages of its
+// build.zig.zon from the mirror of its rock servers (build.Context.Vendored):
+// when it has one, and the working directory has a build.zig.zon, without
+// which there is no package to take.
+func usesMirror(c *build.Context) bool {
+	return c.Vendored != "" && hasManifest(c)
+}
+
+// hasManifest reports whether the working directory has a build.zig.zon.
+func hasManifest(c *build.Context) bool {
+	info, err := os.Stat(filepath.Join(c.Dirs.Cwd, manifestName))
+
+	return err == nil && info.Mode().IsRegular()
+}
+
+// checkPkgDir fails what, which keeps the packages of build.zig.zon in a
+// directory, with a zig older than pkgDirSince, wrapping ErrMirrorZig.
+func checkPkgDir(ctx context.Context, c *build.Context, what string) error {
+	out, err := c.Output(c.Command(ctx, zigTool, "version"))
+	if err != nil {
+		return err
+	}
+
+	version := strings.TrimSpace(string(out))
+	if takesPkgDir(version) {
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s is made with the packages of %s in a directory of their own "+
+		"(--pkg-dir), and zig %s keeps them in its global cache; install zig 0.17, or build "+
+		"with the network and no mirror", ErrMirrorZig, what, manifestName, version)
+}
+
+// checkMirror checks that the mirror of the build has every package of the
+// build.zig.zon, of its dependencies too, the lazy ones among them, before the
+// build runs: zig build --fetch=all --system <mirror> walks them there and
+// fetches none, while zig build would fetch one it lacks. dirs are the
+// directories of zig of the build (dirArgs), --pkg-dir the mirror, which
+// --system alone would not override a ZIG_LOCAL_PKG_DIR with. A package the
+// mirror lacks fails the build, saying where the packages are taken from and
+// that tt package download fills the mirror.
+//
+// --system disables fetching, and enables the system integrations of the
+// build.zig too, which --fetch, that exits once the packages are found,
+// never runs: the build itself runs with the integrations it would online.
+func checkMirror(ctx context.Context, c *build.Context, dirs []string) error {
+	args := append([]string{buildCommand, fetchAll, "--system", c.Vendored}, dirs...)
+
+	err := c.Run(c.Command(ctx, zigTool, args...))
+	if err != nil {
+		return fmt.Errorf("%w; the build takes the packages of %s from %s, offline, which tt "+
+			"package download fills: run it again after a change of %s", err, manifestName,
+			c.Vendored, manifestName)
+	}
+
+	return nil
+}
+
+// mergePackages copies every package of fetched, a directory of the packages
+// zig fetched, each in the directory of its hash, into dir, which may not
+// exist, keeping those that are there: a package is copied beside its place
+// and renamed into it, so that a mirror holds no half of one. What zig left
+// of a fetch, a hidden directory, is not copied.
+func mergePackages(fetched, dir string) error {
+	entries, err := os.ReadDir(fetched)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("reading the fetched packages: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		dst := filepath.Join(dir, entry.Name())
+
+		_, err = os.Lstat(dst)
+		if err == nil {
+			continue
+		}
+
+		err = copyPackage(filepath.Join(fetched, entry.Name()), dst)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// copyPackage copies the package directory src to dst through a directory
+// beside dst renamed into it.
+func copyPackage(src, dst string) error {
+	err := os.MkdirAll(filepath.Dir(dst), mirrorDirPerm)
+	if err != nil {
+		return fmt.Errorf("creating %s: %w", filepath.Dir(dst), err)
+	}
+
+	tmp, err := os.MkdirTemp(filepath.Dir(dst), "."+filepath.Base(dst)+".tmp-")
+	if err != nil {
+		return fmt.Errorf("copying the package %s: %w", src, err)
+	}
+
+	err = copyTree(src, tmp)
+	if err == nil {
+		err = os.Chmod(tmp, mirrorDirPerm)
+	}
+
+	if err == nil {
+		err = os.Rename(tmp, dst)
+	}
+
+	if err != nil {
+		_ = os.RemoveAll(tmp)
+
+		return fmt.Errorf("copying the package %s into the mirror: %w", src, err)
+	}
+
+	return nil
+}
+
+// copyTree copies the files, directories and symbolic links under the
+// directory src into the directory dst, which exists, with the permission
+// bits of the files, each in a root of its own: a link is copied as a link,
+// never followed.
+func copyTree(src, dst string) error {
+	srcRoot, err := os.OpenRoot(src)
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", src, err)
+	}
+
+	defer func() { _ = srcRoot.Close() }()
+
+	dstRoot, err := os.OpenRoot(dst)
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", dst, err)
+	}
+
+	defer func() { _ = dstRoot.Close() }()
+
+	err = fs.WalkDir(srcRoot.FS(), ".", func(rel string, entry fs.DirEntry, err error) error {
+		switch {
+		case err != nil || rel == ".":
+			return err
+		case entry.IsDir():
+			return dstRoot.Mkdir(rel, mirrorDirPerm)
+		case entry.Type()&fs.ModeSymlink != 0:
+			link, err := srcRoot.Readlink(rel)
+			if err != nil {
+				return err //nolint:wrapcheck // The *PathError names the operation and the path.
+			}
+
+			return dstRoot.Symlink(link, rel)
+		case entry.Type().IsRegular():
+			return copyRootFile(srcRoot, dstRoot, rel)
+		default:
+			return nil
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("copying %s: %w", src, err)
+	}
+
+	return nil
+}
+
+// copyRootFile copies the file rel of the root srcRoot to rel of the root
+// dstRoot, with its permission bits.
+func copyRootFile(srcRoot, dstRoot *os.Root, rel string) error {
+	src, err := srcRoot.Open(rel)
+	if err != nil {
+		return err //nolint:wrapcheck // The *PathError names the operation and the path.
+	}
+
+	defer func() { _ = src.Close() }()
+
+	info, err := src.Stat()
+	if err != nil {
+		return err //nolint:wrapcheck // The *PathError names the operation and the path.
+	}
+
+	dst, err := dstRoot.OpenFile(rel, os.O_CREATE|os.O_WRONLY|os.O_EXCL, info.Mode().Perm())
+	if err != nil {
+		return err //nolint:wrapcheck // The *PathError names the operation and the path.
+	}
+
+	_, err = io.Copy(dst, src)
+
+	return errors.Join(err, dst.Close())
+}
+
 // args builds the zig build argv of a build whose work directory is work,
 // with the options of its directories dirs (dirArgs), for the zig target
 // triple target, or for the host when it is empty.
@@ -512,7 +799,7 @@ func takesPkgDir(version string) bool {
 // zig runs one a CPU, its own default. The jobs are of no key of the cache
 // of zig.
 func (b zigBuild) args(work string, dirs []string, target string, jobs int) []string {
-	args := append([]string{"build"}, b.config.Steps...)
+	args := append([]string{buildCommand}, b.config.Steps...)
 
 	args = append(args, "-p", filepath.Join(work, prefixDir))
 	args = append(args, dirs...)
