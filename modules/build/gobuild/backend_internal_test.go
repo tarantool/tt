@@ -1,14 +1,19 @@
 package gobuild
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"debug/elf"
 	"debug/macho"
 	"fmt"
+	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,6 +22,15 @@ import (
 
 	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/build/buildtest"
+)
+
+// A build of go says what it makes, names its program, checks what it needs
+// first and downloads the modules it requires ahead into a mirror.
+var (
+	_ build.Producer     = goBuild{}
+	_ build.ProgramNamer = goBuild{}
+	_ build.Preflighter  = goBuild{}
+	_ build.Vendorer     = goBuild{}
 )
 
 // component is the component gw, in the directory gw.
@@ -557,4 +571,402 @@ func TestFailureIsAnError(t *testing.T) {
 	err := harness.Run(t.Context(), validate(t, map[string]any{"package": "./cmd/gw"}, false))
 	require.Error(t, err)
 	assert.Contains(t, harness.Printed(), "broken.go")
+}
+
+// fakeGo writes a go into the tools directory of harness. go env -json prints
+// the go.mod of the working directory, no workspace, FAKE_GOMODCACHE and
+// FAKE_GOPROXY; go mod edit -json prints a go.mod of one requirement; go mod
+// download records its arguments at <state>/go.download.args and its
+// GOMODCACHE and GOPROXY at <state>/go.download.env, adds a hash to the
+// go.sum beside its -modfile and fills cache/download of GOMODCACHE: the
+// files of the module example.com/answer, its lock and its list of versions
+// among them, the go.mod of example.com/num, a toolchain and a record of the
+// checksum database, and a module directory it makes read-only, as go does;
+// go build records its arguments at <state>/go.args and its GOPROXY, GOSUMDB
+// and GONOPROXY at <state>/go.env, and fails when FAKE_FAIL is set.
+func fakeGo(t *testing.T, harness *buildtest.Harness) string {
+	t.Helper()
+
+	log := filepath.Join(harness.Context.Dirs.State, "go")
+
+	writeTool(t, harness.Context.Dirs.Tools, `case "$1 $2" in
+"env -json")
+	printf '{"GOMOD": "%s", "GOWORK": "", "GOMODCACHE": "%s", "GOPROXY": "%s"}\n' \
+		"$PWD/go.mod" "${FAKE_GOMODCACHE:-/home/u/go/pkg/mod}" \
+		"${FAKE_GOPROXY:-https://proxy.golang.org,direct}"
+	exit 0;;
+"mod edit")
+	echo '{"Require": [{"Path": "example.com/answer", "Version": "v1.0.0"}]}'
+	exit 0;;
+"mod download")
+	printf '%s\n' "$@" > "`+log+`.download.args"
+	printf '%s\n' "$GOMODCACHE" "$GOPROXY" > "`+log+`.download.env"
+	modfile=${3#-modfile=}
+	echo 'example.com/num v1.0.0/go.mod h1:added=' >> "$(dirname "$modfile")/go.sum"
+	d=$GOMODCACHE/cache/download
+	mkdir -p "$d/example.com/answer/@v" "$d/example.com/num/@v" "$d/golang.org/toolchain/@v" \
+		"$d/sumdb/sum.golang.org/lookup" "$GOMODCACHE/example.com/answer@v1.0.0"
+	for ext in info mod zip ziphash lock; do
+		echo "answer $ext" > "$d/example.com/answer/@v/v1.0.0.$ext"
+	done
+	echo v1.0.0 > "$d/example.com/answer/@v/list"
+	echo 'num mod' > "$d/example.com/num/@v/v1.0.0.mod"
+	echo toolchain > "$d/golang.org/toolchain/@v/v0.0.1-go1.99.0.linux-amd64.zip"
+	echo sum > "$d/sumdb/sum.golang.org/lookup/example.com!answer@v1.0.0"
+	echo answer > "$GOMODCACHE/example.com/answer@v1.0.0/answer.go"
+	chmod 555 "$GOMODCACHE/example.com/answer@v1.0.0"
+	exit 0;;
+esac
+[ -n "$FAKE_FAIL" ] && exit 1
+printf '%s\n' "$@" > "`+log+`.args"
+printf '%s\n' "$GOPROXY" "$GOSUMDB" "$GONOPROXY" > "`+log+`.env"
+`)
+
+	return log
+}
+
+// readLines reads the lines of the file at path.
+func readLines(t *testing.T, path string) []string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	return strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+}
+
+// writeFiles writes files, a map of a slash path under dir to its content.
+func writeFiles(t *testing.T, dir string, files map[string]string) {
+	t.Helper()
+
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	}
+}
+
+// TestVendorRunsGoModDownload: the modules the go.mod requires are downloaded
+// with go mod download, given copies of go.mod and go.sum, into a module
+// cache of its own, with the module cache of the user before GOPROXY; their
+// files are copied into the mirror in the layout of a module proxy, keeping
+// what is there, without the locks and the lists of the module cache, the
+// toolchains and the checksum database. The sources are not written, and the
+// module cache of the download is removed.
+func TestVendorRunsGoModDownload(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeGo(t, harness)
+	cwd := harness.Context.Dirs.Cwd
+	dir := filepath.Join(t.TempDir(), "mirror", Name)
+	sources := map[string]string{
+		"go.mod": "module example.com/gw\n\ngo 1.22\n\nrequire example.com/answer v1.0.0\n",
+		"go.sum": "example.com/answer v1.0.0 h1:x=\nexample.com/answer v1.0.0/go.mod h1:y=\n",
+	}
+
+	writeFiles(t, cwd, sources)
+	writeFiles(t, dir, map[string]string{"example.com/answer/@v/v1.0.0.info": "kept"})
+
+	harness.Context.Env["FAKE_GOMODCACHE"] = "/home/u/go/pkg/mod"
+	harness.Context.Env["FAKE_GOPROXY"] = "https://goproxy.example.com"
+
+	require.NoError(t, harness.Vendor(t.Context(), validate(t, nil, false), dir))
+
+	args := readLines(t, log+".download.args")
+	require.Len(t, args, 3)
+	assert.Equal(t, []string{"mod", "download"}, args[:2])
+
+	modfile, ok := strings.CutPrefix(args[2], "-modfile=")
+	require.True(t, ok, args[2])
+	assert.Equal(t, "go.mod", filepath.Base(modfile))
+
+	env := readLines(t, log+".download.env")
+	scratch := filepath.Dir(filepath.Dir(modfile))
+	assert.Equal(t, []string{
+		filepath.Join(scratch, "cache"),
+		"file:///home/u/go/pkg/mod/cache/download,https://goproxy.example.com",
+	}, env)
+	assert.NoDirExists(t, scratch, "the module cache of the download is removed")
+
+	for name, content := range sources {
+		data, err := os.ReadFile(filepath.Join(cwd, name))
+		require.NoError(t, err)
+		assert.Equal(t, content, string(data), "%s is not written", name)
+	}
+
+	var files []string
+
+	require.NoError(t, filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err == nil && !entry.IsDir() {
+			rel, _ := filepath.Rel(dir, path)
+
+			files = append(files, filepath.ToSlash(rel))
+		}
+
+		return err
+	}))
+	assert.Equal(t, []string{
+		"example.com/answer/@v/v1.0.0.info",
+		"example.com/answer/@v/v1.0.0.mod",
+		"example.com/answer/@v/v1.0.0.zip",
+		"example.com/answer/@v/v1.0.0.ziphash",
+		"example.com/num/@v/v1.0.0.mod",
+	}, files)
+
+	data, err := os.ReadFile(filepath.Join(dir, "example.com", "answer", "@v", "v1.0.0.info"))
+	require.NoError(t, err)
+	assert.Equal(t, "kept", string(data))
+
+	info, err := os.Stat(filepath.Join(dir, "example.com", "answer", "@v", "v1.0.0.zip"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
+// TestVendorOfNothingToDownload: a module that requires no module, or only
+// modules it replaces by directories, downloads nothing, and so does one
+// with a vendor directory, which the build takes the modules from, and a
+// package of no module; a module that requires modules and has no go.sum
+// pins nothing to download, and fails it.
+func TestVendorOfNothingToDownload(t *testing.T) {
+	t.Parallel()
+
+	const required = "module example.com/gw\n\ngo 1.22\n\nrequire example.com/answer v1.0.0\n"
+
+	tests := []struct {
+		name     string
+		files    map[string]string
+		noModule bool
+		err      error
+	}{
+		{"no requirement", nil, false, nil},
+		{"a requirement of a directory", map[string]string{
+			"go.mod": required + "\nreplace example.com/answer => ../answer\n",
+		}, false, nil},
+		{"a vendor directory", map[string]string{
+			"go.mod":             required,
+			"vendor/modules.txt": "# example.com/answer v1.0.0\n## explicit\nexample.com/answer\n",
+		}, false, nil},
+		{"no module", nil, true, nil},
+		{"no go.sum", map[string]string{"go.mod": required}, false, ErrNoGoSum},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			harness := goHarness(t, false)
+			dir := filepath.Join(t.TempDir(), "mirror", Name)
+			cwd := harness.Context.Dirs.Cwd
+
+			writeFiles(t, cwd, test.files)
+
+			if test.noModule {
+				require.NoError(t, os.Remove(filepath.Join(cwd, "go.mod")))
+			}
+
+			err := harness.Vendor(t.Context(), validate(t, nil, false), dir)
+			if test.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, test.err)
+				assert.Contains(t, err.Error(), ": its go.mod requires modules, and the module "+
+					"pins nothing to download; run go mod tidy there, and keep go.sum with the "+
+					"sources")
+			}
+
+			assert.NoDirExists(t, dir)
+		})
+	}
+}
+
+// TestRunFromAMirror: a build given a mirror takes the modules from it as its
+// only GOPROXY, over the env of the block, with no checksum database, no
+// private module and -mod=readonly, and a failure says where the modules were
+// taken from; a module with a vendor directory builds from it as it does
+// without a mirror.
+func TestRunFromAMirror(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	log := fakeGo(t, harness)
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+	output := filepath.Join(harness.Context.Dirs.Programs, "gw")
+	bld := validate(t, nil, false)
+
+	harness.Context.Vendored = mirror
+	harness.Context.Env["GOPROXY"] = "https://goproxy.example.com"
+	harness.Context.Env["GOPRIVATE"] = "example.com"
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+	assert.Equal(t, []string{"build", "-trimpath", "-o", output, "-mod=readonly", "."},
+		readLines(t, log+".args"))
+	assert.Equal(t, []string{"file://" + filepath.ToSlash(mirror), "off", ","},
+		readLines(t, log+".env"))
+
+	harness.Context.Env["FAKE_FAIL"] = "1"
+
+	err := harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "; the build takes the modules from "+mirror+", offline, "+
+		"which tt package download fills from the go.sum of the module")
+
+	delete(harness.Context.Env, "FAKE_FAIL")
+	writeFiles(t, harness.Context.Dirs.Cwd, map[string]string{"vendor/modules.txt": ""})
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+	assert.Equal(t, []string{"build", "-trimpath", "-o", output, "."}, readLines(t, log+".args"))
+	assert.Equal(t, []string{"https://goproxy.example.com", "", ""}, readLines(t, log+".env"))
+
+	harness.Context.Env["FAKE_FAIL"] = "1"
+
+	err = harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "tt package download")
+}
+
+// runIn runs name with args in dir with env over the environment of the
+// test, and fails the test when it fails.
+func runIn(t *testing.T, dir string, env []string, name string, args ...string) {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), name, args...)
+
+	cmd.Dir = dir
+
+	cmd.Env = append(os.Environ(), env...)
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+}
+
+// writeModule writes the module path at version of files, its go.mod among
+// them, into proxy, a directory in the layout of a module proxy, as GOPROXY
+// takes it with file://.
+func writeModule(t *testing.T, proxy, path, version string, files map[string]string) {
+	t.Helper()
+
+	dir := filepath.Join(proxy, filepath.FromSlash(path), "@v")
+
+	writeFiles(t, dir, map[string]string{
+		version + ".mod":  files["go.mod"],
+		version + ".info": `{"Version":"` + version + `","Time":"2026-01-01T00:00:00Z"}`,
+		"list":            version + "\n",
+	})
+
+	var buf bytes.Buffer
+
+	archive := zip.NewWriter(&buf)
+
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		writer, err := archive.Create(path + "@" + version + "/" + name)
+		require.NoError(t, err)
+
+		_, err = writer.Write([]byte(files[name]))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, archive.Close())
+	require.NoError(t, os.WriteFile(filepath.Join(dir, version+".zip"), buf.Bytes(), 0o600))
+}
+
+// TestBuildsOfflineFromTheMirror vendors a module whose requirement requires
+// another, served by a module proxy on disk, then removes the proxy, vendors
+// again from the module cache of the user alone with GOPROXY=off, and builds
+// from the mirror with an empty module cache, a GOPROXY and a proxy that
+// refuse every connection and the modules private, which go would download
+// from their repositories: there is nothing to download from, so the build
+// downloaded nothing. Without the mirror the same build fails.
+func TestBuildsOfflineFromTheMirror(t *testing.T) {
+	t.Parallel()
+
+	harness := goHarness(t, false)
+	dirs := harness.Context.Dirs
+	proxy := t.TempDir()
+
+	writeModule(t, proxy, "example.com/num", "v1.0.0", map[string]string{
+		"go.mod": "module example.com/num\n\ngo 1.22\n",
+		"num.go": "package num\n\nconst Value = 40\n",
+	})
+	writeModule(t, proxy, "example.com/answer", "v1.0.0", map[string]string{
+		"go.mod": "module example.com/answer\n\ngo 1.22\n\nrequire example.com/num v1.0.0\n",
+		"answer.go": "package answer\n\nimport \"example.com/num\"\n\n" +
+			"func Answer() int { return num.Value + 2 }\n",
+	})
+	writeFiles(t, dirs.Component, map[string]string{
+		"go.mod": "module example.com/gw\n\ngo 1.22\n\nrequire example.com/answer v1.0.0\n",
+		"cmd/gw/main.go": "package main\n\nimport (\n\t\"fmt\"\n\n\t\"example.com/answer\"\n)\n\n" +
+			"func main() { fmt.Println(answer.Answer()) }\n",
+	})
+
+	// The user's module cache, which go mod tidy fills as it writes go.sum,
+	// and go mod download with the versions of the modules: go mod download
+	// takes a module from a proxy by its version, which go mod tidy leaves
+	// out.
+	userCache := t.TempDir()
+	env := map[string]string{
+		"GOPROXY": fileURL(proxy), "GOSUMDB": "off", "GOMODCACHE": t.TempDir(),
+		"GOFLAGS": "-modcacherw", "GOTOOLCHAIN": "local",
+	}
+	setup := []string{
+		"GOPROXY=" + env["GOPROXY"], "GOSUMDB=off", "GOMODCACHE=" + userCache,
+		"GOFLAGS=-modcacherw -mod=mod", "GOTOOLCHAIN=local",
+	}
+
+	runIn(t, dirs.Component, setup, goTool, "mod", "tidy")
+	runIn(t, dirs.Component, setup, goTool, "mod", "download")
+
+	maps.Copy(harness.Context.Env, env)
+
+	sum, err := os.ReadFile(filepath.Join(dirs.Component, "go.sum"))
+	require.NoError(t, err)
+
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+	bld := validate(t, map[string]any{"package": "./cmd/gw"}, false)
+
+	require.NoError(t, harness.Vendor(t.Context(), bld, mirror), harness.Printed())
+
+	for _, module := range []string{"answer", "num"} {
+		for _, ext := range []string{".info", ".mod", ".zip", ".ziphash"} {
+			assert.FileExists(t, filepath.Join(mirror, "example.com", module, "@v", "v1.0.0"+ext))
+		}
+	}
+
+	zipFile := filepath.Join(mirror, "example.com", "answer", "@v", "v1.0.0.zip")
+
+	before, err := os.Stat(zipFile)
+	require.NoError(t, err)
+
+	// Nothing to download from but the module cache of the user, and what
+	// is in the mirror stays.
+	require.NoError(t, os.RemoveAll(proxy))
+
+	harness.Context.Env["GOPROXY"] = "off"
+	harness.Context.Env["GOMODCACHE"] = userCache
+
+	require.NoError(t, harness.Vendor(t.Context(), bld, mirror), harness.Printed())
+
+	after, err := os.Stat(zipFile)
+	require.NoError(t, err)
+	assert.Equal(t, before.ModTime(), after.ModTime())
+
+	// Nothing to download from.
+	require.NoError(t, os.RemoveAll(userCache))
+
+	maps.Copy(harness.Context.Env, map[string]string{
+		"GOMODCACHE": t.TempDir(), "GOPROXY": "http://127.0.0.1:9", "GOPRIVATE": "example.com",
+		"HTTP_PROXY": "http://127.0.0.1:9", "HTTPS_PROXY": "http://127.0.0.1:9",
+		"GOSUMDB": "sum.golang.org",
+	})
+
+	require.Error(t, harness.Run(t.Context(), bld), "a build of no mirror downloads")
+
+	harness.Context.Vendored = mirror
+
+	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+	assert.Equal(t, "42", runProgram(t, filepath.Join(dirs.Programs, "gw")))
+
+	data, err := os.ReadFile(filepath.Join(dirs.Component, "go.sum"))
+	require.NoError(t, err)
+	assert.Equal(t, string(sum), string(data), "go.sum is not written")
 }

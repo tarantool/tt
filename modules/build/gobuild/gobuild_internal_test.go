@@ -15,12 +15,13 @@ func TestGoArgs(t *testing.T) {
 	const output = "/proj/.rocks/bin/gw"
 
 	tests := []struct {
-		name   string
-		config Config
-		output string
-		static bool
-		jobs   int
-		want   []string
+		name    string
+		config  Config
+		output  string
+		static  bool
+		jobs    int
+		options []string
+		want    []string
 	}{
 		{
 			name:   "defaults",
@@ -85,20 +86,71 @@ func TestGoArgs(t *testing.T) {
 				"build", "-trimpath", "-o", output, "-p", "3", "-tags", "prod", ".",
 			},
 		},
+		{
+			// The options of a build from a mirror, before the package.
+			name:    "options",
+			config:  Config{Package: "./cmd/gw", Tags: []string{"prod"}},
+			output:  output,
+			options: []string{"-mod=readonly"},
+			want: []string{
+				"build", "-trimpath", "-o", output, "-tags", "prod", "-mod=readonly", "./cmd/gw",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			args, err := goArgs(tt.config, tt.output, tt.static, tt.jobs)
+			args, err := goArgs(tt.config, tt.output, tt.static, tt.jobs, tt.options)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, args)
 		})
 	}
 
-	_, err := goArgs(Config{Ldflags: []string{`both ' and "`}}, output, false, 0)
+	_, err := goArgs(Config{Ldflags: []string{`both ' and "`}}, output, false, 0, nil)
 	require.ErrorIs(t, err, errUnquotableFlag)
+}
+
+// TestMirrorEnv: a build from a mirror has the mirror for its only module
+// proxy, no checksum database and no private module.
+func TestMirrorEnv(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{
+		"GOPROXY=file:///srv/mirror/go", "GOSUMDB=off", "GONOPROXY=,",
+	}, mirrorEnv("/srv/mirror/go"))
+}
+
+// TestFileURL: every element of the path is escaped, a comma and a bar,
+// which separate the proxies of GOPROXY, among them.
+func TestFileURL(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "file:///srv/mirror/go", fileURL("/srv/mirror/go"))
+	assert.Equal(t, "file:///srv/a%20b%2Cc%7Cd/%23e%25f", fileURL("/srv/a b,c|d/#e%f"))
+	assert.Equal(t, "file:///srv/mirror/go", fileURL("/srv/mirror/../mirror/go/"))
+}
+
+// TestDownloadEnv: go mod download of Vendor fills a module cache of its own,
+// and takes the modules from the module cache of the user before its GOPROXY.
+func TestDownloadEnv(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{
+		"GOMODCACHE=/tmp/vendor/cache",
+		"GOPROXY=file:///home/u/go/pkg/mod/cache/download,https://proxy.golang.org,direct",
+	}, downloadEnv(goModule{
+		goMod: "/p/go.mod", goWork: "", modCache: "/home/u/go/pkg/mod",
+		proxy: "https://proxy.golang.org,direct",
+	}, "/tmp/vendor/cache"))
+
+	// GOPROXY=off takes what the user downloaded alone.
+	assert.Equal(t, []string{
+		"GOMODCACHE=/tmp/vendor/cache", "GOPROXY=file:///home/u/go/pkg/mod/cache/download,off",
+	}, downloadEnv(goModule{
+		goMod: "/p/go.mod", goWork: "", modCache: "/home/u/go/pkg/mod", proxy: "off",
+	}, "/tmp/vendor/cache"))
 }
 
 func TestQuoteFlags(t *testing.T) {

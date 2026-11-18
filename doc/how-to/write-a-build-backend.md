@@ -863,7 +863,9 @@ build`, is given `DIR/<backend>` in `c.Vendored`, of the first server that
 is a directory and has one: take from it what the tool would download, and
 download nothing. Without one `c.Vendored` is empty and the build downloads
 as ever. `cargo` vendors the crates of `Cargo.lock` with `cargo vendor`,
-and builds from them with `--offline`. In a test, `harness.Vendor(ctx, bld,
+and builds from them with `--offline`; `go` downloads the modules of
+`go.sum` with `go mod download` into the layout of a module proxy, and
+builds with it for `GOPROXY`. In a test, `harness.Vendor(ctx, bld,
 dir)` runs the `Vendor` of a build as the download does, and setting
 `harness.Context.Vendored` makes a build from a mirror.
 
@@ -1251,7 +1253,7 @@ The backends of the standard module `build` show the rest of the contract:
 | `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes |
 | `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored`, `Cross` with a linker of the target |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
-| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo` |
+| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo`, a `Vendorer` and a build from `Vendored` |
 | `modules/build/zig` | `zig` | `Incremental` with an `InputHasher`, `Cross` with `-Dtarget` |
 
 Their fields are in

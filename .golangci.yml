@@ -125,10 +125,10 @@ linters:
         text: 'yaml\(snake\): got ''tt-version'''
         linters:
           - tagliatelle
-      # The build of a distribution reads the JSON the go command prints,
-      # whose fields are named the Go way, and so does mage of the events of
-      # go test -json.
-      - path: ^(cli/manifest/distbuild/|magefile\.testjson\.go$)
+      # The build of a distribution and the go build backend read the JSON
+      # the go command prints, whose fields are named the Go way, and so does
+      # mage of the events of go test -json.
+      - path: ^(cli/manifest/distbuild/|modules/build/gobuild/|magefile\.testjson\.go$)
         text: 'json\(snake\)'
         linters:
           - tagliatelle
