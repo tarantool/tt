@@ -442,7 +442,14 @@ the same bytes. It holds:
   no rock owns is left out, with a warning;
 - `.templates/`: the instance templates of the project, each checked;
 - `_runtime/`: the Tarantool and the tt the package runs on, and TCM when
-  `[platform].tcm` asks for it;
+  `[platform].tcm` asks for it: the versions `app.manifest.lock` pins
+  ([the pinned runtime](../reference/app-manifest.md#the-pinned-runtime)),
+  exactly, from the runtime cache, the installations of the project, a
+  [mirror](rock-servers.md#a-mirror-for-offline-builds) of `--registry` or
+  `TT_REGISTRIES`, or the active ones; a pinned version none of them has
+  fails the pack. A program the lock pins no version of is the highest of
+  the cache or of the project that satisfies `[platform]`, else the active
+  one;
 - the files `[package].include` lists, and the license files.
 
 Other files of the project, `init.lua` at its root say, are not in the

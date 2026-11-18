@@ -217,6 +217,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   emmylua` work offline after it. `tt package resolve` and `tt package
   update` pin a missing version from the mirrors of their rock servers
   too.
+- `tt package pack` bundles the tarantool, the tt and the TCM the lock
+  pins at exactly those versions, and its archive records them as the
+  bundled ones: from the runtime cache, the installation of the project of
+  that version, the archive of it a mirror among the rock servers of
+  `--registry` or `TT_REGISTRIES` has - unpacked with its headers and
+  `share/tarantool`, offline - or the active binary when it is that
+  version. A pinned version none of them has fails the pack with exit code
+  1, naming it and the `tt binary install` command that installs it; it
+  bundled the highest version that satisfied `[platform]`, whatever the
+  project was resolved for. A program the lock pins no version of is
+  bundled as before.
 - `tt package build --target OS/ARCH` and `tt package pack --target
   OS/ARCH` build the components of the package for another platform than
   the machine tt runs on: `linux/amd64`, `linux/arm64`, `darwin/amd64` or

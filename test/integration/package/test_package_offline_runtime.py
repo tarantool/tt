@@ -20,6 +20,11 @@ from pathlib import Path
 
 import pytest
 
+try:
+    import zstandard
+except ImportError:  # Python 3.14 reads zstd itself; no wheel may build for it.
+    zstandard = None
+
 pytestmark = pytest.mark.skipif(
     shutil.which("tarantool") is None,
     reason="tt package resolve needs a tarantool",
@@ -307,6 +312,66 @@ def test_package_install_keeps_share_and_license(tt_cmd, project, tmp_path):
     )
     assert (installation / "LICENSE").read_text() == "the license of tarantool\n"
     assert (installation / "AUTHORS").read_text() == "the authors of tarantool\n"
+
+
+def tt_archive_files(archive: Path) -> dict[str, bytes]:
+    """The files of a .tt archive, a tar.zst, by name."""
+    if zstandard is None:
+        with tarfile.open(archive, mode="r:zst") as tar:
+            return {m.name: tar.extractfile(m).read() for m in tar if m.isfile()}
+
+    files = {}
+    with archive.open("rb") as raw:
+        with zstandard.ZstdDecompressor().stream_reader(raw) as stream:
+            with tarfile.open(fileobj=stream, mode="r|") as tar:
+                for member in tar:
+                    if member.isfile():
+                        files[member.name] = tar.extractfile(member).read()
+    return files
+
+
+def packed_archive(project: Path) -> Path:
+    archives = list((project / "_build" / "pack").glob("*.tt"))
+    assert len(archives) == 1, archives
+    return archives[0]
+
+
+def test_pack_bundles_the_pinned_runtime(tt_cmd, project, tmp_path):
+    """pack bundles the version the lock pins, not the active installation
+    nor a higher one, and records it as the bundled one."""
+    resolved = run(tt_cmd, project, "package", "resolve")
+    assert resolved.returncode == 0, resolved.stderr
+
+    higher = install_fake(project, "tarantool", "3.99.5")
+    link = project / ".tarantool" / "bin" / "tarantool"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(higher / "tarantool")
+
+    env = offline_env(XDG_CACHE_HOME=str(tmp_path / "cache"))
+    packed = run(tt_cmd, project, "package", "pack", env=env)
+    assert packed.returncode == 0, packed.stderr
+
+    lock = tomllib.loads(tt_archive_files(packed_archive(project))["app.manifest.lock"].decode())
+    assert lock["bundled_tarantool_version"] == TARANTOOL
+    assert lock["tarantool_version"] == TARANTOOL
+    assert lock["bundled_tt_version"] == TT
+
+
+def test_pack_offline_from_the_mirror(tt_cmd, mirror, airgap, tmp_path):
+    """On the machine with no network and nothing installed, pack takes the
+    pinned runtime from the mirror of TT_REGISTRIES, with its headers and
+    stubs."""
+    env = offline_env(TT_REGISTRIES=str(mirror), XDG_CACHE_HOME=str(tmp_path / "cache"))
+    packed = run(tt_cmd, airgap, "package", "pack", env=env)
+    assert packed.returncode == 0, packed.stderr
+
+    files = tt_archive_files(packed_archive(airgap))
+    lock = tomllib.loads(files["app.manifest.lock"].decode())
+    assert lock["bundled_tarantool_version"] == TARANTOOL
+    assert lock["bundled_tt_version"] == TT
+    assert files["_runtime/tarantool/share/tarantool/emmylua/box.lua"] == b"---@meta\n"
+    assert "_runtime/tarantool/include/tarantool/module.h" in files
+    assert not (airgap / ".tarantool").exists(), "pack installs nothing"
 
 
 def test_download_without_a_pin_fails(tt_cmd, tmp_path):

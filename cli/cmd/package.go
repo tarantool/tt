@@ -1399,6 +1399,15 @@ func runPackagePack() error {
 		}
 	}
 
+	runtimeOpts := runtimeRequest(ctx, projectDir, tntInfo)
+
+	// A pinned runtime the project does not have installed is bundled from a
+	// mirror of programs among the rock servers, offline.
+	runtimeOpts.Mirrors, err = binaryMirrors(packageRegistries, projectDir)
+	if err != nil {
+		return err
+	}
+
 	result, err := pack.Run(ctx, pack.Options{
 		Signer:      signer,
 		ProjectDir:  projectDir,
@@ -1435,7 +1444,7 @@ func runPackagePack() error {
 			Check:    nil,
 			Backends: buildreg.Process(),
 		},
-		Runtime:   runtimeRequest(ctx, projectDir, tntInfo),
+		Runtime:   runtimeOpts,
 		Warn:      func(msg string) { log.Warn(msg) },
 		DebugInfo: packageDebugInfo,
 	})
@@ -1496,7 +1505,10 @@ func runtimeRequest(
 		ActiveTtFlavor:   "",
 		ActiveTcm:        "",
 		ActiveTcmVersion: "",
-		Warn:             nil,
+		// Pack fills the pins from the lock of the build.
+		Pins:    pack.BundledVersions{Tarantool: "", Tt: "", Tcm: ""},
+		Mirrors: nil,
+		Warn:    nil,
 	}
 }
 

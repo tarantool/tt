@@ -412,7 +412,9 @@ tt-rocks-index.json
 and its rock from one build, and `rock,rock-src` both rocks. The archive
 bundles a Tarantool and a tt: those of the runtime cache, else those
 `tt binary install` put into the project, else the active ones, with a
-warning. The warnings depend on your machine (see
+warning; of exactly the versions `app.manifest.lock` pins, once `tt package
+resolve` pinned them (see
+[the pinned runtime](../reference/app-manifest.md#the-pinned-runtime)). The warnings depend on your machine (see
 [Troubleshooting](#troubleshooting)), and a rock bundles neither:
 
 ```console

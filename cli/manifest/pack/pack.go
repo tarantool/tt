@@ -179,7 +179,8 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 	}
 	defer cleanup()
 
-	bundled, err := runtimeInto(stageDir, opts, built.Manifest)
+	//nolint:contextcheck // A mirror the runtime is unpacked from is a directory.
+	bundled, err := runtimeInto(stageDir, opts, built.Manifest, built.Lock)
 	if err != nil {
 		return nil, err
 	}
@@ -321,9 +322,11 @@ func makeStageDir(opts Options) (string, func(), error) {
 //
 // The [platform] constraints are taken from the manifest here rather than from
 // the caller: they are only known once the build has parsed it, and leaving the
-// field to the CLI to fill made an unset Platform silently bundle nothing.
+// field to the CLI to fill made an unset Platform silently bundle nothing. The
+// pins are taken from the lock of the build for the same reason: the build may
+// have written it.
 func runtimeInto(
-	stageDir string, opts Options, man *manifest.Manifest,
+	stageDir string, opts Options, man *manifest.Manifest, lock *manifest.Lock,
 ) (BundledVersions, error) {
 	if opts.WithoutDeps {
 		return BundledVersions{}, nil
@@ -333,6 +336,10 @@ func runtimeInto(
 
 	req.Warn = opts.Warn
 	req.Platform = man.Platform
+
+	if lock != nil {
+		req.Pins = BundledVersions{Tarantool: lock.Tarantool, Tt: lock.Tt, Tcm: lock.Tcm}
+	}
 
 	return bundleRuntime(stageDir, req)
 }
