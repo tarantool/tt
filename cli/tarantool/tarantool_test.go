@@ -64,7 +64,16 @@ func activate(t *testing.T, root, target string) {
 func writeLock(t *testing.T, dir, bundled string) {
 	t.Helper()
 
+	writePinnedLock(t, dir, bundled, "")
+}
+
+// writePinnedLock writes into dir a lock that bundles the tarantool bundled
+// and pins the tarantool pinned, either empty for none.
+func writePinnedLock(t *testing.T, dir, bundled, pinned string) {
+	t.Helper()
+
 	data, err := manifest.Lock{
+		Tarantool:        pinned,
 		LockVersion:      manifest.LockVersion,
 		ManifestVersion:  manifest.ManifestVersion,
 		GeneratedBy:      "tt 3.0.0",

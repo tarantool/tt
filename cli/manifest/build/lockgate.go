@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
+	"github.com/tarantool/tt/v3/cli/manifest/runtimepin"
 )
 
 // resolver is the slice of resolve.Engine the lock gate drives: report whether
@@ -99,7 +100,7 @@ func gateLock(
 				"%w: %s not found and --locked forbids resolving", errLockStale, lockFileName)
 		}
 
-		return resolveAndWrite(ctx, res, man, path, nil)
+		return resolveAndWrite(ctx, res, man, path, nil, nil)
 	}
 
 	if readErr != nil {
@@ -132,18 +133,23 @@ func gateLock(
 	// Every version the stale lock already chose is held: a manifest edit moves
 	// what it touches and what that drags in, and nothing else. Pulling newer
 	// versions from the registry is tt package update's job.
-	return resolveAndWrite(ctx, res, man, path, resolve.PinsFromLock(lock))
+	return resolveAndWrite(ctx, res, man, path, resolve.PinsFromLock(lock), lock)
 }
 
 // resolveAndWrite resolves man into a fresh lock, preferring pins, and writes
-// it to path.
+// it to path. The runtime pins of previous, the lock it replaces, that still
+// satisfy [platform] are kept (runtimepin.Hold): a build pins nothing new,
+// that is tt package resolve's.
 func resolveAndWrite(
 	ctx context.Context, res resolver, man *manifest.Manifest, path string, pins resolve.Pins,
+	previous *manifest.Lock,
 ) (*manifest.Lock, []string, error) {
 	lock, warnings, err := res.ResolvePinned(ctx, man, pins)
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolving dependencies: %w", err)
 	}
+
+	warnings = append(warnings, runtimepin.Hold(man, previous, lock)...)
 
 	out, err := lock.Marshal()
 	if err != nil {

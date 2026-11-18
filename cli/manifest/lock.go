@@ -16,10 +16,28 @@ const LockVersion = "0.1"
 // and hashes tt resolved, one snapshot per product. The dependency fields are
 // filled by the resolver; this layer only owns the shape and serialization.
 type Lock struct {
-	LockVersion      string `toml:"lock_version"`
-	ManifestVersion  string `toml:"manifest_version"`
-	GeneratedBy      string `toml:"generated_by"`  // Like "tt 3.x.y".
-	ManifestHash     string `toml:"manifest_hash"` // Like "sha256:...".
+	LockVersion     string `toml:"lock_version"`
+	ManifestVersion string `toml:"manifest_version"`
+	GeneratedBy     string `toml:"generated_by"`  // Like "tt 3.x.y".
+	ManifestHash    string `toml:"manifest_hash"` // Like "sha256:...".
+
+	// Tarantool, Tt and Tcm pin the exact versions of the programs the
+	// project runs on (tarantool_version, tt_version, tcm_version): the
+	// version tt package resolve chose for [platform].tarantool,
+	// [platform].tt and [platform].tcm, as tt binary names the installation
+	// of it - "3.8.1" of tarantool, "3.0.0" of tt. The product is the one
+	// the flavor of the constraint names: an [ee] tarantool is tarantool-ee,
+	// an [ee] tt is tt-ee. tt package download mirrors exactly these, tt
+	// binary install installs them when it is given no version, and tt
+	// package pack bundles them. Empty, and absent from the file, for a
+	// program tt could not pin, and for TCM when [platform].tcm is not set.
+	//
+	// They are not what an archive bundles, which Bundled* say: an archive
+	// packed --without-deps carries the pins of its project and no runtime.
+	Tarantool string `toml:"tarantool_version,omitempty"`
+	Tt        string `toml:"tt_version,omitempty"`
+	Tcm       string `toml:"tcm_version,omitempty"`
+
 	BundledTarantool string `toml:"bundled_tarantool_version,omitempty"`
 	BundledTt        string `toml:"bundled_tt_version,omitempty"`
 	BundledTcm       string `toml:"bundled_tcm_version,omitempty"`
@@ -133,6 +151,9 @@ type lockWire struct {
 	ManifestVersion  string `toml:"manifest_version"`
 	GeneratedBy      string `toml:"generated_by"`
 	ManifestHash     string `toml:"manifest_hash"`
+	Tarantool        string `toml:"tarantool_version,omitempty"`
+	Tt               string `toml:"tt_version,omitempty"`
+	Tcm              string `toml:"tcm_version,omitempty"`
 	BundledTarantool string `toml:"bundled_tarantool_version,omitempty"`
 	BundledTt        string `toml:"bundled_tt_version,omitempty"`
 	BundledTcm       string `toml:"bundled_tcm_version,omitempty"`
@@ -204,6 +225,9 @@ func (l Lock) toWire() lockWire {
 	wire.ManifestVersion = l.ManifestVersion
 	wire.GeneratedBy = l.GeneratedBy
 	wire.ManifestHash = l.ManifestHash
+	wire.Tarantool = l.Tarantool
+	wire.Tt = l.Tt
+	wire.Tcm = l.Tcm
 	wire.BundledTarantool = l.BundledTarantool
 	wire.BundledTt = l.BundledTt
 	wire.BundledTcm = l.BundledTcm
@@ -219,6 +243,9 @@ func (w lockWire) toLock() Lock {
 		ManifestVersion:  w.ManifestVersion,
 		GeneratedBy:      w.GeneratedBy,
 		ManifestHash:     w.ManifestHash,
+		Tarantool:        w.Tarantool,
+		Tt:               w.Tt,
+		Tcm:              w.Tcm,
 		BundledTarantool: w.BundledTarantool,
 		BundledTt:        w.BundledTt,
 		BundledTcm:       w.BundledTcm,

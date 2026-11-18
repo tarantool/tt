@@ -85,6 +85,45 @@ server has such a rock: one no version of it meets fails the resolution,
 and one its lowest version does not meet is a warning to raise the lower
 bound. Nothing is locked for it.
 
+### The pinned runtime
+
+`tt package resolve` pins the exact version of each program `[platform]`
+names in `app.manifest.lock`, at its top:
+
+```toml
+lock_version = '0.1'
+manifest_version = '0.1'
+generated_by = 'tt 3.0.0'
+manifest_hash = 'toml1-sha256:...'
+tarantool_version = '3.9.0'
+tt_version = '3.0.0'
+tcm_version = '1.3.1'   # with [platform].tcm set
+```
+
+The version is the one `tt binary` names the installation by, and the
+product is the one the edition of the constraint names: `tarantool` for
+`[ce]`, `tarantool-ee` for `[ee]`, `tt` or `tt-ee`, and `tcm`. A pin that
+still satisfies `[platform]` is kept. A missing one is chosen in this order:
+
+1. the installation of the project that satisfies the constraint: the
+   active one, `.tarantool/bin/tarantool`, first, then the highest under
+   `.tarantool/versions/<product>/`;
+2. the Community tarantool and tt this tt runs with, when they are releases
+   that satisfy it;
+3. the newest release the sources of prebuilt archives of
+   [`tt binary install`](../how-to/binaries.md) have for this machine; the
+   customer zone is asked only when its credentials are set in
+   `TT_CLI_EE_USERNAME` and `TT_CLI_EE_PASSWORD`.
+
+A program none of them has a version of is left unpinned with a warning,
+and the resolution succeeds. `tt package update` without a name chooses the
+pins afresh, by the same order. A build, `tt package add` and `tt package
+remove` keep the pins that still satisfy `[platform]` and pin nothing new.
+
+The pins are what [an offline mirror](../concepts/rock-servers.md#a-mirror-for-offline-builds)
+carries the programs of. A project whose active tarantool is another
+version than the pinned one runs on it, with a warning.
+
 ## `[dependencies]` and `[dev_dependencies]`
 
 A dependency is a rock, in the short form:

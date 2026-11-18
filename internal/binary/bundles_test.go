@@ -127,3 +127,64 @@ func TestPrebuiltVersionsReleases(t *testing.T) {
 	require.ErrorIs(t, err, errTestPlatform)
 	require.EqualError(t, err, "test-source: no archive for this platform")
 }
+
+// archivesTestSource is a source of archives of tcm that lists artifacts, and
+// asks for credentials while prompts is set.
+type archivesTestSource struct {
+	artifacts []bundle.Artifact
+	prompts   bool
+}
+
+func (archivesTestSource) Name() string { return "archives" }
+
+func (archivesTestSource) Products() []string { return []string{binary.ProgramTcm.String()} }
+
+func (s archivesTestSource) List(context.Context, bundle.Query) ([]bundle.Artifact, error) {
+	return s.artifacts, nil
+}
+
+func (archivesTestSource) Fetch(context.Context, bundle.Artifact, io.Writer) error {
+	return nil
+}
+
+func (s archivesTestSource) Prompts() bool { return s.prompts }
+
+// TestReleaseIDs names the release builds of a source as tt binary installs
+// them, each once, and asks no source that would ask for credentials.
+func TestReleaseIDs(t *testing.T) {
+	saved := binary.BundleSources()
+
+	t.Cleanup(func() { binary.SetBundleSources(saved) })
+
+	tt := releasesTestSource{
+		releases:  []string{"v3.0.0-alpha.2", "v2.15.2"},
+		platforms: map[string]bool{"v3.0.0-alpha.2": true, "v2.15.2": true},
+	}
+	tcm := archivesTestSource{artifacts: []bundle.Artifact{
+		{Version: "1.3.1", Name: "tcm-1.3.1.tar.gz"},
+		{Version: "1.4.0-rc1", Name: "tcm-1.4.0-rc1.tar.gz"},
+		{Version: "1.3.1", Flavor: []string{"debug"}, Name: "tcm-debug-1.3.1.tar.gz"},
+		{Version: "1.2.0", Name: "tcm-1.2.0.tar.gz"},
+	}}
+
+	binary.SetBundleSources([]bundle.Source{tt, tcm})
+
+	ids, source, err := binary.ReleaseIDs(t.Context(), binary.ProgramTt)
+	require.NoError(t, err)
+	assert.Equal(t, "test-source", source)
+	assert.Equal(t, []string{"2.15.2", "3.0.0-alpha.2"}, ids)
+
+	ids, _, err = binary.ReleaseIDs(t.Context(), binary.ProgramTcm)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"1.2.0", "1.3.1"}, ids)
+
+	tcm.prompts = true
+	binary.SetBundleSources([]bundle.Source{tt, tcm})
+
+	_, source, err = binary.ReleaseIDs(t.Context(), binary.ProgramTcm)
+	require.ErrorIs(t, err, binary.ErrSourcePrompts)
+	assert.Equal(t, "archives", source)
+
+	_, _, err = binary.ReleaseIDs(t.Context(), binary.ProgramCe)
+	require.ErrorIs(t, err, binary.ErrNoBundleSource)
+}

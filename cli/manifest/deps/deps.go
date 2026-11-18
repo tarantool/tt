@@ -70,6 +70,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/runtimepin"
 )
 
 // lockProject takes the lock of the project of opts for a command that
@@ -123,6 +124,11 @@ type Options struct {
 	// Backends are the build backends the manifest is validated with; nil is
 	// those of the process (buildreg.Process).
 	Backends *buildreg.Registry
+	// Runtime says where the run looks for the versions of tarantool, tt and
+	// TCM it pins in the lock (runtimepin.Pin): tt package resolve and tt
+	// package update set it. Nil pins nothing new and keeps the pins of the
+	// lock that still satisfy [platform], as tt package add and remove do.
+	Runtime *runtimepin.Options
 }
 
 // emit surfaces non-fatal diagnostics through the Warn sink, if any.
@@ -273,6 +279,10 @@ type project struct {
 	// lockSource is the exact bytes of lock, nil with it: what a run that
 	// rewrites the lock compares the new one with.
 	lockSource []byte
+	// repinRuntime makes the run choose the runtime pins of the lock afresh
+	// rather than keep those that still satisfy [platform]: a bare tt
+	// package update, which moves every version it can.
+	repinRuntime bool
 }
 
 // load reads the manifest and the lock from the project directory.
@@ -310,11 +320,12 @@ func load(opts Options) (*project, error) {
 	}
 
 	return &project{
-		manifest:   man,
-		source:     data,
-		perm:       manifestPerm(path),
-		lock:       lock,
-		lockSource: lockSource,
+		manifest:     man,
+		source:       data,
+		perm:         manifestPerm(path),
+		lock:         lock,
+		lockSource:   lockSource,
+		repinRuntime: false,
 	}, nil
 }
 
@@ -396,6 +407,7 @@ func apply(
 	}
 
 	opts.emit(warnings)
+	opts.emit(pinRuntime(ctx, opts, proj, man, lock))
 
 	written, err := writeFiles(opts, proj, edited, lock)
 	if err != nil {
@@ -412,6 +424,26 @@ func apply(
 		Change:   change,
 		Kept:     false,
 	}, nil
+}
+
+// pinRuntime sets the runtime pins of lock, the lock the run resolved for
+// man: with opts.Runtime, every program [platform] asks for is pinned
+// (runtimepin.Pin), holding the pins of the lock on disk unless the run
+// chooses them afresh; without, only those pins that still satisfy
+// [platform] are kept (runtimepin.Hold). It returns the warnings.
+func pinRuntime(ctx context.Context, opts Options, proj *project,
+	man *manifest.Manifest, lock *manifest.Lock,
+) []string {
+	if opts.Runtime == nil {
+		return runtimepin.Hold(man, proj.lock, lock)
+	}
+
+	previous := proj.lock
+	if proj.repinRuntime {
+		previous = nil
+	}
+
+	return runtimepin.Pin(ctx, man, previous, lock, *opts.Runtime)
 }
 
 // parseEdited parses the edited manifest source into the Manifest the

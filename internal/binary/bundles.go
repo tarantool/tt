@@ -241,6 +241,70 @@ func PrebuiltVersions(ctx context.Context, source bundle.Source, program Program
 	return versions, nil
 }
 
+// PromptingSource is a source that asks the user for what it was not given
+// before it can answer, as the customer zone asks for the credentials of a
+// login. A command that must not ask, one that only looks a version up on
+// the way, skips such a source while it would ask.
+type PromptingSource interface {
+	// Prompts reports whether a List made now would ask the user.
+	Prompts() bool
+}
+
+// ErrSourcePrompts reports a source a command did not ask because it would
+// ask the user first (PromptingSource).
+var ErrSourcePrompts = errors.New("the source would ask for credentials")
+
+// ReleaseIDs returns the release builds of program the first source of the
+// process with it has for the host, by the names tt binary installs them
+// under - 3.8.1 of tarantool, 3.0.0-alpha.2 of the tag v3.0.0-alpha.2 of tt,
+// 3.4.1 of the SDK archive gc64-3.4.1-0-r63 of tarantool-ee - each once, in
+// no particular order, and the name of the source. A source that would ask
+// the user for credentials first is not asked: the error wraps
+// ErrSourcePrompts.
+func ReleaseIDs(ctx context.Context, program Program) ([]string, string, error) {
+	source, err := BundleSource(program)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if prompting, ok := source.(PromptingSource); ok && prompting.Prompts() {
+		return nil, source.Name(), fmt.Errorf("%w: %s", ErrSourcePrompts, source.Name())
+	}
+
+	var ids []string
+
+	if program == ProgramCe || program == ProgramTt {
+		versions, err := PrebuiltVersions(ctx, source, program)
+		if err != nil {
+			return nil, source.Name(), err
+		}
+
+		for _, found := range versions {
+			ids = append(ids, strings.TrimPrefix(found.Str, "v"))
+		}
+
+		return ids, source.Name(), nil
+	}
+
+	bundles, err := ListBundles(ctx, source, program, NewBundleQuery(program, false, ""))
+	if err != nil {
+		return nil, source.Name(), err
+	}
+
+	for _, found := range bundles {
+		if found.Version.Release.Type != version.TypeRelease || found.IsDebug() {
+			continue
+		}
+
+		id := BundleInstallationID(program, found.Version, false)
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+
+	return ids, source.Name(), nil
+}
+
 // releaseVersions returns the versions of the release tags of program,
 // sorted, but those tt no longer installs, those it cannot read and, with
 // platforms, those that publish no archive for the host.

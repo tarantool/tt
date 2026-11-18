@@ -139,6 +139,56 @@ func TestLockWithoutDevDependenciesOmitsKey(t *testing.T) {
 	assert.Empty(t, back.DevDependencies)
 }
 
+// TestLockRuntimePins pins the on-disk keys of the runtime pins: they are
+// written at the top, apart from what an archive bundles, round-trip, and are
+// absent from a lock that pins nothing, so a lock of an older tt reads the
+// same and is written back byte for byte.
+func TestLockRuntimePins(t *testing.T) {
+	t.Parallel()
+
+	lock := &manifest.Lock{
+		LockVersion:     manifest.LockVersion,
+		ManifestVersion: manifest.ManifestVersion,
+		GeneratedBy:     "tt 3.1.0",
+		ManifestHash:    "sha256:abc123",
+		Tarantool:       "3.9.0",
+		Tt:              "3.0.0",
+		Tcm:             "1.3.1",
+		Products:        map[string]manifest.LockProduct{"default": {}},
+	}
+
+	out, err := lock.Marshal()
+	require.NoError(t, err)
+
+	text := string(out)
+	assert.Contains(t, text, "tarantool_version = '3.9.0'\n")
+	assert.Contains(t, text, "tt_version = '3.0.0'\n")
+	assert.Contains(t, text, "tcm_version = '1.3.1'\n")
+	assert.NotContains(t, text, "bundled_")
+	assert.Less(t, strings.Index(text, "tarantool_version"), strings.Index(text, "[lock"))
+
+	back, err := manifest.ParseLock(out)
+	require.NoError(t, err)
+	assert.Equal(t, "3.9.0", back.Tarantool)
+	assert.Equal(t, "3.0.0", back.Tt)
+	assert.Equal(t, "1.3.1", back.Tcm)
+	assert.Empty(t, back.BundledTarantool)
+
+	old := "lock_version = '0.1'\nmanifest_version = '0.1'\ngenerated_by = 'tt 3.0.0'\n" +
+		"manifest_hash = 'sha256:abc123'\nbundled_tarantool_version = '3.8.1'\n\n" +
+		"[lock]\n[lock.products]\n[lock.products.default]\ndependencies = []\n"
+
+	parsed, err := manifest.ParseLock([]byte(old))
+	require.NoError(t, err)
+	assert.Empty(t, parsed.Tarantool)
+	assert.Equal(t, "3.8.1", parsed.BundledTarantool)
+
+	again, err := parsed.Marshal()
+	require.NoError(t, err)
+	assert.NotContains(t, string(again), "\ntarantool_version")
+	assert.Contains(t, string(again), "\nbundled_tarantool_version = '3.8.1'\n")
+}
+
 // TestLockKeepsAnEmptyProduct pins that a product resolved to no dependencies
 // still has its entry after a write and a read. The staleness check treats a
 // product with no entry as unresolved, so losing the empty entry on the way

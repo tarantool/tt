@@ -434,6 +434,9 @@ func updateWith(
 		}
 
 		pins = resolve.PinsFromLock(proj.lock, name)
+	} else {
+		// A bare update moves every version it can, the runtime pins too.
+		proj.repinRuntime = true
 	}
 
 	// A nil edit: update changes no declaration, so the manifest on disk is

@@ -156,6 +156,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   calls. `Services` has a
   method more, which a module that implemented it, as it must not, has to
   add.
+- `tt package resolve` pins the exact tarantool, tt and, with
+  `[platform].tcm`, TCM the project runs on in `app.manifest.lock`:
+  `tarantool_version`, `tt_version` and `tcm_version` at its top, the
+  version as `tt binary` names the installation of it, of the product the
+  edition of the constraint names (`tarantool-ee` and `tt-ee` for `[ee]`).
+  A pin that still satisfies `[platform]` is kept; a missing one is the
+  installation of the project that satisfies the constraint, the active one
+  first, else the Community tarantool and tt this tt runs with, else the
+  newest release the sources of prebuilt archives of `tt binary install`
+  have for the machine, the customer zone only when its credentials are in
+  the environment. A program none of them has a version of is left
+  unpinned with a warning and the resolution succeeds, as it did. `tt
+  package update` without a name chooses the pins afresh; a build, `tt
+  package add` and `tt package remove` keep those that still satisfy
+  `[platform]`, drop the others with a warning and pin nothing new. A
+  project whose active tarantool is another version than the pinned one
+  warns as it did for one the lock bundles. The lock recorded only the
+  versions an archive bundles, `bundled_*_version`, in the copy inside the
+  archive, so nothing said which tarantool, tt and TCM a project was
+  resolved for; the lock format is unchanged otherwise, and a tt that does
+  not know the keys reads the lock as before.
 - `tt package build --target OS/ARCH` and `tt package pack --target
   OS/ARCH` build the components of the package for another platform than
   the machine tt runs on: `linux/amd64`, `linux/arm64`, `darwin/amd64` or
