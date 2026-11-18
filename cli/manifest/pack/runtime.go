@@ -1,10 +1,12 @@
 package pack
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/mirror"
 )
 
 // Runtime component directory names inside _runtime/.
@@ -69,6 +72,9 @@ type runtimeSource struct {
 	// Flavor is the build's flavor, "ce" or "ee": the cache tree it was found
 	// in, or what the active binary reported. Empty when undetermined.
 	Flavor string
+	// Scratch is a directory Dir was unpacked into for the pack alone, from
+	// a mirror, removed once the component is placed; empty for none.
+	Scratch string
 }
 
 // RuntimeOptions carries what bundleRuntime needs to find and place runtimes.
@@ -101,6 +107,15 @@ type RuntimeOptions struct {
 	ActiveTtFlavor        string
 	ActiveTcm             string
 	ActiveTcmVersion      string
+	// Pins are the versions app.manifest.lock pins (manifest.Lock.Tarantool,
+	// Tt and Tcm): a pinned component is bundled at exactly that version,
+	// wherever it is found, and the pack fails when it is found nowhere. Run
+	// fills them from the lock of the build; callers leave them zero.
+	Pins BundledVersions
+	// Mirrors are the mirrors of programs tt package download made
+	// (internal/binary/mirror): a pinned component neither the cache nor the
+	// project has is taken from the first of them that has it, offline.
+	Mirrors []*mirror.Source
 	// Warn receives the fallback diagnostics; nil drops them.
 	Warn func(string)
 }
@@ -166,9 +181,24 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 			continue
 		}
 
-		src, err := resolveRuntime(req, want.name, want.constraint, want.active)
+		var (
+			src runtimeSource
+			err error
+		)
+
+		pin := req.Pins.of(want.name)
+		if pin != "" {
+			src, err = resolvePinned(stageDir, req, want.name, want.constraint, want.active, pin)
+		} else {
+			src, err = resolveRuntime(req, want.name, want.constraint, want.active)
+		}
+
 		if err != nil {
 			return BundledVersions{}, err
+		}
+
+		if src.Scratch != "" {
+			defer func() { _ = os.RemoveAll(src.Scratch) }()
 		}
 
 		if src.Fallback && req.Warn != nil {
@@ -227,6 +257,175 @@ func lockedTarantoolVersion(src runtimeSource) string {
 	}
 
 	return release
+}
+
+// of returns the version of the component name: tarantool, tt or tcm.
+func (b BundledVersions) of(name string) string {
+	switch name {
+	case runtimeTarantool:
+		return b.Tarantool
+	case runtimeTt:
+		return b.Tt
+	case runtimeTcm:
+		return b.Tcm
+	default:
+		return ""
+	}
+}
+
+// resolvePinned picks the source of the component name at exactly pin, the
+// version the lock pins, of the flavors the constraint accepts: a runtime
+// cache entry of that version, the tt binary installation of the project of
+// it, the archive of it a mirror has - unpacked next to stageDir - or the
+// active binary when it is that version. Any other version is no source of
+// it: the pack fails, saying how to install the pinned one.
+func resolvePinned(stageDir string, req RuntimeOptions, name string,
+	constraint manifest.Constraint, active activeBinary, pin string,
+) (runtimeSource, error) {
+	flavor := constraint.EffectiveFlavor()
+	accepted := acceptedFlavors(flavor)
+
+	matches, err := satisfies(pin, constraint)
+	if err != nil {
+		return runtimeSource{}, err
+	}
+
+	if !matches {
+		return runtimeSource{}, stateErrorf("%w: app.manifest.lock pins %s %s, which does not "+
+			"satisfy %q of [platform].%s; run tt package resolve", errNoRuntime, name, pin,
+			constraint.Version, name)
+	}
+
+	for _, tree := range accepted {
+		dir, ok := findPinnedInCache(req.CacheDir, name, tree, pin)
+		if ok {
+			return runtimeSource{Name: name, Version: pin, Dir: dir, Flavor: tree}, nil
+		}
+	}
+
+	if req.ProjectRoot != "" {
+		for _, program := range installedPrograms(name, accepted) {
+			matched, err := installationSatisfies(req.ProjectRoot, program, pin, constraint)
+			if err != nil {
+				return runtimeSource{}, err
+			}
+
+			if matched {
+				return installedSource(req.ProjectRoot, name, program, pin), nil
+			}
+		}
+	}
+
+	src, ok, err := fromMirrors(stageDir, req.Mirrors, name, flavor, pin)
+	if err != nil || ok {
+		return src, err
+	}
+
+	if active.path != "" && activeFlavorOK(active, flavor) && releaseOf(active.version) == pin {
+		return runtimeSource{
+			Name: name, Version: pin, Binary: active.path, Prefix: active.prefix,
+			Fallback: true, Flavor: active.flavor,
+		}, nil
+	}
+
+	program := installedPrograms(name, []string{flavor})[0]
+
+	return runtimeSource{}, stateErrorf("%w: app.manifest.lock pins %s %s, and neither the "+
+		"runtime cache %s, the project, a mirror of the rock servers nor the active %s (%s) "+
+		"has it; install it with tt binary install %s, add --registry DIR to take it "+
+		"from a mirror, or pin the versions afresh with tt package update",
+		errNoRuntime, program, pin, req.CacheDir, name, describeActive(active),
+		installArgument(name, flavor, pin))
+}
+
+// installArgument is what follows tt binary install to install the component
+// name of the flavor at version: tarantool 3.9.0, tarantool 3.4.1ee.
+func installArgument(name, flavor, ver string) string {
+	if flavor == flavorEE && name != runtimeTcm {
+		return name + " " + ver + flavorEE
+	}
+
+	return name + " " + ver
+}
+
+// releaseOf is the version a reported version is recorded under: the release
+// a Community build of a tag is of, 3.8.1 of 3.8.1-0-ge643f88a5e0c, and any
+// other version as it is.
+func releaseOf(reported string) string {
+	release, ok := manifest.RuntimeRelease(reported)
+	if ok {
+		return release
+	}
+
+	return normalizeVersion(reported)
+}
+
+// findPinnedInCache returns the runtime cache entry of the component name of
+// the flavor at exactly pin, <cache>/<name>/<flavor>/<pin>/, its name with or
+// without a leading v.
+func findPinnedInCache(cacheDir, name, flavor, pin string) (string, bool) {
+	if cacheDir == "" {
+		return "", false
+	}
+
+	for _, entry := range []string{pin, "v" + pin} {
+		dir := filepath.Join(cacheDir, name, flavor, entry)
+
+		info, err := os.Stat(dir)
+		if err == nil && info.IsDir() {
+			return dir, true
+		}
+	}
+
+	return "", false
+}
+
+// sdkDir is the directory of an SDK archive of the customer zone that holds
+// the flat SDK a runtime of tarantool-ee is.
+const sdkDir = "tarantool-enterprise"
+
+// fromMirrors unpacks the archive of the component name of the flavor at pin
+// the first of mirrors that has one for this machine into a directory next
+// to stageDir, and returns it as the source: the archive of a Community
+// product, of TCM or of tt-ee holds the component at its top, an SDK archive
+// in tarantool-enterprise/.
+func fromMirrors(stageDir string, mirrors []*mirror.Source, name, flavor, pin string) (
+	runtimeSource, bool, error,
+) {
+	program := installedPrograms(name, []string{flavor})[0]
+
+	for _, found := range mirrors {
+		artifact, ok := found.Find(program, pin, runtime.GOOS, runtime.GOARCH)
+		if !ok {
+			continue
+		}
+
+		scratch, err := os.MkdirTemp(filepath.Dir(stageDir), "runtime-")
+		if err != nil {
+			return runtimeSource{}, false, fmt.Errorf("unpacking %s: %w", artifact.Name, err)
+		}
+
+		dir := filepath.Join(scratch, name)
+
+		err = found.Extract(context.Background(), artifact, dir)
+		if err != nil {
+			_ = os.RemoveAll(scratch)
+
+			return runtimeSource{}, false, stateErrorf("bundling %s %s from %s: %w",
+				program, pin, found.Name(), err)
+		}
+
+		if program == binary.ProgramEe {
+			dir = filepath.Join(dir, sdkDir)
+		}
+
+		return runtimeSource{
+			Name: name, Version: pin, Dir: dir, Flavor: installedFlavor(program),
+			Scratch: scratch,
+		}, true, nil
+	}
+
+	return runtimeSource{}, false, nil
 }
 
 // activeBinary describes the running tt environment's copy of one component,

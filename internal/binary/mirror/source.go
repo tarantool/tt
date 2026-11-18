@@ -13,6 +13,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/untar"
 )
 
 // Source is a mirror as a source of prebuilt archives: the archives its index
@@ -150,6 +151,42 @@ func (s *Source) Find(program binary.Program, installation, goos, goarch string)
 	return bundle.Artifact{
 		Version: "", Flavor: nil, Name: "", Size: 0, SHA256: "", Locator: "",
 	}, false
+}
+
+// Extract unpacks the archive of artifact, checked against the digest of the
+// index, into dir, which it creates. An archive keeps the modes of its files,
+// the executable ones among them, and holds no links.
+func (s *Source) Extract(ctx context.Context, artifact bundle.Artifact, dir string) error {
+	err := os.MkdirAll(dir, dirMode)
+	if err != nil {
+		return fmt.Errorf("creating %s: %w", dir, err)
+	}
+
+	temp, err := os.CreateTemp(filepath.Dir(dir), ".archive-*")
+	if err != nil {
+		return fmt.Errorf("unpacking %s: %w", artifact.Name, err)
+	}
+
+	defer func() { _ = os.Remove(temp.Name()) }()
+
+	err = s.Fetch(ctx, artifact, temp)
+
+	closeErr := temp.Close()
+	if err == nil {
+		err = closeErr
+	}
+
+	if err == nil {
+		err = untar.ExtractTarGz(temp.Name(), dir, untar.Options{
+			Symlinks: false, EntryModes: true,
+		})
+	}
+
+	if err != nil {
+		return fmt.Errorf("unpacking %s: %w", artifact.Locator, err)
+	}
+
+	return nil
 }
 
 // Matches reports whether the mirror has a build of program for goos/goarch
