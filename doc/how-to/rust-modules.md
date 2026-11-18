@@ -57,6 +57,25 @@ pub unsafe extern "C" fn luaopen_myapp_fastrs(l: *mut ffi::lua_State) -> c_int {
 
 The crate need not set `crate-type`: tt builds a `cdylib` of it anyway.
 
+tt builds the crate from the versions its `Cargo.lock` pins, as it builds
+the project from the versions of its lock, so the crate needs one. Write it
+once, and keep it with the sources:
+
+```console
+$ cd libs/fastrs
+$ cargo generate-lockfile
+$ git add Cargo.lock
+```
+
+A crate that is a member of a workspace has the `Cargo.lock` of the
+workspace, beside the `Cargo.toml` of its root. A build without one fails
+before anything is built: `the cargo package has no Cargo.lock in
+.../libs/fastrs: the build is made with --locked, from the versions
+Cargo.lock pins; run cargo generate-lockfile there, and keep Cargo.lock with
+the sources`. One that the `Cargo.toml` no longer matches, a dependency
+added since, fails too, as `cargo build --locked` fails on it: `cargo
+update` or `cargo generate-lockfile` writes it again.
+
 ## Declare the component
 
 ```toml
@@ -73,8 +92,8 @@ $ find .rocks -name 'fastrs*'
 .rocks/lib/tarantool/myapp/fastrs.so
 ```
 
-The build runs `cargo rustc --lib --crate-type cdylib --profile release`
-in the directory of the component, with `_build/cargo/` of the project as
+The build runs `cargo rustc --lib --crate-type cdylib --profile release
+--locked` in the directory of the component, with `_build/cargo/` of the project as
 its target directory, and takes the library from what cargo reports. The module is named after the
 library, `fastrs`; `module = "..."` names it otherwise. It is
 `<module>.so`, and `<module>.dylib` on macOS, where Tarantool looks for

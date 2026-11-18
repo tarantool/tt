@@ -15,14 +15,14 @@ func TestArgs(t *testing.T) {
 
 	assert.Equal(t,
 		[]string{
-			"build", "--profile", "release", "--bin", "agent",
+			"build", "--profile", "release", "--bin", "agent", "--locked",
 			"--message-format=json-render-diagnostics",
 		},
 		cargoBuild{bin: "agent"}.args("", 0))
 
 	assert.Equal(t,
 		[]string{
-			"build", "--profile", "dist", "--bin", "agent",
+			"build", "--profile", "dist", "--bin", "agent", "--locked",
 			"--message-format=json-render-diagnostics",
 			"--package", "agent-crate", "--features", "tls,serde/derive",
 			"--target", "x86_64-unknown-linux-musl",
@@ -34,7 +34,7 @@ func TestArgs(t *testing.T) {
 	// The jobs of the build, when they are set.
 	assert.Equal(t,
 		[]string{
-			"build", "--profile", "release", "--bin", "agent",
+			"build", "--profile", "release", "--bin", "agent", "--locked",
 			"--message-format=json-render-diagnostics", "-j", "3",
 		},
 		cargoBuild{bin: "agent"}.args("", 3))
@@ -55,7 +55,7 @@ func TestModuleArgs(t *testing.T) {
 	fast := cargoBuild{config: Config{Package: "fast", Features: []string{"simd"}}, module: true}
 
 	assert.Equal(t, []string{
-		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release",
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release", "--locked",
 		"--message-format=json-render-diagnostics", "--package", "fast", "--features", "simd",
 	}, fast.moduleArgs("", "linux", 0))
 
@@ -64,14 +64,14 @@ func TestModuleArgs(t *testing.T) {
 	dev := cargoBuild{config: Config{Profile: "dev"}, module: true}
 
 	assert.Equal(t, []string{
-		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev",
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev", "--locked",
 		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
 		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",
 	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS, 0))
 
 	// The jobs are of cargo, before the arguments of rustc.
 	assert.Equal(t, []string{
-		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev",
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev", "--locked",
 		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
 		"-j", "2",
 		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",

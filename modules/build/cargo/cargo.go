@@ -10,6 +10,11 @@
 // target directory the project or the environment configures, so the paths
 // are taken from what cargo reports with --message-format, never guessed.
 //
+// Every build is made with --locked, from the versions the Cargo.lock of the
+// workspace pins, as a build of the project is made from the versions its
+// lock pins: a package without a Cargo.lock is refused before anything is
+// built.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package cargo
@@ -21,6 +26,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -41,6 +48,10 @@ const cargoTool = "cargo"
 // DefaultProfile is the cargo profile a build is made with when its block
 // names none.
 const DefaultProfile = "release"
+
+// lockfileName is the lock of the versions of a cargo workspace, beside the
+// Cargo.toml of its root.
+const lockfileName = "Cargo.lock"
 
 // targetDirName is the directory of the state of the build of a project
 // (build.Dirs.State) the cargo builds of the project share as their target
@@ -76,6 +87,11 @@ var (
 	// errNoArtifact reports a cargo build that reported nothing it was asked
 	// to build.
 	errNoArtifact = errors.New("cargo reported no executable")
+	// ErrNoLockfile reports a package whose workspace has no Cargo.lock: the
+	// build is made with --locked, from the versions it pins.
+	ErrNoLockfile = errors.New("the cargo package has no " + lockfileName)
+	// errNoWorkspace reports a cargo locate-project that named no Cargo.toml.
+	errNoWorkspace = errors.New("cargo locate-project named no Cargo.toml of the workspace")
 )
 
 var (
@@ -215,8 +231,9 @@ func (b cargoBuild) Programs() ([]string, bool) {
 }
 
 // Preflight checks that a static program is not asked for darwin, that the
-// platform has a target and that cargo is in the PATH of the build.
-func (b cargoBuild) Preflight(_ context.Context, c *build.Context) error {
+// platform has a target, that cargo is in the PATH of the build and that the
+// workspace of the package has a Cargo.lock (checkLockfile).
+func (b cargoBuild) Preflight(ctx context.Context, c *build.Context) error {
 	if b.static && b.bin != "" && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
 	}
@@ -230,6 +247,39 @@ func (b cargoBuild) Preflight(_ context.Context, c *build.Context) error {
 	if err != nil {
 		return fmt.Errorf("%w: the %s backend runs %q, which is not in PATH",
 			build.ErrNoTool, Name, cargoTool)
+	}
+
+	return checkLockfile(ctx, c)
+}
+
+// checkLockfile checks that the workspace of the package in the working
+// directory has a Cargo.lock, beside the Cargo.toml of its root, which cargo
+// locate-project --workspace names: the build is made with --locked, which
+// fails on a lock that is missing or stale, and a missing one is told here,
+// before anything is built, with the command that writes it.
+func checkLockfile(ctx context.Context, c *build.Context) error {
+	out, err := c.Output(command(ctx, c, "locate-project", "--workspace",
+		"--message-format", "plain"))
+	if err != nil {
+		return fmt.Errorf("finding the root of the cargo workspace: %w", err)
+	}
+
+	manifest := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(manifest) {
+		return fmt.Errorf("%w: %q", errNoWorkspace, manifest)
+	}
+
+	root := filepath.Dir(manifest)
+
+	_, err = os.Stat(filepath.Join(root, lockfileName))
+	if errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w in %s: the build is made with --locked, from the versions "+
+			"%s pins; run cargo generate-lockfile there, and keep %s with the sources",
+			ErrNoLockfile, root, lockfileName, lockfileName)
+	}
+
+	if err != nil {
+		return fmt.Errorf("reading the %s of %s: %w", lockfileName, root, err)
 	}
 
 	return nil
@@ -266,7 +316,7 @@ func (b cargoBuild) runBinary(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	stdout, err := c.Output(b.command(ctx, c, b.args(target, c.Jobs)))
+	stdout, err := c.Output(command(ctx, c, b.args(target, c.Jobs)...))
 	if err != nil {
 		if b.static {
 			return fmt.Errorf("%w; a static build is made for the target %s, "+
@@ -306,7 +356,7 @@ func (b cargoBuild) runModule(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	stdout, err := c.Output(b.command(ctx, c, b.moduleArgs(target, c.Target.OS, c.Jobs)))
+	stdout, err := c.Output(command(ctx, c, b.moduleArgs(target, c.Target.OS, c.Jobs)...))
 	if err != nil {
 		return err
 	}
@@ -341,8 +391,10 @@ var targetDirKeys = []string{"CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR"}
 // runs in, is the user's choice and is kept; build.target-dir of the cargo
 // configuration of the sources gives way, CARGO_TARGET_DIR winning over it.
 // Where the target directory is makes no difference to the backend: it
-// takes what cargo built from the paths cargo reports.
-func (b cargoBuild) command(ctx context.Context, c *build.Context, args []string) *exec.Cmd {
+// takes what cargo built from the paths cargo reports. Every command of the
+// build is made so, those that build nothing too: cargo refuses to run with
+// an empty CARGO_TARGET_DIR.
+func command(ctx context.Context, c *build.Context, args ...string) *exec.Cmd {
 	cmd := c.Command(ctx, cargoTool, args...)
 
 	for _, key := range targetDirKeys {
@@ -356,12 +408,12 @@ func (b cargoBuild) command(ctx context.Context, c *build.Context, args []string
 	return cmd
 }
 
-// args builds the cargo build argv, with the number of jobs of jobsArgs.
-// Diagnostics are rendered by cargo to stderr as usual, and only the JSON
-// messages go to stdout.
+// args builds the cargo build argv, with the number of jobs of jobsArgs,
+// from the versions Cargo.lock pins (--locked). Diagnostics are rendered by
+// cargo to stderr as usual, and only the JSON messages go to stdout.
 func (b cargoBuild) args(target string, jobs int) []string {
 	args := append([]string{
-		"build", "--profile", b.profile(), "--bin", b.bin,
+		"build", "--profile", b.profile(), "--bin", b.bin, "--locked",
 		"--message-format=json-render-diagnostics",
 	}, b.selection(target)...)
 
@@ -369,10 +421,11 @@ func (b cargoBuild) args(target string, jobs int) []string {
 }
 
 // moduleArgs builds the cargo rustc argv of the library of a module
-// component, for goos, with the number of jobs of jobsArgs.
+// component, for goos, with the number of jobs of jobsArgs, from the versions
+// Cargo.lock pins (--locked).
 func (b cargoBuild) moduleArgs(target, goos string, jobs int) []string {
 	args := []string{
-		"rustc", "--lib", "--crate-type", "cdylib", "--profile", b.profile(),
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", b.profile(), "--locked",
 		"--message-format=json-render-diagnostics",
 	}
 
