@@ -18,7 +18,10 @@
 // into .rocks/ as the rock of the package, its other version replaced (see
 // stage.go). The tree manifest so owns every file the build puts into the
 // tree, and the stage keeps what the backends wrote for the next incremental
-// build.
+// build. A build for another platform than the machine tt runs on
+// (Options.Target) keeps its stage and its records in
+// _build/target/<os>-<arch>/ instead, and installs the rock of the package
+// into a tree of its own there rather than into .rocks/ (targetStateDir).
 // tt package fetch is the same materialization step in isolation: strictly from
 // the lock, without resolving or running backends.
 //
@@ -48,6 +51,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/projectlock"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
@@ -106,6 +110,18 @@ type Options struct {
 	// It is no input of an incremental build: a component is not built
 	// again for another Jobs.
 	Jobs int
+	// Target is the platform the components of the package are built for,
+	// as tt package build --target names it; the zero value is the machine
+	// tt runs on (native.Host). A build for another platform fails before
+	// anything is built for a component whose backend does not build for
+	// another (sdkbuild.Backend.CheckTarget), keeps its state apart from
+	// the builds for other platforms (targetStateDir) and installs the rock
+	// of the package into a tree of its own there rather than into .rocks/,
+	// which is the machine's: Result.Tree is that tree. The dependencies are
+	// installed into .rocks/ and built for the machine, as for any build,
+	// and so are the path dependencies and the source rocks: they are what
+	// the builds run on the machine.
+	Target native.Platform
 	// Now stamps version.lua's built_at; the zero value uses the wall clock.
 	Now time.Time
 	// Logger receives the adapter's structured operation logs; nil disables it.
@@ -144,6 +160,22 @@ func (o Options) emit(warnings []string) {
 	}
 }
 
+// target returns the platform the components are built for: Target, or the
+// machine tt runs on when it is not set.
+func (o Options) target() native.Platform {
+	if o.Target == (native.Platform{}) {
+		return native.Host()
+	}
+
+	return o.Target
+}
+
+// cross reports whether the components are built for another platform than
+// the machine tt runs on.
+func (o Options) cross() bool {
+	return o.target() != native.Host()
+}
+
 // backends returns the build backends of the run.
 func (o Options) backends() *buildreg.Registry {
 	if o.Backends == nil {
@@ -178,7 +210,14 @@ type Result struct {
 	// Product is the name of the product that was built, with the default
 	// already selected.
 	Product string
-	// Tree is the absolute path of the materialized .rocks/ tree.
+	// Target is the platform the components were built for: the machine tt
+	// runs on, or Options.Target. A fetch run, and Prepare, report the
+	// machine.
+	Target native.Platform
+	// Tree is the absolute path of the tree the rock of the package was
+	// installed into: the materialized .rocks/ tree, or, for a build for
+	// another platform, the tree of the target in the state of its build,
+	// which holds the rock of the package alone (targetTree).
 	Tree string
 	// Stage is the absolute path of the stage of the product: its components
 	// laid out as an unpacked binary rock (lua/, lib/, bin/), the rock of the
@@ -362,7 +401,7 @@ func Prepare(ctx context.Context, opts Options) (*Result, error) {
 	opts.emit(warnings)
 
 	return &Result{
-		Manifest: man, Lock: lock, Version: ver, Product: productName,
+		Manifest: man, Lock: lock, Version: ver, Product: productName, Target: native.Host(),
 		Tree: "", Stage: "", RocksLua: "", Programs: nil,
 	}, nil
 }
@@ -450,7 +489,9 @@ func runFetch(
 		return nil, err
 	}
 
-	return &Result{Manifest: man, Lock: lock, Product: productName, Tree: tree}, nil
+	return &Result{
+		Manifest: man, Lock: lock, Product: productName, Target: native.Host(), Tree: tree,
+	}, nil
 }
 
 // materializeLock materializes the closure of the product prod of lock and the
@@ -528,8 +569,7 @@ func runBuild(
 			len(components))
 	}
 
-	proj := packageProject(opts.ProjectDir, man, productName)
-	stage := packageStage(opts.ProjectDir, productName)
+	proj, stage := targetProject(opts, man, productName)
 
 	// The preflight comes before the lock is gated, to fail before a hook
 	// and the resolution run: it reads the versions of a lock on disk that
@@ -585,7 +625,16 @@ func runBuild(
 		rocksLua = rocksLuaPath(stage, proj.versionLuaNamespace())
 	}
 
-	err = installPackageRock(ctx, adapter.Config(), man, productName, prod, ver, stage)
+	// The modules and the programs of a build for another platform do not
+	// run on the machine, whose tree .rocks/ is: its rock goes into the tree
+	// of its target.
+	cfg := adapter.Config()
+	if opts.cross() {
+		cfg.Tree = targetTree(proj.stateDir)
+		tree = cfg.Tree
+	}
+
+	err = installPackageRock(ctx, cfg, man, productName, prod, ver, stage)
 	if err != nil {
 		return nil, err
 	}
@@ -600,6 +649,7 @@ func runBuild(
 		Lock:     lock,
 		Version:  ver,
 		Product:  productName,
+		Target:   opts.target(),
 		Tree:     tree,
 		Stage:    stage,
 		RocksLua: rocksLua,
@@ -654,6 +704,54 @@ func packageProject(projectDir string, man *manifest.Manifest, product string) p
 		dir: projectDir, stateDir: filepath.Join(projectDir, buildDirName), man: man,
 		product: product, topLevel: true, closure: nil,
 	}
+}
+
+// targetDirName is the directory of _build/ the builds of the package for
+// other platforms than the machine tt runs on keep their state in, one
+// directory a platform (targetStateDir).
+const targetDirName = "target"
+
+// targetTreeName is the directory of the state of a build for another
+// platform the rock of the package is installed into (targetTree).
+const targetTreeName = "tree"
+
+// targetStateDir is the directory of the state of the builds of the package
+// of the project at projectDir for target, another platform than the
+// machine tt runs on: _build/target/<os>-<arch>/, with what _build/ holds
+// for the builds for the machine - the stages, the records of what the
+// components made and of the incremental builds, the TT_BUILD_DIR of every
+// component, the libraries they made for linking, the target directory of
+// cargo - so that neither build takes what the other made as its own, as
+// up to date, nor removes it. The lock of the project, the builds of the
+// path dependencies and the source rocks, which are built for the machine,
+// and what tt package pack writes stay in _build/.
+func targetStateDir(projectDir string, target native.Platform) string {
+	return filepath.Join(projectDir, buildDirName, targetDirName, target.String())
+}
+
+// targetTree is the rocks tree in stateDir, the state of a build for
+// another platform (targetStateDir), the rock of the package is installed
+// into: .rocks/ is the tree of the machine, whose Tarantool and programs
+// run what it holds. It holds the rock of the package alone, which tt
+// package pack packs from it as it packs one from .rocks/.
+func targetTree(stateDir string) string {
+	return filepath.Join(stateDir, targetTreeName)
+}
+
+// targetProject returns the project of the package of a build of opts, and
+// its stage: packageProject and packageStage for the machine tt runs on, and
+// for another platform the same in the state of the target
+// (targetStateDir).
+func targetProject(opts Options, man *manifest.Manifest, product string) (project, string) {
+	proj := packageProject(opts.ProjectDir, man, product)
+
+	if !opts.cross() {
+		return proj, packageStage(opts.ProjectDir, product)
+	}
+
+	proj.stateDir = targetStateDir(opts.ProjectDir, opts.target())
+
+	return proj, filepath.Join(proj.stateDir, stageDirName, product)
 }
 
 // rocksLua reports whether a build of proj generates rocks.lua: a top-level

@@ -45,6 +45,9 @@ var (
 	// errNotProgram reports a file a build put into bin/ that is not a
 	// program of the build platform. It carries exit code 2.
 	errNotProgram = errors.New("not a program of the build platform")
+	// errNotModule reports a native file a build made among the modules that
+	// does not run on the platform it built for. It carries exit code 2.
+	errNotModule = errors.New("not a module of the build platform")
 	// errNotStatic reports a program of a build asking for static = true that
 	// needs a loader or a shared library. It carries exit code 2.
 	errNotStatic = errors.New("not a static program")
@@ -330,8 +333,10 @@ func madePrograms(run componentRun, before map[string]fileStamp, recorded []stri
 // checkMade checks what the build of run made: against the deprecated kind
 // of its component - kind = "executable" makes programs and nothing else,
 // kind = "module" makes no program - then against what its backend produces
-// (checkProduced), and that each program it made is a program of the build
-// platform, a static one when its block asks for one (checkPrograms).
+// (checkProduced), that each native module it made runs on the build
+// platform (checkModules), and that each program it made is a program of
+// the build platform, a static one when its block asks for one
+// (checkPrograms).
 func checkMade(run componentRun, stage string, made madeFiles) error {
 	dirs := run.context.Dirs
 
@@ -364,12 +369,42 @@ func checkMade(run componentRun, stage string, made madeFiles) error {
 
 	target := native.Platform{OS: run.context.Target.OS, Arch: run.context.Target.Arch}
 
-	err = checkPrograms(dirs.Programs, made.Programs, target, run.context.Static)
+	err = checkModules(dirs.Modules, made.Modules, target)
+	if err == nil {
+		err = checkPrograms(dirs.Programs, made.Programs, target, run.context.Static)
+	}
+
 	if err != nil {
 		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", run.name, err)
 	}
 
 	return nil
+}
+
+// checkModules checks that every native file of names under dir, the
+// modules a build made, runs on target, the platform of the build, as
+// checkPrograms checks the programs: a module of another platform fails
+// only where Tarantool loads it, and the build of a make or shell component
+// that compiled for the machine, whatever TT_PLATFORM_OS and
+// TT_PLATFORM_ARCH said, makes one in a build for another platform. A file
+// that is not native - Lua, a .wasm - is not looked at, nor one that cannot
+// be read. Every problem is reported at once.
+func checkModules(dir string, names []string, target native.Platform) error {
+	var problems []error
+
+	for _, name := range names {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+
+		platforms, err := native.FilePlatforms(path)
+		if err != nil || platforms == nil || slices.Contains(platforms, target) {
+			continue
+		}
+
+		problems = append(problems, fmt.Errorf("%s: %w: it runs on %s, but the build is for %s",
+			path, errNotModule, native.Describe(platforms), target))
+	}
+
+	return errors.Join(problems...)
 }
 
 // checkProduced checks that what the build of run made is of the types its
