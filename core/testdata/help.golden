@@ -4404,7 +4404,17 @@ from, offline: the crates the Cargo.lock of a cargo component pins go into
 DIR/cargo, the modules the go.sum of a go component pins into DIR/go, a Go
 module proxy, and the packages the build.zig.zon of a zig component pins, with
 zig 0.17 or later, into DIR/zig. Re-running overwrites and re-indexes, so a
-mirror can be extended in place. Each written path is printed to stdout.
+mirror can be extended in place. Each written path is printed to stdout. With no
+arguments, the tarantool, the tt and, with [platform].tcm, the TCM the lock pins
+(tt package resolve pins them) are downloaded for this machine too, into
+DIR/binaries, indexed with their sha256 in tt-binaries-index.json: the
+installation of exactly that version in the project, repacked, or else the
+archive the source tt binary install takes it from has; a tarantool with its
+headers and the EmmyLua stubs it ships. tt binary install --registry DIR
+installs them with no network. A program the lock pins no version of fails the
+download, after the rest is downloaded. With --no-binaries no programs are
+downloaded and the lock need not pin them: the mirror holds the rocks and what
+the builds download.
 
 USAGE
   tt package download [NAME[@VERSION]...] [flags]
@@ -4413,6 +4423,8 @@ FLAGS
       --dir string             directory to download into (default: the current
                                directory)
   -h, --help                   help for download
+      --no-binaries            do not download the tarantool, tt and TCM the
+                               lock pins into DIR/binaries
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES

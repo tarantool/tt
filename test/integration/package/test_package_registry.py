@@ -19,6 +19,15 @@ import yaml
 
 ROCKS_REPO = Path(__file__).parent.parent / "rocks" / "repo"
 
+# The no-argument download of the rocks of the lock into ./mirror. The
+# manifest's tt = '>=3.1.0' leaves tt unpinned, and the programs are not what
+# these tests mirror, so --no-binaries leaves them out.
+MIRROR_ROCKS = ("package", "download", "--dir", "./mirror", "--no-binaries")
+
+# A proxy nothing listens on: a run given it reaches the loopback rock server,
+# which no proxy is asked for, and nothing else.
+DEAD_PROXY = "http://127.0.0.1:9"
+
 MANIFEST = """manifest_version = '0.1'
 
 [package]
@@ -159,26 +168,28 @@ def test_download_mirrors_the_locked_closure(tree, run_tt, rock_server):
     """With no arguments the lock decides what is mirrored, at its versions."""
     write_manifest(tree.root, registries=rock_server)
 
-    resolved = run_tt("package", "resolve")
+    resolved = run_tt("package", "resolve", env=without_network())
     assert resolved.returncode == 0, resolved.stderr
 
-    result = run_tt("package", "download", "--dir", "./mirror")
+    result = run_tt(*MIRROR_ROCKS, env=without_network())
     assert result.returncode == 0, result.stderr
 
     # The lock resolves >=0.3.1 to the newest offering, and the mirror carries
     # exactly what the lock pinned - not every version the server has.
     assert rock_files(tree.root / "mirror") == ["stat-0.3.2-1.all.rock"]
+    # --no-binaries: the tt the lock pins no version of is not mirrored.
+    assert not (tree.root / "mirror" / "binaries").exists()
 
 
 def test_download_is_idempotent(tree, run_tt, rock_server):
     """Re-running overwrites and re-indexes instead of failing or duplicating."""
     write_manifest(tree.root, registries=rock_server)
-    assert run_tt("package", "resolve").returncode == 0
+    assert run_tt("package", "resolve", env=without_network()).returncode == 0
 
-    first = run_tt("package", "download", "--dir", "./mirror")
+    first = run_tt(*MIRROR_ROCKS, env=without_network())
     assert first.returncode == 0, first.stderr
 
-    second = run_tt("package", "download", "--dir", "./mirror")
+    second = run_tt(*MIRROR_ROCKS, env=without_network())
     assert second.returncode == 0, second.stderr
 
     assert first.stdout == second.stdout
@@ -193,9 +204,9 @@ def test_a_mirror_builds_the_project_offline(tree, run_tt, rock_server, stop_roc
     reached through TT_REGISTRIES.
     """
     write_manifest(tree.root, registries=rock_server)
-    assert run_tt("package", "resolve").returncode == 0
+    assert run_tt("package", "resolve", env=without_network()).returncode == 0
 
-    downloaded = run_tt("package", "download", "--dir", "./mirror")
+    downloaded = run_tt(*MIRROR_ROCKS, env=without_network())
     assert downloaded.returncode == 0, downloaded.stderr
 
     stop_rock_server()
@@ -210,12 +221,13 @@ def test_a_mirror_builds_the_project_offline(tree, run_tt, rock_server, stop_roc
 def test_a_mirror_works_as_a_registry_flag(tree, run_tt, rock_server, stop_rock_server):
     """The same directory reached through --registry rather than the environment."""
     write_manifest(tree.root, registries=rock_server)
-    assert run_tt("package", "resolve").returncode == 0
-    assert run_tt("package", "download", "--dir", "./mirror").returncode == 0
+    assert run_tt("package", "resolve", env=without_network()).returncode == 0
+    downloaded = run_tt(*MIRROR_ROCKS, env=without_network())
+    assert downloaded.returncode == 0, downloaded.stderr
 
     stop_rock_server()
 
-    built = run_tt("package", "build", "--locked", "--registry", "./mirror")
+    built = run_tt("package", "build", "--locked", "--registry", "./mirror", env=without_network())
     assert built.returncode == 0, built.stderr
     assert (tree.root / ".rocks" / "share" / "tarantool" / "stat" / "init.lua").is_file()
 
@@ -299,10 +311,22 @@ def test_registry_list_reports_the_layer_a_server_came_from(tree, run_tt, rock_s
 
 
 def with_registries(value: str) -> dict[str, str]:
-    """The environment for a run that sets TT_REGISTRIES.
+    """The environment for a run that sets TT_REGISTRIES, with no network.
 
     `run_tt`'s `env` replaces the environment rather than adding to it, so a run
     that sets one variable still has to carry everything else — the PATH
     tarantool is found on above all.
     """
-    return dict(os.environ, TT_REGISTRIES=value)
+    return without_network(TT_REGISTRIES=value)
+
+
+def without_network(**extra: str) -> dict[str, str]:
+    """The environment with every proxy dead, so a run reaches nothing beyond
+    loopback: tt package resolve, which asks GitHub for the tt releases when it
+    cannot pin tt otherwise, warns and pins none."""
+    env = dict(os.environ, **extra)
+    for proxy in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy", "ALL_PROXY"):
+        env[proxy] = DEAD_PROXY
+    for bypass in ("NO_PROXY", "no_proxy"):
+        env.pop(bypass, None)
+    return env
