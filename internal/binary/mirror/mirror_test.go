@@ -361,10 +361,22 @@ func TestSource(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, "mirror "+dir, source.Name())
 	assert.Equal(t, []string{"tarantool"}, source.Products())
-	assert.True(t, source.Has(binary.ProgramCe, "3.8.1", "linux", "amd64"))
-	assert.False(t, source.Has(binary.ProgramCe, "3.8.1", "darwin", "arm64"))
-	assert.ElementsMatch(t, []string{"3.8.1", "3.9.0"},
-		source.Versions(binary.ProgramCe, "linux", "amd64"))
+
+	archive, ok := source.Find(binary.ProgramCe, "3.8.1", "linux", "amd64")
+	assert.True(t, ok)
+	assert.Equal(t, "tarantool-3.8.1-linux-amd64.tar.gz", archive.Name)
+
+	_, ok = source.Find(binary.ProgramCe, "3.8.1", "darwin", "arm64")
+	assert.False(t, ok)
+
+	for requested, matches := range map[string]bool{
+		"": true, "3.8.1": true, "3.8": true, "3": true, "3.7": false, "3.8.10": false,
+	} {
+		assert.Equal(t, matches, source.Matches(binary.ProgramCe, requested, "linux", "amd64"),
+			requested)
+	}
+
+	assert.False(t, source.Matches(binary.ProgramTt, "", "linux", "amd64"))
 
 	query := bundle.Query{Product: "tarantool", OS: "linux", Arch: "amd64",
 		Channel: bundle.ChannelRelease, Version: "3.9"}

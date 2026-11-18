@@ -201,6 +201,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the mirror. The mirror held the rocks and what the build backends
   download, and a machine with no network had no way to get the programs
   the project runs on.
+- `tt binary install` installs from a mirror `tt package download` made,
+  with no network: a directory among the rock servers of `--registry`, new
+  to it and repeatable, else of `TT_REGISTRIES`, else of
+  `[platform].registries` of the project, whose `binaries/` has a build of
+  the version asked for is asked before the sources of tt, for every
+  product, the Community tarantool and tt as prebuilt ones rather than
+  builds from source, and each archive is checked against the sha256 of
+  the index of the mirror; a version no mirror has is installed as without
+  one. In the project scope of a project, `tt binary install tarantool`,
+  `tt` or `tcm` given no version installs the version `app.manifest.lock`
+  pins, tarantool-ee and tt-ee for an `[ee]` project, and says so; it
+  installed the latest release. A tarantool installed from the mirror
+  keeps its headers and its EmmyLua stubs, so `tt package build` and `tt
+  emmylua` work offline after it. `tt package resolve` and `tt package
+  update` pin a missing version from the mirrors of their rock servers
+  too.
 - `tt package build --target OS/ARCH` and `tt package pack --target
   OS/ARCH` build the components of the package for another platform than
   the machine tt runs on: `linux/amd64`, `linux/arm64`, `darwin/amd64` or

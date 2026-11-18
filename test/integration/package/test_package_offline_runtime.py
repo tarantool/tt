@@ -224,6 +224,64 @@ def test_download_mirrors_the_pinned_runtime(tt_cmd, project, mirror):
     assert read_index(mirror) == entries
 
 
+@pytest.fixture()
+def airgap(project: Path, tmp_path: Path) -> Path:
+    """The project on another machine: its manifest and lock, with nothing
+    installed."""
+    root = tmp_path / "airgap"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "init.lua").write_text("return {}\n")
+    for name in ("app.manifest.toml", "app.manifest.lock"):
+        shutil.copy(project / name, root / name)
+    return root
+
+
+def test_binary_install_from_the_mirror(tt_cmd, mirror, airgap):
+    """tt binary install with no version installs the pinned tarantool from
+    the mirror of --registry, and the pinned tt from that of TT_REGISTRIES,
+    with no network: the headers and the EmmyLua stubs of the tarantool come
+    along, and a build of the project goes offline."""
+    installed = run(tt_cmd, airgap, "binary", "install", "tarantool", "--registry", str(mirror))
+    assert installed.returncode == 0, installed.stderr
+    assert f"Installing tarantool {TARANTOOL}, the version app.manifest.lock pins" in (
+        installed.stdout + installed.stderr
+    )
+
+    root = airgap / ".tarantool"
+    installation = root / "versions" / "tarantool" / f"tarantool_{TARANTOOL}"
+    assert (installation / "tarantool").is_file()
+    assert (installation / "include" / "tarantool" / "module.h").is_file()
+    assert (installation / "share" / "tarantool" / "emmylua" / "box.lua").is_file()
+    assert (installation / "LICENSE").is_file()
+    assert (installation / "AUTHORS").is_file()
+    assert (root / "bin" / "tarantool").resolve() == (installation / "tarantool").resolve()
+    assert (root / "include" / "tarantool").resolve() == (
+        installation / "include" / "tarantool"
+    ).resolve()
+
+    env = offline_env(TT_REGISTRIES=str(mirror))
+    installed = run(tt_cmd, airgap, "binary", "install", "tt", env=env)
+    assert installed.returncode == 0, installed.stderr
+    assert (root / "versions" / "tt" / f"tt_{TT}" / "tt").is_file()
+    assert (root / "bin" / "tt").resolve() == (root / "versions" / "tt" / f"tt_{TT}" / "tt")
+
+
+def test_binary_install_checks_the_sha256_of_the_mirror(tt_cmd, mirror, airgap):
+    """An archive whose bytes are not those the index of the mirror lists is
+    refused, and nothing is installed."""
+    goos, goarch = host_platform()
+    archive = mirror / "binaries" / f"tarantool-{TARANTOOL}-{goos}-{goarch}.tar.gz"
+    data = bytearray(archive.read_bytes())
+    data[-1] ^= 0xFF
+    archive.write_bytes(bytes(data))
+
+    installed = run(tt_cmd, airgap, "binary", "install", "tarantool", "--registry", str(mirror))
+    assert installed.returncode != 0
+    assert "archive checksum mismatch" in installed.stdout + installed.stderr
+    installation = airgap / ".tarantool" / "versions" / "tarantool" / f"tarantool_{TARANTOOL}"
+    assert not installation.exists()
+
+
 def test_download_without_a_pin_fails(tt_cmd, tmp_path):
     """A program the lock pins no version of cannot be mirrored: the download
     says that tt package resolve pins it."""

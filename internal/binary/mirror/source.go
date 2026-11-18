@@ -83,14 +83,7 @@ func (s *Source) List(_ context.Context, query bundle.Query) ([]bundle.Artifact,
 			continue
 		}
 
-		artifacts = append(artifacts, bundle.Artifact{
-			Version: entry.Version,
-			Flavor:  slices.Clone(entry.Flavor),
-			Name:    entry.File,
-			Size:    entry.Size,
-			SHA256:  entry.SHA256,
-			Locator: filepath.Join(s.dir, DirName, entry.File),
-		})
+		artifacts = append(artifacts, s.artifact(entry))
 	}
 
 	return artifacts, nil
@@ -141,13 +134,39 @@ func (s *Source) Fetch(_ context.Context, artifact bundle.Artifact, dst io.Write
 	return nil
 }
 
-// Has reports whether the mirror has a build of program for goos/goarch
-// that tt binary installs as installation, the name of a version as tt
-// binary names it: the pin of a lock, say.
-func (s *Source) Has(program binary.Program, installation, goos, goarch string) bool {
+// Find returns the archive of the build of program for goos/goarch that tt
+// binary installs as installation, the name of a version as tt binary names
+// it: the pin of a lock, say. ok is false when the mirror has none.
+func (s *Source) Find(program binary.Program, installation, goos, goarch string) (
+	bundle.Artifact, bool,
+) {
 	for _, entry := range s.index.Binaries {
 		if entry.Product == program.String() && entry.OS == goos && entry.Arch == goarch &&
 			InstallationOf(program, entry.Version, entry.Flavor) == installation {
+			return s.artifact(entry), true
+		}
+	}
+
+	return bundle.Artifact{
+		Version: "", Flavor: nil, Name: "", Size: 0, SHA256: "", Locator: "",
+	}, false
+}
+
+// Matches reports whether the mirror has a build of program for goos/goarch
+// that answers requested, a version tt binary install is asked for: any
+// build for none, else the one installed as requested, the one of that
+// archive version, flavours included, or one of that release line.
+func (s *Source) Matches(program binary.Program, requested, goos, goarch string) bool {
+	for _, entry := range s.index.Binaries {
+		if !answers(entry.Product, program.String()) || entry.OS != goos || entry.Arch != goarch {
+			continue
+		}
+
+		installation := InstallationOf(program, entry.Version, entry.Flavor)
+		archive := strings.Join(append(slices.Clone(entry.Flavor), entry.Version), "-")
+
+		if requested == "" || requested == installation || requested == archive ||
+			installation != "" && onLine(requested, installation) {
 			return true
 		}
 	}
@@ -155,21 +174,14 @@ func (s *Source) Has(program binary.Program, installation, goos, goarch string) 
 	return false
 }
 
-// Versions returns the names tt binary installs the builds of program the
-// mirror has for goos/goarch as, each once.
-func (s *Source) Versions(program binary.Program, goos, goarch string) []string {
-	var versions []string
-
-	for _, entry := range s.index.Binaries {
-		if entry.Product != program.String() || entry.OS != goos || entry.Arch != goarch {
-			continue
-		}
-
-		installation := InstallationOf(program, entry.Version, entry.Flavor)
-		if installation != "" && !slices.Contains(versions, installation) {
-			versions = append(versions, installation)
-		}
+// artifact is the archive of entry.
+func (s *Source) artifact(entry Entry) bundle.Artifact {
+	return bundle.Artifact{
+		Version: entry.Version,
+		Flavor:  slices.Clone(entry.Flavor),
+		Name:    entry.File,
+		Size:    entry.Size,
+		SHA256:  entry.SHA256,
+		Locator: filepath.Join(s.dir, DirName, entry.File),
 	}
-
-	return versions
 }
