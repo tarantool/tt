@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt package download` with no arguments downloads the crates of every
+  `cargo` component of the project and of its path dependencies too, those
+  their `Cargo.lock` pins, of crates.io and of git, with `cargo vendor
+  --locked --versioned-dirs --no-delete` into `DIR/cargo/<name>-<version>/`,
+  which the components share and a second download extends. A build whose
+  rock servers have the mirror, `TT_REGISTRIES=DIR tt package build`,
+  builds the crates from it with `cargo --offline`, crates.io and the git
+  repositories of `Cargo.lock` replaced by `DIR/cargo` through `--config`,
+  and downloads nothing; nothing is written into the sources or the cargo
+  configuration of the project. A crate the mirror lacks fails the build,
+  naming the mirror and `tt package download`. The first build of a cargo
+  component on a machine needed the network to download its crates.
 - A build backend whose tool downloads what it builds with can download it
   ahead into the mirror `tt package download` makes: a build of the SDK
   that is a `build.Vendorer` is asked, by `tt package download` with no

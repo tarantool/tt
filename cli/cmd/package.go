@@ -1611,7 +1611,8 @@ func newPackageDownloadCmd() *cobra.Command {
 			"arguments, what the builds of the components of the project download " +
 			"themselves is downloaded too, into a directory of their backend, " +
 			"DIR/<backend>, which a build that has DIR among its servers takes it " +
-			"from, offline. Re-running " +
+			"from, offline: the crates the Cargo.lock of a cargo component pins " +
+			"go into DIR/cargo. Re-running " +
 			"overwrites and re-indexes, so a mirror can be extended in place. " +
 			"Each written path is printed to stdout.",
 		Args: cobra.ArbitraryArgs,

@@ -176,6 +176,51 @@ The archive of `tt package pack` carries the module, built for the machine
 it is packed on, and the instances of an installed version load it as in
 the project.
 
+## Build offline
+
+cargo downloads the crates of `Cargo.lock` from crates.io, and those of a
+`git` dependency from their repository, on the first build of a machine.
+`tt package download` with no arguments downloads them ahead, with the
+rocks of the lock, into the mirror it makes:
+
+```console
+$ tt package download --dir ../mirror
+indexed 0 rock(s) in .../mirror
+.../mirror/cargo
+downloaded what 1 component(s) build with into .../mirror/cargo
+```
+
+It runs `cargo vendor --locked --versioned-dirs --no-delete` for each
+cargo component: every crate the `Cargo.lock` pins, of crates.io and of
+git, goes into `cargo/<name>-<version>/` of the mirror. The components of
+the project share it, and so do other projects downloaded into the same
+mirror; running it again after a change of `Cargo.lock` adds the new
+crates and keeps the others. A `[source]` of the cargo configuration, a
+mirror of crates.io say, is what the crates are downloaded from, as cargo
+builds with it.
+
+A build whose rock servers have the mirror builds from it, with no network:
+
+```console
+$ TT_REGISTRIES=$PWD/../mirror tt package build
+```
+
+cargo runs with `--offline`, and with crates.io and every git repository
+of `Cargo.lock` replaced by `cargo/` of the mirror through `--config`:
+nothing is written into the sources or into the cargo configuration of the
+project. The first rock server that is a directory with `cargo/` is the one
+taken. A crate that is not in the mirror, of a lock changed since the
+download, fails the build, which names the mirror and `tt package
+download`. The crates of a registry other than crates.io are not taken
+from the mirror, and an offline build of them fails. The cargo components
+of a path dependency are downloaded with those of the project.
+
+The source rock of `tt package pack --format rock-src` carries the files
+of the project git tracks, `Cargo.lock` among them, and not the crates: a
+project that depends on the rock builds it from the crates the lock pins,
+which cargo downloads, a mirror of the project or not: its download does
+not download them.
+
 ## The toolchain
 
 `cargo` and `rustc` are yours to install, from [rustup](https://rustup.rs):
