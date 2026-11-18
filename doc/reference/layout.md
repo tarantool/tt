@@ -107,6 +107,7 @@ myapp/
 ├── _build/cache/              # what the last incremental builds hashed and left (generated)
 ├── _build/component/<component>/ # TT_BUILD_DIR of each component: a cmake build tree, objects and cache of c and lua-c (generated)
 ├── _build/cargo/              # the target directory of the cargo components (generated)
+├── _build/target/<os>-<arch>/ # the same of a build for another platform, --target, with tree/, its package (generated)
 ├── _build/tt.lock             # the lock of the project, which tt package clean keeps (generated)
 ├── .env/                      # activate.sh, deactivate.sh (generated)
 └── .tarantool/                # the root of the project scope (generated)

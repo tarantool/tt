@@ -62,7 +62,10 @@ The backends that build programs:
 - `go`: `go build -trimpath` of `package` (`.` by default) into a program
   named `name`, the component's name by default; `tags`, `ldflags`, and
   `cgo` (off by default). The Go sources are not laid out into the package:
-  only what `include` of the component names is.
+  only what `include` of the component names is. `tt package build
+  --target linux/arm64` builds it for another platform with `GOOS` and
+  `GOARCH`, unless `cgo = true`, which compiles C with the C compiler of the
+  machine (see [Other platforms](../reference/app-manifest.md#other-platforms)).
 - `cargo`: `cargo build` of the binary `bin`, in the `release` profile
   unless `profile` says otherwise, in `_build/cargo/`; `package`,
   `features`. A block that names `module` too builds the module of the

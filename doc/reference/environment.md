@@ -33,7 +33,10 @@ See [Projects and scopes](../concepts/projects-and-scopes.md) and
 | `TT_PROJECT_LOCK` | set by tt while it holds the lock of a project, `_build/tt.lock`, for the commands it runs: a tt among them works on that project under the lock rather than wait for it; a value naming a lock nobody holds is ignored. Not to be set by hand |
 
 A component build and a hook get `TT_PROJECT_ROOT`, `TT_PACKAGE`,
-`TT_VERSION`, `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_JOBS`,
+`TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`, the platform of the
+build as `GOOS` and `GOARCH` spell it - the machine, or that of `--target`
+(see [Other platforms](app-manifest.md#other-platforms)) - and
+`TT_BUILD_JOBS`,
 the number of jobs a build may run at once - that of `-j`, `--jobs`, or the
 number of CPUs - for `make -j"$TT_BUILD_JOBS"` of a script, and, when tt knows
 the Tarantool it builds for, `TT_TARANTOOL_PREFIX` and
@@ -44,7 +47,8 @@ gets `TT_OUTPUT_DIR`, where it puts the modules it makes,
 `TT_COMPONENT_NAME` and `TT_BUILD_DIR`, `_build/component/<component>/`,
 the directory of its own for what it makes on the way, out of the sources,
 and a `cargo` build `CARGO_TARGET_DIR`, `_build/cargo/`, unless
-`CARGO_TARGET_DIR` or `CARGO_BUILD_TARGET_DIR` is set.
+`CARGO_TARGET_DIR` or `CARGO_BUILD_TARGET_DIR` is set; both are in
+`_build/target/<os>-<arch>/` instead for a build for another platform.
 
 ## WebAssembly components
 

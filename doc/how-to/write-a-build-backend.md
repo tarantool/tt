@@ -213,6 +213,7 @@ A `build.Backend` is a value. Its fields tell the core what the backend is:
 | `Exclude` | gitignore patterns of files the backend's tool leaves in the component, which are never laid out: `/target/` of `cargo` |
 | `NoSourceLayout` | switches off the default `include` of the component, the Lua sources and the prebuilt modules: for a backend whose sources are no files of the package, as `go` |
 | `Hook` | lets a lifecycle hook, `[hooks.pre_build]`, `[hooks.post_build]` or `[hooks.clean]`, name the backend |
+| `Cross` | lets its builds be for another platform than the machine tt runs on, `tt package build --target` (see [Other platforms](#other-platforms)) |
 
 The core calls `Config` and `New` whenever it checks a manifest: every
 command that reads the manifest does, `tt package add` included, and it may
@@ -287,7 +288,7 @@ component and build.
 | Field | |
 | --- | --- |
 | `Component` | the component |
-| `Target` | the platform, as `GOOS` and `GOARCH` name it: always the machine tt runs on; `ModuleExt` is `.so`, or `.dylib` on darwin |
+| `Target` | the platform, as `GOOS` and `GOARCH` name it: the machine tt runs on, `build.HostTarget()`, or for a backend with `Cross` the platform of `--target` (see [Other platforms](#other-platforms)); `ModuleExt` is `.so`, or `.dylib` on darwin, `String` is `<os>-<arch>` and `Cross` tells another platform than the machine |
 | `Dirs` | the directories of the build, see below |
 | `Tarantool` | the Tarantool the component is built against: `Prefix`, `IncludeDir` (its C headers, `module.h` and `lua.h`), `Version`, `Executable` (the `tarantool` tt found, to check what the build made, a module that loads say, never needed to build), each empty when tt does not know it |
 | `Env` | the `env` of the block and the `TT_*` variables of the build |
@@ -661,6 +662,55 @@ too. The other interfaces:
 - `build.InputHasher`: see the next section.
 - `build.Cleaner`: see [Clean](#clean).
 - `build.Vendorer`: see [Offline builds](#offline-builds).
+
+## Other platforms
+
+`tt package build --target linux/arm64` builds the components for another
+platform than the machine tt runs on (see
+[Other platforms](../reference/app-manifest.md#other-platforms)). A
+backend says whether its builds can be made for one with `Cross: true`;
+without it, the default, a component of the backend fails such a build
+before a hook or anything else runs, with exit code 1, naming the
+component, the backend and both platforms:
+
+```text
+⨯ building component "config": the build cannot be made for the target platform: the template backend builds for the machine tt runs on alone, linux-amd64, and the build is for linux-arm64
+```
+
+`build.Backend.CheckTarget(target)` is that check, an error wrapping
+`build.ErrTarget`. A build of a backend with `Cross` makes what it makes for
+`Context.Target`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH` of `Env`: `go`
+sets `GOOS` and `GOARCH`, `zig` passes `-Dtarget`, `cargo` builds for the
+Rust target of the platform, and `make` and `shell` leave it to the
+Makefile or the command. `c.Target.Cross()` tells a build for another
+platform from one for the machine. A build that cannot be made for the
+target it is given - `go` with `cgo = true`, whose C compiler is the
+machine's, a `zig` build.zig that takes no `-Dtarget` - refuses it in
+`Preflight` with an error wrapping `build.ErrTarget`, which the core reports
+with exit code 1, as its own refusal, rather than 2.
+
+`template` makes text, which runs on any platform, and could say `Cross:
+true`. A backend that compiles with the toolchain of the machine, as `c`,
+`lua-c` and `cmake` do, says nothing: a compiler of another platform is
+not one tt knows how to find.
+
+What a build for another platform made is checked against it as what one
+for the machine made is against the machine: a module or a program of
+another platform fails the build with exit code 2. Such a build has a state
+of its own, `Dirs.State` being `_build/target/<os>-<arch>/`, and with it
+`Work`, `Link`, the stage of `Modules`, `Share` and `Programs`, and what a
+backend keeps in `State`, as the target directory of cargo: nothing of a
+build for one platform is taken for that of another. `Tarantool.Executable`
+is empty there: the tarantool of the machine cannot load what the build
+made. The package is installed into `_build/target/<os>-<arch>/tree/`
+rather than into `Dirs.Tree`, `.rocks/`, which stays the tree of the
+dependencies, built for the machine.
+
+`buildtest.Harness.SetTarget(build.Target{OS: "linux", Arch: "arm64"})`
+sets the target of a test, in `Context.Target` and in `TT_PLATFORM_OS` and
+`TT_PLATFORM_ARCH`. The harness runs the build for it whether the backend
+says `Cross` or not, so that a test checks what a backend does for a
+platform it has no toolchain of, with a fake compiler; the core refuses it.
 
 ## Incremental builds
 
@@ -1036,8 +1086,10 @@ ok  	example.com/tt-template	0.010s
   empties `PATH`, `Env["TT_VERSION"]` sets another version,
   `harness.SetTarantool` tells the build a Tarantool as the core does, in
   `Tarantool` and in `TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR`,
-  and `harness.SetJobs(n)` the jobs of `-j n`, in `Jobs` and in
-  `TT_BUILD_JOBS`.
+  `harness.SetJobs(n)` the jobs of `-j n`, in `Jobs` and in
+  `TT_BUILD_JOBS`, and `harness.SetTarget(target)` the platform of
+  `--target`, in `Target` and in `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`
+  (see [Other platforms](#other-platforms)).
 - `harness.Run` runs `Preflight`, when the build has one, with `TT_VERSION`
   empty as the core has it there, then `Run`, and
   fails, as the core does, when `Run` left a file in the directory of a
@@ -1180,10 +1232,13 @@ another backend, a field no backend has, a value of a wrong type, an error
 of `New`, a build of an optional method the core would never call,
 `output` or `incremental` of a backend that does not allow them, an
 `output` entry or a `Producer` type the backend does not produce, and a
-hook that names a backend without `Hook`. During the build, with exit code
-2: a failed `Preflight` or `Run`, a file of a type the backend does not
-produce, a program that is not a program of the target, and a module or a
-program that is not static under `static = true`.
+hook that names a backend without `Hook`. Before anything is built, with
+exit code 1: a build for another platform of a backend without `Cross`, and
+a `Preflight` that refuses the target, wrapping `build.ErrTarget`. During
+the build, with exit code 2: a failed `Preflight` or `Run`, a file of a
+type the backend does not produce, a module or a program that is not one
+of the target, and a module or a program that is not static under
+`static = true`.
 
 ## The backends of tt
 
@@ -1191,12 +1246,12 @@ The backends of the standard module `build` show the rest of the contract:
 
 | Package | Backends | Shows |
 | --- | --- | --- |
-| `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output` |
+| `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output`, `Cross` left to the script |
 | `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes |
-| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored` |
+| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored`, `Cross` with a linker of the target |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
-| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static` |
-| `modules/build/zig` | `zig` | `Incremental` with an `InputHasher` |
+| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo` |
+| `modules/build/zig` | `zig` | `Incremental` with an `InputHasher`, `Cross` with `-Dtarget` |
 
 Their fields are in
 [the reference of the application manifest](../reference/app-manifest.md#componentsnamebuild).

@@ -128,7 +128,9 @@ component.
 components out, with `version.lua` and `rocks.lua` of the package.
 `tt package fetch` only installs `.rocks/` from the lock, with no build.
 `-j N` runs at most `N` jobs at once in each component build, one a CPU by
-default; see [Jobs](../reference/app-manifest.md#jobs).
+default; see [Jobs](../reference/app-manifest.md#jobs). `--target OS/ARCH`
+builds for another platform than the machine; see
+[Other platforms](#other-platforms).
 
 The components are laid out in `_build/rock/<product>/` and installed into
 `.rocks/` as a rock of the package's name, at its version: the manifest of
@@ -373,7 +375,9 @@ A component that builds adds its build tree and records:
 
 `--dry-run` removes and runs nothing; `-V` lists the files of the rock as
 the dry run does. `tt package clean <component>` cleans one component: its
-build tree, its records and its files in `_build/rock/`, after what its
+build tree, its records and its files in `_build/rock/`, and the same of the
+builds for other platforms in `_build/target/<os>-<arch>/` with the trees
+of their packages, after what its
 backend cleans. The rock of the package leaves `.rocks/` then too, since it
 is installed whole, and the next build installs it again, the component
 built even when it is incremental and nothing changed. The clean hook runs
@@ -401,6 +405,26 @@ than wait for it: tt names its lock in `TT_PROJECT_LOCK`, which the
 commands it runs inherit. The lock is released when tt exits, however it
 exits, so a tt that was killed leaves no lock behind; `_build/tt.lock` stays
 for the next command. A directory without `app.manifest.toml` gets no lock.
+
+### Other platforms
+
+`tt package build --target linux/arm64` builds the components for
+`linux/arm64` on a machine of another platform: an `x86_64` laptop, a CI
+runner. The backends that can build for another platform - `cargo`, `go`,
+`zig`, `make` and `shell` - are told it, and a component of one that
+cannot, `c`, `lua-c` or `cmake`, fails the build before anything is built.
+What the builds made is checked against the platform, and kept in
+`_build/target/linux-arm64/`, apart from what a build for the machine made:
+neither build takes the other's as up to date. The package is installed
+into `_build/target/linux-arm64/tree/` rather than into `.rocks/`, whose
+modules and programs are those of the machine, which its Tarantool loads
+and `tt instance` runs; the dependencies are installed into `.rocks/` and
+built for the machine, as for any build. The platforms, the backends and
+what each does are in
+[Other platforms](../reference/app-manifest.md#other-platforms).
+
+`tt package pack --target linux/arm64` packs such a build: the rock of the
+platform, and the archive `--without-deps` (see [Packing](#packing)).
 
 ## Packing
 
@@ -479,6 +503,18 @@ fetches by the lock; `.rocks/` holds the rock of the package only, a
 component of `namespace = ""` included. Such an archive is named `...-any.tt` when it holds no
 native file.
 
+A pack of a build for another platform, `--target linux/arm64` (see
+[Other platforms](#other-platforms)), names the archive after that
+platform, `<name>-<version>-linux-arm64.tt`, and checks its native files
+against it. It packs `--without-deps` alone, from the tree of the target:
+the Tarantool and the tt it would bundle in `_runtime/`, and the
+dependencies of `.rocks/`, are those of the machine, so a pack with them
+fails before it builds:
+
+```text
+⨯ a .tt archive with its dependencies is packed for the machine tt runs on alone, linux-amd64: its _runtime/ is the Tarantool and the tt of this machine, and its .rocks/ the dependencies built for it; pack the archive for linux-arm64 with --without-deps, whose dependencies are installed where it is installed, or pack --format rock
+```
+
 ### Debug information
 
 The `c` and `lua-c` builds compile with `-g`, and a `cmake` build is
@@ -502,7 +538,9 @@ The tool is `strip --strip-debug` on Linux, `objcopy --strip-debug` when
 there is no `strip`, and `strip -S` of Xcode on macOS, found in `PATH`; a
 pack that strips with none fails before it builds:
 `--debuginfo strip needs strip --strip-debug of binutils, or objcopy, in
-PATH`.
+PATH`. A pack for another platform, `--target`, strips with `llvm-strip
+--strip-debug`, which strips the files of every platform, where the
+`strip` of binutils reads those of the machine alone.
 
 ### Packing a rock
 
@@ -524,7 +562,11 @@ $ tt package pack --format rock --out dist
 
 The rock is the binary rock of the platform tt runs on when the package has
 a native file, a module or a program, and `<name>-<version>.all.rock`
-otherwise; a native file built for another platform fails the pack. The
+otherwise; a native file built for another platform fails the pack. A pack
+with `--target` packs the binary rock of that platform,
+`<name>-<version>.linux-aarch64.rock` for `linux/arm64`,
+`macosx-aarch64` for `darwin/arm64` (see
+[Other platforms](#other-platforms)). The
 version is that of the package, with the revision `--revision` gives, 1 by
 default: raise it to publish a new build of a version that is out.
 
@@ -605,8 +647,9 @@ source rock alone builds nothing - no hook, no backend, nothing installed
 into `.rocks/` - so it needs no compiler and no headers of Tarantool; the
 manifest is checked and the lock resolved, or refused under `--locked`, as a
 build does. `--format rock,rock-src` builds once, for the binary rock. A pack on
-each platform with `--format rock` and one anywhere with `--format rock-src`
-fill a server with every rock of a version.
+each platform with `--format rock`, or on one machine with the `--target` of
+each platform the backends of the package build for, and one anywhere with
+`--format rock-src` fill a server with every rock of a version.
 
 A project that depends on such a rock builds it from its source rock when
 the servers it installs the rock from have no rock of its platform, neither

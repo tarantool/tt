@@ -236,6 +236,16 @@ The other fields of the block:
   both for the target of the module. A program of `addExecutable` links no
   C library and is static as it is.
 
+`tt package build --target linux/arm64` builds for another platform than
+the machine (see
+[Other platforms](../reference/app-manifest.md#other-platforms)): zig has
+what it links for every target in itself, and is given
+`-Dtarget=aarch64-linux-gnu`, `aarch64-linux-musl` for a static program
+alone, or `aarch64-macos` for `darwin/arm64`. The `build.zig` is to take
+`-Dtarget`, as `b.standardTargetOptions` declares it: one that does not,
+and a block whose `options` name a `target`, fail the build, since zig
+would build for the machine or the target of the options.
+
 ## Call it
 
 `app.lua` in the project:
