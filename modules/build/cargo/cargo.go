@@ -232,7 +232,7 @@ func (b cargoBuild) Programs() ([]string, bool) {
 
 // Preflight checks that a static program is not asked for darwin, that the
 // platform has a target, that cargo is in the PATH of the build and that the
-// workspace of the package has a Cargo.lock (checkLockfile).
+// workspace of the package has a Cargo.lock (findLockfile).
 func (b cargoBuild) Preflight(ctx context.Context, c *build.Context) error {
 	if b.static && b.bin != "" && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
@@ -249,54 +249,63 @@ func (b cargoBuild) Preflight(ctx context.Context, c *build.Context) error {
 			build.ErrNoTool, Name, cargoTool)
 	}
 
-	return checkLockfile(ctx, c)
+	_, err = findLockfile(ctx, c)
+
+	return err
 }
 
-// checkLockfile checks that the workspace of the package in the working
-// directory has a Cargo.lock, beside the Cargo.toml of its root, which cargo
-// locate-project --workspace names: the build is made with --locked, which
+// findLockfile returns the Cargo.lock of the workspace of the package in the
+// working directory, beside the Cargo.toml of its root, which cargo
+// locate-project --workspace names. The build is made with --locked, which
 // fails on a lock that is missing or stale, and a missing one is told here,
 // before anything is built, with the command that writes it.
-func checkLockfile(ctx context.Context, c *build.Context) error {
+func findLockfile(ctx context.Context, c *build.Context) (string, error) {
 	out, err := c.Output(command(ctx, c, "locate-project", "--workspace",
 		"--message-format", "plain"))
 	if err != nil {
-		return fmt.Errorf("finding the root of the cargo workspace: %w", err)
+		return "", fmt.Errorf("finding the root of the cargo workspace: %w", err)
 	}
 
 	manifest := strings.TrimSpace(string(out))
 	if !filepath.IsAbs(manifest) {
-		return fmt.Errorf("%w: %q", errNoWorkspace, manifest)
+		return "", fmt.Errorf("%w: %q", errNoWorkspace, manifest)
 	}
 
 	root := filepath.Dir(manifest)
+	lockfile := filepath.Join(root, lockfileName)
 
-	_, err = os.Stat(filepath.Join(root, lockfileName))
+	_, err = os.Stat(lockfile)
 	if errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("%w in %s: the build is made with --locked, from the versions "+
+		return "", fmt.Errorf("%w in %s: the build is made with --locked, from the versions "+
 			"%s pins; run cargo generate-lockfile there, and keep %s with the sources",
 			ErrNoLockfile, root, lockfileName, lockfileName)
 	}
 
 	if err != nil {
-		return fmt.Errorf("reading the %s of %s: %w", lockfileName, root, err)
+		return "", fmt.Errorf("reading the %s of %s: %w", lockfileName, root, err)
 	}
 
-	return nil
+	return lockfile, nil
 }
 
 // Run builds the module (see runModule), then the binary (see runBinary),
-// as the block asks for them.
+// as the block asks for them, from the crates of the mirror of the build
+// when it has one (vendoredArgs).
 func (b cargoBuild) Run(ctx context.Context, c *build.Context) error {
 	err := b.Preflight(ctx, c)
 	if err != nil {
 		return err
 	}
 
+	sources, err := vendoredArgs(ctx, c)
+	if err != nil {
+		return err
+	}
+
 	if b.module {
-		err = b.runModule(ctx, c)
+		err = b.runModule(ctx, c, sources)
 		if err != nil {
-			return err
+			return explainVendored(err, c)
 		}
 	}
 
@@ -304,19 +313,179 @@ func (b cargoBuild) Run(ctx context.Context, c *build.Context) error {
 		return nil
 	}
 
-	return b.runBinary(ctx, c)
+	return explainVendored(b.runBinary(ctx, c, sources), c)
+}
+
+// Vendor downloads the crates the Cargo.lock of the workspace of the package
+// pins, of crates.io and of git, into dir, as cargo vendor vendors them,
+// with the source configuration of cargo, a mirror of crates.io say, as
+// cargo builds with it: --versioned-dirs puts each crate into
+// <name>-<version>/ of its own, which the components of every project of the
+// mirror share, and --no-delete keeps what is there. A package without a
+// Cargo.lock fails it (findLockfile), and one the Cargo.toml no longer
+// matches fails as the build does (--locked).
+func (b cargoBuild) Vendor(ctx context.Context, c *build.Context, dir string) error {
+	_, err := c.LookPath(cargoTool)
+	if err != nil {
+		return fmt.Errorf("%w: the %s backend runs %q, which is not in PATH",
+			build.ErrNoTool, Name, cargoTool)
+	}
+
+	_, err = findLockfile(ctx, c)
+	if err != nil {
+		return err
+	}
+
+	// cargo vendor prints the configuration of the sources it vendored to
+	// stdout, which the build makes itself (vendoredArgs), and what it
+	// vendors to stderr.
+	_, err = c.Output(command(ctx, c, "vendor", "--locked", "--versioned-dirs", "--no-delete",
+		"--respect-source-config", dir))
+
+	return err
+}
+
+// vendoredSource is the name of the source of the crates of a mirror in the
+// configuration a build from it gives cargo.
+const vendoredSource = "tt-vendored"
+
+// vendoredArgs are the options of cargo of a build from the crates of the
+// mirror of its rock servers (build.Context.Vendored), which Vendor
+// downloaded: --offline, so that cargo downloads nothing, and, through
+// --config, so that no configuration of the sources is written, the
+// replacement of crates.io and of every git repository the Cargo.lock of the
+// workspace names (gitSources) by the directory of the mirror, as cargo
+// vendor prints it. None for a build of no mirror.
+func vendoredArgs(ctx context.Context, c *build.Context) ([]string, error) {
+	if c.Vendored == "" {
+		return nil, nil
+	}
+
+	lockfile, err := findLockfile(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	lock, err := os.ReadFile(lockfile)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", lockfile, err)
+	}
+
+	replace := "replace-with=" + tomlString(vendoredSource)
+
+	args := []string{
+		"--offline",
+		"--config", "source.crates-io." + replace,
+		"--config", "source." + vendoredSource + ".directory=" + tomlString(c.Vendored),
+	}
+
+	for _, source := range gitSources(lock) {
+		key := "source." + tomlString(source.id) + "."
+
+		args = append(args, "--config", key+"git="+tomlString(source.url))
+
+		if source.ref != "" {
+			args = append(args, "--config", key+source.kind+"="+tomlString(source.ref))
+		}
+
+		args = append(args, "--config", key+replace)
+	}
+
+	return args, nil
+}
+
+// explainVendored adds to the failure err of a build from the crates of a
+// mirror where they were taken from, and what fills the mirror: a crate the
+// Cargo.lock pins that the mirror lacks fails the build.
+func explainVendored(err error, c *build.Context) error {
+	if err == nil || c.Vendored == "" {
+		return err
+	}
+
+	return fmt.Errorf("%w; the build takes the crates from %s, offline, which tt package "+
+		"download fills from the %s of the package: run it again after a change of the lock",
+		err, c.Vendored, lockfileName)
+}
+
+// gitSource is a git repository the Cargo.lock of a workspace takes crates
+// from.
+type gitSource struct {
+	// id is the source as Cargo.lock names it, but the commit:
+	// git+<url>?<kind>=<ref>, the name of the source in the configuration
+	// of cargo.
+	id string
+	// url is the repository.
+	url string
+	// kind is the reference the dependency names, branch, tag or rev, and
+	// ref its value; both are empty for the default branch.
+	kind, ref string
+}
+
+// gitSources returns the git repositories of the crates of lock, a
+// Cargo.lock, in order and without repeats: source = "git+<url>?<kind>=<ref>
+// #<commit>" of each package, the commit pinned. A source of another form is
+// left out.
+func gitSources(lock []byte) []gitSource {
+	var sources []gitSource
+
+	for line := range strings.Lines(string(lock)) {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), `source = "git+`)
+		if !ok {
+			continue
+		}
+
+		value, ok = strings.CutSuffix(value, `"`)
+		if !ok {
+			continue
+		}
+
+		value, _, _ = strings.Cut(value, "#")
+
+		source := gitSource{id: "git+" + value, url: value, kind: "", ref: ""}
+
+		if url, query, ok := strings.Cut(value, "?"); ok {
+			source.url = url
+
+			kind, ref, _ := strings.Cut(query, "=")
+			if !slices.Contains([]string{"branch", "tag", "rev"}, kind) {
+				continue
+			}
+
+			source.kind, source.ref = kind, ref
+		}
+
+		if !slices.ContainsFunc(sources, func(other gitSource) bool {
+			return other.id == source.id
+		}) {
+			sources = append(sources, source)
+		}
+	}
+
+	return sources
+}
+
+// tomlString is s as a basic string of TOML, which cargo reads --config in:
+// a string of JSON is one.
+func tomlString(s string) string {
+	quoted, err := json.Marshal(s)
+	if err != nil {
+		return strconv.Quote(s)
+	}
+
+	return string(quoted)
 }
 
 // runBinary builds the binary in the working directory as
 // cargo build --profile <profile> --bin <bin> and copies it to
-// <programs>/<bin>.
-func (b cargoBuild) runBinary(ctx context.Context, c *build.Context) error {
+// <programs>/<bin>; sources are the options of the crates of a mirror
+// (vendoredArgs).
+func (b cargoBuild) runBinary(ctx context.Context, c *build.Context, sources []string) error {
 	target, err := b.target(c.Target, true)
 	if err != nil {
 		return err
 	}
 
-	stdout, err := c.Output(command(ctx, c, b.args(target, c.Jobs)...))
+	stdout, err := c.Output(command(ctx, c, b.args(target, c.Jobs, sources)...))
 	if err != nil {
 		if b.static {
 			return fmt.Errorf("%w; a static build is made for the target %s, "+
@@ -349,14 +518,16 @@ func (b cargoBuild) runBinary(ctx context.Context, c *build.Context) error {
 // package declares, and passes the link arguments of macOS to the library
 // alone: its symbols of Tarantool are left to the loader, -undefined
 // dynamic_lookup, as those of a C module are, and the dependencies are built
-// as cargo builds them anyway.
-func (b cargoBuild) runModule(ctx context.Context, c *build.Context) error {
+// as cargo builds them anyway. sources are the options of the crates of a
+// mirror (vendoredArgs).
+func (b cargoBuild) runModule(ctx context.Context, c *build.Context, sources []string) error {
 	target, err := b.target(c.Target, false)
 	if err != nil {
 		return err
 	}
 
-	stdout, err := c.Output(command(ctx, c, b.moduleArgs(target, c.Target.OS, c.Jobs)...))
+	stdout, err := c.Output(command(ctx, c,
+		b.moduleArgs(target, c.Target.OS, c.Jobs, sources)...))
 	if err != nil {
 		return err
 	}
@@ -409,21 +580,25 @@ func command(ctx context.Context, c *build.Context, args ...string) *exec.Cmd {
 }
 
 // args builds the cargo build argv, with the number of jobs of jobsArgs,
-// from the versions Cargo.lock pins (--locked). Diagnostics are rendered by
-// cargo to stderr as usual, and only the JSON messages go to stdout.
-func (b cargoBuild) args(target string, jobs int) []string {
+// from the versions Cargo.lock pins (--locked), with the options of cargo
+// options last. Diagnostics are rendered by cargo to stderr as usual, and
+// only the JSON messages go to stdout.
+func (b cargoBuild) args(target string, jobs int, options []string) []string {
 	args := append([]string{
 		"build", "--profile", b.profile(), "--bin", b.bin, "--locked",
 		"--message-format=json-render-diagnostics",
 	}, b.selection(target)...)
 
-	return append(args, jobsArgs(jobs)...)
+	args = append(args, jobsArgs(jobs)...)
+
+	return append(args, options...)
 }
 
 // moduleArgs builds the cargo rustc argv of the library of a module
 // component, for goos, with the number of jobs of jobsArgs, from the versions
-// Cargo.lock pins (--locked).
-func (b cargoBuild) moduleArgs(target, goos string, jobs int) []string {
+// Cargo.lock pins (--locked), with the options of cargo options after the
+// others.
+func (b cargoBuild) moduleArgs(target, goos string, jobs int, options []string) []string {
 	args := []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", b.profile(), "--locked",
 		"--message-format=json-render-diagnostics",
@@ -431,6 +606,7 @@ func (b cargoBuild) moduleArgs(target, goos string, jobs int) []string {
 
 	args = append(args, b.selection(target)...)
 	args = append(args, jobsArgs(jobs)...)
+	args = append(args, options...)
 
 	if goos == darwinOS {
 		args = append(args, "--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup")

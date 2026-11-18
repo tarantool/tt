@@ -18,7 +18,7 @@ func TestArgs(t *testing.T) {
 			"build", "--profile", "release", "--bin", "agent", "--locked",
 			"--message-format=json-render-diagnostics",
 		},
-		cargoBuild{bin: "agent"}.args("", 0))
+		cargoBuild{bin: "agent"}.args("", 0, nil))
 
 	assert.Equal(t,
 		[]string{
@@ -29,15 +29,16 @@ func TestArgs(t *testing.T) {
 		},
 		cargoBuild{config: Config{
 			Profile: "dist", Package: "agent-crate", Features: []string{"tls", "serde/derive"},
-		}, bin: "agent"}.args("x86_64-unknown-linux-musl", 0))
+		}, bin: "agent"}.args("x86_64-unknown-linux-musl", 0, nil))
 
-	// The jobs of the build, when they are set.
+	// The jobs of the build, when they are set, and the options of cargo
+	// after them.
 	assert.Equal(t,
 		[]string{
 			"build", "--profile", "release", "--bin", "agent", "--locked",
-			"--message-format=json-render-diagnostics", "-j", "3",
+			"--message-format=json-render-diagnostics", "-j", "3", "--offline",
 		},
-		cargoBuild{bin: "agent"}.args("", 3))
+		cargoBuild{bin: "agent"}.args("", 3, []string{"--offline"}))
 }
 
 func TestJobsArgs(t *testing.T) {
@@ -57,7 +58,7 @@ func TestModuleArgs(t *testing.T) {
 	assert.Equal(t, []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release", "--locked",
 		"--message-format=json-render-diagnostics", "--package", "fast", "--features", "simd",
-	}, fast.moduleArgs("", "linux", 0))
+	}, fast.moduleArgs("", "linux", 0, nil))
 
 	// On macOS the library leaves its symbols of Tarantool to the loader, and
 	// only the library: the arguments after -- go to its rustc alone.
@@ -67,15 +68,80 @@ func TestModuleArgs(t *testing.T) {
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev", "--locked",
 		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
 		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",
-	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS, 0))
+	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS, 0, nil))
 
-	// The jobs are of cargo, before the arguments of rustc.
+	// The jobs and the options are of cargo, before the arguments of rustc.
 	assert.Equal(t, []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev", "--locked",
 		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
-		"-j", "2",
+		"-j", "2", "--offline",
 		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",
-	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS, 2))
+	}, dev.moduleArgs("aarch64-apple-darwin", darwinOS, 2, []string{"--offline"}))
+}
+
+func TestGitSources(t *testing.T) {
+	t.Parallel()
+
+	lock := []byte(`version = 4
+
+[[package]]
+name = "gitdep"
+version = "0.1.0"
+dependencies = ["itoa", "libc", "ryu"]
+
+[[package]]
+name = "itoa"
+version = "1.0.11"
+source = "git+https://github.com/dtolnay/itoa?tag=1.0.11#8f392032fadf15b5e6b9b7b6add21875575d67af"
+
+[[package]]
+name = "libc"
+version = "0.2.191"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abc"
+
+[[package]]
+name = "ryu"
+version = "1.0.20"
+source = "git+https://github.com/dtolnay/ryu?branch=master#75f9e707e77c89717ffb9c2a01fe2c28a016cc82"
+
+[[package]]
+name = "ryu-derive"
+version = "1.0.20"
+source = "git+https://github.com/dtolnay/ryu?branch=master#75f9e707e77c89717ffb9c2a01fe2c28a016cc82"
+
+[[package]]
+name = "local"
+version = "0.1.0"
+source = "git+file:///srv/git/local#0123"
+
+[[package]]
+name = "odd"
+version = "0.1.0"
+source = "git+https://example.com/odd?subdir=x#0123"
+`)
+
+	assert.Equal(t, []gitSource{
+		{
+			id:  "git+https://github.com/dtolnay/itoa?tag=1.0.11",
+			url: "https://github.com/dtolnay/itoa", kind: "tag", ref: "1.0.11",
+		},
+		{
+			id:  "git+https://github.com/dtolnay/ryu?branch=master",
+			url: "https://github.com/dtolnay/ryu", kind: "branch", ref: "master",
+		},
+		{id: "git+file:///srv/git/local", url: "file:///srv/git/local", kind: "", ref: ""},
+	}, gitSources(lock))
+
+	assert.Empty(t, gitSources([]byte("version = 4\n")))
+}
+
+func TestTomlString(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, `"tt-vendored"`, tomlString("tt-vendored"))
+	assert.Equal(t, `"/a \"b\"\\c"`, tomlString(`/a "b"\c`))
+	assert.Equal(t, `"git+https://x/y?tag=1.0"`, tomlString("git+https://x/y?tag=1.0"))
 }
 
 func TestTarget(t *testing.T) {

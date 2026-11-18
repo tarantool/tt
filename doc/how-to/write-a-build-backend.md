@@ -812,7 +812,8 @@ A build whose rock servers have the mirror, `TT_REGISTRIES=DIR tt package
 build`, is given `DIR/<backend>` in `c.Vendored`, of the first server that
 is a directory and has one: take from it what the tool would download, and
 download nothing. Without one `c.Vendored` is empty and the build downloads
-as ever. In a test, `harness.Vendor(ctx, bld,
+as ever. `cargo` vendors the crates of `Cargo.lock` with `cargo vendor`,
+and builds from them with `--offline`. In a test, `harness.Vendor(ctx, bld,
 dir)` runs the `Vendor` of a build as the download does, and setting
 `harness.Context.Vendored` makes a build from a mirror.
 
@@ -1192,7 +1193,7 @@ The backends of the standard module `build` show the rest of the contract:
 | --- | --- | --- |
 | `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output` |
 | `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes |
-| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both |
+| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored` |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
 | `modules/build/gobuild` | `go` | `NoSourceLayout`, `static` |
 | `modules/build/zig` | `zig` | `Incremental` with an `InputHasher` |

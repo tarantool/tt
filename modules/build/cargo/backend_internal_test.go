@@ -24,6 +24,7 @@ var (
 	_ build.Producer     = cargoBuild{}
 	_ build.ProgramNamer = cargoBuild{}
 	_ build.Preflighter  = cargoBuild{}
+	_ build.Vendorer     = cargoBuild{}
 )
 
 // program is the component agent, in the directory agent, which wants
@@ -634,6 +635,107 @@ func TestRunOfAnUnknownBinIsAnError(t *testing.T) {
 	require.ErrorIs(t, err, errNoArtifact)
 }
 
+// TestVendorRunsCargoVendor: the crates the Cargo.lock pins are vendored
+// into the directory of the mirror, each into a directory of its name and
+// version, keeping what is there; a package without a Cargo.lock vendors
+// nothing.
+func TestVendorRunsCargoVendor(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), module())
+	log := fakeCargo(t, harness)
+	dir := filepath.Join(t.TempDir(), "mirror", Name)
+	bld := validate(t, module(), nil, false)
+
+	noTargetDir(harness)
+
+	require.NoError(t, harness.Vendor(t.Context(), bld, dir))
+
+	cwd, err := filepath.EvalSymlinks(harness.Context.Dirs.Cwd)
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		cwd, "vendor", "--locked", "--versioned-dirs", "--no-delete", "--respect-source-config",
+		dir,
+	}, readLines(t, log+".args"))
+
+	require.NoError(t, os.Remove(filepath.Join(harness.Context.Dirs.Cwd, lockfileName)))
+	require.NoError(t, os.Remove(log+".runs"))
+
+	require.ErrorIs(t, harness.Vendor(t.Context(), bld, dir), ErrNoLockfile)
+	assert.NoFileExists(t, log+".runs")
+}
+
+// gitLockfile is a Cargo.lock of a crate of crates.io and two of one git
+// repository.
+const gitLockfile = `version = 4
+
+[[package]]
+name = "agent-lib"
+version = "0.1.0"
+dependencies = ["itoa", "ryu", "ryu-macros"]
+
+[[package]]
+name = "itoa"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "ryu"
+version = "1.0.20"
+source = "git+https://github.com/dtolnay/ryu?tag=1.0.20#4b7f4a5c2fbb4e2eb8b4a1ea0c31d2f1c0a5e8c4"
+
+[[package]]
+name = "ryu-macros"
+version = "1.0.20"
+source = "git+https://github.com/dtolnay/ryu?tag=1.0.20#4b7f4a5c2fbb4e2eb8b4a1ea0c31d2f1c0a5e8c4"
+`
+
+// TestRunFromAMirror: a build given the crates of a mirror builds offline,
+// crates.io and every git repository of the Cargo.lock replaced by them, the
+// library and the binary alike, and a failure says where the crates were
+// taken from.
+func TestRunFromAMirror(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), both())
+	log := fakeCargo(t, harness)
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+
+	writeFiles(t, harness.Context.Dirs.Cwd, map[string]string{lockfileName: gitLockfile})
+	noTargetDir(harness)
+
+	harness.Context.Vendored = mirror
+
+	bld := validate(t, both(), map[string]any{"module": "agent_lib", "bin": "agent"}, false)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+
+	source := `source."git+https://github.com/dtolnay/ryu?tag=1.0.20".`
+	want := strings.Join([]string{
+		"--offline",
+		`--config source.crates-io.replace-with="tt-vendored"`,
+		`--config source.tt-vendored.directory="` + mirror + `"`,
+		"--config " + source + `git="https://github.com/dtolnay/ryu"`,
+		"--config " + source + `tag="1.0.20"`,
+		"--config " + source + `replace-with="tt-vendored"`,
+	}, " ")
+
+	runs := readLines(t, log+".runs")
+	require.Len(t, runs, 2)
+
+	for _, run := range runs {
+		assert.Contains(t, run, want)
+	}
+
+	harness.Context.Env["FAKE_FAIL"] = "1"
+
+	err := harness.Run(t.Context(), bld)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "the build takes the crates from "+mirror+", offline, "+
+		"which tt package download fills from the Cargo.lock of the package")
+}
+
 // The backend is run below on the real cargo, on crates small enough to
 // build in a second or two. cargo may not be in PATH, and the tests are
 // skipped then.
@@ -960,4 +1062,93 @@ func TestRunOfAStaleLockIsAnError(t *testing.T) {
 	after, err := os.ReadFile(lock)
 	require.NoError(t, err)
 	assert.Equal(t, string(before), string(after))
+}
+
+// runIn runs name with args in dir with env over the environment of the
+// test, and fails the test when it fails.
+func runIn(t *testing.T, dir string, env []string, name string, args ...string) {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), name, args...)
+
+	cmd.Dir = dir
+
+	cmd.Env = append(os.Environ(), env...)
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+}
+
+// TestBuildsOfflineFromTheMirror vendors a crate whose dependency is taken
+// from a git repository on disk, then removes the repository and builds from
+// the mirror with an empty CARGO_HOME and a proxy that refuses every
+// connection: there is nothing to download from, so the build downloaded
+// nothing. Without the mirror the same build fails.
+func TestBuildsOfflineFromTheMirror(t *testing.T) {
+	t.Parallel()
+	requireCargo(t, "")
+
+	_, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is not in PATH")
+	}
+
+	repo := filepath.Join(t.TempDir(), "answer")
+	writeFiles(t, repo, map[string]string{
+		"Cargo.toml": "[package]\nname = \"answer\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n" +
+			"[dependencies]\n",
+		"src/lib.rs": "pub fn answer() -> i32 { 42 }\n",
+	})
+
+	identity := []string{
+		"GIT_AUTHOR_NAME=tt", "GIT_AUTHOR_EMAIL=tt@example.com",
+		"GIT_COMMITTER_NAME=tt", "GIT_COMMITTER_EMAIL=tt@example.com",
+	}
+	runIn(t, repo, identity, "git", "init", "-q", "-b", "main")
+	runIn(t, repo, identity, "git", "add", ".")
+	runIn(t, repo, identity, "git", "commit", "-q", "-m", "answer")
+
+	harness := buildtest.New(t, Backend(), program())
+	dirs := harness.Context.Dirs
+	home := t.TempDir()
+
+	noTargetDir(harness)
+
+	harness.Context.Env["CARGO_HOME"] = home
+
+	writeFiles(t, dirs.Component, map[string]string{
+		"Cargo.toml": "[package]\nname = \"agent-crate\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[[bin]]\nname = \"agent\"\npath = \"src/main.rs\"\n\n" +
+			"[dependencies]\nanswer = { git = \"file://" + filepath.ToSlash(repo) + "\" }\n",
+		"src/main.rs": "fn main() { println!(\"{}\", answer::answer()); }\n",
+	})
+	runIn(t, dirs.Component, []string{"CARGO_HOME=" + home}, cargoTool, "generate-lockfile")
+
+	mirror := filepath.Join(t.TempDir(), "mirror", Name)
+	bld := validate(t, program(), map[string]any{"profile": "dev"}, false)
+
+	require.NoError(t, harness.Vendor(t.Context(), bld, mirror))
+	assert.FileExists(t, filepath.Join(mirror, "answer-0.1.0", "src", "lib.rs"))
+
+	// The crates of another component go into the same directory, and those
+	// that are there stay.
+	other := crateHarness(t, module())
+	noTargetDir(other)
+	require.NoError(t, other.Vendor(t.Context(), validate(t, module(), nil, false), mirror))
+	assert.DirExists(t, filepath.Join(mirror, "answer-0.1.0"))
+
+	// Nothing to download from.
+	require.NoError(t, os.RemoveAll(repo))
+
+	harness.Context.Env["CARGO_HOME"] = t.TempDir()
+	harness.Context.Env["CARGO_HTTP_PROXY"] = "http://127.0.0.1:9"
+
+	require.Error(t, harness.Run(t.Context(), bld), "a build of no mirror downloads")
+
+	harness.Context.Vendored = mirror
+
+	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+	assert.Equal(t, "42", runProgram(t, filepath.Join(dirs.Programs, "agent")))
+	assert.NoDirExists(t, filepath.Join(dirs.Component, "vendor"))
+	assert.NoDirExists(t, filepath.Join(dirs.Component, ".cargo"))
 }

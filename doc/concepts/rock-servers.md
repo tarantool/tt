@@ -205,6 +205,14 @@ against the mirror keeps matching it. A rock whose build downloads something
 itself, a CMake build that fetches a dependency, say, still needs the
 network: the mirror holds what the rockspec names, not what its build does.
 
+The components of the project are another matter: what the build of a
+component downloads itself, download downloads too, when its backend can
+say what that is, into a directory of the backend in DIR. The crates the
+`Cargo.lock` of a `cargo` component pins go into `DIR/cargo`, and a build
+whose servers have DIR builds them offline, as
+[Build a module in Rust](../how-to/rust-modules.md#build-offline) shows.
+The components of the path dependencies of the lock are downloaded so too.
+
 `tt wasm rock` packs a server of the same kind for the `wasm` rock of
 tarantool-wasm: the rock of every platform of a release, with its index; see
 [Run WebAssembly components](../how-to/wasm-components.md#share-the-rock).
