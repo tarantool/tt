@@ -1,8 +1,10 @@
-"""Check the commit messages, the changelog and the SDK API of a pull request.
+"""Check the commit messages, the changelog and the SDK API of a change.
 
-gitlint and changelog are notes and never fail CI. api compares the API of
-every Go module under sdk/ of the head with that of the base and fails on
-an incompatible change, unless the pull request has the sdk-breaking label.
+gitlint and changelog are notes of a pull request and never fail CI. api
+compares the API of every Go module under sdk/ of the head with that of the
+base and fails on an incompatible change, unless the pull request has the
+sdk-breaking label; with --release it compares a release with the release
+before it (release_base tells which and whether a break fails).
 """
 
 import argparse
@@ -21,6 +23,9 @@ NOTES = ROOT / "pr-notes"
 
 # The label of a pull request that changes the SDK API incompatibly on purpose.
 BREAKING_LABEL = "sdk-breaking"
+
+# A release tag: vMAJOR.MINOR.PATCH with an optional pre-release suffix.
+RELEASE = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?")
 
 APIDIFF_SECTIONS = {"Incompatible changes:": "incompatible", "Compatible changes:": "compatible"}
 
@@ -319,8 +324,55 @@ def annotate(title, failed, allowed):
         print(f"::warning title=SDK API::{title}")
 
 
+def release_key(tag):
+    """Return the order of semantic versions of a release tag, None for another tag."""
+    match = RELEASE.fullmatch(tag)
+    if not match:
+        return None
+    major, minor, patch, prerelease = match.groups()
+    numbers = (int(major), int(minor), int(patch))
+    if prerelease is None:
+        return (*numbers, 1)
+    parts = tuple(
+        (0, int(part), "") if part.isdigit() else (1, 0, part) for part in prerelease.split(".")
+    )
+    return (*numbers, 0, parts)
+
+
+def is_stable(key):
+    return key[3] == 1
+
+
+def release_base(tag, tags):
+    """Return the release tag is compared with, and whether a break fails it.
+
+    A release is compared with a release of tt before it of its major
+    version. A stable release, with a stable one before it in its major, is
+    compared with that one, and an incompatible change of the SDK fails it:
+    the SDK is kept compatible between stable releases. A pre-release, or
+    the first stable release of a major version, is compared with the
+    release just before it, and an incompatible change only warns: until a
+    major version is released its SDK may change. (None, False) for a tag
+    that is no release, and for the first release of a major version.
+    """
+    key = release_key(tag)
+    if key is None:
+        return None, False
+    earlier = sorted(
+        (other_key, other)
+        for other in tags
+        if (other_key := release_key(other)) and other_key[0] == key[0] and other_key < key
+    )
+    stable = [other for other_key, other in earlier if is_stable(other_key)]
+    if is_stable(key) and stable:
+        return stable[-1], True
+    return (earlier[-1][1], False) if earlier else (None, False)
+
+
 def api_check(args):
     """Run the api check: return the text, the markdown and whether it failed."""
+    if args.release:
+        return release_check(args.release, args.head, args.allow_incompatible)
     head = commit(args.head)
     base = git("merge-base", commit(args.base), head)
     labels = pull_request_labels()
@@ -349,6 +401,39 @@ def api_check(args):
     return text, markdown, failed
 
 
+def release_check(tag, head_revision, allow_incompatible):
+    """Compare the SDK of the release tag, at head_revision or the tag, with its base."""
+    key = release_key(tag)
+    if key is None:
+        text = f"{tag} is not a release tag vX.Y.Z[-PRE]: there is no SDK API to compare."
+        return text, f"### SDK API: not a release\n\n{text}\n\n", False
+    head = commit(head_revision or tag)
+    base_tag, strict = release_base(tag, git("tag", "--list", "v*").splitlines())
+    if base_tag is None:
+        text = f"{tag} is the first release of v{key[0]}: there is no SDK API to compare with."
+        return text, f"### SDK API: first release\n\n{text}\n\n", False
+    if allow_incompatible:
+        allowed = "allowed by --allow-incompatible"
+    elif not strict:
+        kind = "the first stable release" if is_stable(key) else "a pre-release"
+        allowed = f"allowed for {kind} of v{key[0]}"
+    else:
+        allowed = None
+    hint = (
+        "run publish.yml on the tag with allow-incompatible-sdk: "
+        f"gh workflow run publish.yml --ref {tag} -f allow-incompatible-sdk=true."
+    )
+    base = commit(base_tag)
+    text, markdown, failed = api_report(
+        api_diff(base, head),
+        Policy(allowed, hint),
+        f"The SDK API of {tag} ({head[:12]}) against "
+        f"{'the stable release' if strict else 'the release'} {base_tag} ({base[:12]})",
+    )
+    annotate(text.splitlines()[0], failed, allowed)
+    return text, markdown, failed
+
+
 def note(check, base, head):
     """Run gitlint or changelog: return the note and whether it asks for attention."""
     head = commit(head)
@@ -371,14 +456,25 @@ def note(check, base, head):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("check", choices=("gitlint", "changelog", "api"))
-    parser.add_argument("--base", required=True, help="the base of the pull request")
-    parser.add_argument("--head", required=True, help="the head of the pull request")
+    parser.add_argument("--base", help="the base of the pull request")
+    parser.add_argument("--head", help="the head of the pull request, or the commit of --release")
+    parser.add_argument(
+        "--release",
+        metavar="TAG",
+        help="api: compare the SDK of the release TAG, at --head or at the tag, "
+        "with the release before it",
+    )
     parser.add_argument(
         "--allow-incompatible",
         action="store_true",
         help="api: report incompatible changes of the SDK API without failing",
     )
     args = parser.parse_args()
+    if args.release:
+        if args.check != "api" or args.base:
+            parser.error("--release is an option of api, without --base")
+    elif not (args.base and args.head):
+        parser.error("--base and --head are required")
     markdown = None
     try:
         if args.check == "api":

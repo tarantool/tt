@@ -287,6 +287,7 @@ class Harness(unittest.TestCase):
         notes = patch.object(pr_notes, "NOTES", self.dir / "pr-notes")
         notes.start()
         self.addCleanup(notes.stop)
+        self.tags = []
         self.compared = []
 
     def git(self, *args):
@@ -294,6 +295,8 @@ class Harness(unittest.TestCase):
             return args[-1].removesuffix("^{commit}") + "-sha"
         if args[0] == "merge-base":
             return "merge-base-sha"
+        if args[:2] == ("tag", "--list"):
+            return "\n".join(self.tags)
         raise AssertionError(args)
 
     def main(self, *argv, diffs=None, labels=None):
@@ -371,12 +374,136 @@ class PullRequestTest(Harness):
         self.assertNotIn("::error", self.pull_request(BREAKING)[1])
 
     def test_arguments(self):
-        with (
-            contextlib.redirect_stderr(io.StringIO()),
-            self.assertRaises(SystemExit) as error,
-        ):
-            self.main("--base", "base")
-        self.assertEqual(error.exception.code, 2)
+        for argv in [["--base", "base"], ["--release", "v3.1.0", "--base", "base"]]:
+            with (
+                self.subTest(argv=argv),
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit) as error,
+            ):
+                self.main(*argv)
+            self.assertEqual(error.exception.code, 2)
+
+
+# The order of precedence of the example of the semantic versioning spec.
+SEMVER_ORDER = [
+    "v1.0.0-alpha",
+    "v1.0.0-alpha.1",
+    "v1.0.0-alpha.beta",
+    "v1.0.0-beta",
+    "v1.0.0-beta.2",
+    "v1.0.0-beta.11",
+    "v1.0.0-rc.1",
+    "v1.0.0",
+]
+
+TAGS = [
+    "v2.15.2",
+    "v3.0.0-alpha.1",
+    "v3.0.0-alpha.2",
+    "v3.0.0-alpha.10",
+    "v3.0.0-rc.1",
+    "v3.0.0",
+    "v3.0.1",
+    "v3.1.0-rc.1",
+    "v3.1.0",
+    "v4.0.0-alpha.1",
+    "nightly",
+    "v3.2",
+]
+
+
+class ReleaseBaseTest(unittest.TestCase):
+    def test_tags_sort_as_semantic_versions(self):
+        self.assertEqual(sorted(reversed(SEMVER_ORDER), key=pr_notes.release_key), SEMVER_ORDER)
+        self.assertEqual(len({pr_notes.release_key(tag) for tag in SEMVER_ORDER}), 8)
+        for tag in ["nightly", "v3.2", "3.0.0", "v3.0.0+build", "v3.0.0-", "v3.0.0-alpha..1"]:
+            with self.subTest(tag=tag):
+                self.assertIsNone(pr_notes.release_key(tag))
+
+    def test_the_release_a_release_is_compared_with(self):
+        for tag, expected in [
+            # A pre-release: the release just before it, a warning.
+            ("v3.0.0-alpha.2", ("v3.0.0-alpha.1", False)),
+            ("v3.0.0-alpha.11", ("v3.0.0-alpha.10", False)),
+            ("v3.0.0-rc.2", ("v3.0.0-rc.1", False)),
+            ("v3.2.0-alpha.1", ("v3.1.0", False)),
+            # The first stable release of a major version: a warning.
+            ("v3.0.0", ("v3.0.0-rc.1", False)),
+            ("v4.0.0", ("v4.0.0-alpha.1", False)),
+            # A stable release: the stable one before it, which fails a break.
+            ("v3.0.1", ("v3.0.0", True)),
+            ("v3.0.2", ("v3.0.1", True)),
+            ("v3.1.0", ("v3.0.1", True)),
+            ("v3.1.1", ("v3.1.0", True)),
+            # Nothing before it in the major version, or no release.
+            ("v3.0.0-alpha.1", (None, False)),
+            ("v4.0.0-alpha.1", (None, False)),
+            ("v5.0.0", (None, False)),
+            ("nightly", (None, False)),
+        ]:
+            with self.subTest(tag=tag):
+                self.assertEqual(pr_notes.release_base(tag, TAGS), expected)
+
+
+class ReleaseCheckTest(Harness):
+    def setUp(self):
+        super().setUp()
+        self.tags = TAGS
+
+    def test_a_break_fails_a_stable_release(self):
+        code, output = self.main("--release", "v3.1.1", diffs=BREAKING)
+        self.assertEqual(code, 1)
+        self.assertEqual(self.compared, [("v3.1.0-sha", "v3.1.1-sha")])
+        self.assertTrue(
+            output.startswith(
+                "The SDK API of v3.1.1 (v3.1.1-sha) against the stable release "
+                "v3.1.0 (v3.1.0-sha): incompatible changes.",
+            ),
+        )
+        self.assertIn(
+            "gh workflow run publish.yml --ref v3.1.1 -f allow-incompatible-sdk=true",
+            self.summary.read_text(),
+        )
+        # The labels of a pull request are nothing to a release.
+        code, _ = self.main("--release", "v3.1.1", diffs=BREAKING, labels=["sdk-breaking"])
+        self.assertEqual(code, 1)
+
+    def test_the_override_releases_a_break(self):
+        code, output = self.main("--release", "v3.1.1", "--allow-incompatible", diffs=BREAKING)
+        self.assertEqual(code, 0)
+        self.assertIn("incompatible changes, allowed by --allow-incompatible", output)
+
+    def test_compatible_changes_pass_a_stable_release(self):
+        self.assertEqual(self.main("--release", "v3.1.1", diffs=COMPATIBLE)[0], 0)
+
+    def test_a_break_only_warns_until_a_major_version_is_released(self):
+        for tag, base, kind in [
+            ("v3.2.0-alpha.1", "v3.1.0", "a pre-release"),
+            ("v3.0.0", "v3.0.0-rc.1", "the first stable release"),
+        ]:
+            with self.subTest(tag=tag), patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+                self.compared = []
+                code, output = self.main("--release", tag, diffs=BREAKING)
+                self.assertEqual(code, 0)
+                self.assertEqual(self.compared, [(f"{base}-sha", f"{tag}-sha")])
+                self.assertIn(f"incompatible changes, allowed for {kind} of v3", output)
+                self.assertIn("::warning title=SDK API::", output)
+
+    def test_a_release_to_be_made_of_another_commit(self):
+        self.main("--release", "v3.1.1", "--head", "HEAD", diffs=COMPATIBLE)
+        self.assertEqual(self.compared, [("v3.1.0-sha", "HEAD-sha")])
+
+    def test_nothing_to_compare_passes(self):
+        for tag, says in [
+            ("v4.0.0-alpha.1", "the first release of v4"),
+            ("v3.0.0-alpha.1", "the first release of v3"),
+            ("nightly", "not a release tag"),
+        ]:
+            with self.subTest(tag=tag):
+                code, output = self.main("--release", tag, diffs=BREAKING)
+                self.assertEqual(code, 0)
+                self.assertIn(says, output)
+                self.assertEqual(self.compared, [])
 
 
 if __name__ == "__main__":
