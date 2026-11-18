@@ -13,8 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def command(*args, cwd=ROOT):
-    return subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+def command(*args, cwd=ROOT, env=None):
+    return subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True)
 
 
 def git(*args):
@@ -49,7 +49,7 @@ def checkout(commit, path):
 def sdk_modules(tree):
     modules = {}
     for path in (tree / "sdk").rglob("go.mod"):
-        if "vendor" in path.parts or "third_party" in path.parts:
+        if {"vendor", "third_party", "testdata"} & set(path.parts):
             continue
         match = re.search(r"^module\s+(\S+)", path.read_text(), re.MULTILINE)
         if match:
@@ -72,14 +72,20 @@ def api_diff(base, head):
                     failed = True
                     continue
                 exports = [temp / f"{index}-base.api", temp / f"{index}-head.api"]
-                for tree, modules, export in zip((old, new), (before, after), exports, strict=True):
+                for tree, export in zip((old, new), exports, strict=True):
+                    # apidiff -m loads the packages MODULE_PATH/... matches,
+                    # the ones of every SDK module the module requires
+                    # through replace among them, and names the module by
+                    # the first package it loaded. "." loads ./..., the
+                    # packages of the module in its directory only.
                     result = command(
                         "apidiff",
                         "-m",
                         "-w",
                         str(export),
-                        modules[module],
+                        ".",
                         cwd=tree / module,
+                        env={**os.environ, "GOWORK": "off"},
                     )
                     if result.returncode:
                         messages.append(
