@@ -424,8 +424,9 @@ A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
 puts the modules it makes, which exists when the build starts - the
 programs, for a component of `kind = "executable"` - `TT_PROJECT_ROOT`,
 `TT_PACKAGE`, `TT_COMPONENT_NAME`,
-`TT_VERSION`, `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` and `TT_BUILD_JOBS` (see
-[Jobs](#jobs)). When tt knows the
+`TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`, the platform it is
+built for (see [Other platforms](#other-platforms)), and `TT_BUILD_JOBS`
+(see [Jobs](#jobs)). When tt knows the
 Tarantool it builds for, a build also gets `TT_TARANTOOL_PREFIX`, the
 install prefix of that Tarantool, and `TT_TARANTOOL_INCLUDE_DIR`, the
 directory of its `module.h` and `lua.h`, `<prefix>/include/tarantool`, which
@@ -439,7 +440,9 @@ the headers, naming the directories tt looked into.
 
 `TT_BUILD_DIR` is a directory of the build's own for what it makes on the
 way, out of the sources: object files, a build tree. It is
-`_build/component/<component>/`, there when the build starts, and it stays
+`_build/component/<component>/`, or that of `_build/target/<os>-<arch>/` for
+a build for another platform (see [Other platforms](#other-platforms)),
+there when the build starts, and it stays
 between builds, so that a `make` build rebuilds what changed only;
 `--rebuild` empties it first, and so does a build of a block that changed
 since the last build. A `make` or `shell` build that writes there
@@ -992,6 +995,64 @@ dependencies are built with the same jobs.
 The jobs say how fast a component is built, not what is built: they are
 not an input of an `incremental` build, nor of the objects of `c` and
 `lua-c`, and a build with other jobs skips what the build before made.
+
+#### Other platforms
+
+`--target OS/ARCH` of `tt package build` and `tt package pack` builds the
+components for another platform than the machine tt runs on: `linux/amd64`,
+`linux/arm64`, `darwin/amd64` or `darwin/arm64`. The token of an archive,
+`linux-arm64`, names a platform too, and so do `aarch64` and `x86_64` for
+the architecture and `macos` and `macosx` for darwin, in any case; another
+platform is a usage error. Without `--target` a build is for the machine.
+`TT_PLATFORM_OS` and `TT_PLATFORM_ARCH` of every build and hook are the
+platform of the build, as `GOOS` and `GOARCH` spell it. Each backend
+builds for it, or refuses it:
+
+| Backend | For another platform | Refused |
+| --- | --- | --- |
+| `cargo` | the Rust target of the platform, `<arch>-unknown-linux-gnu`, or `-musl` for a static program, `<arch>-apple-darwin` for darwin; a Linux one linked with `zig cc` (see [Rust targets and other platforms](../how-to/rust-modules.md#rust-targets-and-other-platforms)) | darwin off macOS; zig not on `PATH`; a Rust target not installed |
+| `go` | `GOOS` and `GOARCH` of the platform | `cgo = true`, which compiles C with the C compiler of the machine |
+| `zig` | `-Dtarget=<arch>-linux-gnu`, `<arch>-linux-musl` for a static program alone, `<arch>-macos` for darwin | a `build.zig` that declares no `-Dtarget`, as `b.standardTargetOptions` does; a target of `options` |
+| `make`, `shell` | `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`, which the build reads | |
+| `c`, `lua-c`, `cmake` | | always: they compile with the toolchain of the machine |
+
+A refused build fails with exit code 1 before a hook or anything else
+runs, naming the component, the backend and the platform:
+
+```text
+⨯ building component "cmod": the build cannot be made for the target platform: the c backend builds for the machine tt runs on alone, linux-amd64, and the build is for linux-arm64
+```
+
+A component with no build block, Lua alone, is the same for every
+platform. The modules and the programs a build made are checked against
+the platform of the build, for the machine as well: a module or a program
+of another platform fails the build with exit code 2, as a `make` or
+`shell` build that compiled for the machine whatever `TT_PLATFORM_OS` and
+`TT_PLATFORM_ARCH` said makes one.
+
+A build for another platform keeps its state apart, in
+`_build/target/<os>-<arch>/`: the stage, the records of what the components
+made and of the incremental builds, `TT_BUILD_DIR`,
+`_build/target/<os>-<arch>/component/<component>/`, and the target
+directory of cargo. A build for one platform takes nothing a build for
+another made as its own, or as up to date, and removes nothing of it. Its
+package is installed into `_build/target/<os>-<arch>/tree/`, not into
+`.rocks/`, whose modules and programs are those of the machine, which
+Tarantool loads and `tt instance` runs:
+
+```console
+$ tt package build --target linux/arm64
+   • built myapp for linux-arm64 into .../myapp/_build/target/linux-arm64/tree: a build for another platform is not installed into .rocks/
+```
+
+The dependencies of the lock are installed into `.rocks/` as for any build,
+and built for the machine, as the path dependencies and the source rocks
+are: they are what the builds run there. `tt package pack --target` packs
+what the build made (see [Packing](../concepts/packages.md#packing)).
+`tt package clean <component>` removes what the builds for every platform
+made of the component, and the trees of the platforms; `tt package clean`
+removes all of `_build/`. `tt package fetch` and `tt test` build for the
+machine alone.
 
 ## `[products.NAME]`
 

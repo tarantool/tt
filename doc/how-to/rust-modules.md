@@ -241,16 +241,36 @@ $ tt package build
 $ rustup target add x86_64-unknown-linux-musl
 ```
 
-`tt package build` builds for the machine it runs on. The backend builds
-for another platform too, when the build it runs in is for one
-(`build.Context.Target` of the SDK). A build for another Linux platform,
-`linux/arm64` on an `x86_64` machine say, needs the Rust targets of that
-platform, `aarch64-unknown-linux-gnu` for the module and
-`aarch64-unknown-linux-musl` for a static program, and zig on `PATH`: the
-C toolchain of the machine links for the machine alone, so cargo links
+`tt package build` builds for the machine it runs on, and `--target`
+builds for another platform (see
+[Other platforms](../reference/app-manifest.md#other-platforms)). A build
+for another Linux platform, `linux/arm64` on an `x86_64` machine say,
+needs the Rust targets of that platform, `aarch64-unknown-linux-gnu` for
+the module and `aarch64-unknown-linux-musl` for a static program, and zig
+on `PATH`:
+
+```console
+$ rustup target add aarch64-unknown-linux-gnu
+$ tt package build --target linux/arm64
+   • built myapp for linux-arm64 into .../myapp/_build/target/linux-arm64/tree: a build for another platform is not installed into .rocks/
+$ file _build/target/linux-arm64/tree/lib/tarantool/myapp/fastrs.so
+_build/target/linux-arm64/tree/lib/tarantool/myapp/fastrs.so: ELF 64-bit LSB shared object, ARM aarch64, ...
+```
+
+The module is not installed into `.rocks/`, whose Tarantool, the machine's,
+cannot load it: the build keeps what it made in
+`_build/target/linux-arm64/`, its stage and the target directory of cargo
+among it, apart from what a build for the machine made, and installs the
+package into `_build/target/linux-arm64/tree/`. `tt package pack --target
+linux/arm64 --format rock` packs the rock of the platform,
+`myapp-<version>-1.linux-aarch64.rock`, and `--format tt --without-deps`
+the archive of it, `myapp-<version>-linux-arm64.tt`.
+
+The C toolchain of the machine links for the machine alone, so cargo links
 with `zig cc -target aarch64-linux-gnu`, as
 [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) does. tt
-writes the script that runs it into `_build/cargo-zig/` and names it as the
+writes the script that runs it into `_build/target/linux-arm64/cargo-zig/`
+and names it as the
 linker of the target with `--config target.<triple>.linker=...`; the build
 scripts that compile C with the `cc` crate get it as `CC_<triple>`, and
 `zig ar` as `AR_<triple>`. A linker the environment names,
@@ -259,7 +279,9 @@ scripts that compile C with the `cc` crate get it as `CC_<triple>`, and
 link against the C library zig has for the target, glibc 2.31 by default
 with zig 0.17, not that of the machine. A build for macOS is made on
 macOS, whose SDK cargo links against: one on Linux fails before anything
-is built.
+is built. A component of the `c` or `lua-c` backend of the same package
+fails a build for another platform before anything is built too: they
+compile with the toolchain of the machine.
 
 The default features of the `tarantool` crate build `openssl-sys`, which
 needs the development files of OpenSSL of the target: for another platform
