@@ -48,5 +48,5 @@ func TestCross(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, []string{"make", "shell", "cargo", "go"}, cross)
+	assert.Equal(t, []string{"make", "shell", "cargo", "go", "zig"}, cross)
 }

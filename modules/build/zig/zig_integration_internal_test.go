@@ -249,6 +249,67 @@ func TestBuildsAStaticProgram(t *testing.T) {
 	assert.Empty(t, libraries)
 }
 
+// elfMachines maps a GOARCH to the machine of its ELF files.
+var elfMachines = map[string]elf.Machine{
+	"amd64": elf.EM_X86_64,
+	"arm64": elf.EM_AARCH64,
+}
+
+// TestBuildsForAnotherLinux builds, on this Linux, the module and the
+// program of a project of no dependency for the other architecture of
+// Linux, with -Dtarget of its gnu target, then the static program for the
+// musl one, and checks the machine of what it built: zig has what it links
+// for every target in itself.
+func TestBuildsForAnotherLinux(t *testing.T) {
+	t.Parallel()
+	requireZig(t)
+
+	if runtime.GOOS != "linux" {
+		t.Skip("a build for another Linux platform is checked on linux")
+	}
+
+	goarch := "arm64"
+	if runtime.GOARCH == goarch {
+		goarch = "amd64"
+	}
+
+	harness := buildtest.New(t, Backend(), component())
+	dirs := harness.Context.Dirs
+
+	writeFiles(t, dirs.Component, plainProject(true))
+	harness.SetTarget(build.Target{OS: "linux", Arch: goarch})
+
+	// requireELF checks the machine of the ELF file at path and returns
+	// whether it has a loader.
+	requireELF := func(path string) bool {
+		t.Helper()
+
+		file, err := elf.Open(path)
+		require.NoError(t, err)
+
+		defer func() { _ = file.Close() }()
+
+		assert.Equal(t, elfMachines[goarch], file.Machine, "%s is of %s", path, file.Machine)
+
+		return slices.ContainsFunc(file.Progs, func(prog *elf.Prog) bool {
+			return prog.Type == elf.PT_INTERP
+		})
+	}
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, component(), map[string]any{
+		"module": "answer", "bin": "answer-cli", "optimize": "Debug",
+	}, false)), harness.Printed())
+	requireELF(filepath.Join(dirs.Modules, "answer.so"))
+	assert.True(t, requireELF(filepath.Join(dirs.Programs, "answer-cli")),
+		"a program of gnu has a loader")
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, component(), map[string]any{
+		"bin": "answer-cli", "optimize": "Debug",
+	}, true)), harness.Printed())
+	assert.False(t, requireELF(filepath.Join(dirs.Programs, "answer-cli")),
+		"a static program has no loader")
+}
+
 // consumerProject is the project of the how-to of tt, Build a module in Zig,
 // against zig-tarantool at the relative path dep: a module hello of a Lua
 // function and a C function, and a program hello-client of

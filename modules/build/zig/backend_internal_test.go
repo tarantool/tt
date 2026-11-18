@@ -1,6 +1,7 @@
 package zig
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -287,6 +288,7 @@ func TestBackend(t *testing.T) {
 	assert.Equal(t, []string{"/zig-out/", "/zig-pkg/"}, backend.Exclude)
 	assert.True(t, backend.Incremental)
 	assert.False(t, backend.Hook)
+	assert.True(t, backend.Cross)
 
 	fields, err := backend.Fields()
 	require.NoError(t, err)
@@ -673,6 +675,118 @@ func TestRunOfAStaticProgram(t *testing.T) {
 			}
 		})
 	}
+}
+
+// otherTarget is a platform other than the machine of the test: its OS on
+// the other architecture.
+func otherTarget() build.Target {
+	if runtime.GOARCH == "arm64" {
+		return build.Target{OS: runtime.GOOS, Arch: "amd64"}
+	}
+
+	return build.Target{OS: runtime.GOOS, Arch: "arm64"}
+}
+
+// TestRunForAnotherPlatform: a build for another platform than the machine
+// passes the zig target of the platform as -Dtarget, after asking zig build
+// --help that the build.zig takes it: the gnu target of Linux for a module
+// and a program, the musl one for a static program alone, and macos for
+// darwin. A build.zig that takes no -Dtarget is refused, wrapping
+// build.ErrTarget, before zig builds anything.
+func TestRunForAnotherPlatform(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		target build.Target
+		rest   map[string]any
+		static bool
+		want   string
+	}{
+		{"a module of linux", build.Target{OS: "linux", Arch: "arm64"},
+			map[string]any{"module": "hello"}, false, "aarch64-linux-gnu"},
+		{"a module and a program of linux", build.Target{OS: "linux", Arch: "amd64"},
+			map[string]any{"module": "hello", "bin": "hello-client"}, true, "x86_64-linux-gnu"},
+		{"a static program of linux", build.Target{OS: "linux", Arch: "arm64"},
+			map[string]any{"bin": "hello-client"}, true, "aarch64-linux-musl"},
+		{"a program of linux", build.Target{OS: "linux", Arch: "amd64"},
+			map[string]any{"bin": "hello-client"}, false, "x86_64-linux-gnu"},
+		{"a module of darwin", build.Target{OS: darwinOS, Arch: "arm64"},
+			map[string]any{"module": "hello"}, false, "aarch64-macos"},
+		{"a module of darwin of intel", build.Target{OS: darwinOS, Arch: "amd64"},
+			map[string]any{"module": "hello"}, false, "x86_64-macos"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !test.target.Cross() {
+				t.Skipf("%s is the machine", test.target)
+			}
+
+			harness := buildtest.New(t, Backend(), component())
+			log := fakeZig(t, harness)
+
+			harness.SetTarget(test.target)
+
+			require.NoError(t, harness.Run(t.Context(),
+				validate(t, component(), test.rest, test.static)))
+
+			runs := readLines(t, log+".runs")
+			require.Len(t, runs, 2)
+			assert.True(t, strings.HasPrefix(runs[0], "build --help --cache-dir "), runs[0])
+			assert.True(t, strings.HasSuffix(runs[1], " -Dtarget="+test.want), runs[1])
+		})
+	}
+
+	t.Run("a build.zig that takes no target", func(t *testing.T) {
+		t.Parallel()
+
+		harness := buildtest.New(t, Backend(), component())
+		log := fakeZig(t, harness)
+
+		harness.Context.Env["FAKE_NO_TARGET"] = "1"
+		harness.SetTarget(otherTarget())
+
+		err := harness.Run(t.Context(), validate(t, component(),
+			map[string]any{"module": "hello"}, false))
+		require.ErrorIs(t, err, build.ErrTarget)
+		assert.Equal(t, fmt.Sprintf("the build cannot be made for the target platform: the "+
+			"build.zig of %s declares no -Dtarget, as b.standardTargetOptions does, so zig "+
+			"builds it for the machine alone, %s, and the build is for %s",
+			harness.Context.Dirs.Cwd, build.HostTarget(), otherTarget()), err.Error())
+
+		runs := readLines(t, log+".runs")
+		require.Len(t, runs, 1, "zig built nothing")
+		assert.NoFileExists(t, filepath.Join(harness.Context.Dirs.Modules,
+			"hello"+otherTarget().ModuleExt()))
+	})
+}
+
+// TestPreflightOfAnotherPlatform: a build for another platform than the
+// machine whose options name a target of their own is refused, wrapping
+// build.ErrTarget; one for the machine keeps the target of the options.
+func TestPreflightOfAnotherPlatform(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), component())
+	writeTool(t, harness.Context.Dirs.Tools, "")
+
+	bld := validate(t, component(), map[string]any{
+		"module": "hello", "options": map[string]any{"target": "x86_64-linux-musl"},
+	}, false)
+
+	require.NoError(t, bld.Preflight(t.Context(), harness.Context))
+
+	harness.SetTarget(otherTarget())
+
+	err := bld.Preflight(t.Context(), harness.Context)
+	require.ErrorIs(t, err, build.ErrTarget)
+	assert.Equal(t, "the build cannot be made for the target platform: options.target names "+
+		"the target the build.zig builds for, and the build is for "+otherTarget().String()+
+		", which the backend passes as -Dtarget itself; leave target out of options",
+		err.Error())
 }
 
 // TestInputs: an incremental build reads the version of zig and build.zig
