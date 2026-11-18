@@ -652,6 +652,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- A `cargo` component is built with `--locked`, from the versions the
+  `Cargo.lock` of its workspace pins, as the project is built from the
+  versions of its lock: two builds of one commit build the same crates. A
+  package without a `Cargo.lock` fails `tt package build` before anything
+  is built, with exit code 2, `the cargo package has no Cargo.lock in
+  <dir>: the build is made with --locked, from the versions Cargo.lock pins;
+  run cargo generate-lockfile there, and keep Cargo.lock with the sources`,
+  and one the `Cargo.toml` no longer matches fails as `cargo build --locked`
+  does. cargo wrote a `Cargo.lock` of the newest versions into the sources
+  at the first build, and resolved again at every build of a checkout
+  without one.
 - The global `--no-prompt` covers the confirmations of tt itself, as its
   help says, "ask no questions and take the default answer": `tt instance
   stop`, `restart`, `kill` and `clean`, `tt cluster publish` and `tt

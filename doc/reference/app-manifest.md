@@ -867,7 +867,10 @@ gives way to it, but a `CARGO_TARGET_DIR` or `CARGO_BUILD_TARGET_DIR` in
 `env`, or in the environment tt runs in, is kept. The library and the
 binary are taken from where cargo reports it built them. `--rebuild` runs
 cargo as every build does, and cargo rebuilds what changed, a new compiler
-included. A `target/` of a component cargo builds is not laid out. See
+included. A `target/` of a component cargo builds is not laid out. cargo
+builds with `--locked`, from the versions the `Cargo.lock` of the workspace
+pins: a package without one fails the build before anything is built,
+naming `cargo generate-lockfile`. See
 [Build a module in Rust](../how-to/rust-modules.md).
 
 `zig` runs `zig build` of the `build.zig` of `cwd`, installing into

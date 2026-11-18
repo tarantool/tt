@@ -76,14 +76,38 @@ func validate(t *testing.T, component build.Component, rest map[string]any,
 
 // writeTool writes the shell script body as cargo in dir. The script is
 // written aside and copied with no fork in between, so that starting it is
-// not refused while parallel tests start processes.
+// not refused while parallel tests start processes. cargo locate-project
+// names the Cargo.toml of its working directory, as cargo does for a package
+// that is the root of its workspace.
 func writeTool(t *testing.T, dir, body string) {
 	t.Helper()
 
-	src := filepath.Join(t.TempDir(), cargoTool)
+	writeProgram(t, dir, cargoTool, `if [ "$1" = locate-project ]; then
+	echo "$PWD/Cargo.toml"
+	exit 0
+fi
+`+body)
+}
+
+// writeProgram writes the shell script body as the program name in dir, as
+// writeTool does.
+func writeProgram(t *testing.T, dir, name, body string) {
+	t.Helper()
+
+	src := filepath.Join(t.TempDir(), name)
 	require.NoError(t, os.WriteFile(src, []byte("#!/bin/sh\n"+body), 0o600))
 	require.NoError(t, os.Chmod(src, 0o700))
-	require.NoError(t, build.CopyFile(filepath.Join(dir, cargoTool), src))
+	require.NoError(t, build.CopyFile(filepath.Join(dir, name), src))
+}
+
+// writeLockfile writes a Cargo.lock into the working directory of the build
+// of harness, which the build requires.
+func writeLockfile(t *testing.T, harness *buildtest.Harness) {
+	t.Helper()
+
+	writeFiles(t, harness.Context.Dirs.Cwd, map[string]string{
+		lockfileName: "version = 4\n",
+	})
 }
 
 // noTargetDir names no target directory in the environment of the build of
@@ -274,6 +298,7 @@ func TestPreflight(t *testing.T) {
 
 		harness := buildtest.New(t, Backend(), module())
 		writeTool(t, harness.Context.Dirs.Tools, "")
+		writeLockfile(t, harness)
 
 		harness.Context.Target = darwin
 
@@ -312,9 +337,43 @@ func TestPreflight(t *testing.T) {
 
 		harness.Context.Env["PATH"] = t.TempDir()
 		writeTool(t, harness.Context.Dirs.Tools, "")
+		writeLockfile(t, harness)
 
 		require.NoError(t,
 			validate(t, program(), nil, false).Preflight(t.Context(), harness.Context))
+	})
+
+	// The build is made with --locked: a package without a Cargo.lock is
+	// refused before cargo runs, with the command that writes one.
+	t.Run("a package without Cargo.lock", func(t *testing.T) {
+		t.Parallel()
+
+		harness := buildtest.New(t, Backend(), program())
+		log := fakeCargo(t, harness)
+
+		require.NoError(t, os.Remove(filepath.Join(harness.Context.Dirs.Cwd, lockfileName)))
+
+		cwd, err := filepath.EvalSymlinks(harness.Context.Dirs.Cwd)
+		require.NoError(t, err)
+
+		err = harness.Run(t.Context(), validate(t, program(), nil, false))
+		require.ErrorIs(t, err, ErrNoLockfile)
+		assert.Contains(t, err.Error(), "the cargo package has no Cargo.lock in "+
+			cwd+": the build is made with --locked, from the versions "+
+			"Cargo.lock pins; run cargo generate-lockfile there")
+		assert.NoFileExists(t, log+".runs")
+	})
+
+	// A cargo that names no Cargo.toml is an error, not a Cargo.lock looked
+	// for in the directory tt runs in.
+	t.Run("no root of the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		harness := buildtest.New(t, Backend(), program())
+		writeProgram(t, harness.Context.Dirs.Tools, cargoTool, "")
+
+		err := validate(t, program(), nil, false).Preflight(t.Context(), harness.Context)
+		require.ErrorIs(t, err, errNoWorkspace)
 	})
 }
 
@@ -324,9 +383,12 @@ func TestPreflight(t *testing.T) {
 // every run, one run a line, at <state>/cargo.runs, makes a binary agent
 // and a library agent_lib in the target directory, and reports both as
 // cargo does, among a line of a build script; it fails when FAKE_FAIL is
-// set.
+// set. The working directory of the build gets a Cargo.lock
+// (writeLockfile), and cargo locate-project is not recorded (writeTool).
 func fakeCargo(t *testing.T, harness *buildtest.Harness) string {
 	t.Helper()
+
+	writeLockfile(t, harness)
 
 	log := filepath.Join(harness.Context.Dirs.State, "cargo")
 
@@ -377,7 +439,7 @@ func TestRunCopiesTheBinary(t *testing.T) {
 	cwd, err := filepath.EvalSymlinks(facts.Dirs.Cwd)
 	require.NoError(t, err)
 	assert.Equal(t, []string{
-		cwd, "build", "--profile", "dev", "--bin", "agent",
+		cwd, "build", "--profile", "dev", "--bin", "agent", "--locked",
 		"--message-format=json-render-diagnostics", "--package", "agent-crate",
 	}, readLines(t, log+".args"))
 
@@ -483,7 +545,7 @@ func TestRunCopiesTheLibrary(t *testing.T) {
 	require.NoError(t, harness.Run(t.Context(), validate(t, module(), nil, false)))
 
 	want := []string{
-		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release",
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release", "--locked",
 		"--message-format=json-render-diagnostics",
 	}
 	if runtime.GOOS == darwinOS {
@@ -662,7 +724,22 @@ func crateHarness(t *testing.T, component build.Component) *buildtest.Harness {
 		writeFiles(t, harness.Context.Dirs.Component, library)
 	}
 
+	generateLockfile(t, harness.Context.Dirs.Component)
+
 	return harness
+}
+
+// generateLockfile writes the Cargo.lock of the workspace in dir with the
+// real cargo, offline: a crate without dependencies needs no index.
+func generateLockfile(t *testing.T, dir string) {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), cargoTool, "generate-lockfile", "--offline")
+
+	cmd.Dir = dir
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
 }
 
 // runProgram runs the program at path and returns what it printed.
@@ -819,4 +896,68 @@ func TestBuildsInTheTargetDir(t *testing.T) {
 			assert.DirExists(t, filepath.Join(facts.Dirs.State, targetDirName, "debug"))
 		}
 	}
+}
+
+// TestBuildsFromTheLockOfTheWorkspace: the Cargo.lock of a member of a
+// workspace is that of the root of the workspace, which cargo
+// locate-project names; without it the build is refused.
+func TestBuildsFromTheLockOfTheWorkspace(t *testing.T) {
+	t.Parallel()
+	requireCargo(t, "")
+
+	harness := buildtest.New(t, Backend(), module())
+	dirs := harness.Context.Dirs
+
+	noTargetDir(harness)
+
+	// The component is a member of the workspace of its parent directory.
+	root := filepath.Dir(dirs.Component)
+	writeFiles(t, root, map[string]string{
+		"Cargo.toml": "[workspace]\nmembers = [\"" + filepath.Base(dirs.Component) + "\"]\n" +
+			"resolver = \"2\"\n",
+	})
+	writeFiles(t, dirs.Component, map[string]string{
+		"Cargo.toml": "[package]\nname = \"member\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[dependencies]\n",
+		"src/lib.rs": "#[no_mangle]\npub extern \"C\" fn member() -> i32 { 42 }\n",
+	})
+
+	bld := validate(t, module(), map[string]any{"profile": "dev"}, false)
+
+	err := harness.Run(t.Context(), bld)
+	require.ErrorIs(t, err, ErrNoLockfile)
+	assert.NoFileExists(t, filepath.Join(dirs.Component, lockfileName))
+
+	generateLockfile(t, root)
+
+	require.NoError(t, harness.Run(t.Context(), bld))
+	assert.FileExists(t, filepath.Join(dirs.Modules, "member"+harness.Context.Target.ModuleExt()))
+}
+
+// TestRunOfAStaleLockIsAnError: cargo builds with --locked, so a Cargo.lock
+// the Cargo.toml no longer matches fails the build rather than being
+// written again in the sources.
+func TestRunOfAStaleLockIsAnError(t *testing.T) {
+	t.Parallel()
+	requireCargo(t, "")
+
+	harness := crateHarness(t, module())
+	dirs := harness.Context.Dirs
+	lock := filepath.Join(dirs.Component, lockfileName)
+
+	before, err := os.ReadFile(lock)
+	require.NoError(t, err)
+
+	writeFiles(t, dirs.Component, map[string]string{
+		"Cargo.toml": "[package]\nname = \"agent-lib\"\nversion = \"0.2.0\"\n" +
+			"edition = \"2021\"\n\n[dependencies]\n",
+	})
+
+	err = harness.Run(t.Context(), validate(t, module(), map[string]any{"profile": "dev"}, false))
+	require.Error(t, err)
+	assert.Contains(t, harness.Printed(), "--locked")
+
+	after, err := os.ReadFile(lock)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after))
 }

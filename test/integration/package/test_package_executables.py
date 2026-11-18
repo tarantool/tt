@@ -119,6 +119,13 @@ def make_cargo_project(root: Path) -> Path:
         "[package]\nname = 'agent'\nversion = '0.1.0'\nedition = '2021'\n\n[dependencies]\n",
     )
     (root / "agent" / "src" / "main.rs").write_text(RUST_MAIN)
+    # The build is made with --locked, from a Cargo.lock; a crate of no
+    # dependency has one with no index.
+    subprocess.run(
+        ["cargo", "generate-lockfile", "--offline"],
+        cwd=root / "agent",
+        check=True,
+    )
     (root / "app.manifest.toml").write_text(
         MANIFEST.format(
             name="agent",
