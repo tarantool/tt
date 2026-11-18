@@ -144,6 +144,29 @@ $ python3 ci/pr_notes.py api --base origin/v3 --head HEAD
 It exits with 1 on an incompatible change; `--allow-incompatible` reports
 the change and exits with 0.
 
+### Releases
+
+The publish workflow compares the SDK of a release tag with a release
+before it of the same major version, before it builds anything:
+
+- a stable release, `vX.Y.Z`, with the stable release before it, and fails
+  on an incompatible change: the SDK of a major version stays compatible
+  from one stable release to the next;
+- a pre-release, such as `v3.0.0-alpha.3`, and the first stable release of
+  a major version, with the release just before it, and only warns: until
+  a major version is released its SDK may change;
+- the first release of a major version with nothing.
+
+To release an incompatible change on purpose, run the workflow on the tag
+by hand with `allow-incompatible-sdk`:
+
+```console
+$ gh workflow run publish.yml --ref v3.1.0 -f allow-incompatible-sdk=true
+```
+
+`python3 ci/pr_notes.py api --release v3.1.0 --head HEAD` tells beforehand
+what the check says of `HEAD` released as `v3.1.0`.
+
 ## The documentation
 
 The site is built from `doc/` with [Zensical](https://zensical.org/)
