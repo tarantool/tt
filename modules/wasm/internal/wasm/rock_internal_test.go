@@ -16,8 +16,8 @@ import (
 	"github.com/tarantool/go-luarocks/remote"
 	"github.com/tarantool/go-luarocks/rockspec"
 
-	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/fetch/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 

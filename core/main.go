@@ -35,9 +35,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/bundle"
-	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/sdk/v3/output"
 	"github.com/tarantool/tt/v3/cli/cmd"

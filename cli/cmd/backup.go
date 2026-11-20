@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/backup/v3/storage"
 	"github.com/tarantool/tt/sdk/dial/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/formatter"
 	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/backup"

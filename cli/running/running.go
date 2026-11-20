@@ -14,8 +14,8 @@ import (
 	"time"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/integrity/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"

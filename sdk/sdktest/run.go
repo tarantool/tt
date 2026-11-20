@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/log/logtest"
 )
 

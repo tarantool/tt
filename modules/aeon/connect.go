@@ -10,8 +10,8 @@ import (
 	goconfig "github.com/tarantool/go-config/v2"
 
 	"github.com/tarantool/tt/modules/aeon/internal/client"
-	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/console"
 )
 

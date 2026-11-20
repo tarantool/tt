@@ -12,8 +12,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/v3/bundle"
 	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3/bundle"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"golang.org/x/net/html"

@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
 
+	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/bundle"
 	"github.com/tarantool/tt/sdk/v3/execfile"
-	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/sdk/v3/output"
 	"github.com/tarantool/tt/v3/cli/printing"
 	"github.com/tarantool/tt/v3/cli/version"

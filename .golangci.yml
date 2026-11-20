@@ -333,6 +333,8 @@ linters:
             # cli/manifest/run starts the tarantool the instance commands
             # start, chosen by the one resolver.
             - "github.com/tarantool/tt/v3/cli/tarantool"
+            - "github.com/tarantool/tt/sdk/build/v3"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         manifest-test:
           files:
             - "**/cli/manifest/**/*_test.go"
@@ -375,6 +377,9 @@ linters:
             # cli/manifest/build tests check that a component does not get the
             # CMake policy version of the rocks.
             - "github.com/tarantool/tt/v3/internal/cmakepolicy"
+            - "github.com/tarantool/tt/sdk/build/v3"
+            - "github.com/tarantool/tt/sdk/build/v3/buildtest"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         # One allow-list per top-level directory, tests included; their file
         # globs do not overlap, so each file is checked against exactly one
         # of them (plus the deny-only rules above). An import from another
@@ -473,6 +478,8 @@ linters:
             - "golang.org/x/sys"
             # The menus of tt binary switch are shown on a terminal only.
             - "golang.org/x/term"
+            - "github.com/tarantool/tt/sdk/connect/v3"
+            - "github.com/tarantool/tt/sdk/fetch/v3"
         dir-cli-backup:
           files:
             - "**/cli/backup/**"
@@ -491,6 +498,10 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/vmihailenco/msgpack/v5"
             - "go.yaml.in/yaml/v3"
+            - "github.com/tarantool/tt/sdk/backup/v3/archive"
+            - "github.com/tarantool/tt/sdk/backup/v3/storage"
+            - "github.com/tarantool/tt/sdk/backup/v3/storage/fs"
+            - "github.com/tarantool/tt/sdk/backup/v3/storage/s3"
         dir-cli-restore:
           files:
             - "**/cli/restore/**"
@@ -506,6 +517,8 @@ linters:
             - "github.com/tarantool/tt/v3/cli/restore"
             - "github.com/tarantool/tt/v3/cli/util/regexputil"
             - "github.com/vmihailenco/msgpack/v5"
+            - "github.com/tarantool/tt/sdk/backup/v3/archive"
+            - "github.com/tarantool/tt/sdk/backup/v3/storage"
         dir-sdk-backup:
           files:
             - "**/sdk/backup/**"
@@ -555,6 +568,8 @@ linters:
             # "*" stands for the instances whose watchdog holds its pid file.
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "go.etcd.io/etcd/client/v3"
+            - "github.com/tarantool/tt/sdk/connect/v3"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         dir-cli-checkpoint:
           files:
             - "**/cli/checkpoint/**"
@@ -587,6 +602,9 @@ linters:
             - "go.etcd.io/etcd/client/pkg/v3"
             - "go.etcd.io/etcd/client/v3"
             - "go.yaml.in/yaml/v3"
+            - "github.com/tarantool/tt/sdk/cluster/v3"
+            - "github.com/tarantool/tt/sdk/connect/v3"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         dir-cli-cmd:
           files:
             - "**/cli/cmd/**"
@@ -647,6 +665,12 @@ linters:
             # The integration tests of tt cluster publish run an etcd in the
             # process.
             - "github.com/tarantool/go-storage/v2/test_helpers/etcd"
+            - "github.com/tarantool/tt/sdk/backup/v3/storage"
+            - "github.com/tarantool/tt/sdk/build/v3"
+            - "github.com/tarantool/tt/sdk/cluster/v3"
+            - "github.com/tarantool/tt/sdk/connect/v3"
+            - "github.com/tarantool/tt/sdk/dial/v3"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         dir-cli-cmdcontext:
           files:
             - "**/cli/cmdcontext/**"
@@ -698,6 +722,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/yuin/gopher-lua"
             - "golang.org/x/term"
+            - "github.com/tarantool/tt/sdk/dial/v3"
         dir-cli-connector:
           files:
             - "**/cli/connector/**"
@@ -769,6 +794,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/printing"
             - "github.com/vmihailenco/msgpack/v5"
             - "go.yaml.in/yaml/v3"
+            - "github.com/tarantool/tt/sdk/tuple/v3"
         dir-cli-docker:
           files:
             - "**/cli/docker/**"
@@ -835,6 +861,9 @@ linters:
             - "github.com/tarantool/tt/v3/cli/replicaset"
             - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/sdk/cluster/v3"
+            - "github.com/tarantool/tt/sdk/dial/v3"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         dir-cli-rocks:
           files:
             - "**/cli/rocks/**"
@@ -888,6 +917,7 @@ linters:
             - "github.com/tarantool/tt/v3/internal/systemd"
             # tt writes the config of TCM, and reads the one of the user.
             - "go.yaml.in/yaml/v3"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         dir-cli-status:
           files:
             - "**/cli/status/**"
@@ -1013,6 +1043,10 @@ linters:
             # main package builds it, from the standard modules.
             - "github.com/tarantool/tt/v3/standard"
             - "go.yaml.in/yaml/v3"
+            - "github.com/tarantool/tt/sdk/build/v3"
+            - "github.com/tarantool/tt/sdk/cluster/v3"
+            - "github.com/tarantool/tt/sdk/connect/v3"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
         # The extraction of a tar.gz archive that keeps its entries in the
         # destination: a leaf, under the commands that unpack archives.
         dir-internal-untar:

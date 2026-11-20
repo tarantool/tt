@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/tarantool/tt/sdk/v3"
 	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"

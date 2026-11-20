@@ -15,8 +15,8 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/tarantool/tt/sdk/v3"
 	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 
 	"github.com/tarantool/tt/modules/build/basic"
 	"github.com/tarantool/tt/modules/build/cargo"

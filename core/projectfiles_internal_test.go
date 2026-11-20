@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/v3"
 	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 )

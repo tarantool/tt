@@ -198,7 +198,7 @@ func TestResolvePinned(t *testing.T) {
 			Core: manifest.LockedCore{
 				Module: coreModule, Version: corePseudo, Revision: coreHash,
 				Repository: map[string]string{
-					"github.com/tarantool/tt/sdk/v3":          testRevision,
+					"github.com/tarantool/tt/sdk/v3":       testRevision,
 					"github.com/tarantool/tt/modules/aeon": testRevision,
 				},
 			},

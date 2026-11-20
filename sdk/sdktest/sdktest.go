@@ -46,8 +46,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/internal/clusteryaml"
 	"github.com/tarantool/tt/sdk/v3/log/logtest"
 	"github.com/tarantool/tt/sdk/v3/output"

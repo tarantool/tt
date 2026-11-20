@@ -11,9 +11,9 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/v3"
 	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 	"github.com/tarantool/tt/sdk/dial/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/sdk/v3/formatter"
 	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
