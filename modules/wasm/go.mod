@@ -6,9 +6,9 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-luarocks v0.1.1-0.20261117141140-0ccca9142639
-	github.com/tarantool/tt/sdk/v3 v3.0.0
 	github.com/tarantool/tt/sdk/build/v3 v3.0.0
 	github.com/tarantool/tt/sdk/fetch/v3 v3.0.0
+	github.com/tarantool/tt/sdk/v3 v3.0.0
 )
 
 require (
@@ -54,8 +54,8 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/sdk/v3 => ../../sdk
 	github.com/tarantool/tt/sdk/build/v3 => ../../sdk/build
 	github.com/tarantool/tt/sdk/connect/v3 => ../../sdk/connect
 	github.com/tarantool/tt/sdk/fetch/v3 => ../../sdk/fetch
+	github.com/tarantool/tt/sdk/v3 => ../../sdk
 )

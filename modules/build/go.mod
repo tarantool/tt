@@ -4,8 +4,8 @@ go 1.27.0
 
 require (
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/tt/sdk/v3 v3.0.0
 	github.com/tarantool/tt/sdk/build/v3 v3.0.0
+	github.com/tarantool/tt/sdk/v3 v3.0.0
 )
 
 require (
@@ -27,7 +27,7 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/sdk/v3 => ../../sdk
 	github.com/tarantool/tt/sdk/build/v3 => ../../sdk/build
 	github.com/tarantool/tt/sdk/connect/v3 => ../../sdk/connect
+	github.com/tarantool/tt/sdk/v3 => ../../sdk
 )

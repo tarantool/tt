@@ -9,8 +9,8 @@ require (
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4
 	github.com/tarantool/go-prompt v1.0.2-0.20261118001635-bc2cfa6de863
 	github.com/tarantool/go-tarantool/v3 v3.0.2
-	github.com/tarantool/tt/sdk/v3 v3.0.0
 	github.com/tarantool/tt/sdk/connect/v3 v3.0.0
+	github.com/tarantool/tt/sdk/v3 v3.0.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
 )
@@ -48,7 +48,7 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/sdk/v3 => ../../sdk
 	github.com/tarantool/tt/sdk/build/v3 => ../../sdk/build
 	github.com/tarantool/tt/sdk/connect/v3 => ../../sdk/connect
+	github.com/tarantool/tt/sdk/v3 => ../../sdk
 )
