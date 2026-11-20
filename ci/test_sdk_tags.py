@@ -132,9 +132,21 @@ class PlanTest(unittest.TestCase):
         versions = sdk_tags.planned("v3.0.0", self.tree.root)
         self.assertEqual(versions["sdk/connect"], "v3.0.1")
 
-    def test_a_pre_release_keeps_its_suffix(self):
-        prefix = sdk_tags.planned("v3.1.0-rc.1", self.tree.root)
-        self.assertEqual(set(prefix.values()), {"v3.1.0-rc.1"})
+    def test_a_pre_release_gives_every_module_its_suffix(self):
+        for tag in ("v3.1.0-rc.1", "v3.0.0-rc.2"):
+            with self.subTest(tag=tag):
+                self.assertEqual(set(sdk_tags.planned(tag, self.tree.root).values()), {tag})
+
+    def test_a_pre_release_of_a_patch_is_refused(self):
+        with self.assertRaises(SystemExit):
+            sdk_tags.planned("v3.0.1-rc.1", self.tree.root)
+
+    def test_a_pre_release_ignores_the_patch_of_the_go_mod(self):
+        root = self.tree.root
+        path = root / "go.mod"
+        path.write_text(path.read_text().replace(f"{module_path('sdk/connect')} v3.0.0", f"{module_path('sdk/connect')} v3.0.1"))
+        versions = sdk_tags.planned("v3.0.0-rc.1", root)
+        self.assertEqual(versions["sdk/connect"], "v3.0.0-rc.1")
 
     def test_another_release_tag_is_refused(self):
         with self.assertRaises(SystemExit):
@@ -195,8 +207,10 @@ class ReleaseTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.tree = Tree(temporary.name)
         self.tree.git("init", "-q")
+        self.tree.git("checkout", "-q", "-B", "v3")
         self.tree.commit("the release")
         self.tree.tag("v3.0.0")
+        self.tree.git("tag", "-d", "v3.0.0")
 
     def create(self):
         with patch.object(sdk_tags, "git", side_effect=self.tree.git):
@@ -246,6 +260,63 @@ class ReleaseTest(unittest.TestCase):
             "differs from sdk/connect/v3.0.0",
             " ".join(problems),
         )
+
+    def test_a_pre_release_tags_the_go_mod_of_the_release(self):
+        # The rc.1 of a new minor: every module names the suffix, even the
+        # one that changed nothing, and the tags carry it.
+        root = self.tree.root
+        for path in [root / "go.mod", root / "modules" / "aeon" / "go.mod"] + [
+            root / directory / "go.mod" for directory in SDK
+        ]:
+            text = path.read_text()
+            for directory in SDK:
+                text = text.replace(f"{module_path(directory)} v3.0.0", f"{module_path(directory)} v3.0.0-rc.1")
+            path.write_text(text)
+        self.assertEqual(sdk_tags.check_modules("v3.0.0-rc.1", root), [])
+        self.tree.commit("the pre-release")
+        self.tree.tag("v3.0.0-rc.1")
+        with patch.object(sdk_tags, "git", side_effect=self.tree.git):
+            tags = sdk_tags.create("v3.0.0-rc.1", push=False, root=root)
+            self.assertIn("sdk/backup/v3.0.0-rc.1", tags)
+            self.assertIn("sdk/v3.0.0-rc.1", tags)
+            self.assertEqual(sdk_tags.check_release("v3.0.0-rc.1", root=root), [])
+
+    def rewrite(self, old, new):
+        root = self.tree.root
+        for path in [root / "go.mod"] + [root / directory / "go.mod" for directory in SDK]:
+            text = path.read_text()
+            for directory in SDK:
+                text = text.replace(f"{module_path(directory)} {old}", f"{module_path(directory)} {new}")
+            path.write_text(text)
+
+    def test_the_two_versions_of_a_minor_do_not_stand_for_each_other(self):
+        # The SDK of rc.1 and the one of the stable release are tagged apart:
+        # neither version passes the check of the other, whatever the go.mod.
+        # The paths gain the major version in a commit of their own, and the
+        # versions of the pre-release follow.
+        self.rewrite("v3.0.0", "v3.0.0-rc.1")
+        self.tree.commit("the pre-release")
+        self.tree.tag("v3.0.0-rc.1")
+        self.tree.git("branch", "-f", "pre", "HEAD")
+        with patch.object(sdk_tags, "git", side_effect=self.tree.git):
+            # The stable release needs its bump, and its tags.
+            problems = sdk_tags.check_release("v3.0.0", root=self.tree.root)
+            self.assertEqual(len(problems), len(SDK))
+            self.assertIn("requires the pre-release v3.0.0-rc.1", problems[0])
+        self.rewrite("v3.0.0-rc.1", "v3.0.0")
+        self.tree.commit("the stable release")
+        self.tree.git("branch", "-f", "stable", "HEAD")
+        with patch.object(sdk_tags, "git", side_effect=self.tree.git):
+            for tag in sdk_tags.create("v3.0.0", push=False, root=self.tree.root):
+                self.assertIn("/v3.0.0", tag)
+        self.tree.tag("v3.0.0")
+        with patch.object(sdk_tags, "git", side_effect=self.tree.git):
+            self.assertEqual(sdk_tags.check_release("v3.0.0", root=self.tree.root), [])
+            # And the pre-release does not pass on the go.mod of the stable
+            # one: its tags carry the other version.
+            problems = sdk_tags.check_release("v3.0.0-rc.1", root=self.tree.root)
+            self.assertEqual(len(problems), len(SDK))
+            self.assertIn("and the pre-release v3.0.0-rc.1 tags it v3.0.0-rc.1", problems[0])
 
     def test_a_go_mod_of_another_release_fails(self):
         self.create()

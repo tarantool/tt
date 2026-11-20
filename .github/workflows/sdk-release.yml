@@ -8,7 +8,8 @@ name: Release SDK
 # the version it has in the go.mod of v3, so its patch moves only with a
 # change of its own, and the module changed in this release has its go.mod
 # moved before this workflow runs (ci/sdk_tags.py bump). A new minor gives
-# every module its vX.Y.0.
+# every module its vX.Y.0, and the pre-release of a new minor, vX.Y.0-rc.N,
+# gives every module the same suffix.
 #
 # The modules are fetched from this repository rather than from the module
 # proxy while the tags are checked, so a run that fails leaves no version of
@@ -21,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       tt-version:
-        description: Release tag of tt to tag the SDK of, vX.Y.Z
+        description: Release tag of tt to tag the SDK of, vX.Y.Z or vX.Y.0-rc.N
         type: string
         required: true
 

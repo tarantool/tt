@@ -35,12 +35,14 @@ A module of the SDK takes the major and minor of the release of tt it
 belongs to, and the patch of its own changes: while tt 3.0 is the newest
 release, a module that did not change keeps `v3.0.0`, and one that changed
 gets `v3.0.1`, `v3.0.2` and so on. Every module takes the major and minor of
-a new release of tt, so `tt v3.1.0` has `v3.1.0` of every module. The
-release notes of tt name the versions. In one major and minor, the SDK stays
-compatible: a newer patch of a module builds a module that required an older
-one. `publish.yml` compares the API of every module with its last tag and
-fails the patch that breaks it, unless the break goes through the
-`sdk-breaking` label of the pull request.
+a new release of tt, so `tt v3.1.0` has `v3.1.0` of every module. A
+pre-release of a new minor, `v3.1.0-rc.1`, tags every module with its
+suffix, `v3.1.0-rc.1`, changed or not; the stable release of the minor
+tags them all again, `v3.1.0`. The release notes of tt name the versions. In
+one major and minor, the SDK stays compatible: a newer patch of a module
+builds a module that required an older one. `publish.yml` compares the API
+of every module with its last tag and fails the patch that breaks it, unless
+the break goes through the `sdk-breaking` label of the pull request.
 
 Require the versions the release notes of tt name, every module the module
 imports, and run `go mod tidy`: the `go.mod` of `sdk/v3` already requires

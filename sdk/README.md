@@ -303,12 +303,18 @@ the patch counts the changes of the module: a module that did not change
 keeps its patch, one that changed gets the next. A new minor of tt gives
 every module its `vX.Y.0`.
 
+A pre-release belongs to a new minor, `vX.Y.0-rc.N`, and tags every module
+with its suffix, changed or not: before the stable release of that minor
+there is no version of it to keep. The stable release tags them all again,
+`vX.Y.0`. A patch release has no pre-release.
+
 ```text
-tt v3.0.0                  sdk v3.0.0, sdk/build v3.0.0, sdk/connect v3.0.0, ...
+tt v3.0.0-rc.1             every module v3.0.0-rc.1
+tt v3.0.0                  every module v3.0.0
 change in sdk/connect      sdk/connect v3.0.1, and sdk v3.0.1 and
                            sdk/cluster v3.0.1, whose go.mod requires it
 tt v3.0.1, no SDK change   no new tags
-tt v3.1.0                  sdk v3.1.0, sdk/build v3.1.0, sdk/connect v3.1.0, ...
+tt v3.1.0                  every module v3.1.0
 ```
 
 The release notes of tt name the SDK it is built on.

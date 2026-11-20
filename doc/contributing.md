@@ -164,6 +164,12 @@ the go.mod files of the repository, and the release commit carries it. A
 module that changed after its tag fails `check-release`, and takes the next
 patch.
 
+A pre-release goes to a new minor only, `gh workflow run sdk-release.yml
+--ref v3 -f tt-version=v3.1.0-rc.1`: every module is tagged with the suffix,
+changed or not, and the stable release of the minor tags them all again.
+`check-release` wants the version of the pre-release exactly, so the go.mod
+of an rc release names the suffix the tags carry.
+
 The tags are never moved. `publish.yml` runs `ci/sdk_tags.py check-release`
 on the tag of tt before it builds anything: every module has its tag, of the
 major and minor of the release, and the tree of the module is the one the

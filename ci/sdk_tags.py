@@ -122,7 +122,23 @@ def check_release(tag, root=ROOT):
                 f"the release {tag} is v{release_major}"
             )
             continue
-        if not wanted.startswith(f"v{release_major}.{release_minor}."):
+        if "-" in version:
+            # A pre-release is tagged on the go.mod of the release exactly:
+            # the stable version of the same minor is another release of the
+            # SDK, tagged apart.
+            if wanted != version:
+                problems.append(
+                    f"{module.directory}: go.mod requires {wanted}, "
+                    f"and the pre-release {tag} tags it {version}"
+                )
+                continue
+        elif wanted.startswith("v") and "-" in wanted:
+            problems.append(
+                f"{module.directory}: go.mod requires the pre-release {wanted}, "
+                f"and the release {tag} is {version}"
+            )
+            continue
+        elif not wanted.startswith(f"v{release_major}.{release_minor}."):
             problems.append(
                 f"{module.directory}: go.mod requires {wanted}, "
                 f"and the release {tag} is v{release_major}.{release_minor}"
@@ -161,16 +177,26 @@ def planned(tt_tag, root=ROOT):
     version it has in the go.mod while that version is of the same major and
     minor: the patch grows only when the module changed, which bumps the
     go.mod. A new minor gives every module its vX.Y.0.
+
+    A pre-release, vM.m.0-rc.N, is the pre-release of a new minor only, and
+    every module takes it, changed or not: a module of the release before the
+    stable one has no version of that minor to keep.
     """
     version = release(tt_tag)
     match = RELEASE.fullmatch(version)
     major, minor, patch = (int(part) for part in match.groups()[:3])
     suffix = match.group(4) or ""
+    if suffix and patch != 0:
+        raise SystemExit(f"{tt_tag}: a pre-release belongs to a new minor, v{major}.{minor}.0-...")
     go_mod = root / "go.mod"
     versions = {}
     for module in modules(root).values():
         current = required(go_mod, module)
-        same_minor = current and re.fullmatch(rf"v{major}\.{minor}\.\d+(-.+)?", current)
+        same_minor = (
+            not suffix
+            and current
+            and re.fullmatch(rf"v{major}\.{minor}\.\d+(-.+)?", current)
+        )
         if same_minor:
             module_patch = int(re.match(rf"v{major}\.{minor}\.(\d+)", current).group(1))
             text = f"v{major}.{minor}.{module_patch}"
