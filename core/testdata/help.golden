@@ -4162,7 +4162,7 @@ GLOBAL FLAGS
 
 === tt package build --help
 Resolve dependencies, materialize .rocks/, run component build backends and
-generate version.lua. With no argument every component of the product is built;
+generate _version.lua. With no argument every component of the product is built;
 a component name narrows the build to one.
 
 A make or shell component with incremental = true is built only when its inputs

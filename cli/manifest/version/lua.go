@@ -6,11 +6,11 @@ import (
 	"time"
 )
 
-// GenerateVersionLua renders the version.lua descriptor for ver, stamped with
+// GenerateVersionLua renders the _version.lua descriptor for ver, stamped with
 // builtAt. The build drops the result at
-// .rocks/share/tarantool/<package>/version.lua; this function only produces the
-// text and never touches the filesystem, so detecting a pre-existing
-// version.lua is the build's job.
+// .rocks/share/tarantool/<package>/_version.lua; this function only produces
+// the text and never touches the filesystem, so detecting a pre-existing
+// _version.lua is the build's job.
 //
 // Generation is on by default and disabled per-package via
 // [package].generate_version_lua = false; that gate lives in the build, which

@@ -11,11 +11,12 @@ const (
 )
 
 // The build carries its exit codes in *sdk.ExitError: a usage or state error
-// (stale lock under --locked, version.lua or rocks.lua collision, bad manifest,
-// unresolvable dependency) is sdk.ExitFailure, and a component build backend
-// or hook that fails is sdk.ExitSystem. Classifying the failures that carry no
-// code - a rock server that cannot be reached, a filesystem that refuses a
-// write - is done once for every manifest command, by cli/exitcode.
+// (stale lock under --locked, _version.lua or _rocks.lua collision, bad
+// manifest, unresolvable dependency) is sdk.ExitFailure, and a component
+// build backend or hook that fails is sdk.ExitSystem. Classifying the
+// failures that carry no code - a rock server that cannot be reached, a
+// filesystem that refuses a write - is done once for every manifest command,
+// by cli/exitcode.
 
 var (
 	// errLockStale reports that the lock no longer matches the manifest while
@@ -25,7 +26,7 @@ var (
 	// tt package fetch (which never resolves) or a --locked build.
 	errNoLock = errors.New("no lock file")
 	// errGeneratedCollision reports that a component laid a file at the path
-	// the build generates version.lua or rocks.lua into. It carries exit
+	// the build generates _version.lua or _rocks.lua into. It carries exit
 	// code 1.
 	errGeneratedCollision = errors.New("collision with a generated file")
 	// errUnknownProduct reports that --product named a product the manifest

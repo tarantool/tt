@@ -52,9 +52,9 @@ func devRocksTree(t *testing.T, projectDir string) string {
 	treetest.Install(t, tree,
 		// The package's own rock.
 		treetest.Rock{Name: "my-app", Version: "1.0.0", Files: map[string]string{
-			"lua/my-app/init.lua":    "-- app",
-			"lua/my-app/version.lua": "-- version",
-			"lib/my-app/fast.so":     "ELF",
+			"lua/my-app/init.lua":     "-- app",
+			"lua/my-app/_version.lua": "-- version",
+			"lib/my-app/fast.so":      "ELF",
 		}},
 		// Runtime closure.
 		treetest.Rock{Name: "inspect", Version: "3.1.3-1", Files: map[string]string{

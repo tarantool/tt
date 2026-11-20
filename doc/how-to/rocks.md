@@ -140,7 +140,7 @@ luaopen_hashkit_fnv(lua_State *L)
 local fnv = require('hashkit.fnv')
 
 local hashkit = {
-    VERSION = require('hashkit.version').version,
+    VERSION = require('hashkit._version').version,
 }
 
 -- The 32-bit FNV-1a hash of a string.
@@ -154,7 +154,7 @@ end
 return hashkit
 ```
 
-`hashkit.version` is the `version.lua` tt generates for the package at
+`hashkit._version` is the `_version.lua` tt generates for the package at
 every build. `test/hash_test.lua`:
 
 ```lua
@@ -312,11 +312,11 @@ Archive:  ../dist/hashkit-1.0.0-1.linux-x86_64.rock
        51  1980-01-01 00:00   doc/LICENSE
       561  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
     15832  1980-01-01 00:00   lib/hashkit/fnv.so
-      309  1980-01-01 00:00   lua/hashkit/init.lua
-      143  1980-01-01 00:00   lua/hashkit/version.lua
-      422  1980-01-01 00:00   rock_manifest
+      143  1980-01-01 00:00   lua/hashkit/_version.lua
+      310  1980-01-01 00:00   lua/hashkit/init.lua
+      423  1980-01-01 00:00   rock_manifest
 ---------                     -------
-    17318                     6 files
+    17320                     6 files
 ```
 
 The rock holds what the build laid out, the C module built for this
@@ -380,11 +380,11 @@ Archive:  ../dist/hashkit-1.0.0-1.src.rock
       409  1980-01-01 00:00   hashkit/app.manifest.lock
       766  1980-01-01 00:00   hashkit/app.manifest.toml
       563  1980-01-01 00:00   hashkit/hashkit/fnv.c
-      309  1980-01-01 00:00   hashkit/hashkit/init.lua
+      310  1980-01-01 00:00   hashkit/hashkit/init.lua
       242  1980-01-01 00:00   hashkit/test/bucket_test.lua
       230  1980-01-01 00:00   hashkit/test/hash_test.lua
 ---------                     -------
-     3171                     10 files
+     3172                     10 files
 ```
 
 Both rocks are reproducible: packing the same commit again gives the same
@@ -781,8 +781,8 @@ $ tar --zstd -tf _build/pack/kv-api-*.tt | grep hashkit
 .rocks/lib/tarantool/hashkit/
 .rocks/lib/tarantool/hashkit/fnv.so
 .rocks/share/tarantool/hashkit/
+.rocks/share/tarantool/hashkit/_version.lua
 .rocks/share/tarantool/hashkit/init.lua
-.rocks/share/tarantool/hashkit/version.lua
 .rocks/share/tarantool/rocks/hashkit/
 .rocks/share/tarantool/rocks/hashkit/1.1.0-1/
 .rocks/share/tarantool/rocks/hashkit/1.1.0-1/doc/

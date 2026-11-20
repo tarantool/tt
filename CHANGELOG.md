@@ -217,7 +217,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `[products.NAME].rock`: release a product as a rock of its own name, so a
   package is several rocks, a module and its tools say. The default product
   is the rock of the package; products of two rocks share no component, and
-  the `version.lua` of a product with a rock of its own goes under its name.
+  the `_version.lua` of a product with a rock of its own goes under its name.
   `tt package pack --format rock` packs a product as its rock, and a `path`
   dependency named after the rock of a product builds that product.
 - A rock's dependency on `tarantool` is checked against `[platform].tarantool`
@@ -245,7 +245,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the lock pins.
 - A `path` dependency on a directory holding `app.manifest.toml` is built
   from its manifest: the components of its default product, their layout and
-  `version.lua`, in `_build/path/<name>/` of the project, and installed into
+  `_version.lua`, in `_build/path/<name>/` of the project, and installed into
   `.rocks/` as the rock of its package, which the dependency is named after.
   Its version is the one tt derives in its directory, and its dependencies,
   those of its default product, are resolved with the project's; its
@@ -725,20 +725,30 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   without a zone is local time, of `TZ` as for `date`, and `tt -V` logs the
   moment in UTC it was read as. `--target-time` takes fractional Unix
   seconds too. A value of none of these forms fails with the list of them.
-- `tt package build` writes `rocks.lua` beside `version.lua` of the package,
-  the rocks it was built with: the closure of the product the lock pins,
-  every rock by name with its version and source, and the name, version
-  and commit of the package, with no time in it. A running application
-  reports them as `require('<name>.rocks')`, to `tt connect` too. It is
-  not written into the rock of a path dependency, and `tt package pack
-  --format rock` leaves it out of the rock, since a project installing the
-  rock resolves its own; the `.tt` archive has it. `[package]
-  generate_rocks_lua = false` leaves it out of the build, and a component
-  shipping a `rocks.lua` there fails the build as one shipping
-  `version.lua` does.
+- `tt package build` writes `_rocks.lua` beside `_version.lua` of the
+  package, the rocks it was built with: the closure of the product the lock
+  pins, every rock by name with its version and source, and the name,
+  version and commit of the package, with no time in it. A running
+  application reports them as `require('<name>._rocks')`, to `tt connect`
+  too. It is not written into the rock of a path dependency, and `tt
+  package pack --format rock` leaves it out of the rock, since a project
+  installing the rock resolves its own; the `.tt` archive has it.
+  `[package] generate_rocks_lua = false` leaves it out of the build, and a
+  component shipping a `_rocks.lua` there fails the build as one shipping
+  `_version.lua` does.
 
 ### Changed
 
+- Breaking: the version descriptor `tt package build` generates into the
+  package is `_version.lua`, `require('<name>._version')`, where it was
+  `version.lua`, `require('<name>.version')`; the rocks of the build are
+  `_rocks.lua`, `require('<name>._rocks')`. The underscore marks a file tt
+  generates, so a package may have a `version.lua` or a `rocks.lua` module
+  of its own, which failed the build as a collision with the generated
+  file. Code reading the version of its package reads
+  `require('<name>._version').version`. A checkout built by 3.0.0-alpha.2
+  or older keeps `.rocks/share/tarantool/<name>/version.lua`, which no rock
+  owns and `tt package clean` leaves: remove it by hand.
 - A `cargo` component is built with `--locked`, from the versions the
   `Cargo.lock` of its workspace pins, as the project is built from the
   versions of its lock: two builds of one commit build the same crates. A

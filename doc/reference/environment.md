@@ -29,7 +29,7 @@ See [Projects and scopes](../concepts/projects-and-scopes.md) and
 | Variable | |
 | --- | --- |
 | `TT_REGISTRIES` | the rock servers, comma-separated, instead of `[platform].registries` and the defaults; `--registry` wins over it |
-| `SOURCE_DATE_EPOCH` | the time stamped into `version.lua` and the archive; the time of the HEAD commit by default |
+| `SOURCE_DATE_EPOCH` | the time stamped into `_version.lua` and the archive; the time of the HEAD commit by default |
 | `TT_PROJECT_LOCK` | set by tt while it holds the lock of a project, `_build/tt.lock`, for the commands it runs: a tt among them works on that project under the lock rather than wait for it; a value naming a lock nobody holds is ignored. Not to be set by hand |
 
 A component build and a hook get `TT_PROJECT_ROOT`, `TT_PACKAGE`,

@@ -125,7 +125,7 @@ component.
 
 `tt package build` resolves the lock, installs the dependencies into
 `.rocks/`, runs the build backends of the components and lays the
-components out, with `version.lua` and `rocks.lua` of the package.
+components out, with `_version.lua` and `_rocks.lua` of the package.
 `tt package fetch` only installs `.rocks/` from the lock, with no build.
 `-j N` runs at most `N` jobs at once in each component build, one a CPU by
 default; see [Jobs](../reference/app-manifest.md#jobs). `--target OS/ARCH`
@@ -209,12 +209,14 @@ directory alone: to release the project, tag a commit that changes it.
 too, as the commits after a tag do. A project at the root of its repository
 is versioned by `HEAD` and the whole tree.
 
-The code reads its version as `require('<name>.version').version`; set
-`generate_version_lua = false` in `[package]` to leave `version.lua` out.
+The code reads its version as `require('<name>._version').version`; set
+`generate_version_lua = false` in `[package]` to leave `_version.lua` out.
+The underscore marks a file tt generates, so a module of the package may be
+named `version.lua` or `rocks.lua`.
 
 ### The rocks of the build
 
-Beside `version.lua` the build writes `rocks.lua`, the rocks the package
+Beside `_version.lua` the build writes `_rocks.lua`, the rocks the package
 was built with: the closure of the product the lock pins, the dependencies
 of the dependencies included, with no `[dev_dependencies]`. It is a module
 of data alone, the same for the same lock and version, with no time in it:
@@ -231,27 +233,27 @@ return {
 }
 ```
 
-`package` is the name of the package and its version, as `version.lua`
+`package` is the name of the package and its version, as `_version.lua`
 has it; `product` the product built; `rocks` every rock of the closure by
 name, with the version and the source, `registry` or `path`, of the lock.
 A path dependency with neither a manifest nor a rockspec, which installs
 nothing, is listed with the version `""`; a package with no dependency has
-`rocks = {}`. A running application reads it as `require('<name>.rocks')`,
+`rocks = {}`. A running application reads it as `require('<name>._rocks')`,
 an instance of the project over iproto too:
 
 ```console
-$ echo "return require('myapp.rocks').rocks.stat" | tt connect myapp:instance001
+$ echo "return require('myapp._rocks').rocks.stat" | tt connect myapp:instance001
 ---
 - version: 0.3.2-1
   source: registry
 ...
 ```
 
-Only the package itself gets `rocks.lua`, not the rock of a path dependency
+Only the package itself gets `_rocks.lua`, not the rock of a path dependency
 or of a source rock tt builds: their rocks are the closure of the package.
 It is in the `.tt` archive, which runs the application, and not in the rock
 `--format rock` packs: a project installing the rock resolves rocks of its
-own. A component that lays out a `rocks.lua` of its own into the namespace
+own. A component that lays out a `_rocks.lua` of its own into the namespace
 of the package fails the build; set `generate_rocks_lua = false` in
 `[package]` to leave the generated one out, which `generate_version_lua`
 does not do.
@@ -357,15 +359,16 @@ The next build builds every component again. Of a package of Lua whose
 $ tt package clean --dry-run
 would run the clean hook
 would remove _build/rock
-would remove myapp 1.0.0-1 from .rocks (4 files)
+would remove myapp 1.0.0-1 from .rocks (5 files)
   .rocks/share/tarantool/rocks/myapp/1.0.0-1/myapp-1.0.0-1.rockspec
+  .rocks/share/tarantool/myapp/_rocks.lua
+  .rocks/share/tarantool/myapp/_version.lua
   .rocks/share/tarantool/myapp/init.lua
   .rocks/share/tarantool/myapp/src/gen/year.lua
-  .rocks/share/tarantool/myapp/version.lua
 $ tt package clean
 ran the clean hook
 removed _build/rock
-removed myapp 1.0.0-1 from .rocks (4 files)
+removed myapp 1.0.0-1 from .rocks (5 files)
 $ ls -A _build
 tt.lock
 ```
@@ -547,7 +550,7 @@ PATH`. A pack for another platform, `--target`, strips with `llvm-strip
 A package other projects depend on, a Tarantool module say, is packed as a
 rock: `tt package pack --format rock`. The rock holds the files the build
 laid out, the rock of the package `tt package build` installs into
-`.rocks/` but for `rocks.lua` (see
+`.rocks/` but for `_rocks.lua` (see
 [The rocks of the build](#the-rocks-of-the-build)), and the license files,
 `[package].license_files`, in `doc/`, where LuaRocks keeps the documents
 of a rock: a project installing the rock

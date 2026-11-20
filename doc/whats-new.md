@@ -62,7 +62,7 @@ tt test
     `make` or `shell` backend; one component may build a module and a
     program at once.
 - The package version comes from `VERSION` or the nearest git tag. Read it in
-  code with `require('<name>.version').version`.
+  code with `require('<name>._version').version`.
 - `tt run` runs the project's Tarantool in the current directory. Arguments
   from the script name on pass to the script unchanged.
 - `tt test` builds the package and runs its tests with luatest. If the manifest

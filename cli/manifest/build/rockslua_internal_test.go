@@ -14,18 +14,18 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 )
 
-// readRocksLua reads rocks.lua of the package my-app as the build installed
+// readRocksLua reads _rocks.lua of the package my-app as the build installed
 // it into the tree of the project dir.
 func readRocksLua(t *testing.T, dir string) string {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(dir, rocksDirName, "share/tarantool/my-app/rocks.lua"))
+	data, err := os.ReadFile(filepath.Join(dir, rocksDirName, "share/tarantool/my-app/_rocks.lua"))
 	require.NoError(t, err)
 
 	return string(data)
 }
 
-// TestRun_rocksLuaEmptyClosure pins rocks.lua of a package with no
+// TestRun_rocksLuaEmptyClosure pins _rocks.lua of a package with no
 // dependency: the package and its product, and no rock. A rebuild, which
 // settles the stage, keeps it.
 func TestRun_rocksLuaEmptyClosure(t *testing.T) {
@@ -48,17 +48,17 @@ return {
 	assert.Equal(t, want, readRocksLua(t, dir))
 
 	stage := packageStage(dir, "default")
-	assert.FileExists(t, filepath.Join(stage, "lua/my-app/rocks.lua"))
+	assert.FileExists(t, filepath.Join(stage, "lua/my-app/_rocks.lua"))
 
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 	assert.Equal(t, want, readRocksLua(t, dir))
-	assert.FileExists(t, filepath.Join(stage, "lua/my-app/rocks.lua"))
+	assert.FileExists(t, filepath.Join(stage, "lua/my-app/_rocks.lua"))
 }
 
-// TestRun_rocksLuaPathDependencies pins that rocks.lua of the package lists
+// TestRun_rocksLuaPathDependencies pins that _rocks.lua of the package lists
 // its closure as the lock pins it - a path dependency with a manifest at the
 // version of its rock, a leaf one at none - that the rock of a path
-// dependency built by tt carries no rocks.lua of its own, and that a build
+// dependency built by tt carries no _rocks.lua of its own, and that a build
 // after the closure changed rewrites it.
 func TestRun_rocksLuaPathDependencies(t *testing.T) {
 	t.Parallel()
@@ -74,8 +74,8 @@ func TestRun_rocksLuaPathDependencies(t *testing.T) {
 `)
 
 	share := filepath.Join(app, rocksDirName, "share/tarantool/contrib")
-	assert.FileExists(t, filepath.Join(share, "version.lua"))
-	assert.NoFileExists(t, filepath.Join(share, "rocks.lua"))
+	assert.FileExists(t, filepath.Join(share, "_version.lua"))
+	assert.NoFileExists(t, filepath.Join(share, "_rocks.lua"))
 
 	writeFile(t, filepath.Join(filepath.Dir(app), "leaf-lib", "leaf.lua"), "return 1\n")
 	writeFile(t, filepath.Join(app, manifestFileName), strings.Replace(consumerManifest,
@@ -94,7 +94,7 @@ func TestRun_rocksLuaPathDependencies(t *testing.T) {
 }
 
 // TestRun_generateRocksLuaDisabled pins that generate_rocks_lua = false leaves
-// rocks.lua out, a rebuild removing the one an earlier build left, and that
+// _rocks.lua out, a rebuild removing the one an earlier build left, and that
 // generate_version_lua = false alone does not.
 func TestRun_generateRocksLuaDisabled(t *testing.T) {
 	t.Parallel()
@@ -105,8 +105,8 @@ func TestRun_generateRocksLuaDisabled(t *testing.T) {
 	})
 
 	tree := filepath.Join(dir, rocksDirName)
-	rocksLua := filepath.Join(tree, "share/tarantool/my-app/rocks.lua")
-	versionLua := filepath.Join(tree, "share/tarantool/my-app/version.lua")
+	rocksLua := filepath.Join(tree, "share/tarantool/my-app/_rocks.lua")
+	versionLua := filepath.Join(tree, "share/tarantool/my-app/_version.lua")
 
 	writeFile(t, filepath.Join(dir, manifestFileName), strings.Replace(baseManifest,
 		"name = 'my-app'", "name = 'my-app'\ngenerate_version_lua = false", 1))
@@ -118,11 +118,11 @@ func TestRun_generateRocksLuaDisabled(t *testing.T) {
 		"name = 'my-app'", "name = 'my-app'\ngenerate_rocks_lua = false", 1))
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 	assert.NoFileExists(t, rocksLua)
-	assert.NoFileExists(t, filepath.Join(packageStage(dir, "default"), "lua/my-app/rocks.lua"))
+	assert.NoFileExists(t, filepath.Join(packageStage(dir, "default"), "lua/my-app/_rocks.lua"))
 	assert.FileExists(t, versionLua)
 }
 
-// TestRun_rocksLuaCollision pins that a component laying out rocks.lua into
+// TestRun_rocksLuaCollision pins that a component laying out _rocks.lua into
 // the namespace of the package fails the build with exit code 1, unless
 // generate_rocks_lua = false leaves the generated one out.
 func TestRun_rocksLuaCollision(t *testing.T) {
@@ -130,14 +130,14 @@ func TestRun_rocksLuaCollision(t *testing.T) {
 
 	dir := setupProject(t, baseManifest, map[string]string{
 		"init.lua":           "-- init",
-		"rocks.lua":          "-- shipped by the component",
+		"_rocks.lua":         "-- shipped by the component",
 		"native/fast_hash.c": "int x;",
 	})
 
 	err := Run(context.Background(), dryOptions(dir))
 	require.ErrorIs(t, err, errGeneratedCollision)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
-	assert.Contains(t, err.Error(), "component ships rocks.lua")
+	assert.Contains(t, err.Error(), "component ships _rocks.lua")
 
 	writeFile(t, filepath.Join(dir, manifestFileName), strings.Replace(baseManifest,
 		"name = 'my-app'", "name = 'my-app'\ngenerate_rocks_lua = false", 1))

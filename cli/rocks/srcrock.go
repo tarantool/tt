@@ -156,7 +156,7 @@ func removeEmptyTree(ctx context.Context, root string) {
 
 // emptySrcRock reports whether the installed rock ref is the rock of a tt
 // package (rocktree.IsReleaseRockspec) with no module and no command: a binary
-// rock of a package holds its version.lua at least, so such a rock is one
+// rock of a package holds its _version.lua at least, so such a rock is one
 // LuaRocks built from the source rock.
 func emptySrcRock(view *tree.View, ref tree.RockRef) bool {
 	files, err := view.Files(ref)

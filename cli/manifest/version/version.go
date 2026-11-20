@@ -1,6 +1,6 @@
 // Package version derives a package version from a git tree and an optional
-// VERSION file, and renders the version.lua and rocks.lua descriptors that the
-// build drops into a package.
+// VERSION file, and renders the _version.lua and _rocks.lua descriptors that
+// the build drops into a package.
 //
 // It only derives the version string and generates the descriptors;
 // dependency resolution and the actual build live elsewhere.

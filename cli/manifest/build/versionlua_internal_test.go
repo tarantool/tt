@@ -24,7 +24,7 @@ func TestWriteVersionLua_generates(t *testing.T) {
 	err := writeVersionLua(stage, "my-app", true, ver, time.Unix(0, 0), nil)
 	require.NoError(t, err)
 
-	vlua := filepath.Join(stage, "lua/my-app/version.lua")
+	vlua := filepath.Join(stage, "lua/my-app/_version.lua")
 	data, err := os.ReadFile(vlua)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `version  = "1.2.3"`)
@@ -39,7 +39,7 @@ func TestWriteVersionLua_disabledWritesNothing(t *testing.T) {
 	err := writeVersionLua(stage, "my-app", false, version.Version{}, time.Unix(0, 0), nil)
 	require.NoError(t, err)
 
-	_, statErr := os.Stat(filepath.Join(stage, "lua/my-app/version.lua"))
+	_, statErr := os.Stat(filepath.Join(stage, "lua/my-app/_version.lua"))
 	assert.True(t, os.IsNotExist(statErr))
 }
 
@@ -47,13 +47,14 @@ func TestWriteVersionLua_collisionWithLaidOutFile(t *testing.T) {
 	t.Parallel()
 
 	stage := t.TempDir()
-	dst := filepath.Join(stage, "lua/my-app/version.lua")
+	dst := filepath.Join(stage, "lua/my-app/_version.lua")
 
-	// A component laid a version.lua at the exact generated path this run.
+	// A component laid a _version.lua at the exact generated path this run.
 	err := writeVersionLua(stage, "my-app", true, version.Version{}, time.Unix(0, 0), []string{dst})
 	require.Error(t, err)
 	require.ErrorIs(t, err, errGeneratedCollision)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Contains(t, err.Error(), "component ships _version.lua at "+dst)
 	assert.Contains(t, err.Error(), "generate_version_lua = false")
 }
 
@@ -68,7 +69,7 @@ func TestWriteRocksLua_generates(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(filepath.Join(stage, "lua/my-app/rocks.lua"))
+	data, err := os.ReadFile(filepath.Join(stage, "lua/my-app/_rocks.lua"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `crud = { version = "1.5.2-1", source = "registry" },`)
 }
@@ -77,12 +78,12 @@ func TestWriteRocksLua_collisionWithLaidOutFile(t *testing.T) {
 	t.Parallel()
 
 	stage := t.TempDir()
-	dst := filepath.Join(stage, "lua/my-app/rocks.lua")
+	dst := filepath.Join(stage, "lua/my-app/_rocks.lua")
 
 	err := writeRocksLua(stage, "my-app", version.RocksLua{}, []string{dst})
 	require.ErrorIs(t, err, errGeneratedCollision)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
-	assert.Contains(t, err.Error(), "component ships rocks.lua at "+dst)
+	assert.Contains(t, err.Error(), "component ships _rocks.lua at "+dst)
 	assert.Contains(t, err.Error(), "generate_rocks_lua = false")
 	assert.NoFileExists(t, dst)
 }
@@ -91,7 +92,7 @@ func TestWriteVersionLua_staleFileOverwritten(t *testing.T) {
 	t.Parallel()
 
 	stage := t.TempDir()
-	dst := filepath.Join(stage, "lua/my-app/version.lua")
+	dst := filepath.Join(stage, "lua/my-app/_version.lua")
 	writeFile(t, dst, "-- stale from a previous build")
 
 	// The stale file is not in laidOut, so it is overwritten, not a collision.

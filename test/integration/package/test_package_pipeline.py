@@ -137,7 +137,7 @@ def build(tt_cmd, project: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def test_build_materializes_the_tree(tt_cmd, tmp_path):
-    """Build lays out the package, its dependency and version.lua, and locks."""
+    """Build lays out the package, its dependency and _version.lua, and locks."""
     project = make_project(tmp_path / "project")
 
     result = build(tt_cmd, project)
@@ -145,7 +145,7 @@ def test_build_materializes_the_tree(tt_cmd, tmp_path):
 
     share = project / ".rocks" / "share" / "tarantool"
     assert (share / "my-app" / "init.lua").exists()
-    assert (share / "my-app" / "version.lua").exists()
+    assert (share / "my-app" / "_version.lua").exists()
     assert (share / DEPENDENCY).is_dir(), "the declared dependency must be materialized"
 
     lock = project / "app.manifest.lock"
@@ -181,9 +181,9 @@ def locked_rocks(project: Path) -> dict:
 def test_build_writes_rocks_lua(tt_cmd, tmp_path):
     """A running application reports the rocks it was built with.
 
-    The build writes rocks.lua of the package, the closure the lock pins: a
+    The build writes _rocks.lua of the package, the closure the lock pins: a
     registry rock and a path dependency built by tt, whose own rock carries
-    no rocks.lua. An instance of the project reads it over iproto with
+    no _rocks.lua. An instance of the project reads it over iproto with
     tt connect.
     """
     if shutil.which("tarantool") is None:
@@ -207,9 +207,9 @@ def test_build_writes_rocks_lua(tt_cmd, tmp_path):
     assert result.returncode == 0, result.stderr
 
     share = project / ".rocks" / "share" / "tarantool"
-    assert (share / "my-app" / "rocks.lua").is_file()
-    assert (share / "my-helper" / "version.lua").is_file()
-    assert not (share / "my-helper" / "rocks.lua").exists()
+    assert (share / "my-app" / "_rocks.lua").is_file()
+    assert (share / "my-helper" / "_version.lua").is_file()
+    assert not (share / "my-helper" / "_rocks.lua").exists()
 
     expected = locked_rocks(project)
     assert expected == {
@@ -250,7 +250,7 @@ def test_build_writes_rocks_lua(tt_cmd, tmp_path):
             connected = subprocess.run(
                 [str(tt_cmd), "connect", "my-app:instance001", "-f-"],
                 cwd=project,
-                input="return require('json').encode(require('my-app.rocks'))\n",
+                input="return require('json').encode(require('my-app._rocks'))\n",
                 capture_output=True,
                 text=True,
             )
@@ -529,13 +529,13 @@ def test_pack_rock_into_the_default_output_dir(tt_cmd, tmp_path, formats):
     # The rock leaves out the rocks the application was built with: a project
     # installing it resolves its own. The archive, which runs it, has them.
     names = {info.filename for info in infos}
-    assert "lua/my-app/version.lua" in names
-    assert "lua/my-app/rocks.lua" not in names
+    assert "lua/my-app/_version.lua" in names
+    assert "lua/my-app/_rocks.lua" not in names
     if "tt,rock" in formats:
         archives = list(out.glob("*.tt"))
         assert len(archives) == 1, archives
         packed = archive_names(archives[0])
-        assert any(name.endswith(".rocks/share/tarantool/my-app/rocks.lua") for name in packed)
+        assert any(name.endswith(".rocks/share/tarantool/my-app/_rocks.lua") for name in packed)
 
     assert not [entry.name for entry in out.iterdir() if entry.is_dir()]
 

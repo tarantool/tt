@@ -2,12 +2,12 @@
 // rocks of a lock, through the tree package of go-luarocks, which keeps the
 // files of a tree and its manifest together:
 //
-//   - the package's own files - the components a build lays out, version.lua
-//     and the programs of its executable components - are a rock of the tree
-//     like any dependency, installed from a stage laid out as an unpacked
-//     binary rock (Rockspec, InstallPackage), so that the tree manifest owns
-//     every file tt puts there, and pack, install and uninstall move the
-//     package by its rock;
+//   - the package's own files - the components a build lays out,
+//     _version.lua and the programs of its executable components - are a
+//     rock of the tree like any dependency, installed from a stage laid out
+//     as an unpacked binary rock (Rockspec, InstallPackage), so that the tree
+//     manifest owns every file tt puts there, and pack, install and uninstall
+//     move the package by its rock;
 //   - a tree an older tt damaged by changing it behind the manifest's back -
 //     rock dirs removed without their entries, rocks extracted without any -
 //     is repaired once by rebuilding its manifest from the rocks on disk

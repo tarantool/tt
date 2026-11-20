@@ -14,7 +14,7 @@ import (
 // builds.
 const sourceDateEpochEnv = "SOURCE_DATE_EPOCH"
 
-// buildTime picks the timestamp stamped into the generated version.lua, and
+// buildTime picks the timestamp stamped into the generated _version.lua, and
 // with it whether the archive is reproducible at all.
 //
 // The wall clock would make every pack of the same commit produce a different
