@@ -38,7 +38,7 @@ class Tree:
         (self.root / "go.mod").write_text(
             "module github.com/tarantool/tt/v3\n\ngo 1.27.4\n\nrequire (\n"
             + "".join(f"\t{module_path(directory)} v3.0.0\n" for directory in self.modules)
-            + ")\n"
+            + ")\n",
         )
         for directory, spec in self.modules.items():
             path = self.root / directory / "go.mod"
@@ -47,7 +47,7 @@ class Tree:
             path.write_text(
                 f"module {module_path(directory)}\n\ngo 1.27.0\n\nrequire (\n"
                 + "".join(f"\t{module_path(required)} v3.0.0\n" for required in spec["require"])
-                + ")\n"
+                + ")\n",
             )
         # A module of tt that requires the SDK, as modules/aeon does.
         (self.root / "modules" / "aeon").mkdir(parents=True)
@@ -55,12 +55,12 @@ class Tree:
             "module github.com/tarantool/tt/modules/aeon\n\ngo 1.27.0\n\nrequire (\n"
             f"\t{module_path('sdk')} v3.0.0\n"
             "\tgithub.com/stretchr/testify v1.11.1\n"
-            ")\n"
+            ")\n",
         )
         # A fixture of a test: no module of tt, and not looked at.
         (self.root / "testdata" / "fixture").mkdir(parents=True)
         (self.root / "testdata" / "fixture" / "go.mod").write_text(
-            f"module example.com/fixture\n\nrequire {module_path('sdk')} v0.0.0\n"
+            f"module example.com/fixture\n\nrequire {module_path('sdk')} v0.0.0\n",
         )
 
     def git(self, *args, cwd=None):
@@ -71,17 +71,38 @@ class Tree:
             text=True,
         )
         if result.returncode:
-            raise subprocess.CalledProcessError(result.returncode, args, result.stdout, result.stderr)
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                args,
+                result.stdout,
+                result.stderr,
+            )
         return result.stdout
 
     def commit(self, message="change"):
         self.git("add", "-A")
         self.git(
-            "-c", "user.name=tt", "-c", "user.email=tt@example.com", "commit", "-qm", message,
+            "-c",
+            "user.name=tt",
+            "-c",
+            "user.email=tt@example.com",
+            "commit",
+            "-qm",
+            message,
         )
 
     def tag(self, name):
-        self.git("-c", "user.name=tt", "-c", "user.email=tt@example.com", "tag", "-a", name, "-m", name)
+        self.git(
+            "-c",
+            "user.name=tt",
+            "-c",
+            "user.email=tt@example.com",
+            "tag",
+            "-a",
+            name,
+            "-m",
+            name,
+        )
 
 
 class ModulesTest(unittest.TestCase):
@@ -127,7 +148,9 @@ class PlanTest(unittest.TestCase):
         self.tree.git("init", "-q")
         for name in ("go.mod", "sdk/go.mod", "sdk/cluster/go.mod"):
             path = self.tree.root / name
-            path.write_text(path.read_text().replace("sdk/connect/v3 v3.0.0", "sdk/connect/v3 v3.0.1"))
+            path.write_text(
+                path.read_text().replace("sdk/connect/v3 v3.0.0", "sdk/connect/v3 v3.0.1"),
+            )
         self.tree.commit()
         versions = sdk_tags.planned("v3.0.0", self.tree.root)
         self.assertEqual(versions["sdk/connect"], "v3.0.1")
@@ -144,7 +167,12 @@ class PlanTest(unittest.TestCase):
     def test_a_pre_release_ignores_the_patch_of_the_go_mod(self):
         root = self.tree.root
         path = root / "go.mod"
-        path.write_text(path.read_text().replace(f"{module_path('sdk/connect')} v3.0.0", f"{module_path('sdk/connect')} v3.0.1"))
+        path.write_text(
+            path.read_text().replace(
+                f"{module_path('sdk/connect')} v3.0.0",
+                f"{module_path('sdk/connect')} v3.0.1",
+            ),
+        )
         versions = sdk_tags.planned("v3.0.0-rc.1", root)
         self.assertEqual(versions["sdk/connect"], "v3.0.0-rc.1")
 
@@ -168,7 +196,8 @@ class BumpTest(unittest.TestCase):
         # and bump leaves it where it is.
         root_go_mod = root / "go.mod"
         changed = root_go_mod.read_text().replace(
-            f"{module_path('sdk/connect')} v3.0.0", f"{module_path('sdk/connect')} v3.0.1"
+            f"{module_path('sdk/connect')} v3.0.0",
+            f"{module_path('sdk/connect')} v3.0.1",
         )
         root_go_mod.write_text(changed)
         self.assertEqual(sdk_tags.planned("v3.0.0", root)["sdk/connect"], "v3.0.1")
@@ -184,8 +213,9 @@ class BumpTest(unittest.TestCase):
         connect = root / "sdk" / "connect" / "go.mod"
         connect.write_text(
             connect.read_text().replace(
-                f"{module_path('sdk/connect')} v3.0.0", f"{module_path('sdk/connect')} v3.0.1"
-            )
+                f"{module_path('sdk/connect')} v3.0.0",
+                f"{module_path('sdk/connect')} v3.0.1",
+            ),
         )
         versions = sdk_tags.planned("v3.0.0", root)
         self.assertIn(versions["sdk/connect"], {"v3.0.0", "v3.0.1"})
@@ -194,7 +224,7 @@ class BumpTest(unittest.TestCase):
         (self.tree.root / "modules" / "aeon" / "go.mod").write_text(
             (self.tree.root / "modules" / "aeon" / "go.mod")
             .read_text()
-            .replace(f"{module_path('sdk')} v3.0.0", f"{module_path('sdk')} v3.0.1")
+            .replace(f"{module_path('sdk')} v3.0.0", f"{module_path('sdk')} v3.0.1"),
         )
         problems = sdk_tags.check_modules("v3.0.0", self.tree.root)
         self.assertEqual(len(problems), 1)
@@ -270,7 +300,8 @@ class ReleaseTest(unittest.TestCase):
         ]:
             text = path.read_text()
             for directory in SDK:
-                text = text.replace(f"{module_path(directory)} v3.0.0", f"{module_path(directory)} v3.0.0-rc.1")
+                old = f"{module_path(directory)} v3.0.0"
+                text = text.replace(old, f"{module_path(directory)} v3.0.0-rc.1")
             path.write_text(text)
         self.assertEqual(sdk_tags.check_modules("v3.0.0-rc.1", root), [])
         self.tree.commit("the pre-release")
@@ -286,7 +317,8 @@ class ReleaseTest(unittest.TestCase):
         for path in [root / "go.mod"] + [root / directory / "go.mod" for directory in SDK]:
             text = path.read_text()
             for directory in SDK:
-                text = text.replace(f"{module_path(directory)} {old}", f"{module_path(directory)} {new}")
+                current = f"{module_path(directory)} {old}"
+                text = text.replace(current, f"{module_path(directory)} {new}")
             path.write_text(text)
 
     def test_the_two_versions_of_a_minor_do_not_stand_for_each_other(self):
@@ -321,7 +353,11 @@ class ReleaseTest(unittest.TestCase):
     def test_a_go_mod_of_another_release_fails(self):
         self.create()
         path = self.tree.root / "go.mod"
-        path.write_text(path.read_text().replace(f"{module_path('sdk')} v3.0.0", f"{module_path('sdk')} v3.1.0"))
+        text = path.read_text().replace(
+            f"{module_path('sdk')} v3.0.0",
+            f"{module_path('sdk')} v3.1.0",
+        )
+        path.write_text(text)
         self.tree.commit("another minor")
         problems = self.check()
         self.assertTrue(

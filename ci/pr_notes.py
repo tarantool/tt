@@ -39,7 +39,14 @@ MODULES_NEW = [module + "/v3" for module in MODULES]
 PACKAGES = [
     "github.com/tarantool/tt/sdk/" + name
     for name in (
-        "console", "execfile", "formatter", "log", "output", "scope", "sdktest", "internal",
+        "console",
+        "execfile",
+        "formatter",
+        "log",
+        "output",
+        "scope",
+        "sdktest",
+        "internal",
     )
 ]
 
@@ -294,7 +301,7 @@ def drops_paths(diffs):
                 diff,
                 state="changed" if diff.compatible else "same",
                 incompatible=[],
-            )
+            ),
         )
     return out
 

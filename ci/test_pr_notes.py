@@ -49,7 +49,9 @@ def write_module(tree, directory, module):
 
 class ParseTest(unittest.TestCase):
     def test_incompatible_and_compatible_changes(self):
-        incompatible, compatible = pr_notes.parse_apidiff(REPORTS["github.com/tarantool/tt/sdk/tuple/v3"])
+        incompatible, compatible = pr_notes.parse_apidiff(
+            REPORTS["github.com/tarantool/tt/sdk/tuple/v3"],
+        )
         self.assertEqual(
             incompatible,
             [
@@ -92,7 +94,9 @@ class ApiDiffTest(unittest.TestCase):
         write_module(base, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed")
         write_module(head, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed/v3")
         self.calls = []
-        self.stderr = "Ignoring internal package github.com/tarantool/tt/sdk/v3/internal/clusteryaml\n"
+        self.stderr = (
+            "Ignoring internal package github.com/tarantool/tt/sdk/v3/internal/clusteryaml\n"
+        )
 
     def apidiff(self, *args, cwd=None, env=None):
         self.calls.append((args, cwd, env))
@@ -157,9 +161,11 @@ class ApiDiffTest(unittest.TestCase):
         self.assertEqual(diffs["sdk/same"].state, "same")
         # The module path moved in front of the last name segment, and the
         # packages moved with it: reported first, before what apidiff told.
-        self.assertEqual(diffs["sdk/renamed"].incompatible[0],
-                         "module path: changed from github.com/tarantool/tt/sdk/renamed "
-                         "to github.com/tarantool/tt/sdk/renamed/v3")
+        self.assertEqual(
+            diffs["sdk/renamed"].incompatible[0],
+            "module path: changed from github.com/tarantool/tt/sdk/renamed "
+            "to github.com/tarantool/tt/sdk/renamed/v3",
+        )
         self.assertIn("Exporting the API of the head", diffs["sdk/broken"].error)
         self.assertIn("undefined: missing", diffs["sdk/broken"].error)
 
@@ -194,14 +200,17 @@ PATHS_ONLY = [
     module(
         "sdk/connect",
         "changed",
-        ["module path: changed from github.com/tarantool/tt/sdk/connect "
-         "to github.com/tarantool/tt/sdk/connect/v3"],
+        [
+            "module path: changed from github.com/tarantool/tt/sdk/connect "
+            "to github.com/tarantool/tt/sdk/connect/v3",
+        ],
         ["ErrNoCredentials: added"],
     ),
 ]
 
 # The same, and an API change of one module besides.
-PATHS_AND_BREAK = PATHS_ONLY + [
+PATHS_AND_BREAK = [
+    *PATHS_ONLY,
     module("sdk/tuple", "changed", ["YAMLNode: changed from <a> to <b>"]),
 ]
 
@@ -209,6 +218,8 @@ PATHS_AND_BREAK = PATHS_ONLY + [
 def renamed(name, before, after):
     """A line of apidiff: the module path in a name, and the module path of it."""
     return f"{name}: changed from {before} to {after}"
+
+
 FAILED = [
     *BREAKING,
     module("sdk/broken", "failed", error="Exporting the API of the head:\nundefined: x"),

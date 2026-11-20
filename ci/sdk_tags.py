@@ -72,7 +72,7 @@ def modules(root=ROOT):
         if module.major == 0:
             raise SystemExit(
                 f"{path}: {module.path} has no major version in its path: "
-                "a module of the SDK is released as sdk/<name>/vN"
+                "a module of the SDK is released as sdk/<name>/vN",
             )
         found[relative] = module
     return found
@@ -119,7 +119,7 @@ def check_release(tag, root=ROOT):
         if module.major != release_major:
             problems.append(
                 f"{module.directory}: {module.path} has major version v{module.major}, "
-                f"the release {tag} is v{release_major}"
+                f"the release {tag} is v{release_major}",
             )
             continue
         if "-" in version:
@@ -129,19 +129,19 @@ def check_release(tag, root=ROOT):
             if wanted != version:
                 problems.append(
                     f"{module.directory}: go.mod requires {wanted}, "
-                    f"and the pre-release {tag} tags it {version}"
+                    f"and the pre-release {tag} tags it {version}",
                 )
                 continue
         elif wanted.startswith("v") and "-" in wanted:
             problems.append(
                 f"{module.directory}: go.mod requires the pre-release {wanted}, "
-                f"and the release {tag} is {version}"
+                f"and the release {tag} is {version}",
             )
             continue
         elif not wanted.startswith(f"v{release_major}.{release_minor}."):
             problems.append(
                 f"{module.directory}: go.mod requires {wanted}, "
-                f"and the release {tag} is v{release_major}.{release_minor}"
+                f"and the release {tag} is v{release_major}.{release_minor}",
             )
             continue
         problems += check_tag(root, module, wanted)
@@ -155,7 +155,7 @@ def check_tag(root, module, version):
     if not listed:
         return [
             f"{module.directory}: {tag} is not a tag: run sdk-release.yml "
-            f"with the version of the release first"
+            f"with the version of the release first",
         ]
     try:
         tagged = git("rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}", cwd=root).strip()
@@ -165,7 +165,7 @@ def check_tag(root, module, version):
         return [
             f"{module.directory}: the tree of the module in the release differs from "
             f"{tag}: move the version of the module in go.mod, or tag the change "
-            "with sdk-release.yml"
+            "with sdk-release.yml",
         ]
     return []
 
@@ -193,9 +193,7 @@ def planned(tt_tag, root=ROOT):
     for module in modules(root).values():
         current = required(go_mod, module)
         same_minor = (
-            not suffix
-            and current
-            and re.fullmatch(rf"v{major}\.{minor}\.\d+(-.+)?", current)
+            not suffix and current and re.fullmatch(rf"v{major}\.{minor}\.\d+(-.+)?", current)
         )
         if same_minor:
             module_patch = int(re.match(rf"v{major}\.{minor}\.(\d+)", current).group(1))
@@ -252,7 +250,7 @@ def check_modules(tt_tag, root=ROOT):
                 if fields[1] != version:
                     problems.append(
                         f"{path.relative_to(root).as_posix()}: {fields[0]} at {fields[1]}, "
-                        f"the release {tt_tag} gives it {version}"
+                        f"the release {tt_tag} gives it {version}",
                     )
     return problems
 
@@ -281,7 +279,10 @@ def create(tt_tag, push, root=ROOT):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     sub = parser.add_subparsers(dest="check", required=True)
     for name, help_text in (
         ("plan", "the version each module gets with the release of tt"),
@@ -294,7 +295,9 @@ def main(argv=None):
         command_parser.add_argument("tag", help="the release tag of tt, vX.Y.Z")
         if name == "create":
             command_parser.add_argument(
-                "--push", action="store_true", help="push the tags after making them"
+                "--push",
+                action="store_true",
+                help="push the tags after making them",
             )
     args = parser.parse_args(argv)
     if args.check == "plan":
