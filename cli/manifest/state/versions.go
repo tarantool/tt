@@ -11,7 +11,7 @@ import (
 
 	goversion "github.com/hashicorp/go-version"
 
-	ttscope "github.com/tarantool/tt/sdk/scope"
+	ttscope "github.com/tarantool/tt/sdk/v3/scope"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"

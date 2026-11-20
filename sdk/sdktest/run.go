@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/log/logtest"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
 )
 
 // Result is what one run of a command left behind.

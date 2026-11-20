@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/tarantool/go-luarocks/tree"
-	sdkbuild "github.com/tarantool/tt/sdk/build"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
 )
 
 // shownHeadersWarnings are the warnings warnHeaders showed already: a command

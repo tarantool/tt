@@ -59,7 +59,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-prompt"
-	"github.com/tarantool/tt/sdk/formatter"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 )
 
 // historyConsole makes a console whose history holds count commands,

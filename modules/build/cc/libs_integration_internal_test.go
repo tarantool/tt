@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/build/buildtest"
+	"github.com/tarantool/tt/sdk/build/v3/buildtest"
 )
 
 // requireLinux skips the calling test on a host that is not Linux: what it

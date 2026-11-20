@@ -10,9 +10,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/backup/storage"
-	"github.com/tarantool/tt/sdk/backup/storage/fs"
-	"github.com/tarantool/tt/sdk/backup/storage/s3"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/storage/fs"
+	"github.com/tarantool/tt/sdk/backup/v3/storage/s3"
 	"go.yaml.in/yaml/v3"
 )
 

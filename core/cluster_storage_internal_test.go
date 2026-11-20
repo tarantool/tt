@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	etcdtest "github.com/tarantool/go-storage/v2/test_helpers/etcd"
 
-	"github.com/tarantool/tt/sdk"
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	"github.com/tarantool/tt/sdk/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // TestServicesClusterConfigStorage checks the cluster configuration of an

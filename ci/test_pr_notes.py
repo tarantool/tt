@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -13,16 +14,20 @@ from unittest.mock import patch
 
 from ci import pr_notes
 
-# What apidiff -m prints for a module, by the module's directory.
+# What apidiff -m prints for a module, by its module path.
 REPORTS = {
-    "sdk": (
+    "github.com/tarantool/tt/sdk/v3": (
         "Compatible changes:\n"
         "- AddJobsFlag: added\n"
-        "- package github.com/tarantool/tt/sdk/scope: added\n"
+        "- package github.com/tarantool/tt/sdk/v3/scope: added\n"
     ),
-    "sdk/renamed": "",
-    "sdk/same": "",
-    "sdk/tuple": (
+    "github.com/tarantool/tt/sdk/renamed": (
+        "Incompatible changes:\n"
+        "- package github.com/tarantool/tt/sdk/renamed: removed\n"
+        "- package github.com/tarantool/tt/sdk/renamed/v3: added\n"
+    ),
+    "github.com/tarantool/tt/sdk/same/v3": "",
+    "github.com/tarantool/tt/sdk/tuple/v3": (
         "Incompatible changes:\n"
         "- YAMLNode: changed from func(any) *gopkg.in/yaml.v3.Node "
         "to func(any) *go.yaml.in/yaml/v3.Node\n"
@@ -44,7 +49,9 @@ def write_module(tree, directory, module):
 
 class ParseTest(unittest.TestCase):
     def test_incompatible_and_compatible_changes(self):
-        incompatible, compatible = pr_notes.parse_apidiff(REPORTS["sdk/tuple"])
+        incompatible, compatible = pr_notes.parse_apidiff(
+            REPORTS["github.com/tarantool/tt/sdk/tuple/v3"],
+        )
         self.assertEqual(
             incompatible,
             [
@@ -56,8 +63,8 @@ class ParseTest(unittest.TestCase):
 
     def test_compatible_changes_only(self):
         self.assertEqual(
-            pr_notes.parse_apidiff(REPORTS["sdk"]),
-            ([], ["AddJobsFlag: added", "package github.com/tarantool/tt/sdk/scope: added"]),
+            pr_notes.parse_apidiff(REPORTS["github.com/tarantool/tt/sdk/v3"]),
+            ([], ["AddJobsFlag: added", "package github.com/tarantool/tt/sdk/v3/scope: added"]),
         )
         self.assertEqual(pr_notes.parse_apidiff(""), ([], []))
 
@@ -75,19 +82,21 @@ class ApiDiffTest(unittest.TestCase):
         self.trees = {"base-sha": self.root / "base", "head-sha": self.root / "head"}
         base, head = self.trees.values()
         for tree in (base, head):
-            write_module(tree, "sdk", "github.com/tarantool/tt/sdk")
-            write_module(tree, "sdk/tuple", "github.com/tarantool/tt/sdk/tuple")
-            write_module(tree, "sdk/same", "github.com/tarantool/tt/sdk/same")
-            write_module(tree, "sdk/broken", "github.com/tarantool/tt/sdk/broken")
+            write_module(tree, "sdk", "github.com/tarantool/tt/sdk/v3")
+            write_module(tree, "sdk/tuple", "github.com/tarantool/tt/sdk/tuple/v3")
+            write_module(tree, "sdk/same", "github.com/tarantool/tt/sdk/same/v3")
+            write_module(tree, "sdk/broken", "github.com/tarantool/tt/sdk/broken/v3")
             # A fixture of a test, a vendored copy: no modules of the SDK.
             write_module(tree, "sdk/same/testdata/mod", "example.com/fixture")
             write_module(tree, "sdk/same/vendor/example.com/dep", "example.com/dep")
-        write_module(base, "sdk/old", "github.com/tarantool/tt/sdk/old")
-        write_module(head, "sdk/new", "github.com/tarantool/tt/sdk/new")
+        write_module(base, "sdk/old", "github.com/tarantool/tt/sdk/old/v3")
+        write_module(head, "sdk/new", "github.com/tarantool/tt/sdk/new/v3")
         write_module(base, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed")
-        write_module(head, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed/v2")
+        write_module(head, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed/v3")
         self.calls = []
-        self.stderr = "Ignoring internal package github.com/tarantool/tt/sdk/internal/clusteryaml\n"
+        self.stderr = (
+            "Ignoring internal package github.com/tarantool/tt/sdk/v3/internal/clusteryaml\n"
+        )
 
     def apidiff(self, *args, cwd=None, env=None):
         self.calls.append((args, cwd, env))
@@ -95,12 +104,13 @@ class ApiDiffTest(unittest.TestCase):
             side, module = cwd.relative_to(self.root).as_posix().split("/", 1)
             if (side, module) == ("head", "sdk/broken"):
                 return completed(1, stderr="sdk/broken/broken.go:3:1: undefined: missing\n")
-            Path(args[3]).write_text(module)
+            # The export names itself by the module it found, the one of the
+            # tree the pattern matched, so that a renamed path compares.
+            found = re.search(r"^module\s+(\S+)", (cwd / "go.mod").read_text(), re.MULTILINE)
+            Path(args[3]).write_text(found.group(1))
             return completed()
         self.assertEqual(args[:2], ("apidiff", "-m"))
-        module = Path(args[2]).read_text()
-        self.assertEqual(Path(args[3]).read_text(), module)
-        return completed(stdout=REPORTS[module], stderr=self.stderr)
+        return completed(stdout=REPORTS.get(Path(args[2]).read_text()), stderr=self.stderr)
 
     def api_diff(self, changed="sdk/tuple/tuple.go"):
         def checkout(commit, _path):
@@ -148,12 +158,13 @@ class ApiDiffTest(unittest.TestCase):
         self.assertEqual(diffs["sdk/tuple"].compatible, ["AppendLua: added"])
         self.assertTrue(diffs["sdk/old"].breaking)
         self.assertFalse(diffs["sdk/new"].breaking)
+        self.assertEqual(diffs["sdk/same"].state, "same")
+        # The module path moved in front of the last name segment, and the
+        # packages moved with it: reported first, before what apidiff told.
         self.assertEqual(
-            diffs["sdk/renamed"].incompatible,
-            [
-                "module path: changed from github.com/tarantool/tt/sdk/renamed "
-                "to github.com/tarantool/tt/sdk/renamed/v2",
-            ],
+            diffs["sdk/renamed"].incompatible[0],
+            "module path: changed from github.com/tarantool/tt/sdk/renamed "
+            "to github.com/tarantool/tt/sdk/renamed/v3",
         )
         self.assertIn("Exporting the API of the head", diffs["sdk/broken"].error)
         self.assertIn("undefined: missing", diffs["sdk/broken"].error)
@@ -181,6 +192,34 @@ BREAKING = [
     module("sdk/old", "removed"),
 ]
 COMPATIBLE = [module("sdk/dial", "changed", compatible=["ParseAuth: added"])]
+
+# The modules gain the major version in their paths, and nothing else changes.
+PATHS_ONLY = [
+    module("sdk/backup", "same"),
+    module("sdk/dial", "same"),
+    module(
+        "sdk/connect",
+        "changed",
+        [
+            "module path: changed from github.com/tarantool/tt/sdk/connect "
+            "to github.com/tarantool/tt/sdk/connect/v3",
+        ],
+        ["ErrNoCredentials: added"],
+    ),
+]
+
+# The same, and an API change of one module besides.
+PATHS_AND_BREAK = [
+    *PATHS_ONLY,
+    module("sdk/tuple", "changed", ["YAMLNode: changed from <a> to <b>"]),
+]
+
+
+def renamed(name, before, after):
+    """A line of apidiff: the module path in a name, and the module path of it."""
+    return f"{name}: changed from {before} to {after}"
+
+
 FAILED = [
     *BREAKING,
     module("sdk/broken", "failed", error="Exporting the API of the head:\nundefined: x"),
@@ -314,6 +353,7 @@ class Harness(unittest.TestCase):
         with (
             patch.object(sys, "argv", ["pr_notes.py", "api", *argv]),
             patch.object(pr_notes, "git", side_effect=self.git),
+            patch.object(pr_notes, "commit", side_effect=lambda revision: revision + "-sha"),
             patch.object(pr_notes, "api_diff", side_effect=api_diff),
             contextlib.redirect_stdout(output),
         ):
@@ -340,6 +380,49 @@ class PullRequestTest(Harness):
         self.assertEqual(code, 0)
         self.assertIn("incompatible changes, allowed by the sdk-breaking label", output)
         self.assertIn("YAMLNode", self.summary.read_text())
+
+    def test_the_paths_label_lets_the_new_paths_through(self):
+        code, output = self.pull_request(PATHS_ONLY, ["sdk-paths"])
+        self.assertEqual(code, 0)
+        # What the paths alone account for is gone, and the report says what
+        # is left: the compatible changes, and no path.
+        self.assertIn("compatible changes only", output)
+        self.assertIn("ErrNoCredentials: added", output)
+        self.assertNotIn("module path: changed", output)
+
+    def test_a_rename_of_a_named_module_path_resolves(self):
+        rename = module(
+            "sdk",
+            "changed",
+            [
+                "ManifestBuild.Decode: changed from func("
+                "github.com/tarantool/tt/sdk/build.Backend) (any, error) to func("
+                "github.com/tarantool/tt/sdk/build/v3.Backend) (any, error)",
+                "./console.Format.Mode: changed from github.com/tarantool/tt/sdk/formatter.Format "
+                "to github.com/tarantool/tt/sdk/v3/formatter.Format",
+                "package github.com/tarantool/tt/sdk/v3/scope: added",
+            ],
+        )
+        self.assertEqual(self.pull_request([rename], ["sdk-paths"])[0], 0)
+
+    def test_a_break_of_a_named_path_does_not(self):
+        broken = module(
+            "sdk/tuple",
+            "changed",
+            [
+                "AppendLua: changed from func(string) (string, error) to "
+                "func(string, int) (string, error)",
+            ],
+        )
+        self.assertEqual(self.pull_request([broken], ["sdk-paths"])[0], 1)
+
+    def test_the_paths_label_covers_nothing_else(self):
+        code, output = self.pull_request(PATHS_AND_BREAK, ["sdk-paths"])
+        self.assertEqual(code, 1)
+        self.assertIn("YAMLNode", output)
+
+    def test_the_paths_label_does_not_excuse_a_removed_module(self):
+        self.assertEqual(self.pull_request(BREAKING, ["sdk-paths"])[0], 1)
 
     def test_compatible_changes_need_no_label(self):
         for diffs in [COMPATIBLE, None]:

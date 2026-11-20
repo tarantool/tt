@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/sdk/log/logtest"
+	"github.com/tarantool/tt/sdk/v3/log"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
 )
 
 // statusLog is what a statusRecorder and the handlers derived from it saw.

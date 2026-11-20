@@ -12,8 +12,8 @@ import (
 
 	"github.com/tarantool/tt/modules/emmylua"
 	"github.com/tarantool/tt/modules/emmylua/internal/analyzer"
-	"github.com/tarantool/tt/sdk/fetch"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/fetch/v3"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // userCache gives the test a user cache of its own and returns the cache of

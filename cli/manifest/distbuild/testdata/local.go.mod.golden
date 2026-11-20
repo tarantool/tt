@@ -11,6 +11,6 @@ require (
 
 replace (
 	github.com/tarantool/tt/modules/aeon => "/work/aeon dev"
-	github.com/tarantool/tt/sdk => /src/tt/sdk
+	github.com/tarantool/tt/sdk/v3 => /src/tt/sdk
 	github.com/tarantool/tt/v3 => /src/tt
 )

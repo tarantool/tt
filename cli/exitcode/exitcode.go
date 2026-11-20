@@ -16,8 +16,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // Code returns the process exit code tt ends with for err, whichever command

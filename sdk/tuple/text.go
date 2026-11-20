@@ -12,7 +12,7 @@ import (
 )
 
 // Spellings of the floats that have no number in JSON, as
-// github.com/tarantool/tt/sdk/output writes them.
+// github.com/tarantool/tt/sdk/v3/output writes them.
 const (
 	textNaN    = "NaN"
 	textInf    = "Infinity"

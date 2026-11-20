@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	gsconnect "github.com/tarantool/go-storage/v2/connect"
 	etcdtest "github.com/tarantool/go-storage/v2/test_helpers/etcd"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 )

@@ -21,7 +21,7 @@ import (
 	"github.com/tarantool/go-xlog/reader"
 	"github.com/tarantool/go-xlog/writer"
 
-	"github.com/tarantool/tt/sdk/backup/archive"
+	"github.com/tarantool/tt/sdk/backup/v3/archive"
 	"github.com/tarantool/tt/v3/cli/backup"
 )
 

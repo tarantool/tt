@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 	terminal "golang.org/x/term"
 
 	"github.com/tarantool/go-prompt"
-	"github.com/tarantool/tt/sdk/formatter"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/exitcode"

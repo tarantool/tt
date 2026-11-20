@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/sdk/log/logtest"
+	"github.com/tarantool/tt/sdk/v3/log"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
 )
 
 func TestLibraryDemotesInfo(t *testing.T) {

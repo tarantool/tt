@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/modules/emmylua"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // isolateGit keeps the configuration of the user and of the system from the

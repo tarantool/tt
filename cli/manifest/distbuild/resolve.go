@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 

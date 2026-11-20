@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/tarantool/tt/sdk/bundle"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3/bundle"
+	"github.com/tarantool/tt/sdk/v3/output"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/printing"
 	"github.com/tarantool/tt/v3/cli/util"

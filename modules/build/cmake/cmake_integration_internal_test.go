@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/build/buildtest"
+	"github.com/tarantool/tt/sdk/build/v3/buildtest"
 )
 
 // minTarantoolMajor is the lowest Tarantool major version tt v3 supports.

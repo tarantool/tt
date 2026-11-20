@@ -16,7 +16,7 @@ import (
 	"github.com/tarantool/go-luarocks/rockspec"
 	"github.com/tarantool/go-luarocks/tree"
 
-	"github.com/tarantool/tt/sdk/execfile"
+	"github.com/tarantool/tt/sdk/v3/execfile"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 

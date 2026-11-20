@@ -7,7 +7,7 @@
 // and [IsCredentialsURI] tell the forms apart, [ParseCredentialsURI] takes
 // the credentials out of a URI, [SplitURIQuery] splits the query off and
 // [ParseBaseURI] returns the network and the address, which a dialer of
-// [github.com/tarantool/tt/sdk/dial] takes as network://address.
+// [github.com/tarantool/tt/sdk/dial/v3] takes as network://address.
 //
 // A URL of an etcd or a Tarantool config storage has a scheme and a host,
 // such as https://user:pass@host:2379/prefix?timeout=5: [CreateURIOpts]

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/tarantool/tt/sdk/backup/archive"
+	"github.com/tarantool/tt/sdk/backup/v3/archive"
 )
 
 // sortDataExt is the memtx sort data Tarantool writes beside a snapshot of the

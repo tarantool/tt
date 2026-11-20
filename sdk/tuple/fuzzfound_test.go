@@ -13,7 +13,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/decimal"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // The bugs the fuzz targets found, each pinned by its input.

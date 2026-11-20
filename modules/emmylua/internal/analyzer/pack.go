@@ -7,7 +7,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/remote"
 
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/fetch/v3"
 )
 
 // PackOptions configure PackRocks.

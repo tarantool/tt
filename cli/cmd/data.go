@@ -12,10 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/dial"
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/dial/v3"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
+	"github.com/tarantool/tt/sdk/v3/output"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/data"

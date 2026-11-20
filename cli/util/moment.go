@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // MomentForms lists the forms ParseMoment accepts, an example of each, for

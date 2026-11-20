@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tail"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 var (

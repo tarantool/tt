@@ -9,7 +9,7 @@ import (
 
 	goVersion "github.com/hashicorp/go-version"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 const (

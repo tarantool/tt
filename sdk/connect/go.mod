@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/sdk/connect
+module github.com/tarantool/tt/sdk/connect/v3
 
 go 1.27.0
 

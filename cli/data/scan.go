@@ -10,7 +10,7 @@ import (
 	"github.com/tarantool/go-xlog/format"
 	"github.com/tarantool/go-xlog/reader"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // Row is a row of a journal file, with the body of a data change decoded.

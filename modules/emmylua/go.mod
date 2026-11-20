@@ -7,8 +7,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-luarocks v0.1.1-0.20261117141140-0ccca9142639
-	github.com/tarantool/tt/sdk v0.0.0-0
-	github.com/tarantool/tt/sdk/fetch v0.0.0-0
+	github.com/tarantool/tt/sdk/fetch/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/v3 v3.0.0-rc.1
 	golang.org/x/term v0.47.0
 )
 
@@ -40,8 +40,8 @@ require (
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect
 	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c // indirect
-	github.com/tarantool/tt/sdk/build v0.0.0-0 // indirect
-	github.com/tarantool/tt/sdk/connect v0.0.0-0 // indirect
+	github.com/tarantool/tt/sdk/build/v3 v3.0.0-rc.1 // indirect
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0-rc.1 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
@@ -55,8 +55,8 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/sdk => ../../sdk
-	github.com/tarantool/tt/sdk/build => ../../sdk/build
-	github.com/tarantool/tt/sdk/connect => ../../sdk/connect
-	github.com/tarantool/tt/sdk/fetch => ../../sdk/fetch
+	github.com/tarantool/tt/sdk/build/v3 => ../../sdk/build
+	github.com/tarantool/tt/sdk/connect/v3 => ../../sdk/connect
+	github.com/tarantool/tt/sdk/fetch/v3 => ../../sdk/fetch
+	github.com/tarantool/tt/sdk/v3 => ../../sdk
 )

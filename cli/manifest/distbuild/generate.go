@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -28,7 +28,7 @@ const zeroTime = "00010101000000-000000000000"
 
 // integrityPackage is the package of the integrity providers, in the
 // repository of tt's own core.
-const integrityPackage = "github.com/tarantool/tt/sdk/integrity"
+const integrityPackage = "github.com/tarantool/tt/sdk/integrity/v3"
 
 // majorSuffixRe matches the major version suffix of a module path.
 var majorSuffixRe = regexp.MustCompile(`/v([2-9]|[1-9][0-9]+)$`)

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
 )
 
 var (

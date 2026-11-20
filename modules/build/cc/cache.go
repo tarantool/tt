@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // This file is the cache of a build: an object, and the module, are made

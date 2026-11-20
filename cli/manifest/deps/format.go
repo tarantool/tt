@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"text/tabwriter"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // tabColumnPadding is the gap between table columns.
