@@ -34,6 +34,10 @@ class Tree:
 
     def __init__(self, temporary, modules=None):
         self.root = Path(temporary)
+        # A runner has no git identity, and a commit or a tag needs one.
+        self.identity = [
+            "-c", "user.name=tt", "-c", "user.email=tt@example.com",
+        ]
         self.modules = dict(SDK if modules is None else modules)
         (self.root / "go.mod").write_text(
             "module github.com/tarantool/tt/v3\n\ngo 1.27.4\n\nrequire (\n"
@@ -65,7 +69,7 @@ class Tree:
 
     def git(self, *args, cwd=None):
         result = subprocess.run(
-            ("git", *args),
+            ("git", *self.identity, *args),
             cwd=cwd or self.root,
             capture_output=True,
             text=True,
