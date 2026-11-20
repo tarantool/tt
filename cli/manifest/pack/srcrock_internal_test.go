@@ -275,7 +275,7 @@ include = ['init.lua']
 
 	share := filepath.Join(consumer, rocksDirName, "share", "tarantool")
 	assert.FileExists(t, filepath.Join(share, "mylib", "init.lua"))
-	assert.FileExists(t, filepath.Join(share, "mylib", "version.lua"))
+	assert.FileExists(t, filepath.Join(share, "mylib", "_version.lua"))
 	assert.FileExists(t, filepath.Join(share, "roles", "mylib.lua"))
 	assert.DirExists(t, filepath.Join(share, "rocks", "mylib", "1.2.0-2"))
 

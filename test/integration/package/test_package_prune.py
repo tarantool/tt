@@ -103,7 +103,7 @@ def test_build_prunes_a_removed_dependency(tt_cmd, tmp_path):
     assert '"stat"' not in tree_manifest(project) and "stat =" not in tree_manifest(project)
     # The build's own rock is the project's, not the lock's.
     assert (share(project) / "my-app" / "init.lua").exists()
-    assert (share(project) / "my-app" / "version.lua").exists()
+    assert (share(project) / "my-app" / "_version.lua").exists()
 
     # Once pruned, there is nothing left to report.
     again = tt_ok(tt_cmd, project, "package", "build", "--registry", str(ROCKS_REPO))

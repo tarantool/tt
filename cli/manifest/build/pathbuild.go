@@ -38,7 +38,7 @@ type manifestBuilder interface {
 // pathManifests builds the path dependencies of a closure that hold a
 // manifest with the steps tt package build runs on a package of its own: the
 // backends of the components of the default product, their layout and
-// version.lua. Then it installs the stage as the rock of the dependency's
+// _version.lua. Then it installs the stage as the rock of the dependency's
 // package, at the version the lock pins, into the consumer's tree.
 //
 // What the build writes goes into the consumer's _build/path/<name>/ - the
@@ -171,7 +171,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 			strings.Join(slices.Sorted(maps.Keys(man.Hooks)), ", "), build.what)})
 	}
 
-	// Not a top-level build: the rock of a dependency carries no rocks.lua.
+	// Not a top-level build: the rock of a dependency carries no _rocks.lua.
 	proj := project{
 		dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product,
 		pinned: p.pinned, topLevel: false, closure: nil, fromServer: build.fromServer,

@@ -107,13 +107,13 @@ func TestRun_fullBuild(t *testing.T) {
 	tree := filepath.Join(dir, ".rocks")
 	assert.True(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/init.lua")))
 	assert.True(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/lib/foo.lua")))
-	assert.True(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/version.lua")))
+	assert.True(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/_version.lua")))
 	// Default namespace places the native artifact under my-app.
 	assert.True(t, exists(t, filepath.Join(tree, "lib/tarantool/my-app/fast_hash.so")))
 	// The lock was written.
 	assert.True(t, exists(t, filepath.Join(dir, lockFileName)))
 
-	vluaPath := filepath.Join(tree, "share/tarantool/my-app/version.lua")
+	vluaPath := filepath.Join(tree, "share/tarantool/my-app/_version.lua")
 	data, err := os.ReadFile(vluaPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `version  = "1.2.3"`)
@@ -170,10 +170,10 @@ func TestRun_packageRockFollowsTheVersion(t *testing.T) {
 	t.Parallel()
 
 	dir := setupProject(t, baseManifest, map[string]string{
-		"init.lua":                                  "-- init",
-		"native/x.txt":                              "x",
-		".rocks/share/tarantool/my-app/init.lua":    "-- laid out by an older tt",
-		".rocks/share/tarantool/my-app/version.lua": "-- laid out by an older tt",
+		"init.lua":                               "-- init",
+		"native/x.txt":                           "x",
+		".rocks/share/tarantool/my-app/init.lua": "-- laid out by an older tt",
+		".rocks/share/tarantool/my-app/_version.lua": "-- laid out by an older tt",
 	})
 
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
@@ -352,15 +352,62 @@ func TestRun_versionLuaCollision(t *testing.T) {
 
 	dir := setupProject(t, baseManifest, map[string]string{
 		"init.lua":           "-- init",
-		"version.lua":        "-- shipped by the component",
+		"_version.lua":       "-- shipped by the component",
 		"native/fast_hash.c": "int x;",
 	})
 
-	// The lua component (include *.lua) lays version.lua into the package
+	// The lua component (include *.lua) lays _version.lua into the package
 	// namespace, colliding with the generated one.
 	err := Run(context.Background(), dryOptions(dir))
-	require.Error(t, err)
+	require.ErrorIs(t, err, errGeneratedCollision)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Contains(t, err.Error(), "component ships _version.lua")
+}
+
+// TestRun_ownVersionAndRocksLua pins that the plain names are the package's:
+// a component shipping a version.lua and a rocks.lua of its own builds, the
+// two are laid out as the component's, and the generated _version.lua and
+// _rocks.lua sit beside them.
+func TestRun_ownVersionAndRocksLua(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, baseManifest, map[string]string{
+		"init.lua":           "-- init",
+		"version.lua":        "-- the version module of the component",
+		"rocks.lua":          "-- the rocks module of the component",
+		"native/fast_hash.c": "int x;",
+	})
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+
+	share := filepath.Join(dir, ".rocks", "share/tarantool/my-app")
+
+	for name, want := range map[string]string{
+		"version.lua": "-- the version module of the component",
+		"rocks.lua":   "-- the rocks module of the component",
+	} {
+		data, err := os.ReadFile(filepath.Join(share, name))
+		require.NoError(t, err)
+		assert.Equal(t, want, string(data), name)
+	}
+
+	vlua, err := os.ReadFile(filepath.Join(share, "_version.lua"))
+	require.NoError(t, err)
+	assert.Contains(t, string(vlua), `version  = "1.2.3"`)
+	assert.Contains(t, readRocksLua(t, dir), `product = "default"`)
+
+	// The four are files of the package's rock.
+	view, err := lrtree.Inspect(t.Context(), filepath.Join(dir, ".rocks"))
+	require.NoError(t, err)
+
+	ref, ok := view.Installed("my-app", "1.2.3-1")
+	require.True(t, ok)
+
+	for _, name := range []string{"version.lua", "rocks.lua", "_version.lua", "_rocks.lua"} {
+		owner, _, ok := view.Owner("share/tarantool/my-app/" + name)
+		require.True(t, ok, name)
+		assert.Equal(t, ref, owner, name)
+	}
 }
 
 func TestRun_generateVersionLuaDisabled(t *testing.T) {
@@ -391,7 +438,7 @@ default = true
 
 	tree := filepath.Join(dir, ".rocks")
 	assert.True(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/init.lua")))
-	assert.False(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/version.lua")))
+	assert.False(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/_version.lua")))
 }
 
 func TestRun_preBuildGeneratedFileIncluded(t *testing.T) {
@@ -480,13 +527,13 @@ func TestRun_fetchMaterializesWithoutBackends(t *testing.T) {
 
 	tree := filepath.Join(dir, ".rocks")
 	soPath := filepath.Join(tree, "lib/tarantool/my-app/fast_hash.so")
-	vlua := filepath.Join(tree, "share/tarantool/my-app/version.lua")
+	vlua := filepath.Join(tree, "share/tarantool/my-app/_version.lua")
 
 	require.NoError(t, os.Remove(soPath))
 	require.NoError(t, os.Remove(vlua))
 
 	// Fetch runs materialization only; with no deps it neither rebuilds the
-	// native artifact nor regenerates version.lua.
+	// native artifact nor regenerates _version.lua.
 	opts := dryOptions(dir)
 
 	opts.FetchOnly = true

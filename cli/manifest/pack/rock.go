@@ -211,7 +211,7 @@ type rockResult struct {
 // manifests and the tt-rocks-index.json (rockindex.MakeServer).
 //
 // The rock is the stage of the product the build laid out, the rock the build
-// installed into .rocks/, but for other projects: it leaves rocks.lua out,
+// installed into .rocks/, but for other projects: it leaves _rocks.lua out,
 // the rocks being theirs to resolve, and its rockspec declares the ranges of
 // the manifest, as rock, which declareRock made before the build, has them.
 // It is the binary rock of the platform the build was for - the host, or the
@@ -300,7 +300,7 @@ func componentPaths(man *manifest.Manifest, product string) []string {
 // packBinaryRock packs the stage of built as the rock of spec into dir and
 // returns its path: the binary rock of the platform the build was for, or
 // the .all rock (rockArch), with the license files of the package in its
-// doc/ and without the rocks.lua of the stage, if the build generated one
+// doc/ and without the _rocks.lua of the stage, if the build generated one
 // (rockFiles), and its native files without their debug information when
 // the pack strips it (strippedStage).
 func packBinaryRock(ctx context.Context,
@@ -313,7 +313,7 @@ func packBinaryRock(ctx context.Context,
 		return "", err
 	}
 
-	// rocks.lua is left out by its path in the stage, as strippedStage copies
+	// _rocks.lua is left out by its path in the stage, as strippedStage copies
 	// the stage elsewhere.
 	leaveOut := ""
 	if rocksLua != "" {
@@ -395,7 +395,7 @@ func packBinaryRock(ctx context.Context,
 // those of the rocks LuaRocks builds.
 //
 // The rock leaves out leaveOut, a file of the stage by its path relative to
-// the stage, if not empty: rocks.lua (build.Result.RocksLua), the rocks the
+// the stage, if not empty: _rocks.lua (build.Result.RocksLua), the rocks the
 // application was built with, which describe no project installing the rock -
 // such a project resolves its own.
 //

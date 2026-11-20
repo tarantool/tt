@@ -7,7 +7,7 @@
 // The cycle, in order: derive the version, run pre_build, gate the
 // lock (resolve and rewrite unless --locked), materialize the pinned closure
 // into .rocks/, run each component's build backend, lay the component files out
-// under their install namespace, generate version.lua, install the package as
+// under their install namespace, generate _version.lua, install the package as
 // a rock of .rocks/, then run post_build. What a backend makes is typed by
 // where it goes - modules to lib/, data files to share/, programs to bin/ -
 // and one component may make all three; what it made is checked and recorded
@@ -86,7 +86,7 @@ type Options struct {
 	// re-resolved and rewritten. Ignored by fetch.
 	Locked bool
 	// FetchOnly runs tt package fetch: materialize .rocks/ from the lock only,
-	// skipping hooks, resolution, component backends, layout and version.lua.
+	// skipping hooks, resolution, component backends, layout and _version.lua.
 	FetchOnly bool
 	// TtVersion is the "tt x.y.z" string stamped into a freshly written lock's
 	// generated_by field.
@@ -122,7 +122,7 @@ type Options struct {
 	// and so are the path dependencies and the source rocks: they are what
 	// the builds run on the machine.
 	Target native.Platform
-	// Now stamps version.lua's built_at; the zero value uses the wall clock.
+	// Now stamps _version.lua's built_at; the zero value uses the wall clock.
 	Now time.Time
 	// Logger receives the adapter's structured operation logs; nil disables it.
 	Logger *slog.Logger
@@ -185,8 +185,8 @@ func (o Options) backends() *buildreg.Registry {
 	return o.Backends
 }
 
-// builtAt returns the version.lua timestamp: Options.Now, or the wall clock when
-// unset.
+// builtAt returns the _version.lua timestamp: Options.Now, or the wall clock
+// when unset.
 func (o Options) builtAt() time.Time {
 	if o.Now.IsZero() {
 		return time.Now()
@@ -224,7 +224,7 @@ type Result struct {
 	// package was installed from. A fetch run lays out nothing and reports
 	// none.
 	Stage string
-	// RocksLua is the absolute path of rocks.lua in Stage, the rocks the
+	// RocksLua is the absolute path of _rocks.lua in Stage, the rocks the
 	// application was built with; empty when the build generated none. The
 	// rock tt package pack releases leaves it out: a project installing the
 	// rock resolves rocks of its own.
@@ -256,7 +256,7 @@ type Built struct {
 
 // Run executes the build (or fetch) described by opts, discarding the result.
 // It returns an *sdk.ExitError for the failures that carry a dedicated exit
-// code (stale --locked, version.lua collision, backend failure) and a plain
+// code (stale --locked, _version.lua collision, backend failure) and a plain
 // error otherwise; cli/exitcode maps either to a process exit code.
 func Run(ctx context.Context, opts Options) error {
 	_, err := RunResult(ctx, opts)
@@ -611,7 +611,7 @@ func runBuild(
 	}
 
 	proj.pinned = pinnedClosure(prod.Dependencies, lock.DevDependencies)
-	// rocks.lua of the package lists the closure the lock pins for the
+	// _rocks.lua of the package lists the closure the lock pins for the
 	// product built, without the dev closure pinned holds too.
 	proj.closure = prod.Dependencies
 
@@ -684,10 +684,10 @@ type project struct {
 	pinned manifest.LockProduct
 	// topLevel marks the build of the package itself (packageProject), as
 	// against that of a path dependency or a source rock with a manifest:
-	// only it writes rocks.lua, the closure of a dependency being the
+	// only it writes _rocks.lua, the closure of a dependency being the
 	// consumer's to report.
 	topLevel bool
-	// closure is the closure of product as the lock pins it, which rocks.lua
+	// closure is the closure of product as the lock pins it, which _rocks.lua
 	// of a top-level build lists; runBuild sets it once the lock is gated.
 	closure []manifest.LockDependency
 	// fromServer is set for the source rock of a rock server, unpacked: its
@@ -754,13 +754,13 @@ func targetProject(opts Options, man *manifest.Manifest, product string) (projec
 	return proj, filepath.Join(proj.stateDir, stageDirName, product)
 }
 
-// rocksLua reports whether a build of proj generates rocks.lua: a top-level
+// rocksLua reports whether a build of proj generates _rocks.lua: a top-level
 // build of a package that does not set generate_rocks_lua = false.
 func (proj project) rocksLua() bool {
 	return proj.topLevel && proj.man.Package.GenerateRocksLuaValue()
 }
 
-// versionLuaNamespace is the namespace version.lua of a build of proj goes
+// versionLuaNamespace is the namespace _version.lua of a build of proj goes
 // under: the package name, but for a product released as a rock of another
 // name, whose rock is to own no file of the rock of the package.
 func (proj project) versionLuaNamespace() string {
@@ -773,8 +773,8 @@ func (proj project) versionLuaNamespace() string {
 
 // buildComponents runs the component steps of a build of proj into stage:
 // the backends of components (runBackends), their layout (layoutComponents),
-// the file checks of the modules (checkFiles), version.lua and, for a
-// top-level build, rocks.lua. Then it removes from the stage what no
+// the file checks of the modules (checkFiles), _version.lua and, for a
+// top-level build, _rocks.lua. Then it removes from the stage what no
 // component put there (settleStage). It returns what the components built
 // (componentBuilds), from the record runBackends returns.
 func buildComponents(
@@ -896,7 +896,7 @@ func (b componentBuilds) installed(proj project, tree string) map[string]Built {
 
 // layoutComponents lays every selected component out under its namespace in
 // the package's stage and returns the destination paths each one wrote, for
-// the version.lua collision check and the record of the stage. A component
+// the _version.lua collision check and the record of the stage. A component
 // whose sources are no files of the package has nothing to lay out but what
 // its include names, and one of kind = "executable" nothing at all
 // (sourceLayout): the default include would otherwise copy the Lua of, say,

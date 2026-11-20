@@ -77,7 +77,7 @@ func TestPackInstallRoundtrip(t *testing.T) {
 	assert.FileExists(t,
 		filepath.Join(deploy, ".rocks", "share", "tarantool", "round-app", "init.lua"))
 	assert.FileExists(t,
-		filepath.Join(deploy, ".rocks", "share", "tarantool", "round-app", "version.lua"))
+		filepath.Join(deploy, ".rocks", "share", "tarantool", "round-app", "_version.lua"))
 
 	// Metadata lands under manifests/ for list/uninstall.
 	metaDir := filepath.Join(deploy, ".rocks", "manifests", "round-app")

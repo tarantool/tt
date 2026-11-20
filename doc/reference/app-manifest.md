@@ -64,8 +64,8 @@ major version is refused.
 | `authors` | no | |
 | `repository` | no | |
 | `include` | no | files of the project put at the root of the archive |
-| `generate_version_lua` | no | `false` leaves `version.lua` out of the build; `true` by default |
-| `generate_rocks_lua` | no | `false` leaves `rocks.lua`, the rocks the package was built with, out of the build; `true` by default, whatever `generate_version_lua` says |
+| `generate_version_lua` | no | `false` leaves `_version.lua`, `require('<name>._version')`, out of the build; `true` by default |
+| `generate_rocks_lua` | no | `false` leaves `_rocks.lua`, `require('<name>._rocks')`, the rocks the package was built with, out of the build; `true` by default, whatever `generate_version_lua` says |
 
 ## `[platform]`
 
@@ -115,7 +115,7 @@ A `path` dependency is built from its directory, by what the directory holds:
 
 - `app.manifest.toml`: the directory is a project of its own, and tt builds
   it the way `tt package build` builds a package - the components of its
-  default product, their layout and `version.lua` - and installs it into
+  default product, their layout and `_version.lua` - and installs it into
   `.rocks/` as the rock of its package, with its `license_files` in `doc/`
   of the rock, as its binary rock has them; one that is not there is a
   warning. The dependency is named after that
@@ -364,9 +364,10 @@ return M
 $ cd shop
 $ tt package build
 $ find .rocks/share/tarantool/shop -type f | sort
+.rocks/share/tarantool/shop/_rocks.lua
+.rocks/share/tarantool/shop/_version.lua
 .rocks/share/tarantool/shop/init.lua
 .rocks/share/tarantool/shop/rates.json
-.rocks/share/tarantool/shop/version.lua
 $ tt run -e "print(require('shop').rates().usd) os.exit()"
 90
 ```
@@ -1068,8 +1069,8 @@ component.
 A package of several rocks, a module and its tools say, gives each product
 other projects depend on a `rock` of its own. Two products released as two
 rocks share no component, since a tree installing both would hold their
-files twice, and a product's `version.lua` goes under the name of its rock,
-`<rock>/version.lua`, rather than of the package. `tt package pack --format
+files twice, and a product's `_version.lua` goes under the name of its rock,
+`<rock>/_version.lua`, rather than of the package. `tt package pack --format
 rock --product NAME` packs a product as its rock; a product with no rock
 cannot be. A path dependency is a product of the package in its directory:
 the default one by the package name, another by its rock.

@@ -34,8 +34,8 @@ func git(t *testing.T, dir string, args ...string) {
 }
 
 // TestBuildTimeIsDeterministic is the reproducibility guarantee at its source.
-// version.lua embeds built_at, so a wall-clock stamp makes the same commit pack
-// to a different archive every time and the checksum meaningless.
+// _version.lua embeds built_at, so a wall-clock stamp makes the same commit
+// pack to a different archive every time and the checksum meaningless.
 func TestBuildTimeIsDeterministic(t *testing.T) {
 	dir := gitRepo(t)
 

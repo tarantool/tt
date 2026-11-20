@@ -88,7 +88,7 @@ default = true
 }
 
 // testTree installs into the project's .rocks tree the package's rock -
-// its components, version.lua and the programs of its executable components -
+// its components, _version.lua and the programs of its executable components -
 // and two dependencies, one with a console script.
 func testTree(t *testing.T, projectDir string) string {
 	t.Helper()
@@ -96,10 +96,10 @@ func testTree(t *testing.T, projectDir string) string {
 	tree := filepath.Join(projectDir, ".rocks")
 	treetest.Install(t, tree,
 		treetest.Rock{Name: "my-app", Version: "1.0.0", Files: map[string]string{
-			"lua/my-app/init.lua":    "return 1",
-			"lua/my-app/version.lua": "return {}",
-			"lib/my-app/fast.so":     "native",
-			"bin/gw":                 "own program",
+			"lua/my-app/init.lua":     "return 1",
+			"lua/my-app/_version.lua": "return {}",
+			"lib/my-app/fast.so":      "native",
+			"bin/gw":                  "own program",
 		}},
 		treetest.Rock{Name: "inspect", Version: "3.1.3", Files: map[string]string{
 			"lua/inspect/init.lua": "dependency",
@@ -168,8 +168,8 @@ func TestStageWithDeps(t *testing.T) {
 		".rocks/lib/tarantool/cjson/cjson.so",
 		".rocks/lib/tarantool/my-app/fast.so",
 		".rocks/share/tarantool/inspect/init.lua",
+		".rocks/share/tarantool/my-app/_version.lua",
 		".rocks/share/tarantool/my-app/init.lua",
-		".rocks/share/tarantool/my-app/version.lua",
 	}, deployed(names))
 
 	for _, name := range []string{
@@ -219,8 +219,8 @@ func TestStageWithoutDeps(t *testing.T) {
 	assert.Equal(t, []string{
 		".rocks/bin/gw",
 		".rocks/lib/tarantool/my-app/fast.so",
+		".rocks/share/tarantool/my-app/_version.lua",
 		".rocks/share/tarantool/my-app/init.lua",
-		".rocks/share/tarantool/my-app/version.lua",
 	}, deployed(names))
 	assert.NotContains(t, names, ".rocks/share/tarantool/rocks/inspect/3.1.3-1/rock_manifest")
 	checkArchiveTree(t, stageDir)

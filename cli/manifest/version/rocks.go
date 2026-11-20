@@ -22,7 +22,7 @@ var luaKeywords = []string{
 	"while",
 }
 
-// RocksLua is what rocks.lua describes: the package that was built, the
+// RocksLua is what _rocks.lua describes: the package that was built, the
 // product of it and the closure of that product.
 type RocksLua struct {
 	// Package is the name of the package.
@@ -37,12 +37,12 @@ type RocksLua struct {
 	Rocks []manifest.LockDependency
 }
 
-// GenerateRocksLua renders the rocks.lua descriptor of desc: a Lua module
+// GenerateRocksLua renders the _rocks.lua descriptor of desc: a Lua module
 // returning a table of the package, the product and every rock of the closure
 // by name, with the version and the source the lock records for it. The rocks
 // are sorted by name and nothing in it depends on the time of the build, so
 // the same lock and version render the same text. The build drops the result
-// at .rocks/share/tarantool/<package>/rocks.lua beside version.lua; this
+// at .rocks/share/tarantool/<package>/_rocks.lua beside _version.lua; this
 // function only produces the text.
 //
 // Generation is on by default and disabled per package via

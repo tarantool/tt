@@ -279,7 +279,7 @@ func runBuild(
 		buildOpts.Warn = opts.Warn
 	}
 
-	// Pin version.lua's built_at, without which the same commit packs to a
+	// Pin _version.lua's built_at, without which the same commit packs to a
 	// different archive every time. A caller that set Now explicitly keeps it.
 	if buildOpts.Now.IsZero() {
 		buildOpts.Now = buildTime(ctx, opts.ProjectDir)

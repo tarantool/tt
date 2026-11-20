@@ -1109,7 +1109,7 @@ func newPackageBuildCmd() *cobra.Command {
 		Use:   "build [COMPONENT]",
 		Short: "Build a manifest package into .rocks/",
 		Long: "Resolve dependencies, materialize .rocks/, run component build " +
-			"backends and generate version.lua. With no argument every component " +
+			"backends and generate _version.lua. With no argument every component " +
 			"of the product is built; a component name narrows the build to one.\n\n" +
 			"A make or shell component with incremental = true is built only when its " +
 			"inputs changed since its last build - its build block and its files, but " +

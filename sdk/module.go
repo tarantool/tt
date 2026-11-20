@@ -293,7 +293,7 @@ type Project interface {
 	// the code of tt package build and as it builds them: the preflight,
 	// pre_build, the lock gated - resolved when stale, an error under
 	// opts.Locked - .rocks materialized, the builds of the components, their
-	// layout, the checks of the files, version.lua, the install of the rock
+	// layout, the checks of the files, _version.lua, the install of the rock
 	// of the package into .rocks and post_build. Build with
 	// Components: []string{"calc"} is tt package build calc. What the tools
 	// of the builds print is shown as tt package build shows it, on the

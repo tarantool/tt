@@ -68,7 +68,7 @@ Hello, tt!
 
 `tt package build` installs the dependencies into `.rocks/` and lays out the
 files of the components under `.rocks/share/tarantool/hello/`, with a
-`version.lua`, so the code is `require('hello')`. `tt run` runs the
+`_version.lua`, so the code is `require('hello')`. `tt run` runs the
 Tarantool of the project with the arguments as given; without a script it
 starts an interactive console. It runs in the current directory, as
 `tarantool` started there would, so a script path is relative to it, and

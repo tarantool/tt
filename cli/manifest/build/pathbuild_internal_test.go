@@ -125,7 +125,7 @@ func TestRun_pathManifestDependency(t *testing.T) {
 	assert.True(t, exists(t, filepath.Join(share, "init.lua")))
 	assert.True(t, exists(t, filepath.Join(share, "util.lua")))
 
-	vlua, err := os.ReadFile(filepath.Join(share, "version.lua"))
+	vlua, err := os.ReadFile(filepath.Join(share, "_version.lua"))
 	require.NoError(t, err)
 	assert.Contains(t, string(vlua), `version  = "0.3.0-rc.1"`)
 

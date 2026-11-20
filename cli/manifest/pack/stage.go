@@ -202,7 +202,7 @@ func isProjectState(name string) bool {
 //
 // In --with-deps mode every rock goes but those only the dev closure brings;
 // in --without-deps mode the rock of the package alone, which holds the
-// components, version.lua and the programs of the executable components the
+// components, _version.lua and the programs of the executable components the
 // build installed, and which leaves the dependency closure to be refetched
 // from the lock at install time.
 //

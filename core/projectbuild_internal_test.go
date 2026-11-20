@@ -100,7 +100,7 @@ func withWasmBackend(t *testing.T) {
 
 // treeOf returns the files of the tree of the project in dir, and of the
 // record of what the components built, by their paths relative to dir,
-// with their contents; version.lua, which has the time of the build, is
+// with their contents; _version.lua, which has the time of the build, is
 // named and not read.
 func treeOf(t *testing.T, dir string) map[string]string {
 	t.Helper()
@@ -119,7 +119,7 @@ func treeOf(t *testing.T, dir string) map[string]string {
 					return err
 				}
 
-				if entry.Name() == "version.lua" || entry.Name() == "rock_manifest" {
+				if entry.Name() == "_version.lua" || entry.Name() == "rock_manifest" {
 					files[rel] = ""
 
 					return nil

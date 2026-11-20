@@ -118,7 +118,7 @@ func TestOwnModules(t *testing.T) {
 		"[package]\nname = \"kv\"\n\n[products.cli]\nrock = \"kv-cli\"\n"), 0o644))
 
 	writeTree(t, project,
-		testRock{name: "kv", files: []string{"kv/init.lua", "kv/version.lua", "flat.lua"}},
+		testRock{name: "kv", files: []string{"kv/init.lua", "kv/_version.lua", "flat.lua"}},
 		testRock{name: "kv-cli", files: []string{"kv_cli/init.lua"}},
 		testRock{name: "checks", files: []string{"checks.lua"}},
 		testRock{name: "metrics", files: []string{"metrics/init.lua"}},
