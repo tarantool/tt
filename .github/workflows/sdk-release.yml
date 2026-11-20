@@ -1,0 +1,140 @@
+name: Release SDK
+
+# Tags the SDK modules of a release of tt. The release requires the SDK at
+# these tags, and publish.yml refuses a tag of tt whose SDK is not tagged at
+# the version the go.mod of the release names.
+#
+# A module takes the major and minor of the release of tt and the patch of
+# the version it has in the go.mod of v3, so its patch moves only with a
+# change of its own, and the module changed in this release has its go.mod
+# moved before this workflow runs (ci/sdk_tags.py bump). A new minor gives
+# every module its vX.Y.0.
+#
+# The modules are fetched from this repository rather than from the module
+# proxy while the tags are checked, so a run that fails leaves no version of
+# the SDK in proxy.golang.org and sumdb that would need a patch to replace.
+#
+# A tag that exists is never moved: a second run makes no new tag, and a
+# module changed since its tag fails check-release, which asks for the patch
+# of that module instead.
+on:
+  workflow_dispatch:
+    inputs:
+      tt-version:
+        description: Release tag of tt to tag the SDK of, vX.Y.Z
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tt-version }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: '1.27.4'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  sdk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Annotated tags, one per module of the SDK, on the commit of the branch.
+    permissions:
+      contents: write
+    env:
+      TT_VERSION: ${{ inputs.tt-version }}
+      # The modules come from this repository, not from the proxy, so a run
+      # that fails leaves nothing in proxy.golang.org and sumdb. The proxy
+      # serves the tags on the first use from outside.
+      GOPROXY: direct
+      GOPRIVATE: github.com/tarantool/tt
+      GOSUMDB: 'off'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tags are made on the commit the workflow runs at: for a run of
+          # the branch v3, the head of v3.
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: '**/go.sum'
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Check the versions the go.mod files name
+        run: |
+          python3 ci/sdk_tags.py plan "$TT_VERSION" | tee "$RUNNER_TEMP/plan.txt"
+          python3 ci/sdk_tags.py check-sdk "$TT_VERSION"
+
+      # A tag of a module that exists is not moved: bump the version of the
+      # module instead, and run this workflow again.
+      - name: Refuse tags that exist
+        run: |
+          while IFS=$'\t' read -r directory version; do
+            printf '%s/%s\n' "$directory" "$version"
+          done < "$RUNNER_TEMP/plan.txt" > "$RUNNER_TEMP/tags.txt"
+          existing=$(xargs git tag --list < "$RUNNER_TEMP/tags.txt")
+          if [ -n "$existing" ]; then
+            echo "These tags exist already: $existing" >&2
+            echo "A module that changed keeps its old tag: bump its go.mod instead." >&2
+            exit 1
+          fi
+
+      - name: Tag the modules
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          python3 ci/sdk_tags.py create "$TT_VERSION" --push
+
+      # A module of tt's own, on the SDK at the tags: the contract module and
+      # the two modules it requires, fetched from this repository by tag.
+      - name: Module on the SDK at the tags
+        working-directory: ${{ runner.temp }}
+        run: |
+          version=$(awk -F'\t' '$1=="sdk"{print $2}' "$RUNNER_TEMP/plan.txt")
+          mkdir smoke && cd smoke
+          printf 'module example.com/smoke\n\ngo 1.27.0\n' > go.mod
+          printf 'package smoke\n\nimport "github.com/tarantool/tt/sdk/v3"\n\nvar services sdk.Services\n' > smoke.go
+          go get "github.com/tarantool/tt/sdk/v3@${version}"
+          go build ./...
+          go mod verify
+
+      # The module written outside tt, which every SDK module goes through:
+      # a command, a build backend and a check of files.
+      - name: Module of tt, written outside tt, on the tags
+        working-directory: ${{ runner.temp }}
+        run: |
+          version=$(awk -F'\t' '$1=="sdk"{print $2}' "$RUNNER_TEMP/plan.txt")
+          build=$(awk -F'\t' '$1=="sdk/build"{print $2}' "$RUNNER_TEMP/plan.txt")
+          cp -r "$GITHUB_WORKSPACE/cli/manifest/distbuild/testdata/outoftree" outoftree
+          cd outoftree
+          printf 'module example.com/tt-smoke\n\ngo 1.27.0\n' > go.mod
+          # The module requires sdk and sdk/build, each at the version of
+          # its own tag: a module changed in this release carries another
+          # patch than the one of the contract module.
+          go get "github.com/tarantool/tt/sdk/v3@${version}" "github.com/tarantool/tt/sdk/build/v3@${build}"
+          go mod tidy
+          go test ./...
+
+      - name: Check the release binding
+        run: |
+          git fetch --tags --force origin
+          python3 ci/sdk_tags.py check-release "$TT_VERSION"
+          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            {
+              echo "### SDK of tt $TT_VERSION"
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/plan.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

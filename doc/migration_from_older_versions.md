@@ -10,6 +10,12 @@ and lists breaking changes.
 
 ## 2.x -> 3.0.0
 
+> **tt 3.0.0 is for new installations.** Moving an existing tt 2 project in
+> place is not supported: an instance whose data is still in the layout of
+> tt 2 may start on an empty database once another instance of the project
+> has moved (see [Known issues](known_issues.md)). This page describes the
+> differences between the versions, for a project built anew.
+
 The main differences between `tt` 3.0 and `tt` 2.x are:
 
 - **No tt environment or `tt.yaml`.** An application is now a
@@ -494,8 +500,10 @@ For Go code that imports tt:
 
 - The module path is `github.com/tarantool/tt/v3`.
 - `lib/cluster`, `lib/connect`, `lib/dial` and `lib/integrity` have moved to
-  `github.com/tarantool/tt/sdk/cluster`, `sdk/connect`, `sdk/dial` and
-  `sdk/integrity`. Each is a separate module with an alpha API.
+  the SDK: `github.com/tarantool/tt/sdk/cluster/v3`, `sdk/connect/v3`,
+  `sdk/dial/v3` and `sdk/integrity/v3`. Each is a separate module with its
+  own Go tags, taken from the versions the release notes of tt name, and a
+  stable API: see [Write a tt module](how-to/write-a-module.md).
 - `InjectedCmds` from `cli/cmd` is removed. A distribution adds commands as tt
   modules and selects its integrity provider with `core.WithIntegrity`. See
   [Distributions and modules](concepts/distributions.md).

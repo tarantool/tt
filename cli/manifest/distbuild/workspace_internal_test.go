@@ -15,7 +15,7 @@ import (
 // unpushedSDK is a pseudo-version of the SDK at a commit no module proxy
 // has: what a module requires while it is developed with a change of the
 // core not pushed yet.
-const unpushedSDK = "v0.0.0-20991231235959-0123456789ab"
+const unpushedSDK = "v3.0.0-20991231235959-0123456789ab"
 
 // TestRenderWorkspace checks the go.work a workspace spec makes: the mark,
 // the go directive, the modules it uses and the version-less replacements,
@@ -131,7 +131,7 @@ func fakeCore(t *testing.T, dir string) {
 
 go 1.21
 
-require github.com/tarantool/tt/sdk/v3 v0.0.0-0
+require github.com/tarantool/tt/sdk/v3 v3.0.0-0
 
 replace (
 	github.com/tarantool/tt/modules/aeon => ./modules/aeon

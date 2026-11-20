@@ -10,50 +10,61 @@ snapshot on it, tests it and builds it into tt. To add a command with an
 executable that tt runs instead, with no rebuild, see
 [External modules](external-modules.md).
 
-The SDK is alpha: its API may change in any release of tt.
+The SDK is stable: its API changes compatibly from one stable release of tt
+to the next, and the release that changes it incompatibly builds no packages.
 
 ## Set up the Go module
 
 ```sh
 mkdir tt-probe && cd tt-probe
 go mod init example.com/tt-probe
-go get github.com/tarantool/tt/sdk@9997ea8b \
-    github.com/tarantool/tt/sdk/connect@9997ea8b \
-    github.com/tarantool/tt/sdk/dial@9997ea8b
+go get github.com/tarantool/tt/sdk/v3@v3.0.0 \
+    github.com/tarantool/tt/sdk/connect/v3@v3.0.0 \
+    github.com/tarantool/tt/sdk/dial/v3@v3.0.0
 go get github.com/tarantool/go-tarantool/v3 github.com/stretchr/testify
 ```
 
-The SDK modules have no versions yet: tt has no `sdk/...` tags, and its own
-tags, such as `v3.0.0-alpha.2`, version the core,
-`github.com/tarantool/tt/v3`, and no other module. Require the SDK modules
-at a commit of tt instead, which Go turns into a pseudo-version:
+Each module of the SDK has a major version in its path, as a Go module with
+its own releases does, and its Go tags carry the same version: `sdk/v3.0.0`
+tags `github.com/tarantool/tt/sdk/v3`, `sdk/build/v3.0.0` tags
+`github.com/tarantool/tt/sdk/build/v3`, and so on. The tags belong to the
+release of tt they were made for, and the release notes of tt name the SDK
+it is built on.
+
+A module of the SDK takes the major and minor of the release of tt it
+belongs to, and the patch of its own changes: while tt 3.0 is the newest
+release, a module that did not change keeps `v3.0.0`, and one that changed
+gets `v3.0.1`, `v3.0.2` and so on. Every module takes the major and minor of
+a new release of tt, so `tt v3.1.0` has `v3.1.0` of every module. The
+release notes of tt name the versions. In one major and minor, the SDK stays
+compatible: a newer patch of a module builds a module that required an older
+one. `publish.yml` compares the API of every module with its last tag and
+fails the patch that breaks it, unless the break goes through the
+`sdk-breaking` label of the pull request.
+
+Require the versions the release notes of tt name, every module the module
+imports, and run `go mod tidy`: the `go.mod` of `sdk/v3` already requires
+`sdk/build/v3`, `sdk/connect/v3` and `sdk/dial/v3` at their versions, so `go
+get` of `sdk/v3` alone takes them as well.
 
 ```text
 require (
-	github.com/tarantool/tt/sdk v0.0.0-20261105160839-9997ea8b6840
-	github.com/tarantool/tt/sdk/connect v0.0.0-20261105160839-9997ea8b6840
-	github.com/tarantool/tt/sdk/dial v0.0.0-20261105160839-9997ea8b6840
+	github.com/tarantool/tt/sdk/v3 v3.0.0
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0
+	github.com/tarantool/tt/sdk/dial/v3 v3.0.0
 )
 ```
 
-`9997ea8b` is the commit of `v3.0.0-alpha.2`
-(`git rev-parse 'v3.0.0-alpha.2^{commit}'` in a clone of tt); take the
-commit of the core the module is built on. Require every SDK module at the
-same commit, and `sdk/connect` even when the module does not import it:
-the `go.mod` of `sdk` requires it at `v0.0.0-0`, a placeholder that only the
-`replace` directives of tt's own repository resolve, and `go get` of `sdk`
-alone fails with `unknown revision sdk/connect/v0.0.0-0`. A placeholder
-sorts below every pseudo-version, so the commit given to `go get` takes its
-place. `sdk/cluster` has two such placeholders, for `sdk/connect` and
-`sdk/dial`. After `v3.0.0-alpha.2`, `sdk` requires `sdk/build` at a
-placeholder too: give `github.com/tarantool/tt/sdk/build@<commit>` as well.
+A module written for an alpha of tt imports the paths without `/v3`, and a
+path with a major version is a module of its own: move the imports, and
+require the tagged versions, as above.
 
 The distribution build does not use these versions: it builds every module
 on the SDK at the commit of its core, whatever the module's `go.mod`
-requires. They are what `go test` of the module runs on, so keep them at the
-commit of the core: when the core moves, `go get` the SDK modules at its new
-commit and run `go mod tidy`. To build the module on a change of the SDK
-that is not pushed yet, see
+requires. They are what `go test` of the module runs on: when the core moves
+to a newer SDK, `go get` the modules at the versions its release notes name
+and run `go mod tidy`. To build the module on a change of the SDK that is
+not pushed yet, see
 [Develop together with the core](#develop-together-with-the-core).
 
 ## Write the constructor
@@ -68,7 +79,7 @@ package probe
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // New is the constructor of the module. It declares the commands and
@@ -101,7 +112,7 @@ A module that provides build backends as well, for the `backend` of a
 component's build block, or checks of the files of a package, has an `sdk.ModuleConstructor` instead,
 `func(sdk.Services) sdk.Module`: the `sdk.Module` it returns holds its
 `Commands`, its `Backends` and the `FileChecks` of the files of a package,
-of `github.com/tarantool/tt/sdk/build`. tt calls it as it calls an
+of `github.com/tarantool/tt/sdk/build/v3`. tt calls it as it calls an
 `sdk.Constructor`, and a distribution lists either kind the same way.
 
 A `Mount` is a command and the path of its parent: `""` is the root,
@@ -122,8 +133,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/output"
 )
 
 // instancesResult is the result of tt probe instances. Its fields are what
@@ -233,10 +244,10 @@ import (
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/go-tarantool/v3"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/dial"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/dial/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // timeout bounds the connection and each request.
@@ -469,10 +480,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/go-tarantool/v3"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
+	"github.com/tarantool/tt/sdk/v3/output"
 )
 
 // errCancelled is a snapshot the user did not confirm.
@@ -621,7 +632,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 func newScaffoldCmd(services sdk.Services) *cobra.Command {
@@ -784,7 +795,7 @@ project.
 it: the LuaRocks manifests and `tt-rocks-index.json`, as
 `tt package index` writes them. A module that packs rocks for others serves
 them so. A program or a tool a module writes, unpacked from an archive say,
-goes through `github.com/tarantool/tt/sdk/execfile`, which writes it with no
+goes through `github.com/tarantool/tt/sdk/v3/execfile`, which writes it with no
 fork of tt in between, so that it can be started at once while tt starts
 other processes.
 
@@ -830,7 +841,7 @@ func TestScaffold(t *testing.T) {
 A module may build the components of a tt package as well: a component
 whose build block says `backend = "template"` is built by the backend named
 `template` that the module provides, a `build.Backend` of
-`github.com/tarantool/tt/sdk/build` among the `Backends` of its
+`github.com/tarantool/tt/sdk/build/v3` among the `Backends` of its
 `sdk.Module`. A module may also check the files of every package tt builds,
 whatever backend made them, with a `build.FileCheck` among its
 `FileChecks`. The backends of tt are a module too, the standard module
@@ -840,7 +851,7 @@ of its own.
 [Write a build backend](write-a-build-backend.md) writes such a module from
 scratch: the fields of the block and their checks, the build and its
 directories, the types of what it makes, incremental builds, file checks,
-tests with `sdk/build/buildtest`, and what the core refuses.
+tests with `sdk/build/v3/buildtest`, and what the core refuses.
 
 ## Test it
 
@@ -857,8 +868,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"example.com/tt-probe"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // cluster is the cluster configuration of the application "app": nothing
@@ -987,10 +998,7 @@ manifest_version = "0.1"
 manifest_kind = "tt-distribution"
 
 [core]
-tt = "v3.0.0-alpha.2"
-
-[distribution]
-standard = false   # the core of v3.0.0-alpha.2 lists no standard modules
+tt = "v3.0.0"
 
 [dependencies]
 probe = "../tt-probe"
@@ -1000,8 +1008,8 @@ probe = "../tt-probe"
 $ cd dist
 $ tt binary build tt
 $ ./tt version --modules
-Tarantool CLI version 3.0.0-alpha.2, linux/amd64. commit: <unknown>
-  builtin  v3.0.0-alpha.2  github.com/tarantool/tt/v3
+Tarantool CLI version 3.0.0, linux/amd64. commit: <unknown>
+  builtin  v3.0.0  github.com/tarantool/tt/v3
   probe    (devel)         example.com/tt-probe
 $ ./tt probe instances myapp -o yaml
 app: myapp
@@ -1060,15 +1068,15 @@ replace (
 	github.com/tarantool/tt/modules/build => ../tt/modules/build
 	github.com/tarantool/tt/modules/emmylua => ../tt/modules/emmylua
 	github.com/tarantool/tt/modules/wasm => ../tt/modules/wasm
-	github.com/tarantool/tt/sdk => ../tt/sdk
-	github.com/tarantool/tt/sdk/backup => ../tt/sdk/backup
-	github.com/tarantool/tt/sdk/build => ../tt/sdk/build
-	github.com/tarantool/tt/sdk/cluster => ../tt/sdk/cluster
-	github.com/tarantool/tt/sdk/connect => ../tt/sdk/connect
-	github.com/tarantool/tt/sdk/dial => ../tt/sdk/dial
-	github.com/tarantool/tt/sdk/fetch => ../tt/sdk/fetch
-	github.com/tarantool/tt/sdk/integrity => ../tt/sdk/integrity
-	github.com/tarantool/tt/sdk/tuple => ../tt/sdk/tuple
+	github.com/tarantool/tt/sdk/v3 => ../tt/sdk
+	github.com/tarantool/tt/sdk/backup/v3 => ../tt/sdk/backup
+	github.com/tarantool/tt/sdk/build/v3 => ../tt/sdk/build
+	github.com/tarantool/tt/sdk/cluster/v3 => ../tt/sdk/cluster
+	github.com/tarantool/tt/sdk/connect/v3 => ../tt/sdk/connect
+	github.com/tarantool/tt/sdk/dial/v3 => ../tt/sdk/dial
+	github.com/tarantool/tt/sdk/fetch/v3 => ../tt/sdk/fetch
+	github.com/tarantool/tt/sdk/integrity/v3 => ../tt/sdk/integrity
+	github.com/tarantool/tt/sdk/tuple/v3 => ../tt/sdk/tuple
 	github.com/tarantool/tt/v3 => ../tt
 )
 ```
@@ -1105,10 +1113,10 @@ $ cd ../dist
 $ tt binary workspace --remove
 /home/me/src/tt-probe/go.work
 $ cd ../tt-probe
-$ go get github.com/tarantool/tt/sdk@<commit> \
-    github.com/tarantool/tt/sdk/build@<commit> \
-    github.com/tarantool/tt/sdk/connect@<commit> \
-    github.com/tarantool/tt/sdk/dial@<commit>
+$ go get github.com/tarantool/tt/sdk/v3@<commit> \
+    github.com/tarantool/tt/sdk/build/v3@<commit> \
+    github.com/tarantool/tt/sdk/connect/v3@<commit> \
+    github.com/tarantool/tt/sdk/dial/v3@<commit>
 $ go mod tidy
 $ go test ./...
 ok  	example.com/tt-probe	0.005s
@@ -1125,10 +1133,11 @@ the manifest, `[core] path = "../tt"`, and then neither command needs
 A module that starts to import an SDK module its `go.mod` does not
 require, one the change of the core adds say, needs a requirement for it,
 and `go get` looks the version up even in a workspace, which fails before
-the push. Require the placeholder by hand until then:
+the push. Require a version by hand until then, the one of the last tag of
+the module:
 
 ```sh
-go mod edit -require=github.com/tarantool/tt/sdk/build@v0.0.0-0
+go mod edit -require=github.com/tarantool/tt/sdk/build/v3@v3.0.0
 ```
 
 The `go get` of step 4 puts the commit in its place.
@@ -1153,21 +1162,21 @@ go work edit \
     -replace github.com/tarantool/tt/modules/build=../tt/modules/build \
     -replace github.com/tarantool/tt/modules/emmylua=../tt/modules/emmylua \
     -replace github.com/tarantool/tt/modules/wasm=../tt/modules/wasm \
-    -replace github.com/tarantool/tt/sdk=../tt/sdk \
-    -replace github.com/tarantool/tt/sdk/backup=../tt/sdk/backup \
-    -replace github.com/tarantool/tt/sdk/build=../tt/sdk/build \
-    -replace github.com/tarantool/tt/sdk/cluster=../tt/sdk/cluster \
-    -replace github.com/tarantool/tt/sdk/connect=../tt/sdk/connect \
-    -replace github.com/tarantool/tt/sdk/dial=../tt/sdk/dial \
-    -replace github.com/tarantool/tt/sdk/fetch=../tt/sdk/fetch \
-    -replace github.com/tarantool/tt/sdk/integrity=../tt/sdk/integrity \
-    -replace github.com/tarantool/tt/sdk/tuple=../tt/sdk/tuple
+    -replace github.com/tarantool/tt/sdk/v3=../tt/sdk \
+    -replace github.com/tarantool/tt/sdk/backup/v3=../tt/sdk/backup \
+    -replace github.com/tarantool/tt/sdk/build/v3=../tt/sdk/build \
+    -replace github.com/tarantool/tt/sdk/cluster/v3=../tt/sdk/cluster \
+    -replace github.com/tarantool/tt/sdk/connect/v3=../tt/sdk/connect \
+    -replace github.com/tarantool/tt/sdk/dial/v3=../tt/sdk/dial \
+    -replace github.com/tarantool/tt/sdk/fetch/v3=../tt/sdk/fetch \
+    -replace github.com/tarantool/tt/sdk/integrity/v3=../tt/sdk/integrity \
+    -replace github.com/tarantool/tt/sdk/tuple/v3=../tt/sdk/tuple
 ```
 
-`go work use ../tt/sdk ...` instead of the replacements works only while
-the `go.mod` of the module requires the SDK at a commit Go can download:
-the go command still reads the `go.mod` of every version a used module is
-required at, and a commit that is not pushed fails with
+`go work use ../tt/sdk ../tt/sdk/build ...` instead of the replacements
+works only while the `go.mod` of the module requires the SDK at a version Go
+can download: the go command still reads the `go.mod` of every version a
+used module is required at, and a commit that is not pushed fails with
 `invalid version: unknown revision`. A replacement with no version reads
 none.
 

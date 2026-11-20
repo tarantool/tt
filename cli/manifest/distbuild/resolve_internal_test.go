@@ -353,7 +353,7 @@ func TestResolveOverriddenCore(t *testing.T) {
 		pinned: &manifest.DistributionLock{
 			Core: manifest.LockedCore{
 				Module: coreModule, Version: "v3.0.0-20200101000000-000000000000",
-				Repository: map[string]string{"github.com/tarantool/tt/sdk/v3": "v0.0.0-old"},
+				Repository: map[string]string{"github.com/tarantool/tt/sdk/v3": "v3.0.0-old"},
 			},
 			Modules: map[string]manifest.LockedModule{
 				"foo": {Module: "github.com/acme/tt-foo", Version: "v1.2.0"},

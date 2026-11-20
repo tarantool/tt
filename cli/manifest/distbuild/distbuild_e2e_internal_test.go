@@ -49,8 +49,8 @@ go 1.26.10
 
 require (
 	github.com/spf13/cobra v1.10.2
-	github.com/tarantool/tt/sdk/v3 v0.0.0-20261028190206-9031d7ad96d9
-	github.com/tarantool/tt/sdk/connect/v3 v0.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/v3 v3.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0-20261028190206-9031d7ad96d9
 )
 `
 
@@ -628,8 +628,8 @@ require (
 	example.com/lib v1.0.0
 	github.com/google/uuid v1.3.0
 	github.com/spf13/cobra v1.10.2
-	github.com/tarantool/tt/sdk/v3 v0.0.0-20261028190206-9031d7ad96d9
-	github.com/tarantool/tt/sdk/connect/v3 v0.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/v3 v3.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0-20261028190206-9031d7ad96d9
 )
 `
 

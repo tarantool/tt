@@ -17,6 +17,10 @@ var update = flag.Bool("update", false, "rewrite golden files")
 
 const testRevision = "v0.0.0-20261028190206-9031d7ad96d9"
 
+// testSDKRevision is testRevision for a module whose path has a major
+// version: a pseudo-version of such a path carries that major version.
+const testSDKRevision = "v3.0.0-20261028190206-9031d7ad96d9"
+
 // versionedCore is the core of tt at a commit, with its repository.
 func versionedCore() core {
 	return core{
@@ -26,8 +30,8 @@ func versionedCore() core {
 		GoVersion: "1.27.3",
 		Repository: []repoModule{
 			{Module: "github.com/tarantool/tt/modules/aeon", Version: testRevision},
-			{Module: "github.com/tarantool/tt/sdk/v3", Version: testRevision},
-			{Module: "github.com/tarantool/tt/sdk/connect/v3", Version: testRevision},
+			{Module: "github.com/tarantool/tt/sdk/v3", Version: testSDKRevision},
+			{Module: "github.com/tarantool/tt/sdk/connect/v3", Version: testSDKRevision},
 		},
 	}
 }
@@ -258,7 +262,7 @@ func TestPlaceholderVersion(t *testing.T) {
 		placeholderVersion("github.com/tarantool/tt/v3"))
 	assert.Equal(t, "v12.0.0-00010101000000-000000000000",
 		placeholderVersion("example.com/m/v12"))
-	assert.Equal(t, "v0.0.0-00010101000000-000000000000",
+	assert.Equal(t, "v3.0.0-00010101000000-000000000000",
 		placeholderVersion("github.com/tarantool/tt/sdk/v3"))
 	assert.Equal(t, "v0.0.0-00010101000000-000000000000",
 		placeholderVersion("example.com/v1"))

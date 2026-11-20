@@ -153,10 +153,14 @@ def parse_apidiff(text):
 
 def export_api(directory, export):
     """Write the API of the Go module in directory to export; return the error."""
-    # apidiff -m loads the packages MODULE_PATH/... matches, the ones of every
-    # SDK module the module requires through replace among them, and names
-    # the module by the first package it loaded. "." loads ./..., the
-    # packages of the module in directory only.
+    # apidiff -m loads the packages a pattern matches, the ones of every SDK
+    # module the module requires among them, and names the module by the
+    # first package it loaded. "./..." loads the packages of the module in
+    # directory, and only those while every SDK module it requires has a
+    # replace: the workspace is off below. A module that changed the name of
+    # its path rather than its major version fails to export this way, which
+    # is right: nothing compares a module whose packages are under another
+    # module path, and renaming one is incompatible by itself.
     result = command(
         "apidiff",
         "-m",
@@ -171,7 +175,7 @@ def export_api(directory, export):
     return ""
 
 
-def compare_module(path, old, new, workdir):
+def compare_module(path, old, new, workdir, before, after):
     """Compare the API of the SDK module in directory path of the trees old and new."""
     name = path.as_posix()
     exports = []
@@ -182,10 +186,16 @@ def compare_module(path, old, new, workdir):
             return ModuleDiff(name, "failed", error=f"Exporting the API of the {side}:\n{error}")
         exports.append(export)
     result = command("apidiff", "-m", *(str(export) for export in exports))
+    # Both exports are named by the module path of their side, so a module
+    # whose path did not change compares with itself; the module path is
+    # reported apart, as a change of its own.
+    changed_path = before != after
     diagnostics = [
         line
         for line in result.stderr.splitlines()
-        if line.strip() and not line.startswith("Ignoring internal package ")
+        if line.strip()
+        and not line.startswith("Ignoring internal package ")
+        and not (changed_path and "different module paths" in line)
     ]
     if result.returncode or diagnostics:
         error = "\n".join([*diagnostics, result.stdout.strip()]).strip()
@@ -220,7 +230,7 @@ def api_diff(base, head):
                     continue
                 workdir = temp / str(index)
                 workdir.mkdir()
-                diff = compare_module(path, old, new, workdir)
+                diff = compare_module(path, old, new, workdir, before[path], after[path])
                 if before[path] != after[path] and diff.state != "failed":
                     diff.state = "changed"
                     diff.incompatible.insert(
