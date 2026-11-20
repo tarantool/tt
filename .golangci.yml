@@ -436,6 +436,7 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/modules/build"
+            - "github.com/tarantool/tt/sdk/build/v3"
             - "github.com/tarantool/tt/sdk/v3"
         # The module wasm, tt wasm and the check of the .wasm files, is
         # written against the SDK alone, as any module is: nothing of the
@@ -451,6 +452,9 @@ linters:
             - "github.com/tarantool/go-luarocks"
             - "github.com/tarantool/tt/modules/wasm"
             - "github.com/tarantool/tt/sdk/v3"
+            - "github.com/tarantool/tt/sdk/build/v3"
+            - "github.com/tarantool/tt/sdk/fetch/v3"
+
         dir-internal-binary:
           files:
             - "**/internal/binary/**"
