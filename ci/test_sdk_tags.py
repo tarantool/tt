@@ -36,7 +36,10 @@ class Tree:
         self.root = Path(temporary)
         # A runner has no git identity, and a commit or a tag needs one.
         self.identity = [
-            "-c", "user.name=tt", "-c", "user.email=tt@example.com",
+            "-c",
+            "user.name=tt",
+            "-c",
+            "user.email=tt@example.com",
         ]
         self.modules = dict(SDK if modules is None else modules)
         (self.root / "go.mod").write_text(

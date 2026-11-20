@@ -92,8 +92,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # The user of the token, or the user the bot commits as.
           git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.email \
+            '41898282+github-actions[bot]@users.noreply.github.com'
           python3 ci/sdk_tags.py create "$TT_VERSION" --push
 
       # A module of tt's own, on the SDK at the tags: the contract module and
