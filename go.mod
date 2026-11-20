@@ -38,15 +38,15 @@ require (
 	github.com/tarantool/tt/modules/build v0.0.0-0
 	github.com/tarantool/tt/modules/emmylua v0.0.0-0
 	github.com/tarantool/tt/modules/wasm v0.0.0-0
-	github.com/tarantool/tt/sdk/backup/v3 v3.0.0
-	github.com/tarantool/tt/sdk/build/v3 v3.0.0
-	github.com/tarantool/tt/sdk/cluster/v3 v3.0.0
-	github.com/tarantool/tt/sdk/connect/v3 v3.0.0
-	github.com/tarantool/tt/sdk/dial/v3 v3.0.0
-	github.com/tarantool/tt/sdk/fetch/v3 v3.0.0
-	github.com/tarantool/tt/sdk/integrity/v3 v3.0.0
-	github.com/tarantool/tt/sdk/tuple/v3 v3.0.0
-	github.com/tarantool/tt/sdk/v3 v3.0.0
+	github.com/tarantool/tt/sdk/backup/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/build/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/cluster/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/dial/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/fetch/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/integrity/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/tuple/v3 v3.0.0-rc.1
+	github.com/tarantool/tt/sdk/v3 v3.0.0-rc.1
 	github.com/ulikunitz/xz v0.5.17
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.2
