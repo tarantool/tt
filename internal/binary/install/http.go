@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/bundle"
+	"github.com/tarantool/tt/sdk/v3/bundle"
 )
 
 var errArtifactChecksum = errors.New("archive checksum mismatch")

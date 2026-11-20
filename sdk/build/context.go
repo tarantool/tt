@@ -174,7 +174,7 @@ type Tarantool struct {
 }
 
 // Host runs the commands of a build for a [Context]. Only the core and
-// [github.com/tarantool/tt/sdk/build/buildtest] implement it, since methods
+// [github.com/tarantool/tt/sdk/build/v3/buildtest] implement it, since methods
 // may be added to it; a backend calls the methods of Context.
 type Host interface {
 	// Command returns the command name with args, run in [Dirs.Cwd], with

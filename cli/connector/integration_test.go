@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
-	sdkdial "github.com/tarantool/tt/sdk/dial"
+	sdkdial "github.com/tarantool/tt/sdk/dial/v3"
 
 	. "github.com/tarantool/tt/v3/cli/connector"
 )

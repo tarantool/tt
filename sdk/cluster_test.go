@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/internal/clusteryaml"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/internal/clusteryaml"
 )
 
 // clusterYAML is a cluster configuration setting a value at every level of

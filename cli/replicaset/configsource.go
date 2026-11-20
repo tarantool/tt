@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 

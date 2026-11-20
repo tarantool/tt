@@ -25,7 +25,7 @@ import (
 	"github.com/tarantool/go-xlog/writer"
 	"github.com/vmihailenco/msgpack/v5"
 
-	"github.com/tarantool/tt/sdk/backup/archive"
+	"github.com/tarantool/tt/sdk/backup/v3/archive"
 	"github.com/tarantool/tt/v3/cli/connector"
 )
 

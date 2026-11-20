@@ -16,7 +16,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/fetch/v3"
 )
 
 const (

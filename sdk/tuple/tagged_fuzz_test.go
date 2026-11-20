@@ -15,7 +15,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/datetime"
 	"github.com/tarantool/go-tarantool/v3/decimal"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // taggedTags are the tags of tagged JSON: an object of one key that is one

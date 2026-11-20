@@ -18,7 +18,7 @@ import (
 const produced = `// Package produced is a tt module of a backend that is not written yet.
 package produced
 
-import "github.com/tarantool/tt/sdk/build"
+import "github.com/tarantool/tt/sdk/build/v3"
 
 // Err is what the core says of a build that left files of a type its
 // backend does not produce.
@@ -41,7 +41,7 @@ func TestWorkspaceOnThisCheckout(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "tt-produced")
 	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/tt-produced\n\ngo 1.27.0\n\n"+
-		"require github.com/tarantool/tt/sdk/build "+unpushedSDK+"\n")
+		"require github.com/tarantool/tt/sdk/build/v3 "+unpushedSDK+"\n")
 	writeFile(t, filepath.Join(dir, "go.sum"), string(sum))
 	writeFile(t, filepath.Join(dir, "produced.go"), produced)
 
@@ -64,7 +64,7 @@ func TestWorkspaceOnThisCheckout(t *testing.T) {
 
 	out, err := goIn(t, dir, env, "list", "-m", "all")
 	require.NoError(t, err, out)
-	assert.Contains(t, out, "github.com/tarantool/tt/sdk/build "+unpushedSDK+" => ")
+	assert.Contains(t, out, "github.com/tarantool/tt/sdk/build/v3 "+unpushedSDK+" => ")
 
 	out, err = goIn(t, dir, env, "build", "./...")
 	require.NoError(t, err, out)

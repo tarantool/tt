@@ -13,7 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/connect/v3"
 )
 
 // Redacted is what a secret is replaced with.

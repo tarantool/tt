@@ -119,7 +119,7 @@ changed, never fail. Labels of the pull request change what runs:
 ### The API of the SDK
 
 A tt module written outside this repository builds on the SDK, the Go
-modules under `sdk/`, at a commit of tt (see
+modules under `sdk/`, at their tagged versions (see
 [Write a tt module](how-to/write-a-module.md)). `sdk-api` compares the API
 of every SDK module of a pull request with that of its merge base, with
 [apidiff](https://pkg.go.dev/golang.org/x/exp/cmd/apidiff), and fails on an
@@ -146,8 +146,37 @@ the change and exits with 0.
 
 ### Releases
 
-The publish workflow compares the SDK of a release tag with a release
-before it of the same major version, before it builds anything:
+Every module of the SDK is tagged before tt is released. The go.mod of tt
+requires every module at its tag, and the release of tt is built on them.
+
+`ci/sdk_tags.py` does it, and `sdk-release.yml` runs it on a branch:
+
+```console
+$ python3 ci/sdk_tags.py plan v3.1.0       # the version of every module
+$ python3 ci/sdk_tags.py check-sdk v3.1.0  # the go.mod files name them
+$ gh workflow run sdk-release.yml --ref v3 -f tt-version=v3.1.0
+```
+
+A module of the SDK takes the major and minor of the release of tt, and the
+patch of the version its go.mod names in v3, which moves only with a change
+of the module: `ci/sdk_tags.py bump v3.1.0` writes the new versions into
+the go.mod files of the repository, and the release commit carries it. A
+module that changed after its tag fails `check-release`, and takes the next
+patch.
+
+A pre-release goes to a new minor only, `gh workflow run sdk-release.yml
+--ref v3 -f tt-version=v3.1.0-rc.1`: every module is tagged with the suffix,
+changed or not, and the stable release of the minor tags them all again.
+`check-release` wants the version of the pre-release exactly, so the go.mod
+of an rc release names the suffix the tags carry.
+
+The tags are never moved. `publish.yml` runs `ci/sdk_tags.py check-release`
+on the tag of tt before it builds anything: every module has its tag, of the
+major and minor of the release, and the tree of the module is the one the
+tag was made at. A release without the tags stops there.
+
+Then the publish workflow compares the SDK of the release tag with a
+release before it of the same major version:
 
 - a stable release, `vX.Y.Z`, with the stable release before it, and fails
   on an incompatible change: the SDK of a major version stays compatible

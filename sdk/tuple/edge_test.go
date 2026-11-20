@@ -16,7 +16,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/decimal"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // mustDecode decodes MessagePack that must decode.

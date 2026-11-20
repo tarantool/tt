@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 

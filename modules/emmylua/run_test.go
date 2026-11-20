@@ -13,9 +13,9 @@ import (
 
 	"github.com/tarantool/tt/modules/emmylua"
 	"github.com/tarantool/tt/modules/emmylua/internal/analyzer"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/log/logtest"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // noTarantool is the warning of a command that finds no Tarantool.

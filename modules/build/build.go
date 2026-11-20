@@ -6,7 +6,7 @@
 // Each backend is a package of its own (basic, cc, cargo, cmake, gobuild,
 // zig),
 // written against the contract of a build backend alone,
-// github.com/tarantool/tt/sdk/build, as the backend of any module is. [New]
+// github.com/tarantool/tt/sdk/build/v3, as the backend of any module is. [New]
 // is the constructor of the module; a distribution of tt takes it with the
 // standard modules of the core.
 package build
@@ -15,8 +15,8 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/tarantool/tt/sdk"
-	sdkbuild "github.com/tarantool/tt/sdk/build"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 
 	"github.com/tarantool/tt/modules/build/basic"
 	"github.com/tarantool/tt/modules/build/cargo"

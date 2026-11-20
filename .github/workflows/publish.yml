@@ -3,7 +3,10 @@ name: publish
 on:
   push:
     branches: [master]
-    tags: ['*']
+    # The tags of the modules of the SDK are sdk/vX.Y.Z and sdk/<name>/vX.Y.Z;
+    # a release of tt is vX.Y.Z, and the tags of the SDK release the SDK under
+    # sdk-release.yml, which builds no packages.
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       allow-incompatible-sdk:
@@ -22,6 +25,7 @@ concurrency:
 
 env:
   GO_VERSION: '1.27.4'
+  PYTHON_VERSION: '3.12'
 
 jobs:
   validate-tag:
@@ -44,6 +48,19 @@ jobs:
           done
           echo 'The release tag must belong to origin/v3 or origin/master' >&2
           exit 1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Every module of the SDK is tagged at the version this go.mod names,
+      # and the tree of the module is the one the tag was made at: the tags
+      # come first, from sdk-release.yml, and a change of the SDK after its
+      # tag is a patch of that module, not a change of this release.
+      - name: Check the tags of the SDK
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python3 ci/sdk_tags.py check-release "$GITHUB_REF_NAME"
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: startsWith(github.ref, 'refs/tags/')

@@ -10,7 +10,7 @@ import (
 	"github.com/tarantool/go-xlog/format"
 	"github.com/tarantool/go-xlog/reader"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // Plan is the files a filter reads, in order, and the snapshot it starts

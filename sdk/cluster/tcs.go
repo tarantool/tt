@@ -11,7 +11,7 @@ import (
 	gsconnect "github.com/tarantool/go-storage/v2/connect"
 	"github.com/tarantool/go-storage/v2/driver/tcs"
 	"github.com/tarantool/go-tarantool/v3"
-	"github.com/tarantool/tt/sdk/dial"
+	"github.com/tarantool/tt/sdk/dial/v3"
 )
 
 const defaultStorageConnectTimeout = 5 * time.Second

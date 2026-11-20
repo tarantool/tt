@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/bundle"
+	"github.com/tarantool/tt/sdk/v3/bundle"
 )
 
 var errSimulatedNetworkError = errors.New("simulated network error")

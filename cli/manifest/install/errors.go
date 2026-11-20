@@ -3,7 +3,7 @@ package install
 import (
 	"errors"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // Names install reads from inside a .tt archive. They mirror the reserved set

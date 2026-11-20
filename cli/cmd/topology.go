@@ -14,12 +14,12 @@ import (
 
 	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/dial"
-	"github.com/tarantool/tt/sdk/formatter"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/dial/v3"
+	"github.com/tarantool/tt/sdk/v3/formatter"
+	"github.com/tarantool/tt/sdk/v3/log"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 	clustercli "github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"

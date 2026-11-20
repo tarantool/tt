@@ -14,7 +14,7 @@ import (
 	"github.com/tarantool/go-storage/v2/driver/dummy"
 	gsintegrity "github.com/tarantool/go-storage/v2/integrity"
 	"github.com/tarantool/go-storage/v2/marshaller"
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 var (

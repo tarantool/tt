@@ -31,7 +31,7 @@
 // interval, an [Ext] - or, for a [Binary], its base64; a map key that is not
 // a string is its [Text] as well, and a float that is NaN or infinite is
 // "NaN", "Infinity" or "-Infinity", as in
-// [github.com/tarantool/tt/sdk/output]. [YAMLNode] builds a YAML node, in
+// [github.com/tarantool/tt/sdk/v3/output]. [YAMLNode] builds a YAML node, in
 // flow style, as Tarantool prints a tuple, with a binary value tagged
 // !!binary. [AppendLua] writes a Lua expression that builds the value in
 // Tarantool: an extension through the module that makes it, a binary value

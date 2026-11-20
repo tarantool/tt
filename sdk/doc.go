@@ -42,31 +42,31 @@
 //
 // The subpackages hold the rest:
 //
-//   - [github.com/tarantool/tt/sdk/build] is the contract of a build backend
+//   - [github.com/tarantool/tt/sdk/build/v3] is the contract of a build backend
 //     and of a check of the files of a package, a module of its own that
 //     depends on the standard library only;
-//   - [github.com/tarantool/tt/sdk/bundle] is the contract of a source of
+//   - [github.com/tarantool/tt/sdk/v3/bundle] is the contract of a source of
 //     the prebuilt archives tt binary installs, which a distribution
 //     chooses;
-//   - [github.com/tarantool/tt/sdk/console] runs an interactive console
+//   - [github.com/tarantool/tt/sdk/v3/console] runs an interactive console
 //     with line editing and history over a command processor;
-//   - [github.com/tarantool/tt/sdk/execfile] writes the programs and the
+//   - [github.com/tarantool/tt/sdk/v3/execfile] writes the programs and the
 //     scripts a process runs with no fork of it in between, so that they
 //     start while it starts other processes;
-//   - [github.com/tarantool/tt/sdk/formatter] renders the YAML a Tarantool
+//   - [github.com/tarantool/tt/sdk/v3/formatter] renders the YAML a Tarantool
 //     console answers with as YAML, Lua or tables, the way tt's consoles
 //     print it;
-//   - [github.com/tarantool/tt/sdk/log] is the logging facade and the secret
+//   - [github.com/tarantool/tt/sdk/v3/log] is the logging facade and the secret
 //     redaction logic;
-//   - [github.com/tarantool/tt/sdk/output] writes a command's result to stdout
+//   - [github.com/tarantool/tt/sdk/v3/output] writes a command's result to stdout
 //     in the format the user asked for;
-//   - [github.com/tarantool/tt/sdk/sdktest] fakes the core's Services and
+//   - [github.com/tarantool/tt/sdk/v3/sdktest] fakes the core's Services and
 //     runs a module's commands in tests.
 //
 // The contract module depends on cobra, pflag and go-config
 // (github.com/tarantool/go-config/v2), whose types appear in it, and pins
 // their versions: a module builds against the versions the core uses. It
-// also depends on [github.com/tarantool/tt/sdk/connect], whose URI rules
+// also depends on [github.com/tarantool/tt/sdk/connect/v3], whose URI rules
 // [ParseClusterSource] applies. The formatter adds go-pretty,
 // go.yaml.in/yaml/v3 and go.yaml.in/yaml/v2, which read and render its
 // output, and the console adds go-prompt and x/term.

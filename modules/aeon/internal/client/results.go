@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/modules/aeon/pb"
-	"github.com/tarantool/tt/sdk/console"
-	"github.com/tarantool/tt/sdk/formatter"
+	"github.com/tarantool/tt/sdk/v3/console"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 )
 
 // resultRow keeps values for one table row.

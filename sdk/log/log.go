@@ -2,7 +2,7 @@
 //
 // Diagnostics - progress, warnings, errors, debug detail - go to stderr
 // through slog. A command's result never goes through this package; it goes
-// to stdout through [github.com/tarantool/tt/sdk/output].
+// to stdout through [github.com/tarantool/tt/sdk/v3/output].
 //
 // The tt core owns the process logger: it installs the handler that renders
 // records as text or JSON, filters by level and redacts secrets, and makes it

@@ -9,8 +9,8 @@ import (
 	"github.com/tarantool/go-storage/v2"
 	"github.com/tarantool/go-storage/v2/operation"
 	"github.com/tarantool/go-storage/v2/predicate"
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 )
 
 var (

@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // errGaveUp is what the exiting command ends with.

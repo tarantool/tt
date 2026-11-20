@@ -17,7 +17,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/formatter"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 

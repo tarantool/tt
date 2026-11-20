@@ -21,8 +21,8 @@ import (
 	"github.com/tarantool/go-luarocks/remote"
 
 	"github.com/tarantool/tt/modules/wasm/internal/wasm"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // defaultPython is the interpreter tarawasm is installed with unless

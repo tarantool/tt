@@ -32,7 +32,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // Block is a build block as a test writes it: the common fields, and the

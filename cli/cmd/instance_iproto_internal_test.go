@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/dial"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/dial/v3"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"

@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/sdk
+module github.com/tarantool/tt/sdk/v3
 
 go 1.27.0
 
@@ -9,8 +9,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4
 	github.com/tarantool/go-prompt v1.0.2-0.20261118001635-bc2cfa6de863
-	github.com/tarantool/tt/sdk/build v0.0.0-0
-	github.com/tarantool/tt/sdk/connect v0.0.0-0
+	github.com/tarantool/tt/sdk/build/v3 v3.0.0
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0
 	go.yaml.in/yaml/v2 v2.4.3
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/term v0.46.0
@@ -41,6 +41,6 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/sdk/build => ./build
-	github.com/tarantool/tt/sdk/connect => ./connect
+	github.com/tarantool/tt/sdk/build/v3 => ./build
+	github.com/tarantool/tt/sdk/connect/v3 => ./connect
 )

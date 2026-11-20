@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	sdkbuild "github.com/tarantool/tt/sdk/build"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
 )
 
 // checkedFiles returns the files of the stage the file checks of the modules

@@ -6,7 +6,7 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 var (
