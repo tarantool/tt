@@ -5,7 +5,7 @@
 // tt registers its integrity flags, sets up the checks and builds the
 // signers and verifiers of a configuration storage through the provider
 // Get returns, never through the package-level functions of
-// github.com/tarantool/tt/sdk/integrity, which are the disabled provider.
+// github.com/tarantool/tt/sdk/integrity/v3, which are the disabled provider.
 // The provider is set once, when tt boots and before any command is built,
 // by the core: a module has no way to change it.
 package integrityprovider
@@ -15,7 +15,7 @@ import (
 	"slices"
 	"sync/atomic"
 
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 // holder boxes a provider: atomic.Pointer needs one concrete type, and the

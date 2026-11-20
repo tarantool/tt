@@ -12,7 +12,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
-	"github.com/tarantool/tt/sdk/execfile"
+	"github.com/tarantool/tt/sdk/v3/execfile"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 

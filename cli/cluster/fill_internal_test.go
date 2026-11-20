@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
 )
 
 // fillFrom fills the config of the YAML dstYAML with that of srcYAML and

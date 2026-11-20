@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/integrity"
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/integrity/v3"
+	"github.com/tarantool/tt/sdk/v3/scope"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/pidfile"

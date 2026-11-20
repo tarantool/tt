@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	"github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 

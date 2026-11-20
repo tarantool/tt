@@ -3,7 +3,7 @@ package inventory
 import (
 	"errors"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 var (

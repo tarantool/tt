@@ -11,9 +11,9 @@ import (
 
 	"github.com/tarantool/go-luarocks/remote"
 
-	"github.com/tarantool/tt/sdk"
-	sdkbuild "github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"

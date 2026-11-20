@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/build/buildtest"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/build/v3/buildtest"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )

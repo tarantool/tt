@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/log/logtest"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
+	"github.com/tarantool/tt/sdk/v3/output"
 
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"

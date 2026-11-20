@@ -46,12 +46,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/internal/clusteryaml"
-	"github.com/tarantool/tt/sdk/log/logtest"
-	"github.com/tarantool/tt/sdk/output"
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3/internal/clusteryaml"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
+	"github.com/tarantool/tt/sdk/v3/output"
+	"github.com/tarantool/tt/sdk/v3/scope"
 )
 
 var (

@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/manifest/install"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 	"github.com/tarantool/tt/v3/cli/tarantool"

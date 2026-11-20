@@ -18,8 +18,8 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tarantool/tt/modules/emmylua/internal/analyzer"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/fetch/v3"
 )
 
 // runner runs the programs of EmmyLua in the project of the command, or

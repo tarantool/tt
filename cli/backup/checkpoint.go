@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 
 	"github.com/tarantool/tt/v3/cli/connector"
 )

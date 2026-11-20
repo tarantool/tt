@@ -12,7 +12,7 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/tree"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/state"

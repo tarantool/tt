@@ -4,8 +4,8 @@ import (
 	"strings"
 	"unicode"
 
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/log"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 const (

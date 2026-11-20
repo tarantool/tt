@@ -12,7 +12,7 @@ import (
 	"github.com/tarantool/go-prompt"
 	"golang.org/x/term"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 var (

@@ -14,7 +14,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 const sampleUUID = "b54147fd-538b-4d39-b3ad-17ba72762f48"

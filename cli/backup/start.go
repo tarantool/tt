@@ -15,9 +15,9 @@ import (
 	"github.com/tarantool/go-iproto"
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-xlog/format"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 
-	"github.com/tarantool/tt/sdk/backup/archive"
+	"github.com/tarantool/tt/sdk/backup/v3/archive"
 	"github.com/tarantool/tt/v3/cli/backup/xlog"
 	"github.com/tarantool/tt/v3/cli/connector"
 )

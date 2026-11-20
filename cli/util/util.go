@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/execfile"
-	"github.com/tarantool/tt/sdk/formatter"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/execfile"
+	"github.com/tarantool/tt/sdk/v3/formatter"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 var (

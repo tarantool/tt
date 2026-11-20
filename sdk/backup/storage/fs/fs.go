@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
 )
 
 // tempFilePrefix is the reserved name prefix for temporary files created during Put.

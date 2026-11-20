@@ -17,9 +17,9 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/tarantool/tt/sdk/bundle"
-	"github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/bundle"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 

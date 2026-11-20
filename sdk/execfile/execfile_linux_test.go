@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/execfile"
+	"github.com/tarantool/tt/sdk/v3/execfile"
 )
 
 // TestWriteRunsWhileForking writes scripts and runs each at once while other

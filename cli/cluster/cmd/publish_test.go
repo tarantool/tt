@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
 	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
 )
 

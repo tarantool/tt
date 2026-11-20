@@ -38,15 +38,15 @@ require (
 	github.com/tarantool/tt/modules/build v0.0.0-0
 	github.com/tarantool/tt/modules/emmylua v0.0.0-0
 	github.com/tarantool/tt/modules/wasm v0.0.0-0
-	github.com/tarantool/tt/sdk v0.0.0-0
-	github.com/tarantool/tt/sdk/backup v0.0.0-0
-	github.com/tarantool/tt/sdk/build v0.0.0-0
-	github.com/tarantool/tt/sdk/cluster v0.0.0-0
-	github.com/tarantool/tt/sdk/connect v0.0.0-0
-	github.com/tarantool/tt/sdk/dial v0.0.0-0
-	github.com/tarantool/tt/sdk/fetch v0.0.0-0
-	github.com/tarantool/tt/sdk/integrity v0.0.0-0
-	github.com/tarantool/tt/sdk/tuple v0.0.0-0
+	github.com/tarantool/tt/sdk/v3 v3.0.0
+	github.com/tarantool/tt/sdk/backup/v3 v3.0.0
+	github.com/tarantool/tt/sdk/build/v3 v3.0.0
+	github.com/tarantool/tt/sdk/cluster/v3 v3.0.0
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0
+	github.com/tarantool/tt/sdk/dial/v3 v3.0.0
+	github.com/tarantool/tt/sdk/fetch/v3 v3.0.0
+	github.com/tarantool/tt/sdk/integrity/v3 v3.0.0
+	github.com/tarantool/tt/sdk/tuple/v3 v3.0.0
 	github.com/ulikunitz/xz v0.5.17
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.2
@@ -188,13 +188,13 @@ replace (
 	github.com/tarantool/tt/modules/build => ./modules/build
 	github.com/tarantool/tt/modules/emmylua => ./modules/emmylua
 	github.com/tarantool/tt/modules/wasm => ./modules/wasm
-	github.com/tarantool/tt/sdk => ./sdk
-	github.com/tarantool/tt/sdk/backup => ./sdk/backup
-	github.com/tarantool/tt/sdk/build => ./sdk/build
-	github.com/tarantool/tt/sdk/cluster => ./sdk/cluster
-	github.com/tarantool/tt/sdk/connect => ./sdk/connect
-	github.com/tarantool/tt/sdk/dial => ./sdk/dial
-	github.com/tarantool/tt/sdk/fetch => ./sdk/fetch
-	github.com/tarantool/tt/sdk/integrity => ./sdk/integrity
-	github.com/tarantool/tt/sdk/tuple => ./sdk/tuple
+	github.com/tarantool/tt/sdk/v3 => ./sdk
+	github.com/tarantool/tt/sdk/backup/v3 => ./sdk/backup
+	github.com/tarantool/tt/sdk/build/v3 => ./sdk/build
+	github.com/tarantool/tt/sdk/cluster/v3 => ./sdk/cluster
+	github.com/tarantool/tt/sdk/connect/v3 => ./sdk/connect
+	github.com/tarantool/tt/sdk/dial/v3 => ./sdk/dial
+	github.com/tarantool/tt/sdk/fetch/v3 => ./sdk/fetch
+	github.com/tarantool/tt/sdk/integrity/v3 => ./sdk/integrity
+	github.com/tarantool/tt/sdk/tuple/v3 => ./sdk/tuple
 )

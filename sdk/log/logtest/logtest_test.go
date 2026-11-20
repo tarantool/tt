@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/log/logtest"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
 )
 
 func TestRecorderConformsToSlog(t *testing.T) {

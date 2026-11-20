@@ -18,7 +18,7 @@ REPORTS = {
     "sdk": (
         "Compatible changes:\n"
         "- AddJobsFlag: added\n"
-        "- package github.com/tarantool/tt/sdk/scope: added\n"
+        "- package github.com/tarantool/tt/sdk/v3/scope: added\n"
     ),
     "sdk/renamed": "",
     "sdk/same": "",
@@ -57,7 +57,7 @@ class ParseTest(unittest.TestCase):
     def test_compatible_changes_only(self):
         self.assertEqual(
             pr_notes.parse_apidiff(REPORTS["sdk"]),
-            ([], ["AddJobsFlag: added", "package github.com/tarantool/tt/sdk/scope: added"]),
+            ([], ["AddJobsFlag: added", "package github.com/tarantool/tt/sdk/v3/scope: added"]),
         )
         self.assertEqual(pr_notes.parse_apidiff(""), ([], []))
 
@@ -75,19 +75,19 @@ class ApiDiffTest(unittest.TestCase):
         self.trees = {"base-sha": self.root / "base", "head-sha": self.root / "head"}
         base, head = self.trees.values()
         for tree in (base, head):
-            write_module(tree, "sdk", "github.com/tarantool/tt/sdk")
-            write_module(tree, "sdk/tuple", "github.com/tarantool/tt/sdk/tuple")
-            write_module(tree, "sdk/same", "github.com/tarantool/tt/sdk/same")
-            write_module(tree, "sdk/broken", "github.com/tarantool/tt/sdk/broken")
+            write_module(tree, "sdk", "github.com/tarantool/tt/sdk/v3")
+            write_module(tree, "sdk/tuple", "github.com/tarantool/tt/sdk/tuple/v3")
+            write_module(tree, "sdk/same", "github.com/tarantool/tt/sdk/same/v3")
+            write_module(tree, "sdk/broken", "github.com/tarantool/tt/sdk/broken/v3")
             # A fixture of a test, a vendored copy: no modules of the SDK.
             write_module(tree, "sdk/same/testdata/mod", "example.com/fixture")
             write_module(tree, "sdk/same/vendor/example.com/dep", "example.com/dep")
-        write_module(base, "sdk/old", "github.com/tarantool/tt/sdk/old")
-        write_module(head, "sdk/new", "github.com/tarantool/tt/sdk/new")
-        write_module(base, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed")
-        write_module(head, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed/v2")
+        write_module(base, "sdk/old", "github.com/tarantool/tt/sdk/old/v3")
+        write_module(head, "sdk/new", "github.com/tarantool/tt/sdk/new/v3")
+        write_module(base, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed/v3")
+        write_module(head, "sdk/renamed", "github.com/tarantool/tt/sdk/renamed/v3/v2")
         self.calls = []
-        self.stderr = "Ignoring internal package github.com/tarantool/tt/sdk/internal/clusteryaml\n"
+        self.stderr = "Ignoring internal package github.com/tarantool/tt/sdk/v3/internal/clusteryaml\n"
 
     def apidiff(self, *args, cwd=None, env=None):
         self.calls.append((args, cwd, env))
@@ -151,8 +151,8 @@ class ApiDiffTest(unittest.TestCase):
         self.assertEqual(
             diffs["sdk/renamed"].incompatible,
             [
-                "module path: changed from github.com/tarantool/tt/sdk/renamed "
-                "to github.com/tarantool/tt/sdk/renamed/v2",
+                "module path: changed from github.com/tarantool/tt/sdk/renamed/v3 "
+                "to github.com/tarantool/tt/sdk/renamed/v3/v2",
             ],
         )
         self.assertIn("Exporting the API of the head", diffs["sdk/broken"].error)

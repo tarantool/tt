@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -77,7 +77,7 @@ func coreGoMod() goModFile {
 		Go:     "1.27.3",
 		Replace: []goModReplace{
 			{
-				Old: goModVersion{Path: "github.com/tarantool/tt/sdk"},
+				Old: goModVersion{Path: "github.com/tarantool/tt/sdk/v3"},
 				New: goModVersion{Path: "./sdk"},
 			},
 			{
@@ -103,14 +103,14 @@ func newFakeGo() *fakeGo {
 			coreModule + "@" + corePseudo: {
 				Path: coreModule, Version: corePseudo, GoMod: "/cache/core.mod",
 			},
-			"github.com/tarantool/tt/sdk@" + coreHash: {
-				Path: "github.com/tarantool/tt/sdk", Version: testRevision,
+			"github.com/tarantool/tt/sdk/v3@" + coreHash: {
+				Path: "github.com/tarantool/tt/sdk/v3", Version: testRevision,
 			},
 			"github.com/tarantool/tt/modules/aeon@" + coreHash: {
 				Path: "github.com/tarantool/tt/modules/aeon", Version: testRevision,
 			},
-			"github.com/tarantool/tt/sdk@9031d7ad96d9": {
-				Path: "github.com/tarantool/tt/sdk", Version: testRevision,
+			"github.com/tarantool/tt/sdk/v3@9031d7ad96d9": {
+				Path: "github.com/tarantool/tt/sdk/v3", Version: testRevision,
 			},
 			"github.com/tarantool/tt/modules/aeon@9031d7ad96d9": {
 				Path: "github.com/tarantool/tt/modules/aeon", Version: testRevision,
@@ -161,7 +161,7 @@ mig = "./plugins/mig"
 		Module: coreModule, Version: corePseudo, Revision: coreHash, GoVersion: "1.27.3",
 		Repository: []repoModule{
 			{Module: "github.com/tarantool/tt/modules/aeon", Version: testRevision},
-			{Module: "github.com/tarantool/tt/sdk", Version: testRevision},
+			{Module: "github.com/tarantool/tt/sdk/v3", Version: testRevision},
 		},
 	}, resolved)
 
@@ -198,7 +198,7 @@ func TestResolvePinned(t *testing.T) {
 			Core: manifest.LockedCore{
 				Module: coreModule, Version: corePseudo, Revision: coreHash,
 				Repository: map[string]string{
-					"github.com/tarantool/tt/sdk":          testRevision,
+					"github.com/tarantool/tt/sdk/v3":          testRevision,
 					"github.com/tarantool/tt/modules/aeon": testRevision,
 				},
 			},
@@ -238,7 +238,7 @@ func TestResolveLocalCore(t *testing.T) {
 		Repository: []repoModule{
 			{Module: "example.com/outside", Dir: "/src/outside"},
 			{Module: "github.com/tarantool/tt/modules/aeon", Dir: "/src/tt/modules/aeon"},
-			{Module: "github.com/tarantool/tt/sdk", Dir: "/src/tt/sdk"},
+			{Module: "github.com/tarantool/tt/sdk/v3", Dir: "/src/tt/sdk"},
 		},
 	}, resolved)
 
@@ -353,7 +353,7 @@ func TestResolveOverriddenCore(t *testing.T) {
 		pinned: &manifest.DistributionLock{
 			Core: manifest.LockedCore{
 				Module: coreModule, Version: "v3.0.0-20200101000000-000000000000",
-				Repository: map[string]string{"github.com/tarantool/tt/sdk": "v0.0.0-old"},
+				Repository: map[string]string{"github.com/tarantool/tt/sdk/v3": "v0.0.0-old"},
 			},
 			Modules: map[string]manifest.LockedModule{
 				"foo": {Module: "github.com/acme/tt-foo", Version: "v1.2.0"},

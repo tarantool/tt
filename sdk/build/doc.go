@@ -3,7 +3,7 @@
 // fields of the block of its own.
 //
 // A module contributes a [Backend] through the Backends of the
-// github.com/tarantool/tt/sdk.Module its constructor returns. The core
+// github.com/tarantool/tt/sdk/v3.Module its constructor returns. The core
 // knows the backend by its Name. It decodes the fields of a build block that
 // are not common to every backend into a fresh [Backend.Config] - strictly:
 // a field the configuration has no place for is an error, unless another
@@ -55,5 +55,5 @@
 // the data files their builds make.
 //
 // The package depends on the standard library only, and not on the module
-// contract (github.com/tarantool/tt/sdk), which depends on it.
+// contract (github.com/tarantool/tt/sdk/v3), which depends on it.
 package build

@@ -10,8 +10,8 @@ import (
 
 	"github.com/tarantool/go-luarocks/remote"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/scope"
 )
 
 // ErrNotReady reports a project tt wasm status found something missing in.

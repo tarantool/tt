@@ -8,9 +8,9 @@ import (
 	"github.com/tarantool/go-iproto"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/sdk/output"
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/v3/log"
+	"github.com/tarantool/tt/sdk/v3/output"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // FormatLua is the format of tt data cat that writes the data changes as Lua

@@ -18,7 +18,7 @@ const standardSource = `package standard
 import (
 	"github.com/tarantool/tt/modules/aeon"
 	lua "github.com/tarantool/tt/modules/emmylua"
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"example.com/tt-wasm/wasm/v2"
 )
 

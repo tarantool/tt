@@ -14,7 +14,7 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/rockspec"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 const (

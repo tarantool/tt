@@ -8,7 +8,7 @@ import (
 	"github.com/tarantool/go-xlog/format"
 	"github.com/tarantool/go-xlog/reader"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // spaceSpaceID is the id of _space, the system space of space definitions.

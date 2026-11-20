@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tarantool/tt/sdk/dial"
-	"github.com/tarantool/tt/sdk/formatter"
+	"github.com/tarantool/tt/sdk/dial/v3"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
 	terminal "golang.org/x/term"

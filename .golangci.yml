@@ -311,7 +311,7 @@ linters:
             # in the SDK's ExitError; build, pack, install and distbuild write
             # the programs they lay out with no fork in between
             # (sdk/execfile).
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             # cli/manifest/pack checks the instance descriptions of the
             # templates it packs with the parser tt instance reads them with,
             # and against the topology of their configs as tt instance does.
@@ -361,7 +361,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/printing"
             # Tests check the exit code an error carries (the SDK's ExitError)
             # and the one tt exits with for it (cli/exitcode).
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             # cli/manifest/pack tests match the parser's error for a broken
             # instance description, and the resolver's for one that does not
@@ -421,7 +421,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/build"
+            - "github.com/tarantool/tt/sdk/build/v3"
         # The root package of the module build gives its backends to tt
         # through the module contract.
         dir-modules-build:
@@ -431,7 +431,7 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/modules/build"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
         # The module wasm, tt wasm and the check of the .wasm files, is
         # written against the SDK alone, as any module is: nothing of the
         # core, its own packages, and the libraries it needs.
@@ -445,7 +445,7 @@ linters:
             # The rocks of a release are packed and read as LuaRocks does.
             - "github.com/tarantool/go-luarocks"
             - "github.com/tarantool/tt/modules/wasm"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
         dir-internal-binary:
           files:
             - "**/internal/binary/**"
@@ -458,7 +458,7 @@ linters:
             - "github.com/otiai10/copy"
             - "github.com/spf13/pflag"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/docker"
             - "github.com/tarantool/tt/v3/cli/exitcode"
@@ -485,7 +485,7 @@ linters:
             - "github.com/tarantool/go-iproto"
             - "github.com/tarantool/go-tarantool/v3"
             - "github.com/tarantool/go-xlog"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/backup"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/util"
@@ -501,7 +501,7 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-iproto"
             - "github.com/tarantool/go-xlog"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/backup"
             - "github.com/tarantool/tt/v3/cli/restore"
             - "github.com/tarantool/tt/v3/cli/util/regexputil"
@@ -514,7 +514,7 @@ linters:
             - "github.com/klauspost/compress"
             - "github.com/minio/minio-go/v7"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/backup"
+            - "github.com/tarantool/tt/sdk/backup/v3"
             - "github.com/testcontainers/testcontainers-go"
         # The downloads of tt and its modules depend on the standard library
         # only, so that any module can take them in; testify is for the tests.
@@ -524,7 +524,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/fetch"
+            - "github.com/tarantool/tt/sdk/fetch/v3"
         # The contract of a build backend depends on the standard library
         # only, and not on the module contract, which depends on it;
         # testify is for the tests.
@@ -534,7 +534,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/build"
+            - "github.com/tarantool/tt/sdk/build/v3"
         # The resolver of the application an instance command acts on: it
         # reads the manifest and loads the cluster config the way the rest
         # of tt does, and knows nothing of how instances are run.
@@ -547,7 +547,7 @@ linters:
             - "github.com/tarantool/go-config/v2"
             # The integration test serves a thin config from an embedded etcd.
             - "github.com/tarantool/go-storage/v2"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/app"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/manifest"
@@ -575,7 +575,7 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/go-storage/v2"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/replicaset"
             # tt cluster replicaset expel asks the instances it can reach.
@@ -599,7 +599,7 @@ linters:
             - "github.com/spf13/pflag"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/backup"
             # The instance commands find their instances through the
             # application resolver.
@@ -653,7 +653,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/integrity"
+            - "github.com/tarantool/tt/sdk/integrity/v3"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
@@ -675,7 +675,7 @@ linters:
             - $gostd
             - "github.com/mitchellh/mapstructure"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/config"
             - "github.com/tarantool/tt/v3/cli/configure"
@@ -691,7 +691,7 @@ linters:
             - "github.com/creack/pty"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-prompt"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/connect"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/exitcode"
@@ -705,9 +705,9 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-tarantool/v3"
-            - "github.com/tarantool/tt/sdk/dial"
+            - "github.com/tarantool/tt/sdk/dial/v3"
             # The text protocol reads pushed values as the console reads YAML.
-            - "github.com/tarantool/tt/sdk/formatter"
+            - "github.com/tarantool/tt/sdk/v3/formatter"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/vmihailenco/msgpack/v5"
@@ -718,7 +718,7 @@ linters:
             - "**/cli/coredump/**"
           allow:
             - $gostd
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/coredump"
             - "github.com/tarantool/tt/v3/cli/util"
         dir-cli-create:
@@ -729,7 +729,7 @@ linters:
             - "github.com/mitchellh/mapstructure"
             - "github.com/otiai10/copy"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             # Tests load the project a built-in template creates the way the
             # instance commands do.
             - "github.com/tarantool/tt/v3/cli/app"
@@ -764,7 +764,7 @@ linters:
             - "github.com/tarantool/go-iproto"
             - "github.com/tarantool/go-tarantool/v3"
             - "github.com/tarantool/go-xlog"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/printing"
             - "github.com/vmihailenco/msgpack/v5"
@@ -779,7 +779,7 @@ linters:
             - "github.com/moby/moby/client"
             - "github.com/moby/term"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/docker"
         dir-cli-exitcode:
           files:
@@ -787,7 +787,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/exitcode"
         dir-cli-logging:
           files:
@@ -796,7 +796,7 @@ linters:
             - $gostd
             - "github.com/mattn/go-isatty"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "golang.org/x/term"
         dir-cli-printing:
@@ -806,7 +806,7 @@ linters:
             - $gostd
             - "github.com/mattn/go-isatty"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/printing"
             - "go.yaml.in/yaml/v3"
         dir-cli-process_utils:
@@ -828,7 +828,7 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/go-tarantool/v3"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/connector"
@@ -842,7 +842,7 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-luarocks"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             # The rockspec tt packs is told from others, so that a source
             # rock of a tt package LuaRocks built nothing of is refused.
@@ -863,7 +863,7 @@ linters:
             - "github.com/otiai10/copy"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/app"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -898,7 +898,7 @@ linters:
             - "github.com/mitchellh/mapstructure"
             - "github.com/stretchr/testify"
             # The TLS options of the connector name their transport.
-            - "github.com/tarantool/tt/sdk/dial"
+            - "github.com/tarantool/tt/sdk/dial/v3"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/running"
@@ -914,7 +914,7 @@ linters:
             - "github.com/fatih/color"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-tail"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/tail"
         # The one rule choosing the tarantool an application runs on, shared
         # by tt run and tt instance: it reads the manifest and the lock and
@@ -926,7 +926,7 @@ linters:
             - $gostd
             - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/scope"
+            - "github.com/tarantool/tt/sdk/v3/scope"
             - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/cli/version"
@@ -966,7 +966,7 @@ linters:
             - "github.com/mgutz/ansi"
             - "github.com/otiai10/copy"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/internal/untar"
@@ -977,7 +977,7 @@ linters:
             - $gostd
             - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
         dir-core:
@@ -990,7 +990,7 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/go-storage/v2"
-            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/sdk/v3"
             # The cluster config of an application comes from its pair.
             - "github.com/tarantool/tt/v3/cli/app"
             - "github.com/tarantool/tt/v3/cli/cluster"
@@ -1031,7 +1031,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/execfile"
+            - "github.com/tarantool/tt/sdk/v3/execfile"
         # The pid-file protocol every writer and remover of a tt pid file
         # follows: a leaf, below the supervisor and the commands.
         dir-internal-pidfile:
@@ -1059,7 +1059,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk/scope"
+            - "github.com/tarantool/tt/sdk/v3/scope"
         # The parser of instance descriptions takes bytes and reads nothing
         # itself: a leaf under the commands, the supervisor's peer.
         dir-internal-instances:

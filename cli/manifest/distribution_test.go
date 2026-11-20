@@ -446,7 +446,7 @@ func TestDistributionLockRoundTrip(t *testing.T) {
 			Revision: "9031d7ad96d956744789412ac3ce7604c70196a4",
 			Standard: []string{"emmylua"},
 			Repository: map[string]string{
-				"github.com/tarantool/tt/sdk":          "v0.0.0-20261028190206-9031d7ad96d9",
+				"github.com/tarantool/tt/sdk/v3":          "v0.0.0-20261028190206-9031d7ad96d9",
 				"github.com/tarantool/tt/modules/aeon": "v0.0.0-20261028190206-9031d7ad96d9",
 			},
 		},

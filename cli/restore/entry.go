@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/backup/archive"
+	"github.com/tarantool/tt/sdk/backup/v3/archive"
 )
 
 // vinylTreeExts are the vinyl files Tarantool keeps in a tree of its own:

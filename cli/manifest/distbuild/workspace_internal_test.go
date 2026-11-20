@@ -31,7 +31,7 @@ func TestRenderWorkspace(t *testing.T) {
 		Use:      []string{"/src/dist", "/src/dist/plugins/hello", "/src/tt-foo"},
 		Replace: []workReplace{
 			{Module: "example.com/lib", Version: "v1.2.3", Dir: "/src/dist/libs/lib"},
-			{Module: "github.com/tarantool/tt/sdk", Version: "", Dir: "/src/tt/sdk"},
+			{Module: "github.com/tarantool/tt/sdk/v3", Version: "", Dir: "/src/tt/sdk"},
 			{Module: "github.com/tarantool/tt/v3", Version: "", Dir: "/src/tt"},
 		},
 	})
@@ -51,7 +51,7 @@ use (
 
 replace (
 	example.com/lib v1.2.3 => ./libs/lib
-	github.com/tarantool/tt/sdk => ../tt/sdk
+	github.com/tarantool/tt/sdk/v3 => ../tt/sdk
 	github.com/tarantool/tt/v3 => ../tt
 )
 `, string(got))
@@ -131,20 +131,20 @@ func fakeCore(t *testing.T, dir string) {
 
 go 1.21
 
-require github.com/tarantool/tt/sdk v0.0.0-0
+require github.com/tarantool/tt/sdk/v3 v0.0.0-0
 
 replace (
 	github.com/tarantool/tt/modules/aeon => ./modules/aeon
-	github.com/tarantool/tt/sdk => ./sdk
+	github.com/tarantool/tt/sdk/v3 => ./sdk
 )
 `)
 	writeFile(t, filepath.Join(dir, "core.go"), "package core\n")
 	writeFile(t, filepath.Join(dir, "sdk", "go.mod"),
-		"module github.com/tarantool/tt/sdk\n\ngo 1.21\n")
+		"module github.com/tarantool/tt/sdk/v3\n\ngo 1.21\n")
 	writeFile(t, filepath.Join(dir, "sdk", "sdk.go"), "package sdk\n\n"+
 		"// Where tells which SDK this is.\nfunc Where() string { return \"local\" }\n")
 	writeFile(t, filepath.Join(dir, "sdk", "fresh", "go.mod"),
-		"module github.com/tarantool/tt/sdk/fresh\n\ngo 1.20\n")
+		"module github.com/tarantool/tt/sdk/v3/fresh\n\ngo 1.20\n")
 	writeFile(t, filepath.Join(dir, "sdk", "testdata", "mod", "go.mod"),
 		"module example.com/testdata\n\ngo 1.99\n")
 	writeFile(t, filepath.Join(dir, "modules", "aeon", "go.mod"),
@@ -157,10 +157,10 @@ func writeSDKModule(t *testing.T, dir, mod string) {
 	t.Helper()
 
 	writeFile(t, filepath.Join(dir, "go.mod"), "module "+mod+"\n\ngo 1.21\n\n"+
-		"require github.com/tarantool/tt/sdk "+unpushedSDK+"\n")
+		"require github.com/tarantool/tt/sdk/v3 "+unpushedSDK+"\n")
 	writeFile(t, filepath.Join(dir, "mod.go"), `package mod
 
-import "github.com/tarantool/tt/sdk"
+import "github.com/tarantool/tt/sdk/v3"
 
 // Where tells which SDK the module is built on.
 var Where = sdk.Where()
@@ -228,8 +228,8 @@ use (
 
 replace (
 	github.com/tarantool/tt/modules/aeon => ../tt/modules/aeon
-	github.com/tarantool/tt/sdk => ../tt/sdk
-	github.com/tarantool/tt/sdk/fresh => ../tt/sdk/fresh
+	github.com/tarantool/tt/sdk/v3 => ../tt/sdk
+	github.com/tarantool/tt/sdk/v3/fresh => ../tt/sdk/fresh
 	github.com/tarantool/tt/v3 => ../tt
 )
 `, string(data))
@@ -272,7 +272,7 @@ replace (
 		data, err = os.ReadFile(filepath.Join(dir, "go.work"))
 		require.NoError(t, err)
 		assert.Contains(t, string(data), "use (\n\t./plugins/a\n\t./plugins/b\n\t../tt-c\n)\n")
-		assert.Contains(t, string(data), "\tgithub.com/tarantool/tt/sdk => ../tt/sdk\n")
+		assert.Contains(t, string(data), "\tgithub.com/tarantool/tt/sdk/v3 => ../tt/sdk\n")
 	})
 }
 
@@ -312,7 +312,7 @@ func TestWhere(t *testing.T) {
 
 	out, err = goIn(t, dir, env, "list", "-m", "all")
 	require.NoError(t, err, out)
-	assert.Contains(t, out, "github.com/tarantool/tt/sdk "+unpushedSDK+" => ../tt/sdk")
+	assert.Contains(t, out, "github.com/tarantool/tt/sdk/v3 "+unpushedSDK+" => ../tt/sdk")
 
 	out, err = goIn(t, dir, env, "test", "./...")
 	require.NoError(t, err, out)

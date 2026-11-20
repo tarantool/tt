@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 const (

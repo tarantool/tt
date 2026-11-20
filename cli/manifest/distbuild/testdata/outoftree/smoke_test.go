@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	smoke "example.com/tt-smoke"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/build/buildtest"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/build/v3/buildtest"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 func TestGreet(t *testing.T) {

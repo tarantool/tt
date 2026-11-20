@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // This file links what other components of the package made for linking:

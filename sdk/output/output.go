@@ -1,7 +1,7 @@
 // Package output writes a command's result to stdout.
 //
 // stdout carries the result and nothing else; diagnostics, progress and
-// prompts go to stderr through [github.com/tarantool/tt/sdk/log]. The result
+// prompts go to stderr through [github.com/tarantool/tt/sdk/v3/log]. The result
 // format (--format) is independent of the log format (--log-format).
 //
 // A command renders its result through a [Printer] bound to the process

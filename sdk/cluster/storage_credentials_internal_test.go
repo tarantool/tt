@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	gsconnect "github.com/tarantool/go-storage/v2/connect"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 )
 
 func TestStorageCredentialsByBackend(t *testing.T) {

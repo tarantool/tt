@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -98,7 +98,7 @@ func TestResolveReplacesPinned(t *testing.T) {
 			Core: manifest.LockedCore{
 				Module: coreModule, Version: corePseudo, Revision: coreHash,
 				Repository: map[string]string{
-					"github.com/tarantool/tt/sdk":          testRevision,
+					"github.com/tarantool/tt/sdk/v3":          testRevision,
 					"github.com/tarantool/tt/modules/aeon": testRevision,
 				},
 			},
@@ -133,7 +133,7 @@ func TestResolveReplacesErrors(t *testing.T) {
 		want    string
 	}{
 		"module of the core's repository": {
-			`"github.com/tarantool/tt/sdk" = "../sdk"`,
+			`"github.com/tarantool/tt/sdk/v3" = "../sdk"`,
 			"is a module of the core's repository and follows the core: " +
 				"use [core].path or --core",
 		},
@@ -214,11 +214,11 @@ func TestGenerateGoModReplaceConflict(t *testing.T) {
 	// The build replaces the modules of a local core by itself.
 	local := core{
 		Module: "github.com/tarantool/tt/v3", Dir: "/src/tt", GoVersion: "1.27.3",
-		Repository: []repoModule{{Module: "github.com/tarantool/tt/sdk", Dir: "/src/tt/sdk"}},
+		Repository: []repoModule{{Module: "github.com/tarantool/tt/sdk/v3", Dir: "/src/tt/sdk"}},
 	}
 
 	_, err := generateGoMod(local, nil, []replacement{{
-		Key: "github.com/tarantool/tt/sdk", Module: "github.com/tarantool/tt/sdk", Dir: "/x",
+		Key: "github.com/tarantool/tt/sdk/v3", Module: "github.com/tarantool/tt/sdk/v3", Dir: "/x",
 	}})
 	require.ErrorContains(t, err, "is replaced by the build already")
 	assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(err))

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/tarantool/go-luarocks/remote"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // ErrIndexOnlyServer reports a rock server named on the command line of

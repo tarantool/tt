@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
 
-	"github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // instanceDelimiter separates an application from an instance in a
@@ -176,7 +176,7 @@ func (s ClusterSource) Lookup() AppLookup {
 
 // ParseClusterSource classifies arg, a command-line argument naming a cluster
 // configuration, the way tt's own commands do: a storage URI (a URL with a
-// scheme and a host, see [github.com/tarantool/tt/sdk/connect.CreateURIOpts])
+// scheme and a host, see [github.com/tarantool/tt/sdk/connect/v3.CreateURIOpts])
 // is a [StorageSource]; otherwise the path of an existing regular file is a
 // [FileSource]; anything else is an [AppSource]. creds are used by a storage
 // source only.
