@@ -107,6 +107,26 @@ if [ $# -ne 0 ]; then
 	exit 1;
 fi
 
+# Print the path $1 as an absolute one, resolved against the working
+# directory. The artefacts are packed through symbolic links to them
+# (see stage below), and a relative target would be resolved against
+# the directory of the link instead.
+abspath() {
+	case "$1" in
+		/*) printf '%s\n' "$1";;
+		*)  printf '%s/%s\n' "${PWD}" "$1";;
+	esac
+}
+
+COREDIR=$(abspath "${COREDIR}")
+BINARY=$(abspath "${BINARY}")
+if [ -n "${COREFILE}" ]; then
+	COREFILE=$(abspath "${COREFILE}")
+fi
+if [ -n "${GDB}" ]; then
+	GDB=$(abspath "${GDB}")
+fi
+
 # XXX: This section handles the case when the script is used for
 # kernel.core_pattern. If PID is set and there is a directory in
 # procfs with this PID, the script processes the core dumped by
@@ -220,21 +240,41 @@ HOSTNAME=$(hostname 2>/dev/null || echo hostname)
 # Proceed with collecting and packing artefacts.
 TMPDIR=$(mktemp -d -p "${COREDIR}")
 TARLIST=${TMPDIR}/tarlist
-VERSION=${TMPDIR}/version
+LIBLIST=${TMPDIR}/liblist
 OSRELEASE=/etc/os-release
 ARCHIVENAME=tarantool-core-${PID:-N}-$(date +%Y%m%d%H%M -d @"${TIME}")-${HOSTNAME%%.*}
 ARCHIVE=${COREDIR}/${ARCHIVENAME}.tar.gz
+# The archive is packed from STAGE, its root: every artefact is a
+# symbolic link there, under the name it has in the archive, which tar
+# follows (-h). The names are made here rather than by --transform of
+# the paths of the artefacts, so no path can rename another member:
+# the expression of a relative core path, `core', matched inside
+# every path with "core" in it, as /var/lib/systemd/coredump.
+STAGE=${TMPDIR}/${ARCHIVENAME}
+VERSION=${STAGE}/version
+
+mkdir "${STAGE}"
+
+# stage NAME FILE puts FILE into the archive as NAME, a path within
+# the root of the archive. A name staged already is skipped, so a file
+# listed twice is packed once.
+stage() {
+	if [ -e "${STAGE}/$1" ] || [ -L "${STAGE}/$1" ]; then
+		return 0
+	fi
+	mkdir -p "$(dirname "${STAGE}/$1")"
+	ln -s "$2" "${STAGE}/$1"
+	echo "${ARCHIVENAME}/$1" >>"${TARLIST}"
+}
 
 # Dump the version to checkout the right commit later.
-${BINARY} --version >"${VERSION}"
+"${BINARY}" --version >"${VERSION}"
+echo "${ARCHIVENAME}/version" >>"${TARLIST}"
 
 # Collect the most important artefacts.
-{
-	echo "${VERSION}"
-	echo "${OSRELEASE}"
-	echo "${BINARY}"
-	echo "${COREFILE}"
-} >>"${TARLIST}"
+stage "${OSRELEASE#/}" "${OSRELEASE}"
+stage tarantool "${BINARY}"
+stage coredump "${COREFILE}"
 
 SEPARATOR1='Shared Object Library'
 SEPARATOR2='Shared library is missing debugging information'
@@ -244,7 +284,7 @@ SEPARATOR2='Shared library is missing debugging information'
 # This is black voodoo magic. Do not touch. You are warned.
 if gdb -batch -n "${BINARY}" -c "${COREFILE}" -ex 'info shared'    | \
 	sed -n "/${SEPARATOR1}/,/${SEPARATOR2}/p;/${SEPARATOR2}/q" | \
-	awk '{ print $NF }' | grep '^/' >>"${TARLIST}"
+	awk '{ print $NF }' | grep '^/' >"${LIBLIST}"
 then
 	# XXX: This is a very ugly hack to implement 'unless'
 	# operator in bash for a long pipeline as a conditional.
@@ -262,6 +302,11 @@ COREMISMATCH
 	exit 1;
 fi
 
+# The shared libraries keep their paths, under the root of the archive.
+while IFS= read -r LIB; do
+	stage "${LIB#/}" "${LIB}"
+done <"${LIBLIST}"
+
 # XXX: This is poor man's libthread_db location resolution.
 # I'm sure there are many ways to implement this, but most of them
 # requires additional tools, libs, etc. The one implemented below
@@ -275,7 +320,9 @@ PATTERN2='Using host libthread_db library ".*"\.'
 if echo "${GREETING}" | grep -F "${PATTERN1}" >/dev/null; then
 	LIBTHREAD_DB=$(echo "${GREETING}" | grep "${PATTERN2}" | \
 		awk -F'"' '{ print $2 }')
-	echo "${LIBTHREAD_DB}" >>"${TARLIST}"
+	if [ -n "${LIBTHREAD_DB}" ]; then
+		stage "${LIBTHREAD_DB#/}" "${LIBTHREAD_DB}"
+	fi
 fi
 
 if [ -z "${LIBTHREAD_DB}" ]; then
@@ -288,20 +335,16 @@ NOLIBTHREAD_DB
 	# XXX: Not an error, proceed packing.
 fi
 
-tar_opts=
-
 # Include GDB-wrapper script
 if [ -n "${GDB}" ] && [ -f "${GDB}" ]; then
-	echo "${GDB}" >>"${TARLIST}"
-	tar_opts=$tar_opts\ --transform="s|${GDB}|/$(basename "${GDB}")|"
+	stage "$(basename "${GDB}")" "${GDB}"
 fi
 
 # Include GDB-extensions (if any)
 while [ -n "${EXTS}" ]; do
-	EXT=${EXTS%%:*} # pick the first
+	EXT=$(abspath "${EXTS%%:*}") # pick the first
 	if [ -f "${EXT}" ]; then
-		echo "${EXT}" >>"${TARLIST}"
-		tar_opts=$tar_opts\ --transform="s|${EXT}|/ext/$(basename "${EXT}")|"
+		stage "ext/$(basename "${EXT}")" "${EXT}"
 	else
 		[ -t 1 ] && cat <<MISSINGEXT
 Cannot include extension '${EXT}': No such file or directory.
@@ -311,9 +354,9 @@ MISSINGEXT
 	EXTS=${EXTS#*:} # drop the first
 done
 
-# Pack everything listed in TARLIST file into a tarball. To unify
-# the archive format BINARY, COREFILE, VERSION and TARLIST are
-# renamed while packing.
+# Pack everything listed in TARLIST file into a tarball: the names
+# there are those of the archive, relative to TMPDIR, the directory of
+# STAGE, and each but the version a symbolic link that tar follows.
 # A core dump is mostly holes: the pages of the mappings the process
 # never touched. --sparse stores the data of a file and a map of its
 # holes, so tar neither reads nor compresses the zeros of the holes. The
@@ -321,13 +364,8 @@ done
 # in its extended header, which GNU tar, bsdtar and the archive/tar of Go
 # read; tt coredump unpack refuses the old GNU sparse entries of the gnu
 # format.
-tar -czhf "${ARCHIVE}" -P -T "${TARLIST}" \
-	--format=posix --sparse \
-	${tar_opts} \
-	--transform="s|${BINARY}|/tarantool|"  \
-	--transform="s|${COREFILE}|/coredump|" \
-	--transform="s|${VERSION}|/version|"   \
-	--transform="s|^|${ARCHIVENAME}|"
+tar -czhf "${ARCHIVE}" -C "${TMPDIR}" -T "${TARLIST}" \
+	--format=posix --sparse
 
 [ -t 1 ] && cat <<FINALIZE
 The resulting archive is located here: ${ARCHIVE}
@@ -339,7 +377,6 @@ and run the following command:
 $ curl -T ${ARCHIVE} <resource-uri>
 FINALIZE
 
-# Cleanup temporary files.
-[ -f "${TARLIST}" ] && rm -f "${TARLIST}"
-[ -f "${VERSION}" ] && rm -f "${VERSION}"
-[ -d "${TMPDIR}" ] && rmdir "${TMPDIR}"
+# Cleanup temporary files: the lists, the version and the links of the
+# staging directory, not the files they point to.
+rm -rf "${TMPDIR}"

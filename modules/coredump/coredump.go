@@ -75,7 +75,9 @@ func (p *packCmd) run(corePath string) error {
 		return err
 	}
 
-	err = coredump.Pack(p.services.Streams().IO(), corePath, executable, p.directory, p.pid)
+	err = coredump.Pack(p.services.Streams().IO(), coredump.PackOptions{
+		Core: corePath, Executable: executable, Dir: p.directory, PID: p.pid, Time: p.time,
+	})
 	if err != nil {
 		return err
 	}

@@ -4,11 +4,17 @@ import re
 import resource
 import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 
 import pytest
 
 from utils import run_command_and_get_output
+
+# The gdb extensions tt embeds, which pack puts into ext/ of the archive.
+EXTENSIONS_DIR = (
+    Path(__file__).parents[3] / "modules" / "coredump" / "internal" / "coredump" / "extensions"
+)
 
 # spell-checker:ignore getrlimit setrlimit rlimit rlim coredumps coredumpctl apport
 
@@ -171,7 +177,9 @@ def test_coredump_pack(coredump, coredump_pack):
     rc, output = coredump_pack
     assert rc == 0, output
     assert re.search(r"Core was successfully packed.", output)
-    assert len(list(coredump.parent.glob("*.tar.gz"))) == 1
+    archives = list(coredump.parent.glob("*.tar.gz"))
+    assert len(archives) == 1
+    check_archive_members(archives[0])
 
 
 def check_tarantool_in_archive(tmp_path, expected_tarantool):
@@ -211,6 +219,77 @@ def test_coredump_pack_executable_project(tt_cmd, tmp_path, coredump_alt, alt_ta
     assert re.search(r"Core was successfully packed.", output)
 
     check_tarantool_in_archive(tmp_path, alt_tarantool)
+
+
+def check_archive_members(archive):
+    """Check the members of an archive of tt coredump pack: all of them under
+    the directory named after the archive, the version, the core, the
+    tarantool, gdb.sh and the extensions of tt under their names there, and
+    every other member a file of the host under its path, as the shared
+    libraries are. A transformation of the names that misfires renames one
+    of them: the version goes missing, and inspect refuses the archive, or a
+    library gets a path of no file."""
+    name = os.path.basename(archive).split(".")[0]
+    with tarfile.open(archive) as tar:
+        members = tar.getnames()
+        version = tar.extractfile(f"{name}/version").read().decode()
+
+    assert version.startswith("Tarantool "), version
+
+    rests = set()
+    for member in members:
+        assert member.startswith(name + "/"), member
+        rests.add(member[len(name) + 1 :])
+
+    expected = {"version", "coredump", "tarantool", "gdb.sh"}
+    extensions = {"ext/" + path.name for path in EXTENSIONS_DIR.glob("*.py")}
+    assert extensions
+    assert expected | extensions <= rests, members
+
+    for rest in rests - expected - extensions:
+        assert os.path.isfile("/" + rest), rest
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+@pytest.mark.parametrize(
+    ("core_dir", "core_name", "cwd", "arg", "out"),
+    [
+        # A relative path to a core in the working directory, where the
+        # archive is made, whose path has "core" in it, as
+        # /var/lib/systemd/coredump does: the name of the core matched in the
+        # path of the version, which went missing.
+        pytest.param("var/lib/systemd/coredump", "core", "core_dir", "core", None, id="cwd"),
+        # A relative path through such a directory, and a relative -d.
+        pytest.param("coredump", "core.1", "tmp", "coredump/core.1", "out", id="subdir"),
+        # The absolute path of a core in such a directory.
+        pytest.param("coredump", "core", "tmp", "absolute", None, id="absolute"),
+    ],
+)
+def test_coredump_pack_paths(tt_cmd, tmp_path, coredump, core_dir, core_name, cwd, arg, out):
+    core = tmp_path / core_dir / core_name
+    core.parent.mkdir(parents=True)
+    shutil.copy(coredump, core)
+
+    cwd = core.parent if cwd == "core_dir" else tmp_path
+    arg = core.as_posix() if arg == "absolute" else arg
+    cmd = [tt_cmd, "coredump", "pack", arg]
+    out_dir = cwd
+    if out is not None:
+        out_dir = cwd / out
+        out_dir.mkdir()
+        cmd += ["-d", out]
+    before = set(out_dir.iterdir())
+
+    rc, output = run_command_and_get_output(cmd, cwd=cwd)
+    assert rc == 0, output
+    assert re.search(r"Core was successfully packed.", output)
+
+    # The archive is in the -d directory, relative to the working one, or in
+    # the working one, and pack leaves nothing else behind.
+    archives = list(out_dir.glob("*.tar.gz"))
+    assert len(archives) == 1
+    assert set(out_dir.iterdir()) - before == {archives[0]}
+    check_archive_members(archives[0])
 
 
 def test_coredump_unpack_no_arg(tt_cmd, tmp_path):

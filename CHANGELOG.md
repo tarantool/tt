@@ -1271,6 +1271,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   that core, and `--format=posix`, which keeps the entry of the core a
   regular one: `tt coredump unpack` and `inspect` read the archive, older
   versions of tt too, and the core they unpack is the same file.
+- `tt coredump pack core`, a core given by a relative path, makes an
+  archive `tt coredump inspect` takes. The pack script renamed the members
+  with `tar --transform` of the raw paths of the core, the tarantool, the
+  version and the rest, and the expression of `core` matched inside every
+  path with "core" in it: in `/var/lib/systemd/coredump`, the directory of
+  the archive, the version went missing, and inspect refused the archive
+  for it. The script stages the members as symbolic links under their
+  names in the archive and packs them from there, so no path renames
+  another, and resolves the paths it is given against its working
+  directory, as tt resolves them before it runs it, so that it does the
+  same as the `kernel.core_pattern` pipe it can be.
+- `tt coredump pack --time` gives the time of the dump to the pack script,
+  which names the archive by it: the flag was taken and ignored.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read
