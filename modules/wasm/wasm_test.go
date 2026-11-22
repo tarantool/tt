@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/modules/wasm"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // defaultRockServer is the rock server prepare declares the rock from by

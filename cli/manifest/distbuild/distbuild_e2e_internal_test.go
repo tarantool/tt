@@ -24,7 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // New mounts tt hello.
@@ -49,8 +49,8 @@ go 1.26.10
 
 require (
 	github.com/spf13/cobra v1.10.2
-	github.com/tarantool/tt/sdk v0.0.0-20261028190206-9031d7ad96d9
-	github.com/tarantool/tt/sdk/connect v0.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/v3 v3.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0-20261028190206-9031d7ad96d9
 )
 `
 
@@ -601,7 +601,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"example.com/lib"
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // New mounts tt hello.
@@ -628,8 +628,8 @@ require (
 	example.com/lib v1.0.0
 	github.com/google/uuid v1.3.0
 	github.com/spf13/cobra v1.10.2
-	github.com/tarantool/tt/sdk v0.0.0-20261028190206-9031d7ad96d9
-	github.com/tarantool/tt/sdk/connect v0.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/v3 v3.0.0-20261028190206-9031d7ad96d9
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0-20261028190206-9031d7ad96d9
 )
 `
 
@@ -792,7 +792,7 @@ func TestBuildReplaceRefused(t *testing.T) {
 
 	for _, testCase := range []struct{ replace, want string }{
 		{`"example.com/hello" = "./hello"`, `is the tt module "hello" of [dependencies]`},
-		{`"github.com/tarantool/tt/sdk" = "./hello"`, "is a module of the core's repository"},
+		{`"github.com/tarantool/tt/sdk/v3" = "./hello"`, "is a module of the core's repository"},
 		{
 			`"example.com/lib" = "./hello"`,
 			"./hello holds module example.com/hello, not example.com/lib",

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/bundle"
+	"github.com/tarantool/tt/sdk/v3/bundle"
 )
 
 func TestCheckPlatform(t *testing.T) {

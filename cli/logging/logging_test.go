@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	sdklog "github.com/tarantool/tt/sdk/log"
+	sdklog "github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/logging"
 )
 

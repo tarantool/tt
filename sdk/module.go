@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3/output"
 )
 
 // Mount is a command a module contributes to tt, and where it goes.
@@ -67,7 +67,7 @@ var ErrNotFound = errors.New("not found")
 
 // Services are what the tt core offers a module.
 //
-// Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Services;
+// Only the core and [github.com/tarantool/tt/sdk/v3/sdktest] implement Services;
 // a module must not, since methods may be added in a minor release of the
 // SDK. Log is valid at any time. Every other method is valid only once tt is
 // configured - in a command's hooks - and panics before that with a message
@@ -80,7 +80,7 @@ type Services interface {
 	// Tarantool returns the Tarantool the command should run: the one the
 	// project bundles, when it has one, and the environment's otherwise. The
 	// project is the one [Project.Dir] is in, as
-	// [github.com/tarantool/tt/sdk/scope.FindProject] finds it, so a command
+	// [github.com/tarantool/tt/sdk/v3/scope.FindProject] finds it, so a command
 	// run in a subdirectory of a project runs the project's Tarantool, as
 	// tt run does. When there is none the error wraps ErrNotFound.
 	Tarantool() (Tarantool, error)
@@ -154,7 +154,7 @@ type Integrity interface {
 // returns, they work under it rather than wait. Manifest, ReadLock,
 // BuildContext and the others read, and take no lock.
 //
-// Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Project,
+// Only the core and [github.com/tarantool/tt/sdk/v3/sdktest] implement Project,
 // as they implement Services.
 //
 //nolint:interfacebloat // What tt package does to a project, one service as it is one group.
@@ -168,7 +168,7 @@ type Project interface {
 	// Root returns the project the command works on as an absolute path:
 	// the project Dir is in, as the project commands of tt find it - the
 	// nearest directory from Dir up with a project marker
-	// ([github.com/tarantool/tt/sdk/scope.FindProject]), or Dir itself
+	// ([github.com/tarantool/tt/sdk/v3/scope.FindProject]), or Dir itself
 	// under -C - and Dir when there is none. When it is above Dir, tt says
 	// once in the process which project the command works on, as tt package
 	// does. The other methods of Project work on Root.
@@ -226,7 +226,7 @@ type Project interface {
 	// ErrNotFound; a lock that does not parse is an error that names it.
 	ReadLock() (LockFile, error)
 	// ScopeDir returns the root of the project scope of Root, .tarantool, as
-	// an absolute path ([github.com/tarantool/tt/sdk/scope.ProjectRoot]):
+	// an absolute path ([github.com/tarantool/tt/sdk/v3/scope.ProjectRoot]):
 	// tt binary --scope project installs there, a module installs the tools
 	// of the project there, and its bin/ comes first in the PATH of the
 	// builds of the project ([build.Dirs.Tools]) and of the shell
@@ -357,7 +357,7 @@ type Project interface {
 
 // Rocks are the rock servers tt writes, as tt package index writes one.
 //
-// Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Rocks,
+// Only the core and [github.com/tarantool/tt/sdk/v3/sdktest] implement Rocks,
 // as they implement Services.
 type Rocks interface {
 	// Index makes the directory dir a rock server of the rocks and the

@@ -38,7 +38,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/v3/scope"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 

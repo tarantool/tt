@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/dial"
-	"github.com/tarantool/tt/sdk/formatter"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/dial/v3"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"

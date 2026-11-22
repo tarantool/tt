@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/modules/emmylua/internal/analyzer"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/fetch/v3"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // prepareCmd is tt emmylua prepare: the values of its flags.

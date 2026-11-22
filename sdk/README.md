@@ -7,17 +7,17 @@ must not import anything else from this repository.
 
 Each directory is a separate Go module:
 
-| Directory        | Module path                              |
-|------------------|------------------------------------------|
-| `sdk`            | `github.com/tarantool/tt/sdk`            |
-| `sdk/connect`    | `github.com/tarantool/tt/sdk/connect`    |
-| `sdk/dial`       | `github.com/tarantool/tt/sdk/dial`       |
-| `sdk/cluster`    | `github.com/tarantool/tt/sdk/cluster`    |
-| `sdk/integrity`  | `github.com/tarantool/tt/sdk/integrity`  |
-| `sdk/backup`     | `github.com/tarantool/tt/sdk/backup`     |
-| `sdk/tuple`      | `github.com/tarantool/tt/sdk/tuple`      |
-| `sdk/fetch`      | `github.com/tarantool/tt/sdk/fetch`      |
-| `sdk/build`      | `github.com/tarantool/tt/sdk/build`      |
+| Directory        | Module path                                 |
+|------------------|---------------------------------------------|
+| `sdk`            | `github.com/tarantool/tt/sdk/v3`            |
+| `sdk/connect`    | `github.com/tarantool/tt/sdk/connect/v3`    |
+| `sdk/dial`       | `github.com/tarantool/tt/sdk/dial/v3`       |
+| `sdk/cluster`    | `github.com/tarantool/tt/sdk/cluster/v3`    |
+| `sdk/integrity`  | `github.com/tarantool/tt/sdk/integrity/v3`  |
+| `sdk/backup`     | `github.com/tarantool/tt/sdk/backup/v3`     |
+| `sdk/tuple`      | `github.com/tarantool/tt/sdk/tuple/v3`      |
+| `sdk/fetch`      | `github.com/tarantool/tt/sdk/fetch/v3`      |
+| `sdk/build`      | `github.com/tarantool/tt/sdk/build/v3`      |
 
 - `connect` parses connection strings and URIs and resolves credentials.
 - `dial` builds Tarantool dialers for the plain and SSL transports.
@@ -293,35 +293,60 @@ A first module, from `go mod init` to a distribution, is in
 
 ## Versioning
 
-Each module is versioned on its own with tags prefixed by its directory, for
-example `sdk/connect/v0.1.0`; the contract module's tags are `sdk/v0.x.y`.
-No such tags exist yet: inside this repository the modules resolve through
-`replace` directives in the `go.mod` files that use them, and their own
-`go.mod` files require each other at placeholder versions (`v0.0.0-0`) that
-exist nowhere else. A placeholder sorts below every pseudo-version, so that
-a version a module outside the repository asks for wins over it.
+Each module is versioned on its own with tags prefixed by its directory, and
+the tag carries the major version of the module path: `sdk/v3.0.0` tags
+`github.com/tarantool/tt/sdk/v3`, `sdk/build/v3.0.0` tags
+`github.com/tarantool/tt/sdk/build/v3`.
 
-A module outside this repository therefore requires the SDK modules at a
-commit of tt, every one it uses at the same commit, and `sdk/build` and
-`sdk/connect` whenever it uses `sdk` (`sdk/connect` and `sdk/dial` for
-`sdk/cluster`), so that the pseudo-version takes the place of the
-placeholder:
+The major and minor are those of the release of tt the SDK belongs to, and
+the patch counts the changes of the module: a module that did not change
+keeps its patch, one that changed gets the next. A new minor of tt gives
+every module its `vX.Y.0`.
+
+A pre-release belongs to a new minor, `vX.Y.0-rc.N`, and tags every module
+with its suffix, changed or not: before the stable release of that minor
+there is no version of it to keep. The stable release tags them all again,
+`vX.Y.0`. A patch release has no pre-release.
+
+```text
+tt v3.0.0-rc.1             every module v3.0.0-rc.1
+tt v3.0.0                  every module v3.0.0
+change in sdk/connect      sdk/connect v3.0.1, and sdk v3.0.1 and
+                           sdk/cluster v3.0.1, whose go.mod requires it
+tt v3.0.1, no SDK change   no new tags
+tt v3.1.0                  every module v3.1.0
+```
+
+The release notes of tt name the SDK it is built on.
+
+The tags are made by `sdk-release.yml` (ci/sdk_tags.py), before the release
+of tt is tagged: the go.mod of tt requires every module at its tag, and
+`publish.yml` refuses a release whose SDK is not tagged at that version, or
+changed after the tag.
+
+Inside this repository the modules resolve through `replace` directives in
+the `go.mod` files that use them, and their own `go.mod` files require each
+other at the version of the last tag, which the `replace` takes the place
+of.
+
+A module outside this repository requires the tagged versions:
 
 ```sh
-go get github.com/tarantool/tt/sdk@<commit> github.com/tarantool/tt/sdk/build@<commit> \
-    github.com/tarantool/tt/sdk/connect@<commit>
+go get github.com/tarantool/tt/sdk/v3@v3.0.0 github.com/tarantool/tt/sdk/build/v3@v3.0.0 \
+    github.com/tarantool/tt/sdk/connect/v3@v3.0.0
 ```
 
 The distribution build builds every module on the SDK at the commit of its
-core, whatever the module requires, so keep the commit the one of the core
-the module is built on. To work against a local checkout of tt, on changes
-of the SDK not pushed yet, `tt binary workspace` writes a `go.work` that
-replaces every module of the checkout with its directory, with no version;
-`go work use` of the SDK directories fails while the module requires a
-commit Go cannot download. See
+core, whatever the module requires. To work against a local checkout of tt,
+on changes of the SDK not pushed yet, `tt binary workspace` writes a
+`go.work` that replaces every module of the checkout with its directory,
+with no version. See
 [Develop together with the core](https://tarantool.github.io/tt/how-to/write-a-module/#develop-together-with-the-core).
 
 ## Stability
 
-The API of every SDK module is alpha and may change incompatibly in any
-release.
+The API of every SDK module is stable: a patch of a module keeps the API of
+the versions before it, and a break fails the check of `publish.yml` and
+`sdk-release.yml` unless it goes through the `sdk-breaking` label of a pull
+request. A change of a major version of tt is where the SDK may break, and
+its path gains the new major version with it.

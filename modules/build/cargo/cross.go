@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // This file is the build of cargo for a platform other than the machine tt

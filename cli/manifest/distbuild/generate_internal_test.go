@@ -9,13 +9,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
 const testRevision = "v0.0.0-20261028190206-9031d7ad96d9"
+
+// testSDKRevision is testRevision for a module whose path has a major
+// version: a pseudo-version of such a path carries that major version.
+const testSDKRevision = "v3.0.0-20261028190206-9031d7ad96d9"
 
 // versionedCore is the core of tt at a commit, with its repository.
 func versionedCore() core {
@@ -26,8 +30,8 @@ func versionedCore() core {
 		GoVersion: "1.27.3",
 		Repository: []repoModule{
 			{Module: "github.com/tarantool/tt/modules/aeon", Version: testRevision},
-			{Module: "github.com/tarantool/tt/sdk", Version: testRevision},
-			{Module: "github.com/tarantool/tt/sdk/connect", Version: testRevision},
+			{Module: "github.com/tarantool/tt/sdk/v3", Version: testSDKRevision},
+			{Module: "github.com/tarantool/tt/sdk/connect/v3", Version: testSDKRevision},
 		},
 	}
 }
@@ -85,7 +89,7 @@ func TestGenerateGoModLocalCore(t *testing.T) {
 		GoVersion: "1.27.3",
 		Repository: []repoModule{
 			{Module: "github.com/tarantool/tt/modules/aeon", Dir: "/src/tt/modules/aeon"},
-			{Module: "github.com/tarantool/tt/sdk", Dir: "/src/tt/sdk"},
+			{Module: "github.com/tarantool/tt/sdk/v3", Dir: "/src/tt/sdk"},
 		},
 	}
 
@@ -258,8 +262,8 @@ func TestPlaceholderVersion(t *testing.T) {
 		placeholderVersion("github.com/tarantool/tt/v3"))
 	assert.Equal(t, "v12.0.0-00010101000000-000000000000",
 		placeholderVersion("example.com/m/v12"))
-	assert.Equal(t, "v0.0.0-00010101000000-000000000000",
-		placeholderVersion("github.com/tarantool/tt/sdk"))
+	assert.Equal(t, "v3.0.0-00010101000000-000000000000",
+		placeholderVersion("github.com/tarantool/tt/sdk/v3"))
 	assert.Equal(t, "v0.0.0-00010101000000-000000000000",
 		placeholderVersion("example.com/v1"))
 }

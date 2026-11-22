@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
 )
 
 func TestPut(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/fetch/v3"
 )
 
 // tarEntry is one entry of a test archive.

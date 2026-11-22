@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/sdk/formatter"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 )
 
 func TestFormatter_ParseTableDialect(t *testing.T) {

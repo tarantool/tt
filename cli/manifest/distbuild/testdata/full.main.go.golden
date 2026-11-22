@@ -9,7 +9,7 @@ import (
 	mod_migrations "example.com/ee/plugins/migrations"
 	mod_foo_bar "github.com/acme/tt-foo/cmd"
 	mod_aeon "github.com/tarantool/tt/modules/aeon"
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/v3/core"
 )
 

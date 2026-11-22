@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3/output"
 )
 
 const formatYAML output.Format = "yaml"

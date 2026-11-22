@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/integrity"
-	ttscope "github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/integrity/v3"
+	ttscope "github.com/tarantool/tt/sdk/v3/scope"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 

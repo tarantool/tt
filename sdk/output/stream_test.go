@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3/output"
 )
 
 // recorder is a stdout that remembers every write and flush separately, so

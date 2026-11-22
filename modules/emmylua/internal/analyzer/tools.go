@@ -18,7 +18,7 @@ import (
 	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/go-luarocks/remote"
 
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/fetch/v3"
 )
 
 // The programs of EmmyLua outside a project come from the user cache

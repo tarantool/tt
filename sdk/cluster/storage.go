@@ -20,7 +20,7 @@ import (
 	"github.com/tarantool/go-storage/v2/integrity"
 	"github.com/tarantool/go-storage/v2/marshaller"
 	"github.com/tarantool/go-storage/v2/namer"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"

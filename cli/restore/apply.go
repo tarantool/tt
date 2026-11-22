@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 
 	"github.com/tarantool/go-xlog/format"
 	"github.com/tarantool/go-xlog/reader"
 
-	"github.com/tarantool/tt/sdk/backup/archive"
+	"github.com/tarantool/tt/sdk/backup/v3/archive"
 	"github.com/tarantool/tt/v3/cli/backup"
 	"github.com/tarantool/tt/v3/cli/backup/xlog"
 )

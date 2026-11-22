@@ -9,8 +9,8 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/output"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 )
 

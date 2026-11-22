@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	"github.com/tarantool/tt/sdk/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
 )

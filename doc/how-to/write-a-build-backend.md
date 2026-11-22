@@ -15,8 +15,8 @@ module, a Go module compiled into a
 `shell`, `c`, `lua-c`, `cargo`, `cmake`, `go` and `zig` - are the standard
 module `build`, in `modules/build` of the repository of tt. They are
 written against the same contract as the backend of any other module,
-`github.com/tarantool/tt/sdk/build`, and they are examples of every kind of
-backend.
+`github.com/tarantool/tt/sdk/build/v3`, and they are examples of every kind
+of backend.
 
 This page writes a backend from scratch, `template`. It renders a template
 of a component with `envsubst` into a data file of the package. The page
@@ -24,25 +24,22 @@ then tests it, builds it into tt and builds a package with it. How a module
 is put together - its constructor, its commands, its distribution - is in
 [Write a tt module](write-a-module.md).
 
-The SDK is alpha: its API may change in any release of tt.
+The SDK is stable: its API changes compatibly from one stable release of tt
+to the next.
 
 ## Set up the Go module
 
 ```sh
 mkdir tt-template && cd tt-template
 go mod init example.com/tt-template
-go get github.com/tarantool/tt/sdk@<commit> \
-    github.com/tarantool/tt/sdk/build@<commit> \
-    github.com/tarantool/tt/sdk/connect@<commit>
+go get github.com/tarantool/tt/sdk/v3@v3.0.0 \
+    github.com/tarantool/tt/sdk/build/v3@v3.0.0 \
+    github.com/tarantool/tt/sdk/connect/v3@v3.0.0
 go get github.com/stretchr/testify
 ```
 
-Require the SDK modules at one commit of tt, as
+Require the versions the release notes of tt name, as
 [Write a tt module](write-a-module.md#set-up-the-go-module) explains.
-`sdk/build` is not in a release yet: `v3.0.0-alpha.2` does not have it, so
-take a later commit of the core. Give `sdk/connect` too, even though the
-module does not import it: the `go.mod` of `sdk` requires it at a
-placeholder version that only tt's own repository resolves.
 
 To build the module on a checkout of tt instead, with changes of the SDK
 that are not pushed yet, run `tt binary workspace` in the directory of the
@@ -75,7 +72,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // Name is the name of the backend: backend = "template" in a build block.
@@ -471,7 +468,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // RenderConfig are the fields of a render build block.
@@ -918,8 +915,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // New is the constructor of the module: the template and render backends
@@ -980,8 +977,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	template "example.com/tt-template"
-	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/build/buildtest"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/build/v3/buildtest"
 )
 
 // component is the component the tests build.
@@ -1126,7 +1123,7 @@ $ tt binary build tt
    • Built /home/me/dist/tt
 /home/me/dist/tt
 $ ./tt version --modules
-Tarantool CLI version 3.0.0-alpha.2, linux/amd64. commit: 2f4ff650 (v3.0.0-alpha.2-187-g2f4ff650)
+Tarantool CLI version 3.0.0, linux/amd64. commit: <unknown>
   aeon      (devel)  github.com/tarantool/tt/modules/aeon
   build     (devel)  github.com/tarantool/tt/modules/build
   builtin   (devel)  github.com/tarantool/tt/v3

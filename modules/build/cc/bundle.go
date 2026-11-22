@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // This file bundles shared libraries the module links next to it: each of

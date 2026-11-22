@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool/v3"
-	"github.com/tarantool/tt/sdk/dial"
+	"github.com/tarantool/tt/sdk/dial/v3"
 )
 
 const (

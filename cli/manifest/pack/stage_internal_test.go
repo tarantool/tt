@@ -14,7 +14,7 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	lrtree "github.com/tarantool/go-luarocks/tree"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"

@@ -9,8 +9,9 @@ tt 3 is a rework of tt 2.x. The main changes are:
 - On a host, an application runs from a **pair of files** that describe which
   instances run there and how they are configured.
 
-tt 3 supports Tarantool 3 only. If you are upgrading from tt 2.x, see
-[Migrate from tt 2.x](migration_from_older_versions.md).
+tt 3 supports Tarantool 3 only, and tt 3.0.0 is for new installations: a tt 2
+project is built anew rather than moved in place. If you are upgrading from
+tt 2.x, see [Migrate from tt 2.x](migration_from_older_versions.md).
 
 ## No configuration file
 

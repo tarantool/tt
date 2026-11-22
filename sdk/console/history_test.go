@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/console"
+	"github.com/tarantool/tt/sdk/v3/console"
 )
 
 func TestNewHistory(t *testing.T) {

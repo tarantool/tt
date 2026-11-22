@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/sdk/build
+module github.com/tarantool/tt/sdk/build/v3
 
 go 1.27.0
 

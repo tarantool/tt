@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // This file puts the libraries of the link together: the entries of

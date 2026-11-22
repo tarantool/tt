@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 // precedenceFile is the config file of the precedence tests: what Tarantool

@@ -24,6 +24,39 @@ NOTES = ROOT / "pr-notes"
 # The label of a pull request that changes the SDK API incompatibly on purpose.
 BREAKING_LABEL = "sdk-breaking"
 
+# The module paths of the SDK before the major version of them: sdk/v3 is
+# the contract module, sdk/build/v3 the module build, and so on.
+MODULES = [
+    "github.com/tarantool/tt/sdk/" + name
+    for name in ("backup", "build", "cluster", "connect", "dial", "fetch", "integrity", "tuple")
+] + ["github.com/tarantool/tt/sdk"]
+
+# The same paths after the major version: what a new path adds.
+MODULES_NEW = [module + "/v3" for module in MODULES]
+
+# A package of the contract module, whose path gained /v3 after the module:
+# github.com/tarantool/tt/sdk/output is github.com/tarantool/tt/sdk/v3/output.
+PACKAGES = [
+    "github.com/tarantool/tt/sdk/" + name
+    for name in (
+        "console",
+        "execfile",
+        "formatter",
+        "log",
+        "output",
+        "scope",
+        "sdktest",
+        "internal",
+    )
+]
+
+# The label of the pull request that gives the SDK its module paths with the
+# major version: every module is a module of its own, with a new path, and a
+# module written against the SDK before it names the paths without it. It
+# covers the change of the paths only: another incompatible change of the
+# same pull request still needs sdk-breaking.
+PATHS_LABEL = "sdk-paths"
+
 # A release tag: vMAJOR.MINOR.PATCH with an optional pre-release suffix.
 RELEASE = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?")
 
@@ -153,10 +186,14 @@ def parse_apidiff(text):
 
 def export_api(directory, export):
     """Write the API of the Go module in directory to export; return the error."""
-    # apidiff -m loads the packages MODULE_PATH/... matches, the ones of every
-    # SDK module the module requires through replace among them, and names
-    # the module by the first package it loaded. "." loads ./..., the
-    # packages of the module in directory only.
+    # apidiff -m loads the packages a pattern matches, the ones of every SDK
+    # module the module requires among them, and names the module by the
+    # first package it loaded. "./..." loads the packages of the module in
+    # directory, and only those while every SDK module it requires has a
+    # replace: the workspace is off below. A module that changed the name of
+    # its path rather than its major version fails to export this way, which
+    # is right: nothing compares a module whose packages are under another
+    # module path, and renaming one is incompatible by itself.
     result = command(
         "apidiff",
         "-m",
@@ -171,7 +208,7 @@ def export_api(directory, export):
     return ""
 
 
-def compare_module(path, old, new, workdir):
+def compare_module(path, old, new, workdir, before, after):
     """Compare the API of the SDK module in directory path of the trees old and new."""
     name = path.as_posix()
     exports = []
@@ -182,10 +219,16 @@ def compare_module(path, old, new, workdir):
             return ModuleDiff(name, "failed", error=f"Exporting the API of the {side}:\n{error}")
         exports.append(export)
     result = command("apidiff", "-m", *(str(export) for export in exports))
+    # Both exports are named by the module path of their side, so a module
+    # whose path did not change compares with itself; the module path is
+    # reported apart, as a change of its own.
+    changed_path = before != after
     diagnostics = [
         line
         for line in result.stderr.splitlines()
-        if line.strip() and not line.startswith("Ignoring internal package ")
+        if line.strip()
+        and not line.startswith("Ignoring internal package ")
+        and not (changed_path and "different module paths" in line)
     ]
     if result.returncode or diagnostics:
         error = "\n".join([*diagnostics, result.stdout.strip()]).strip()
@@ -220,7 +263,7 @@ def api_diff(base, head):
                     continue
                 workdir = temp / str(index)
                 workdir.mkdir()
-                diff = compare_module(path, old, new, workdir)
+                diff = compare_module(path, old, new, workdir, before[path], after[path])
                 if before[path] != after[path] and diff.state != "failed":
                     diff.state = "changed"
                     diff.incompatible.insert(
@@ -229,6 +272,92 @@ def api_diff(base, head):
                     )
                 diffs.append(diff)
     return diffs
+
+
+def drops_paths(diffs):
+    """Return the diffs of the modules that change nothing but their path.
+
+    None when a module changes anything but its path: the label that lets
+    the paths through covers nothing else. A module path moves the major
+    version in front of the last name, sdk/connect to sdk/connect/v3, and
+    the packages of the module name the others by their paths: a signature
+    that names one of them changes line number, and changes back when the
+    old path is put in place of the new one. What is left after that is a
+    break of the API. A module removed, one whose API could not be
+    compared, and one that breaks without moving its path are no change of
+    a path either.
+    """
+    if diffs is None:
+        return None
+    out = []
+    for diff in diffs:
+        if diff.state in {"failed", "removed"}:
+            return None
+        rest = [c for c in diff.incompatible if not resolves_to_itself(c)]
+        if rest:
+            return None
+        out.append(
+            dataclasses.replace(
+                diff,
+                state="changed" if diff.compatible else "same",
+                incompatible=[],
+            ),
+        )
+    return out
+
+
+# A change apidiff reports of a name, its type before, and after.
+CHANGED_TYPE = re.compile(r"changed from (?P<before>.*) to (?P<after>.*)$")
+
+# The change apidiff reports of a package that a new path leaves: the
+# package of the module under the new path, which was not there before.
+NEW_PACKAGE = re.compile(r"^package (?P<path>\S+): added$")
+
+# The change apidiff reports of the path of a module.
+MODULE_PATH = re.compile(r"^module path: changed from (\S+) to (\S+)$")
+
+
+def resolves_to_itself(change):
+    """Tell whether a change names a module path and nothing else.
+
+    The path of a module of the SDK gained /v3 in front of its last name:
+    github.com/tarantool/tt/sdk/connect became sdk/connect/v3. Every name
+    the modules use of each other moved with it, and putting the old path
+    back leaves the same type.
+    """
+    path_change = MODULE_PATH.search(change)
+    if path_change is not None and resolves(path_change.group(1), path_change.group(2)):
+        return True
+    match = CHANGED_TYPE.search(change)
+    if match is not None:
+        return resolves(match.group("before"), match.group("after"))
+    added = NEW_PACKAGE.search(change)
+    if added is not None:
+        return any(
+            added.group("path") == module or added.group("path").startswith(module + "/")
+            for module in MODULES_NEW
+        )
+    return False
+
+
+def resolves(before, after):
+    """Tell whether the same names, on the old module paths, say before.
+
+    The modules of the SDK gained /v3 in front of the last name of their
+    paths, and /v3 in front of the last name of the paths of their packages:
+    github.com/tarantool/tt/sdk/build became sdk/build/v3, .../sdk/output
+    became .../sdk/v3/output. A name of one of them reads the new one after,
+    the old one before, and both at once in a signature that names several:
+    the paths are put back where each of them moved from.
+    """
+    restored = after
+    for module in MODULES:
+        restored = restored.replace(f"{module}/v3", module)
+    # PACKAGES names the old paths, which are in before; the new ones are in
+    # after, and go back to the old one.
+    for package in sorted(PACKAGES, key=len, reverse=True):
+        restored = restored.replace(f"{package}/v3", package)
+    return restored == before
 
 
 def rank(diff):
@@ -384,7 +513,8 @@ def api_check(args):
         allowed = None
     if labels is not None:
         hint = (
-            f"add the {BREAKING_LABEL} label to the pull request; "
+            f"add the {BREAKING_LABEL} label to the pull request, or the "
+            f"{PATHS_LABEL} one for the paths of the modules; "
             "the check runs again on a label and passes, listing the changes."
         )
     else:
@@ -392,9 +522,23 @@ def api_check(args):
             "pass --allow-incompatible, which reports the changes without failing; "
             f"in CI, the {BREAKING_LABEL} label of the pull request does that."
         )
+    diffs = api_diff(base, head)
+    policy = Policy(allowed, hint)
+    if labels is not None and PATHS_LABEL in labels:
+        # The label lets a change of the module paths through and nothing
+        # else: what the paths alone account for is taken out of the report,
+        # and any other incompatible change fails the check as it does
+        # without the label.
+        without_paths = drops_paths(diffs)
+        if without_paths is None:
+            allowed = None
+        else:
+            diffs = without_paths
+            allowed = f"allowed by the {PATHS_LABEL} label for the paths of the modules"
+        policy = Policy(allowed, hint)
     text, markdown, failed = api_report(
-        api_diff(base, head),
-        Policy(allowed, hint),
+        diffs,
+        policy,
         f"The SDK API of {head[:12]} against the merge base {base[:12]}",
     )
     annotate(text.splitlines()[0], failed, allowed)

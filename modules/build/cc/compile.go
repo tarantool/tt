@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // filePerm and dirPerm are the modes of the files and the directories the

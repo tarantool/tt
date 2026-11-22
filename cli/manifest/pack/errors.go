@@ -3,7 +3,7 @@ package pack
 import (
 	"errors"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // File and directory names pack reads from the project and writes into the

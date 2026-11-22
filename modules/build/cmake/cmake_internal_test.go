@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/build/buildtest"
+	"github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/build/v3/buildtest"
 )
 
 // writeFiles writes each file of files, by its path relative to dir.

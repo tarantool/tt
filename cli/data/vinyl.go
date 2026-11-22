@@ -7,7 +7,7 @@ import (
 	"github.com/tarantool/go-iproto"
 	"github.com/tarantool/go-xlog/format"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // errBodyNotMap is the body of a row that is not a map.

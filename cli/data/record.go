@@ -9,7 +9,7 @@ import (
 	"github.com/tarantool/go-iproto"
 	"github.com/tarantool/go-xlog/format"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // Names of the fields of a record. A record is a map of a HEADER and, for a

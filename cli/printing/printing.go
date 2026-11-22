@@ -1,5 +1,5 @@
 // Package printing is the tt core's side of
-// [github.com/tarantool/tt/sdk/output]: it makes the Printer a command writes
+// [github.com/tarantool/tt/sdk/v3/output]: it makes the Printer a command writes
 // its result through, with the formats the SDK does not encode itself - YAML -
 // and the terminal check that decides styling.
 //
@@ -27,7 +27,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3/output"
 )
 
 // FormatYAML is [output.FormatYAML], the format this package encodes.

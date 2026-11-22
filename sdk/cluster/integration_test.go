@@ -25,7 +25,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
 	tcs_helper "github.com/tarantool/go-tarantool/v3/test_helpers/tcs"
 
-	"github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/cluster/v3"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/connect/v3"
 )
 
 func TestMakeURLHelp(t *testing.T) {

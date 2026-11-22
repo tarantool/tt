@@ -14,8 +14,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/tarantool/tt/sdk/execfile"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/execfile"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/internal/untar"
 )
 

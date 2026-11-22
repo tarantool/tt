@@ -12,14 +12,14 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/running"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	integrityPkg "github.com/tarantool/tt/sdk/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	integrityPkg "github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 var (

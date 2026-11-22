@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	"github.com/tarantool/tt/sdk/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 // PromoteCtx describes the context to promote an instance.

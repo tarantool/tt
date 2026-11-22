@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/dial"
+	"github.com/tarantool/tt/sdk/dial/v3"
 )
 
 func TestTransportType_String(t *testing.T) {

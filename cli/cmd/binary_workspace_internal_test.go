@@ -59,7 +59,7 @@ func TestBinaryWorkspace(t *testing.T) {
 
 	data, err := os.ReadFile(filepath.Join(dir, "go.work"))
 	require.NoError(t, err)
-	assert.Contains(t, string(data), "\tgithub.com/tarantool/tt/sdk/build => ")
+	assert.Contains(t, string(data), "\tgithub.com/tarantool/tt/sdk/build/v3 => ")
 
 	// Removing needs no core: the manifest names a version of it.
 	require.NoError(t, runBinaryWorkspace(t, dir, "--remove"))

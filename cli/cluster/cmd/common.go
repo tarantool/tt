@@ -8,8 +8,8 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 

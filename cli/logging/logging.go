@@ -1,6 +1,6 @@
 // Package logging sets up the process logger of the tt core.
 //
-// tt logs through the github.com/tarantool/tt/sdk/log facade, which writes to
+// tt logs through the github.com/tarantool/tt/sdk/v3/log facade, which writes to
 // slog.Default. This package builds the handler behind it and installs it:
 // records below the configured level are dropped, every record has its
 // secrets redacted with the process-wide sdk/log registry and the trailing
@@ -17,7 +17,7 @@ import (
 	"os"
 
 	"github.com/mattn/go-isatty"
-	sdklog "github.com/tarantool/tt/sdk/log"
+	sdklog "github.com/tarantool/tt/sdk/v3/log"
 )
 
 // Format is a log format. It implements pflag.Value, so it can back a flag

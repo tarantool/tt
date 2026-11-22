@@ -9,8 +9,8 @@ require (
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4
 	github.com/tarantool/go-prompt v1.0.2-0.20261118001635-bc2cfa6de863
 	github.com/tarantool/go-tarantool/v3 v3.0.2
-	github.com/tarantool/tt/sdk v0.0.0-0
-	github.com/tarantool/tt/sdk/connect v0.0.0-0
+	github.com/tarantool/tt/sdk/connect/v3 v3.0.0
+	github.com/tarantool/tt/sdk/v3 v3.0.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
 )
@@ -34,7 +34,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect
 	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c // indirect
-	github.com/tarantool/tt/sdk/build v0.0.0-0 // indirect
+	github.com/tarantool/tt/sdk/build/v3 v3.0.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
@@ -48,7 +48,7 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/sdk => ../../sdk
-	github.com/tarantool/tt/sdk/build => ../../sdk/build
-	github.com/tarantool/tt/sdk/connect => ../../sdk/connect
+	github.com/tarantool/tt/sdk/build/v3 => ../../sdk/build
+	github.com/tarantool/tt/sdk/connect/v3 => ../../sdk/connect
+	github.com/tarantool/tt/sdk/v3 => ../../sdk
 )

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gsconnect "github.com/tarantool/go-storage/v2/connect"
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
 )
 
 func TestNewTCSStorageMutualTLS(t *testing.T) {

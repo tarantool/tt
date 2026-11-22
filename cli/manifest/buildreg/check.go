@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
