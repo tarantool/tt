@@ -285,9 +285,12 @@ func TestPackRockspecLeavesOutWhatTheSourceRockLacks(t *testing.T) {
 }
 
 // TestSrcRockOfABuildFailsWithLuaRocks: the source rock of a package with a
-// build block builds with tt alone: the pack warns so, and LuaRocks fails on
-// it, printing which component and which backend need tt, where it used to
-// install it with no module. tt builds it from its manifest as ever.
+// build that does not export builds with tt alone - one of a backend that
+// does not say its builds are made without tt, one whose Export fails with
+// ErrNoExport, whatever the others do: the pack warns so, naming the field of
+// the second, and LuaRocks fails on it, printing which builds need tt, where
+// it used to install it with no module. tt builds it from its manifest as
+// ever.
 func TestSrcRockOfABuildFailsWithLuaRocks(t *testing.T) {
 	t.Parallel()
 
@@ -297,16 +300,22 @@ func TestSrcRockOfABuildFailsWithLuaRocks(t *testing.T) {
 path = 'gen'
 
 [components.gen.build]
-backend = 'shell'
-command = 'sh'
-args = ['-c', 'echo generated > gen.txt']
-output = [{ path = 'gen.txt', to = 'share' }]
+backend = 'exe'
+
+[components.tree]
+path = 'tree'
+
+[components.tree.build]
+backend = 'tree'
+variables = { X = '1' }
+output = [{ path = 'data.json', to = 'share' }]
 
 [hooks.post_build]
 backend = 'shell'
 command = 'true'
 `,
-		"gen/README": "the generated file\n",
+		"gen/README":     "the generated program\n",
+		"tree/data.json": "{}\n",
 	})
 
 	out := filepath.Join(t.TempDir(), "server")
@@ -320,28 +329,27 @@ command = 'true'
 	result, err := Run(context.Background(), opts)
 	require.NoError(t, err)
 
-	const message = `mylib 1.2.0 builds with tt only: the component "gen" is built by the ` +
-		`tt backend "shell"; the hook post_build is run by the tt backend "shell". Install ` +
-		`its binary rock, or depend on it in app.manifest.toml of a project tt 3 builds.`
+	const reasons = `the component "gen" is built by the tt backend "exe", which builds ` +
+		`with tt alone; the component "tree" is built by the tt backend "tree" with tt ` +
+		`alone, for components.tree.build.variables: the variables of a tree are set by ` +
+		`tt alone`
 
-	assert.Equal(t, `build = {
-   type = "command",
-   build_command = "printf '%s\\n' 'mylib 1.2.0 builds with tt only: the " ..
-      "component \"gen\" is built by the tt backend \"shell\"; the hook " ..
-      "post_build is run by the tt backend \"shell\". Install its binary " ..
-      "rock, or depend on it in app.manifest.toml of a project tt 3 " ..
-      "builds.' >&2; exit 1",
-}
-`, buildTable(t, result.Rockspec))
+	const message = `mylib 1.2.0 builds with tt only: ` + reasons + `. Install its binary ` +
+		`rock, or depend on it in app.manifest.toml of a project tt 3 builds.`
+
+	table := buildTable(t, result.Rockspec)
+	assert.True(t, strings.HasPrefix(table, "build = {\n   type = \"command\",\n"+
+		"   build_command = \"printf '%s\\\\n' 'mylib 1.2.0 builds with tt only: "), table)
+	assert.NotContains(t, table, "install")
+	assert.NotContains(t, table, "extra_files")
 
 	rockspec, err := os.ReadFile(result.Rockspec)
 	require.NoError(t, err)
 	assert.Contains(t, string(rockspec), "LuaRocks cannot, as the build table says.")
 
 	assert.Equal(t, []string{`the source rock builds with tt only, which builds it from ` +
-		`its manifest: the component "gen" is built by the tt backend "shell"; the hook ` +
-		`post_build is run by the tt backend "shell"; LuaRocks, tt rocks included, fails ` +
-		`to build it, saying so`}, warnings)
+		`its manifest: ` + reasons + `; LuaRocks, tt rocks included, fails to build it, ` +
+		`saying so`}, warnings)
 
 	native := luaRocksInstall(t, client.BackendNative, result.SrcRock)
 	require.ErrorContains(t, native.err, "(stderr: "+message+")")
@@ -356,7 +364,8 @@ command = 'true'
 	consumer := buildConsumer(t, out)
 	share := filepath.Join(consumer, rocksDirName, "share", "tarantool", "mylib")
 	assert.FileExists(t, filepath.Join(share, "init.lua"))
-	assert.FileExists(t, filepath.Join(share, "gen.txt"))
+	assert.FileExists(t, filepath.Join(share, "data.json"))
+	assert.FileExists(t, filepath.Join(consumer, rocksDirName, "bin", "gen"))
 }
 
 // TestPackRockRefusesReservedNames: a file of the sources of the rock at a
@@ -392,7 +401,7 @@ func TestPackRockRefusesReservedNames(t *testing.T) {
 // TestPackRockRefusesInexpressiblePaths: a path of the layout that
 // build.install cannot say fails the pack of a package with no build block,
 // with a hint naming the component; the same path in a package with a build
-// block, whose rockspec installs nothing, fails nothing.
+// block fails nothing, as its script lays the file out.
 func TestPackRockRefusesInexpressiblePaths(t *testing.T) {
 	t.Parallel()
 
@@ -421,9 +430,13 @@ command = 'true'
 `,
 	})
 
-	_, err := Run(context.Background(),
+	result, err := Run(context.Background(),
 		packOptions(src, filepath.Join(t.TempDir(), "out"), FormatRockSrc))
 	require.NoError(t, err)
+
+	table := buildTable(t, result.Rockspec)
+	assert.Contains(t, table, "\ttt_lay puredemo/init.min.lua lua/puredemo/init.min.lua\n")
+	assert.NotContains(t, table, `= "puredemo/init.min.lua"`)
 }
 
 // luaRocksRun is what a run of go-luarocks did: the tree it worked on, and

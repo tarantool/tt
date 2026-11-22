@@ -280,9 +280,11 @@ that publishes nothing but the index is left out of those servers, and of
 
 LuaRocks builds the source rock of a tt package, `--format rock-src`, by
 its rockspec, as it knows no manifest: the rockspec of a package with no
-build block installs the files of its binary rock, and that of a package
-with one fails the build, saying which component needs tt (see
-[Packing a rock](packages.md#packing-a-rock)); of a package with no
+build block installs the files of its binary rock, that of a package whose
+builds are made without tt too, those of `make` and `shell`, builds them by
+a script of sh it carries into the same files, and that of a package with a
+build of tt alone fails the build, saying which component needs tt and why
+(see [Packing a rock](packages.md#packing-a-rock)); of a package with no
 `[package].repository`, LuaRocks fails to unpack the rock instead. The
 rockspec of a source rock an older tt packed builds nothing, so LuaRocks
 installs such a rock with no module in it, only the rockspec and the

@@ -695,10 +695,36 @@ version, by the build table of the rockspec, which tt writes for it:
   `doc/` directory of the project, or, with none, the README, LICENSE,
   COPYING and `*.md` files of its root. The binary rock has the license
   files there instead, wherever they are in the project.
-- A package with a build block builds with tt alone, for now: the build of
-  its rockspec, of type `command`, prints the components and the hooks that
-  need tt, and their backends, and fails, so LuaRocks installs nothing. The
-  pack of its source rock warns that it builds with tt only.
+- A package with a build block, whose builds are all made without tt too -
+  those of `make` and `shell`, the backends that run a command of the
+  project's own - is of build type `command`, and its rockspec carries
+  `tt-rock.sh`, a script of POSIX sh, in `build.extra_files` beside
+  `version.lua`. `build_command` runs `sh ./tt-rock.sh build` with `CC`,
+  `CFLAGS`, `LIBFLAG` and `LUA_INCDIR` of LuaRocks, and `install_command`
+  runs `sh ./tt-rock.sh install`, which copies what the build made into
+  `LUADIR`, `LIBDIR` and `BINDIR` of the rock. The script does what a build
+  of tt does: it sets the `TT_*` variables of a build,
+  `TT_TARANTOOL_INCLUDE_DIR` being `LUA_INCDIR`; looks for the tools of the
+  builds in `PATH`; runs `pre_build`, the builds of the components in the
+  order of the product, each in its working directory with the `env` of its
+  block and the command tt runs, copies the files `output` lists, and runs
+  `post_build`, as `tt package build` of the package does; tt runs no hook
+  of a source rock it builds. Everything goes into `.tt-rock/stage/`.
+  `build.install` installs the files of the layout as for type `none`; the
+  script lays out those it cannot install - a file a build made, which the
+  layout of tt takes after the builds, and one at a path `build.install`
+  cannot say - so every file is in the rock once. A build by the script has
+  no cache and no incremental build, and none of the checks tt makes of what
+  a build made, and LuaRocks resolves the dependencies by the rockspec, not
+  by the lock; what the build of a backend lacks besides is in the comments
+  of the script, and the pack warns of it.
+- A package with a build that is made with tt alone - one of a backend that
+  is not made without tt, such as `lua-c` for now, or one whose field has no
+  counterpart in a script - builds with tt alone: the build of its rockspec,
+  of type `command`, prints which components and hooks need tt, their
+  backends and why, and fails, so LuaRocks installs nothing. The pack of its
+  source rock warns that it builds with tt only. A package builds without tt
+  whole or not at all: a rock with some of its modules is worse than none.
 
 The rockspec of `mylib`, a package of Lua and data under its own name and a
 role under `roles`:
@@ -755,12 +781,123 @@ deploy = {
 }
 ```
 
+`fastlib` is a module of C its component builds with `make`, and a
+`fastlib/init.lua` that requires it:
+
+```toml
+[components.fastlib]
+path = 'fastlib'
+
+[components.fastlib.build]
+backend = 'make'
+make_target = 'module'
+```
+
+`fastlib/Makefile` compiles `fast.c` against the headers of Tarantool into
+the directory of the modules; `?=` keeps the flags LuaRocks gives, and has
+its own under tt, which gives none:
+
+```make
+CFLAGS ?= -O2 -fPIC
+LIBFLAG ?= -shared
+
+module:
+	$(CC) $(CFLAGS) -I$(TT_TARANTOOL_INCLUDE_DIR) $(LIBFLAG) -o $(TT_OUTPUT_DIR)/fast.so fast.c
+```
+
+The script in its rockspec is long, so `sed` shows the parts of it the
+package gives; the rest is the same for every package:
+
+```console
+$ tt package pack --format rock,rock-src --out dist
+.../fastlib/dist/fastlib-1.0.0-1.linux-x86_64.rock
+.../fastlib/dist/fastlib-1.0.0-1.src.rock
+.../fastlib/dist/fastlib-1.0.0-1.rockspec
+$ sed -n '/^build = {/,/^   extra_files/p' dist/fastlib-1.0.0-1.rockspec
+build = {
+   type = "command",
+   build_command = "CC='$(CC)' CFLAGS='$(CFLAGS)' LIBFLAG='$(LIBFLAG)' " ..
+      "LUA_INCDIR='$(LUA_INCDIR)' sh ./tt-rock.sh build",
+   install_command = "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' " ..
+      "BINDIR='$(BINDIR)' sh ./tt-rock.sh install",
+   install = {
+      lua = {
+         ["fastlib._version"] = "tt-rock-version.lua",
+         ["fastlib.init"] = "fastlib/init.lua",
+      },
+   },
+   extra_files = {
+$ sed -n '/^# The component/,/^}/p' dist/fastlib-1.0.0-1.rockspec
+# The component "fastlib", built by the tt backend "make".
+tt_step_1() {
+	TT_COMPONENT_NAME=fastlib
+	TT_OUTPUT_DIR=$tt_stage/lib/fastlib
+	TT_SHARE_DIR=$tt_stage/lua/fastlib
+	TT_PROGRAMS_DIR=$tt_stage/bin
+	TT_BUILD_DIR=$tt_state/build/fastlib
+	TT_LINK_DIR=$TT_LINK_ROOT/fastlib
+	export TT_COMPONENT_NAME TT_OUTPUT_DIR TT_SHARE_DIR TT_PROGRAMS_DIR TT_BUILD_DIR TT_LINK_DIR
+	mkdir -p "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
+	cd "$tt_root"/fastlib
+	(tt_export_1)
+}
+$ sed -n '/^# The script of the export/,/^}/p' dist/fastlib-1.0.0-1.rockspec
+# The script of the export of the tt backend "make" for the component "fastlib".
+tt_export_1() {
+make -C . -f Makefile module
+}
+$ sed -n '/^tt_build()/,/^}/p' dist/fastlib-1.0.0-1.rockspec
+tt_build() {
+	tt_env
+	rm -rf "$tt_state"
+	mkdir -p "$tt_stage/lua" "$tt_stage/lib" "$tt_stage/bin" "$TT_LINK_ROOT"
+	tt_need make 'the component "fastlib"'
+	(tt_step_1)
+}
+```
+
+A pack of the source rock alone, which builds nothing, writes the same
+rockspec, and so LuaRocks builds the bare rockspec from the repository of
+the package, which holds no file of the script, as it builds the source
+rock: the layout of a file a build makes is planned whether the project has
+it or not. Into a directory of its own, from which LuaRocks takes the
+source rock, as it takes the binary rock of its platform where a server has
+one; `tt rocks`, which runs LuaRocks, builds it so, with no manifest, and the
+module loads:
+
+```console
+$ tt package pack --format rock-src --out dist-src
+.../fastlib/dist-src/fastlib-1.0.0-1.src.rock
+.../fastlib/dist-src/fastlib-1.0.0-1.rockspec
+$ cmp dist/fastlib-1.0.0-1.rockspec dist-src/fastlib-1.0.0-1.rockspec
+$ cd .. && mkdir lr-src && cd lr-src
+$ tt rocks install fastlib --only-server ../fastlib/dist-src
+Installing ../fastlib/dist-src/fastlib-1.0.0-1.src.rock
+
+fastlib 1.0.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
+CC='gcc' CFLAGS='-O2 -fPIC' LIBFLAG='-shared' LUA_INCDIR='.../include/tarantool' sh ./tt-rock.sh build
+make: Entering directory '.../luarocks_fastlib-1.0.0-1-8HjWaC/fastlib/fastlib'
+gcc -O2 -fPIC -I.../include/tarantool -shared -o .../luarocks_fastlib-1.0.0-1-8HjWaC/fastlib/.tt-rock/stage/lib/fastlib/fast.so fast.c
+make: Leaving directory '.../luarocks_fastlib-1.0.0-1-8HjWaC/fastlib/fastlib'
+LUADIR='.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/lua' LIBDIR='.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/lib' BINDIR='.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/bin' sh ./tt-rock.sh install
+No existing manifest. Attempting to rebuild...
+fastlib 1.0.0-1 is now installed in .../lr-src/.rocks (license: BSD-2-Clause)
+
+$ tarantool -e "print(require('fastlib').answer)" - </dev/null
+42
+```
+
+The tools of the script are looked for where the rockspec is built, not
+where it is packed: the build fails before the first component, naming the
+tool and the component, where one is not in `PATH`.
+
 `build.install` installs only the files the source rock holds: a file of
 the layout git does not track, or ignores, is left out of it, as it is left
 out of the source rock, and the pack of the source rock warns of it. A path
 of the layout a module name of LuaRocks cannot say fails the pack of a
-package with no build block: a directory with a dot in its name, or a Lua
-file with one before `.lua`, `init.min.lua`:
+package with no build block, whose rockspec runs no script to lay it out: a
+directory with a dot in its name, or a Lua file with one before `.lua`,
+`init.min.lua`:
 
 ```console
 $ tt package pack --format rock-src --out dist

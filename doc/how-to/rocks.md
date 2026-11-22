@@ -310,13 +310,13 @@ Archive:  ../dist/hashkit-1.0.0-1.linux-x86_64.rock
   Length      Date    Time    Name
 ---------  ---------- -----   ----
        51  1980-01-01 00:00   doc/LICENSE
-      916  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
+      944  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
     15832  1980-01-01 00:00   lib/hashkit/fnv.so
       143  1980-01-01 00:00   lua/hashkit/_version.lua
       310  1980-01-01 00:00   lua/hashkit/init.lua
       423  1980-01-01 00:00   rock_manifest
 ---------                     -------
-    17675                     6 files
+    17703                     6 files
 ```
 
 The rock holds what the build laid out, the C module built for this
@@ -326,8 +326,9 @@ for the source rock. Its source is the repository at the tag of the
 version, here `v1.0.0`. Its build table is for LuaRocks, which builds the
 source rock by it where tt builds it by the manifest, and which installs a
 binary rock as it is, whatever the table says. LuaRocks builds the source
-rock of a package of Lua alone; `hashkit` has a C part, which only tt
-builds for now, so the build says so and fails (see
+rock of a package whose builds are all made without tt too, those of `make`
+and `shell` among them; `hashkit` has a C part of `lua-c`, which builds with
+tt alone for now, so the build says so and fails (see
 [For LuaRocks users](#for-luarocks-users)):
 
 ```console
@@ -354,9 +355,9 @@ dependencies = {
 build = {
    type = "command",
    build_command = "printf '%s\\n' 'hashkit 1.0.0 builds with tt only: the " ..
-      "component \"hashkit\" is built by the tt backend \"lua-c\". Install " ..
-      "its binary rock, or depend on it in app.manifest.toml of a project " ..
-      "tt 3 builds.' >&2; exit 1",
+      "component \"hashkit\" is built by the tt backend \"lua-c\", which " ..
+      "builds with tt alone. Install its binary rock, or depend on it in " ..
+      "app.manifest.toml of a project tt 3 builds.' >&2; exit 1",
 }
 deploy = {
    wrap_bin_scripts = false,
@@ -378,14 +379,14 @@ It warns that the source rock builds with tt only:
 
 ```console
 $ tt package pack --format rock-src --out ../dist
-   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c"; LuaRocks, tt rocks included, fails to build it, saying so
+   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c", which builds with tt alone; LuaRocks, tt rocks included, fails to build it, saying so
 .../dist/hashkit-1.0.0-1.src.rock
 .../dist/hashkit-1.0.0-1.rockspec
 $ unzip -l ../dist/hashkit-1.0.0-1.src.rock
 Archive:  ../dist/hashkit-1.0.0-1.src.rock
   Length      Date    Time    Name
 ---------  ---------- -----   ----
-      916  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
+      944  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
         6  1980-01-01 00:00   hashkit/VERSION
        34  1980-01-01 00:00   hashkit/.gitignore
        51  1980-01-01 00:00   hashkit/LICENSE
@@ -396,7 +397,7 @@ Archive:  ../dist/hashkit-1.0.0-1.src.rock
       242  1980-01-01 00:00   hashkit/test/bucket_test.lua
       230  1980-01-01 00:00   hashkit/test/hash_test.lua
 ---------                     -------
-     3527                     10 files
+     3555                     10 files
 ```
 
 Both rocks are reproducible: packing the same commit again gives the same
@@ -722,7 +723,7 @@ the commit, this time without a `v`, pack both rocks of 1.1.0 into
 ```console
 $ git tag 1.1.0
 $ tt package pack --format rock,rock-src --out ../dist
-   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c"; LuaRocks, tt rocks included, fails to build it, saying so
+   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c", which builds with tt alone; LuaRocks, tt rocks included, fails to build it, saying so
 .../dist/hashkit-1.1.0-1.linux-x86_64.rock
 .../dist/hashkit-1.1.0-1.src.rock
 .../dist/hashkit-1.1.0-1.rockspec
@@ -817,7 +818,7 @@ rock alone, which builds nothing, into a directory of its own:
 ```console
 $ cd ../hashkit
 $ tt package pack --format rock-src --out ../dist-src
-   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c"; LuaRocks, tt rocks included, fails to build it, saying so
+   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c", which builds with tt alone; LuaRocks, tt rocks included, fails to build it, saying so
 .../dist-src/hashkit-1.1.0-1.src.rock
 .../dist-src/hashkit-1.1.0-1.rockspec
 $ cd ../kv-api
@@ -916,10 +917,12 @@ $ tarantool -e "local h = require('hashkit') print(h.VERSION, h.bucket('user:1',
 
 A platform with no binary rock gets the source rock from LuaRocks, which
 builds it by its rockspec. The rockspec of a package of Lua alone installs
-the files of the binary rock (see
+the files of the binary rock, and that of a package of builds made without
+tt too builds them by a script it carries first (see
 [Packing a rock](../concepts/packages.md#packing-a-rock)). `hashkit` has a C
-part, which only tt builds for now: its build prints which component needs
-tt, and with which backend, and fails, and the rock is not installed:
+part of `lua-c`, which builds with tt alone for now: its build prints which
+component needs tt, with which backend and why, and fails, and the rock is
+not installed:
 
 ```console
 $ cd ..
@@ -928,8 +931,8 @@ $ tt rocks install hashkit --only-server ../dist-src
 Installing ../dist-src/hashkit-1.1.0-1.src.rock
 
 hashkit 1.1.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
-printf '%s\n' 'hashkit 1.1.0 builds with tt only: the component "hashkit" is built by the tt backend "lua-c". Install its binary rock, or depend on it in app.manifest.toml of a project tt 3 builds.' >&2; exit 1
-hashkit 1.1.0 builds with tt only: the component "hashkit" is built by the tt backend "lua-c". Install its binary rock, or depend on it in app.manifest.toml of a project tt 3 builds.
+printf '%s\n' 'hashkit 1.1.0 builds with tt only: the component "hashkit" is built by the tt backend "lua-c", which builds with tt alone. Install its binary rock, or depend on it in app.manifest.toml of a project tt 3 builds.' >&2; exit 1
+hashkit 1.1.0 builds with tt only: the component "hashkit" is built by the tt backend "lua-c", which builds with tt alone. Install its binary rock, or depend on it in app.manifest.toml of a project tt 3 builds.
 
 Error: Build error: Failed building.
    ⨯ failed to run luarocks: luaEngine: [install hashkit 1.1.0-1 --only-server ../dist-src] exited with code 1

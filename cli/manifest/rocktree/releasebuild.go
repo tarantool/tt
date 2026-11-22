@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -43,7 +44,8 @@ var (
 // nothing: the build type none and no file to install.
 type ReleaseBuild struct {
 	// Install are the files of the sources LuaRocks installs into the rock,
-	// each at its path in the rock: build.install, of build type none.
+	// each at its path in the rock: build.install, after the build of the
+	// build type.
 	Install []ReleaseFile
 	// ExtraFiles are the files the rockspec carries, by name, which LuaRocks
 	// writes at the root of the sources before it builds: build.extra_files.
@@ -52,9 +54,17 @@ type ReleaseBuild struct {
 	// from either installs them as the binary rock has them. A file of
 	// Install names one by its name.
 	ExtraFiles map[string]string
+	// Script, when not empty, is the name of the extra file of the script of
+	// POSIX sh that builds the package without tt: the build is of type
+	// command, whose build_command runs sh ./<Script> build, given CC,
+	// CFLAGS, LIBFLAG and LUA_INCDIR of LuaRocks, and whose install_command
+	// runs sh ./<Script> install, given LUADIR, LIBDIR and BINDIR, the
+	// directories of the rock. It is a name of letters, digits and -_.
+	// alone. A build without it is of type none.
+	Script string
 	// TtOnly, when not empty, says why LuaRocks cannot build the package,
 	// which only tt builds: the build, of type command, prints it to stderr
-	// and fails, and Install and ExtraFiles are left out.
+	// and fails, and Install, ExtraFiles and Script are left out.
 	TtOnly string
 }
 
@@ -110,34 +120,45 @@ func CheckInstallDest(dest string) error {
 	return nil
 }
 
+// scriptNameRe is the shape of the name of the script of a build
+// (ReleaseBuild.Script): a word of sh that needs no quotes.
+var scriptNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// errScriptName reports a script of a build of another name than
+// scriptNameRe allows.
+var errScriptName = errors.New("the script of the build has a name that is no plain file name")
+
 // writeBuild writes the build table of the rockspec of build. A build of tt
-// alone (ReleaseBuild.TtOnly) is of type command and fails, printing why;
-// any other is of type none, with the tables of build.install and
-// build.extra_files it has.
+// alone (ReleaseBuild.TtOnly) is of type command and fails, printing why; one
+// of a script (ReleaseBuild.Script) is of type command and runs it; any
+// other is of type none. Either of the last two has the tables of
+// build.install and build.extra_files it has.
 func writeBuild(src *strings.Builder, build ReleaseBuild) error {
 	src.WriteString("build = {\n")
 
 	if build.TtOnly != "" {
-		const field = "   build_command = "
-
 		src.WriteString("   type = \"command\",\n")
-		src.WriteString(field)
-
-		pieces := luaPieces(failCommand(build.TtOnly), lineWidth-len(field), lineWidth-len(indent))
-		for index, piece := range pieces {
-			if index > 0 {
-				src.WriteString(concat + "\n" + indent)
-			}
-
-			src.WriteString(piece)
-		}
-
-		src.WriteString(",\n}\n")
+		writeLongField(src, "build_command", failCommand(build.TtOnly))
+		src.WriteString("}\n")
 
 		return nil
 	}
 
-	src.WriteString("   type = \"none\",\n")
+	if build.Script == "" {
+		src.WriteString("   type = \"none\",\n")
+	} else {
+		if !scriptNameRe.MatchString(build.Script) {
+			return fmt.Errorf("%w: %q", errScriptName, build.Script)
+		}
+
+		// LuaRocks substitutes its variables, $(NAME), in the commands, and
+		// sh reads each value in single quotes as one word.
+		src.WriteString("   type = \"command\",\n")
+		writeLongField(src, "build_command", "CC='$(CC)' CFLAGS='$(CFLAGS)' "+
+			"LIBFLAG='$(LIBFLAG)' LUA_INCDIR='$(LUA_INCDIR)' sh ./"+build.Script+" build")
+		writeLongField(src, "install_command", "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' "+
+			"BINDIR='$(BINDIR)' sh ./"+build.Script+" install")
+	}
 
 	tables, err := installTables(build.Install)
 	if err != nil {
@@ -285,6 +306,25 @@ func freeKey(table map[string]string, prefix, name string) string {
 			return key
 		}
 	}
+}
+
+// writeLongField writes the field name of the build table, the string text,
+// within the width of a line: in pieces joined by .. (luaPieces), each line
+// after the first indented.
+func writeLongField(src *strings.Builder, name, text string) {
+	field := "   " + name + " = "
+
+	src.WriteString(field)
+
+	for index, piece := range luaPieces(text, lineWidth-len(field), lineWidth-len(indent)) {
+		if index > 0 {
+			src.WriteString(concat + "\n" + indent)
+		}
+
+		src.WriteString(piece)
+	}
+
+	src.WriteString(",\n")
 }
 
 // luaPieces quotes text as Lua string literals (luaQuote) that make it when

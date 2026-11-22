@@ -165,6 +165,75 @@ func TestReleaseRockspecTtOnly(t *testing.T) {
 	}
 }
 
+// TestReleaseRockspecScript pins the build of a package by a script: of type
+// command, whose commands run the script with the variables of LuaRocks in
+// single quotes, with build.install of the layout and the script among the
+// extra files. A script of a name sh would read otherwise is refused.
+func TestReleaseRockspecScript(t *testing.T) {
+	t.Parallel()
+
+	release := rocktree.Release{
+		Name: "demo", Version: "1.0.0", Revision: 1,
+		Build: rocktree.ReleaseBuild{
+			Install: []rocktree.ReleaseFile{
+				{Source: "demo/init.lua", Dest: "lua/demo/init.lua"},
+				{Source: "tt-rock-version.lua", Dest: "lua/demo/_version.lua"},
+			},
+			ExtraFiles: map[string]string{
+				"tt-rock-version.lua": versionLua, "tt-rock.sh": "#!/bin/sh\necho $(x)\n",
+			},
+			Script: "tt-rock.sh",
+			TtOnly: "",
+		},
+	}
+
+	spec, err := rocktree.ReleaseRockspec(release)
+	require.NoError(t, err)
+
+	source := string(spec.RawSource)
+
+	assert.Contains(t, source, `-- package from that manifest; LuaRocks builds it as the build `+
+		`table says.`)
+	assert.Contains(t, source, `build = {
+   type = "command",
+   build_command = "CC='$(CC)' CFLAGS='$(CFLAGS)' LIBFLAG='$(LIBFLAG)' " ..
+      "LUA_INCDIR='$(LUA_INCDIR)' sh ./tt-rock.sh build",
+   install_command = "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' " ..
+      "BINDIR='$(BINDIR)' sh ./tt-rock.sh install",
+   install = {
+      lua = {
+         ["demo._version"] = "tt-rock-version.lua",
+         ["demo.init"] = "demo/init.lua",
+      },
+   },
+   extra_files = {
+      ["tt-rock-version.lua"] = [=[
+`)
+	assert.Contains(t, source, `      ["tt-rock.sh"] = [=[
+#!/bin/sh
+echo $(x)
+]=],
+   },
+}
+`)
+
+	assert.Equal(t, "command", spec.Build.Type)
+	assert.Equal(t, "CC='$(CC)' CFLAGS='$(CFLAGS)' LIBFLAG='$(LIBFLAG)' "+
+		"LUA_INCDIR='$(LUA_INCDIR)' sh ./tt-rock.sh build", spec.Build.BuildCommand)
+	assert.Equal(t, "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' BINDIR='$(BINDIR)' "+
+		"sh ./tt-rock.sh install", spec.Build.InstallCommand)
+	assert.Equal(t, "#!/bin/sh\necho $(x)\n", spec.Build.ExtraFiles["tt-rock.sh"])
+	assert.Equal(t, "demo/init.lua", spec.Build.Install.Lua["demo.init"])
+
+	for _, name := range []string{"tt rock.sh", "x;y", "$(x)", "a/b"} {
+		release.Build.Script = name
+
+		_, err = rocktree.ReleaseRockspec(release)
+		require.ErrorContains(t, err, "the script of the build has a name that is no plain "+
+			"file name", name)
+	}
+}
+
 // TestReleaseRockspecExtraFiles: an extra file is a long string whose level
 // its content never closes, which holds the content byte for byte - the
 // closing brackets of lower levels, a bracket it ends with, a [[ that Lua 5.1
