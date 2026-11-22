@@ -34,8 +34,64 @@ const (
 	commandArgsCapacity = 2
 )
 
-// Pack packs coredump into a tar.gz archive.
-func Pack(streams output.Streams, corePath, executable, outputDir string, pid uint) error {
+// PackOptions are what Pack packs and where.
+type PackOptions struct {
+	// Core is the core dump.
+	Core string
+	// Executable is the Tarantool that dumped it; empty is the tarantool of
+	// PATH.
+	Executable string
+	// Dir is the directory the archive is created in; empty is the working
+	// directory.
+	Dir string
+	// PID is the PID of the dumped process, 0 for none.
+	PID uint
+	// Time is the time of the dump in seconds since the Epoch; empty is
+	// now.
+	Time string
+}
+
+// packArgs returns the arguments of the pack script for opts, with the
+// paths absolute: the script packs the files through symbolic links to
+// them.
+func packArgs(opts PackOptions) ([]string, error) {
+	paths := []struct {
+		flag, path string
+	}{{"-c", opts.Core}, {"-e", opts.Executable}, {"-d", opts.Dir}}
+
+	var args []string
+
+	for _, path := range paths {
+		if path.path == "" {
+			continue
+		}
+
+		abs, err := filepath.Abs(path.path)
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve %q: %w", path.path, err)
+		}
+
+		args = append(args, path.flag, abs)
+	}
+
+	if opts.PID != 0 {
+		args = append(args, "-p", strconv.FormatUint(uint64(opts.PID), 10))
+	}
+
+	if opts.Time != "" {
+		args = append(args, "-t", opts.Time)
+	}
+
+	return args, nil
+}
+
+// Pack packs a core dump into a tar.gz archive.
+func Pack(streams output.Streams, opts PackOptions) error {
+	scriptArgs, err := packArgs(opts)
+	if err != nil {
+		return err
+	}
+
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
 		return fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
@@ -44,19 +100,6 @@ func Pack(streams output.Streams, corePath, executable, outputDir string, pid ui
 	defer func() {
 		_ = os.RemoveAll(tmpDir)
 	}() // Clean up on function return.
-
-	scriptArgs := []string{"-c", corePath}
-	if executable != "" {
-		scriptArgs = append(scriptArgs, "-e", executable)
-	}
-
-	if outputDir != "" {
-		scriptArgs = append(scriptArgs, "-d", outputDir)
-	}
-
-	if pid != 0 {
-		scriptArgs = append(scriptArgs, "-p", strconv.FormatUint(uint64(pid), 10))
-	}
 
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
