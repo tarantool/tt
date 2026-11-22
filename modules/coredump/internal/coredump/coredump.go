@@ -8,14 +8,11 @@ package coredump
 import (
 	"context"
 	"embed"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/tarantool/tt/sdk/output"
 )
@@ -32,7 +29,33 @@ const (
 	scriptFileMode      = 0o755
 	extensionFileMode   = 0o644
 	commandArgsCapacity = 2
+	// extensionsDir is the directory of the gdb extensions in extensions.
+	extensionsDir = "extensions"
 )
+
+// writeExtensions writes the gdb extensions tt embeds into dir and returns
+// their paths, in the order of their names.
+func writeExtensions(dir string) ([]string, error) {
+	entries, err := extensions.ReadDir(extensionsDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find embedded GDB-extensions: %w", err)
+	}
+
+	paths := make([]string, 0, len(entries))
+
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+
+		err = copyEmbedded(extensions, extensionsDir+"/"+entry.Name(), path, extensionFileMode)
+		if err != nil {
+			return nil, err
+		}
+
+		paths = append(paths, path)
+	}
+
+	return paths, nil
+}
 
 // PackOptions are what Pack packs and where.
 type PackOptions struct {
@@ -112,23 +135,13 @@ func Pack(streams output.Streams, opts PackOptions) error {
 	scriptArgs = append(scriptArgs, "-g", inspectPath)
 
 	// Prepare gdb extensions for packing.
-	const extDirName = "extensions"
-
-	extEntries, err := extensions.ReadDir(extDirName)
+	exts, err := writeExtensions(tmpDir)
 	if err != nil {
-		return fmt.Errorf("failed to find embedded GDB-extensions: %w", err)
+		return fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
 	}
 
-	for _, extEntry := range extEntries {
-		extSrc := filepath.Join(extDirName, extEntry.Name())
-		extDst := filepath.Join(tmpDir, extEntry.Name())
-
-		err = copyEmbedded(extensions, extSrc, extDst, extensionFileMode)
-		if err != nil {
-			return fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
-		}
-
-		scriptArgs = append(scriptArgs, "-x", extDst)
+	for _, ext := range exts {
+		scriptArgs = append(scriptArgs, "-x", ext)
 	}
 
 	script, err := coreScripts.Open(packEmbedPath)
@@ -159,75 +172,6 @@ func Unpack(archivePath string) error {
 	err := extractTarGz(archivePath, ".")
 	if err != nil {
 		return fmt.Errorf("failed to unpack: %w", err)
-	}
-
-	return nil
-}
-
-// Inspect allows user to inspect coredump.
-func Inspect(streams output.Streams, archiveOrDir, sourceDir string) error {
-	stat, err := os.Stat(archiveOrDir)
-	if err != nil {
-		return fmt.Errorf("failed to inspect: %w", err)
-	}
-
-	var dir string
-
-	if stat.IsDir() {
-		dir = archiveOrDir
-	} else {
-		// It seems archive was specified, so try to unpack into
-		// temporary directory.
-		tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
-		if err != nil {
-			return fmt.Errorf("cannot create a temporary directory for unpacking: %w", err)
-		}
-
-		defer func() {
-			_ = os.RemoveAll(tmpDir)
-		}() // Clean up on function return.
-
-		err = extractTarGz(archiveOrDir, tmpDir)
-		if err != nil {
-			return fmt.Errorf("failed to unpack: %w", err)
-		}
-
-		// Directory name is archive basename w/o extensions.
-		dir = strings.Split(filepath.Base(archiveOrDir), ".")[0]
-		// Compose full path to unpacked directory.
-		dir = filepath.Join(tmpDir, dir)
-	}
-
-	// First, try to find gdb wrapper within the unpacked directory.
-	scriptPath := filepath.Join(dir, filepath.Base(inspectEmbedPath))
-
-	_, err = os.Stat(scriptPath)
-
-	if errors.Is(err, fs.ErrNotExist) {
-		// If the wrapper is missing in archive, then use the embedded one.
-		err = copyEmbedded(coreScripts, inspectEmbedPath, scriptPath, scriptFileMode)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to find inspect script: %w", err)
-	}
-
-	scriptArgs := []string{}
-	if len(sourceDir) > 0 {
-		scriptArgs = append(scriptArgs, "-s", sourceDir)
-	}
-
-	// GDB-wrapper use standard input, so we need to launch it directly
-	// rather than pass it over standard input to bash -s.
-	cmd := exec.CommandContext(context.Background(), scriptPath, scriptArgs...)
-
-	cmd.Stdin = streams.In
-	cmd.Stdout = streams.Out
-	cmd.Stderr = streams.Err
-
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("inspect script execution failed: %w", err)
 	}
 
 	return nil

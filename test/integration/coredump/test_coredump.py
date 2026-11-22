@@ -328,25 +328,73 @@ def test_coredump_inspect_no_such_file(tt_cmd, tmp_path):
     assert re.search(r"failed to inspect", output)
 
 
-@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
-def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
-    cmd = [tt_cmd, "coredump", "inspect", coredump_packed]
+def has_debug_info(tarantool):
+    """Whether gdb finds the debugging information of tarantool: the line of
+    its main, as gdb.sh asks for it."""
     process = subprocess.run(
-        cmd,
-        cwd=tmp_path,
-        input="\nq\n",
+        ["gdb", "-batch", "-n", tarantool, "-ex", "info line main"],
+        capture_output=True,
         text=True,
     )
-    assert process.returncode == 0
+    return re.search(r'Line \d+ of ".*/src/main\.cc"', process.stdout) is not None
+
+
+def gdb_env(env=None):
+    """env, the environment of the tests by default, for a tt that runs gdb
+    with its Python. actions/setup-python points LD_LIBRARY_PATH at the lib
+    of the Python it installs, and gdb, linked against the libpython of the
+    system, loads that one instead: it finds no _struct, which the libpython
+    of Debian has built in, and the extensions fail on import struct."""
+    env = dict(os.environ if env is None else env)
+    env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
+def inspect(tt_cmd, cwd, target, commands, *args, env=None):
+    """The exit code and the output, stdout and stderr, of tt coredump
+    inspect of target given the gdb commands on its standard input, in env
+    (gdb_env)."""
+    env = gdb_env(env)
+    process = subprocess.run(
+        [tt_cmd, "coredump", "inspect", target, *args],
+        cwd=cwd,
+        input="".join(command + "\n" for command in [*commands, "q"]),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    print(process.stdout, process.stderr)
+    return process.returncode, process.stdout + process.stderr
+
+
+# The gdb commands that tell the extensions are loaded: help of a command of
+# the LuaJIT one, and a command of the Tarantool one, which lists the fibers.
+EXTENSION_COMMANDS = ["help lj-stack", "info tt-fibers"]
+
+
+def check_extensions(output):
+    """Check that the gdb extensions answered EXTENSION_COMMANDS."""
+    assert "The command receives a lua_State address" in output
+    assert re.search(r'TtFiber\s+"sched"', output), output
+    assert "Undefined command" not in output
+    assert "has no attribute 'printing'" not in output
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
+    if not has_debug_info(shutil.which("tarantool")):
+        pytest.skip("the tarantool has no debugging information")
+
+    rc, output = inspect(tt_cmd, tmp_path, coredump_packed, EXTENSION_COMMANDS)
+    assert rc == 0, output
+    check_extensions(output)
 
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 def test_coredump_inspect_unpacked(tt_cmd, tmp_path, coredump_unpacked):
-    cmd = [tt_cmd, "coredump", "inspect", coredump_unpacked]
-    process = subprocess.run(
-        cmd,
-        cwd=tmp_path,
-        input="\nq\n",
-        text=True,
-    )
-    assert process.returncode == 0
+    if not has_debug_info(shutil.which("tarantool")):
+        pytest.skip("the tarantool has no debugging information")
+
+    rc, output = inspect(tt_cmd, tmp_path, coredump_unpacked, EXTENSION_COMMANDS)
+    assert rc == 0, output
+    check_extensions(output)
