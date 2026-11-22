@@ -347,6 +347,43 @@ cd /`,
 	assert.Equal(t, "tt-rock.sh: usage: sh ./tt-rock.sh build | install\n", out)
 }
 
+// TestRunScriptOfPathsOfADash: the script builds a component whose path, a
+// file of whose output and a file of whose layout begin with -, which a
+// utility would take for an option, and installs into directories that do.
+func TestRunScriptOfPathsOfADash(t *testing.T) {
+	t.Parallel()
+	requireSh(t)
+
+	src := t.TempDir()
+	writeFiles(t, src, map[string]string{
+		"tt-rock.sh": rockscript.Render(rockscript.Script{
+			Package: "demo", Version: "1.0.0", PreBuild: nil, PostBuild: nil,
+			Components: []rockscript.Step{{
+				Component: "native", Backend: "shell", Cwd: "-native", Namespace: "-demo",
+				Export: sdkbuild.Export{
+					Script: "printf out > ./-out.txt\nprintf laid > ./-laid.lua", Tools: nil,
+					Lost: nil,
+				},
+				Outputs: []sdkbuild.OutputFile{{Path: "-out.txt", To: sdkbuild.Data}},
+			}},
+			Lay: []rockscript.Lay{{Source: "-native/-laid.lua", Dest: "lua/-demo/-laid.lua"}},
+		}),
+		"-native/keep": "",
+	})
+
+	out, err := runScript(t, src, nil, "build")
+	require.NoError(t, err, out)
+
+	assert.Equal(t, map[string]string{"lua/-demo/-out.txt": "out", "lua/-demo/-laid.lua": "laid"},
+		readTree(t, filepath.Join(src, ".tt-rock", "stage")))
+
+	out, err = runScript(t, src, []string{"LUADIR=-lua", "LIBDIR=-lib", "BINDIR=-bin"},
+		"install")
+	require.NoError(t, err, out)
+	assert.Equal(t, map[string]string{"-out.txt": "out", "-laid.lua": "laid"},
+		readTree(t, filepath.Join(src, "-lua", "-demo")))
+}
+
 // TestRunScriptFails checks the failures of the script: a tool of an export
 // that is not in PATH fails the build before any step runs, a file of output
 // the build did not make fails it, and so does a step that fails.

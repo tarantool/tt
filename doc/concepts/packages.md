@@ -845,7 +845,7 @@ tt_step_1() {
 	TT_BUILD_DIR=$tt_state/build/fastlib
 	TT_LINK_DIR=$TT_LINK_ROOT/fastlib
 	export TT_COMPONENT_NAME TT_OUTPUT_DIR TT_SHARE_DIR TT_PROGRAMS_DIR TT_BUILD_DIR TT_LINK_DIR
-	mkdir -p "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
+	mkdir -p -- "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
 	cd "$tt_root"/fastlib
 	(tt_export_1)
 }
@@ -857,8 +857,8 @@ make -C . -f Makefile module
 $ sed -n '/^tt_build()/,/^}/p' dist/fastlib-1.0.0-1.rockspec
 tt_build() {
 	tt_env
-	rm -rf "$tt_state"
-	mkdir -p "$tt_stage/lua" "$tt_stage/lib" "$tt_stage/bin" "$TT_LINK_ROOT"
+	rm -rf -- "$tt_state"
+	mkdir -p -- "$tt_stage/lua" "$tt_stage/lib" "$tt_stage/bin" "$TT_LINK_ROOT"
 	tt_need make 'the component "fastlib"'
 	(tt_step_1)
 }
