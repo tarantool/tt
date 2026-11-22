@@ -1,0 +1,26 @@
+# vshard as a tt 3 package. The upstream rockspec builds with cmake (a C
+# project for find_package(Tarantool) only), which installs the Lua files
+# of vshard/, vshard/storage/ and vshard/router/ by explicit lists - all the
+# Lua files there - and the directory roles/, into LUADIR.
+manifest_version = "0.1"
+
+[package]
+name = "vshard"
+description = "The new generation of sharding based on virtual buckets"
+license = "BSD"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/vshard"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.vshard]
+path = "vshard"
+
+[components.roles]
+path = "roles"
+namespace = "roles"

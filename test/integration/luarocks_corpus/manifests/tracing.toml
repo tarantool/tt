@@ -1,0 +1,43 @@
+# tracing as a tt 3 package. The upstream rockspec is of type make, but its
+# build target, all, only makes doc/; what it installs is build.install.lua:
+# tracing/opentracing/ as the modules opentracing.*, tracing/zipkin/ as
+# zipkin.*, and tracing/version.lua twice, as opentracing.version and
+# zipkin.version. Each namespace is a component; the one file installed
+# twice is two more components of tracing/, one per namespace. The make
+# step makes nothing installed, so there is no build block.
+manifest_version = "0.1"
+
+[package]
+name = "tracing"
+description = "Lua platform API for OpenTracing"
+license = "BSD"
+# The repository has no license file.
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/tracing"
+# The generated tracing/_version.lua is of the namespace "tracing", which no
+# component uses.
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+checks = ">=3.1.0"
+
+[components.opentracing]
+path = "tracing/opentracing"
+namespace = "opentracing"
+
+[components.opentracing-version]
+path = "tracing"
+namespace = "opentracing"
+include = ["/version.lua"]
+
+[components.zipkin]
+path = "tracing/zipkin"
+namespace = "zipkin"
+
+[components.zipkin-version]
+path = "tracing"
+namespace = "zipkin"
+include = ["/version.lua"]

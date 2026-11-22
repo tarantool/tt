@@ -1,0 +1,30 @@
+# expirationd as a tt 3 package. The upstream rockspec is builtin with six
+# Lua modules: expirationd.*, cartridge.roles.expirationd and
+# roles.expirationd, every Lua file of expirationd/, cartridge/ and roles/.
+manifest_version = "0.1"
+
+[package]
+name = "expirationd"
+description = "Expiration daemon for Tarantool"
+license = "BSD2"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/expirationd"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+checks = ">=2.1.0"
+
+[components.expirationd]
+path = "expirationd"
+
+[components.cartridge]
+path = "cartridge"
+namespace = "cartridge"
+
+[components.roles]
+path = "roles"
+namespace = "roles"

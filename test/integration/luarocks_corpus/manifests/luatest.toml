@@ -1,0 +1,37 @@
+# luatest as a tt 3 package. The upstream rockspec builds with cmake, which
+# installs the directories luatest/ (without *.in) and luarocks/ into LUADIR,
+# and the script bin/luatest into BINDIR.
+manifest_version = "0.1"
+
+[package]
+name = "luatest"
+description = "Tool for testing tarantool applications"
+license = "MIT"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/luatest"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+checks = ">=3.0.0"
+
+[components.luatest]
+path = "luatest"
+
+# luarocks/test/luatest.lua, the test hook of LuaRocks. Every directory
+# named test/ is left out of a layout, whatever include says, so the
+# component is the directory itself, and the namespace says where it goes.
+[components.luarocks]
+path = "luarocks/test"
+namespace = "luarocks/test"
+
+# bin/luatest, a script the upstream installs into BINDIR, is left out: a
+# layout lays files out into share/ only, and a program comes from the
+# output of a build, which tt refuses for a script. A build that does
+# nothing, backend "shell", command "true", output = { path = "luatest",
+# to = "bin" }, fails with
+#   building component "bin": .../_build/rock/default/bin/luatest: not a
+#   program of the build platform: it is neither an ELF nor a Mach-O program

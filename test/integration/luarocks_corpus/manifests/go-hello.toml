@@ -1,0 +1,27 @@
+# gohello: a package of a Lua module and a program in Go, bin/gohello.
+manifest_version = "0.1"
+
+[package]
+name = "gohello"
+description = "A Lua module and its external process in Go"
+license = "MIT"
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "git+file:///fixtures/go-hello"
+
+[platform]
+tarantool = ">=3.0.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+# require('gohello'), share/tarantool/gohello/init.lua.
+[components.gohello]
+path = "lua"
+
+# bin/gohello.
+[components.cli]
+path = "go"
+
+[components.cli.build]
+backend = "go"
+name = "gohello"

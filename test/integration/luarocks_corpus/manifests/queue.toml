@@ -1,0 +1,20 @@
+# queue as a tt 3 package. The upstream rockspec is builtin with the 14
+# Lua modules queue.*, every Lua file of queue/.
+manifest_version = "0.1"
+
+[package]
+name = "queue"
+description = "A set of persistent in-memory queues"
+license = "BSD"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/queue"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.queue]
+path = "queue"

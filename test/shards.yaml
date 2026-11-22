@@ -54,6 +54,8 @@ tooling:
 - version
 - wasm
 # The rocks catalogue check of rocks.yml, which is skipped without its
-# environment.
+# environment, and the LuaRocks corpus of rocks.yml, whose rocks are slow and
+# skipped without tt 2.
 rocks:
+- luarocks_corpus
 - rocks_catalog
