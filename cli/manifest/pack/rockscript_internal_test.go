@@ -240,18 +240,23 @@ func TestSrcRockOfBuildsBuildsWithLuaRocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(built), string(fresh))
 
+	// The binary rock is installed by the native backend alone: LuaRocks,
+	// that of the lua backend, takes the platform from the first
+	// architecture of /bin/sh, which on a macOS of arm64 may be x86_64, and
+	// refuses a rock of macosx-aarch64 then. The source rock is what LuaRocks
+	// builds on any machine.
+	binary := luaRocksInstall(t, client.BackendNative, result.Rock)
+	require.NoError(t, binary.err)
+
+	want := installedRock(t, binary.tree, result.Rockspec)
+	require.Contains(t, want.Lua, "nativedemo/_version.lua")
+	require.Contains(t, want.Lib, "calcns/calc.so")
+
 	for name, backend := range map[string]client.Backend{
 		"native": client.BackendNative, "lua": client.BackendLua,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-
-			binary := luaRocksInstall(t, backend, result.Rock)
-			require.NoError(t, binary.err)
-
-			want := installedRock(t, binary.tree, result.Rockspec)
-			require.Contains(t, want.Lua, "nativedemo/_version.lua")
-			require.Contains(t, want.Lib, "calcns/calc.so")
 
 			srcRock := luaRocksInstall(t, backend, result.SrcRock)
 			require.NoError(t, srcRock.err)
