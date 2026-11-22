@@ -426,9 +426,16 @@ func signalStorm(t *testing.T, viaRelay bool) {
 	waitReady(t, dir, last.Pid)
 
 	// A stop sent through the relay can be dropped as well: resend it
-	// until Run returns, as a user would.
+	// until Run returns, as a user would. An injected one is never
+	// dropped, and is sent once: the stop takes the child down first,
+	// which may take longer than the resend waits, and a second stop
+	// would be one more handled and recorded.
 	for stopped := false; !stopped; {
 		send(syscall.SIGTERM)
+
+		if !viaRelay {
+			break
+		}
 
 		select {
 		case err := <-sup.done:
