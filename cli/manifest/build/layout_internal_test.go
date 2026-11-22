@@ -1,10 +1,12 @@
 package build
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -134,4 +136,55 @@ func TestLayoutComponent_subdirComponentPath(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		"lib/my-app/fast_hash.so",
 	}, relSet(t, stage))
+}
+
+// TestResultLayout: a build reports what the layout of each component took,
+// from where in the project to where in the stage, and the _version.lua it
+// generated, as the stage has them; Prepare, which builds nothing, reports
+// the same of a build at the same time.
+func TestResultLayout(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, manifestHead+`
+[components.native]
+path = 'native'
+namespace = 'fast'
+`, map[string]string{
+		"init.lua":         "return 1",
+		"native/hash.so":   "so",
+		"native/hash.lua":  "return 2",
+		"native/README.md": "not laid out",
+	})
+
+	opts := dryOptions(dir)
+
+	opts.Now = time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC)
+
+	built, err := RunResult(context.Background(), opts)
+	require.NoError(t, err)
+
+	// The include of the component at the root, *.lua, takes the Lua of the
+	// other one too.
+	assert.Equal(t, []LaidOut{
+		{Component: "lua", Source: "init.lua", Dest: "lua/my-app/init.lua"},
+		{Component: "lua", Source: "native/hash.lua", Dest: "lua/my-app/native/hash.lua"},
+		{Component: "native", Source: "native/hash.lua", Dest: "lua/fast/hash.lua"},
+		{Component: "native", Source: "native/hash.so", Dest: "lib/fast/hash.so"},
+	}, built.Layout)
+
+	for _, file := range built.Layout {
+		assert.FileExists(t, filepath.Join(built.Stage, filepath.FromSlash(file.Dest)))
+	}
+
+	assert.Equal(t, "lua/my-app/_version.lua", built.VersionLua.Dest)
+
+	staged, err := os.ReadFile(filepath.Join(built.Stage, "lua", "my-app", "_version.lua"))
+	require.NoError(t, err)
+	assert.Equal(t, string(staged), built.VersionLua.Content)
+	assert.Contains(t, built.VersionLua.Content, `built_at = "2026-11-22T10:00:00Z",`)
+
+	prepared, err := Prepare(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Equal(t, built.Layout, prepared.Layout)
+	assert.Equal(t, built.VersionLua, prepared.VersionLua)
 }

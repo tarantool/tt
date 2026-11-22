@@ -60,9 +60,10 @@ const srcDirName = "src"
 // srcRocks builds the registry rocks of a closure that a server publishes no
 // rock of for this host, but their source rock, when it is the source rock of
 // a tt package: from its manifest, as a path dependency is built, into the
-// consumer's tree. Install would take the source rock as any other and
-// install its rockspec alone, since its build is done (build type none) for
-// every rock of the version.
+// consumer's tree. Install would take the source rock as any other and build
+// it by the build table of its rockspec, which installs the files of a
+// package with no build block, fails for one with any, and, packed by an
+// older tt, installs nothing at all; tt reads none of it.
 type srcRocks struct {
 	// fetcher searches and downloads from the servers of the build, writing
 	// into dir.

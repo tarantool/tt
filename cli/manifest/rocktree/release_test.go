@@ -25,8 +25,8 @@ func TestRockVersionAt(t *testing.T) {
 }
 
 // TestReleaseRockspec pins the rockspec a package is released with: the
-// fields the package has, the dependencies sorted with their ranges, and a
-// build that is done.
+// fields the package has, the dependencies sorted with their ranges, and,
+// with no build given, a build of nothing.
 func TestReleaseRockspec(t *testing.T) {
 	t.Parallel()
 
@@ -50,8 +50,9 @@ func TestReleaseRockspec(t *testing.T) {
 
 	assert.Equal(t, "mylib", spec.Package)
 	assert.Equal(t, "1.2.0-2", spec.Version)
-	assert.Equal(t, `-- The rock of the tt package mylib 1.2.0, which tt packs from the
--- files it lays out: its build is done.
+	assert.Equal(t, `-- The rock of the tt package mylib 1.2.0.
+-- tt package pack generated it from app.manifest.toml. tt builds the
+-- package from that manifest; LuaRocks builds it as the build table says.
 rockspec_format = "3.0"
 package = "mylib"
 version = "1.2.0-2"

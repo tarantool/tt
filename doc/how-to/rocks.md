@@ -310,25 +310,31 @@ Archive:  ../dist/hashkit-1.0.0-1.linux-x86_64.rock
   Length      Date    Time    Name
 ---------  ---------- -----   ----
        51  1980-01-01 00:00   doc/LICENSE
-      561  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
+      916  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
     15832  1980-01-01 00:00   lib/hashkit/fnv.so
       143  1980-01-01 00:00   lua/hashkit/_version.lua
       310  1980-01-01 00:00   lua/hashkit/init.lua
       423  1980-01-01 00:00   rock_manifest
 ---------                     -------
-    17320                     6 files
+    17675                     6 files
 ```
 
 The rock holds what the build laid out, the C module built for this
 platform, and the license files in `doc/`. The project needs no rockspec:
-tt writes it from the manifest, the same for the rock of every platform.
-Its build is done, so its build type is `none`; its source is the
-repository at the tag of the version, here `v1.0.0`:
+tt writes it from the manifest, the same for the rock of every platform and
+for the source rock. Its source is the repository at the tag of the
+version, here `v1.0.0`. Its build table is for LuaRocks, which builds the
+source rock by it where tt builds it by the manifest, and which installs a
+binary rock as it is, whatever the table says. LuaRocks builds the source
+rock of a package of Lua alone; `hashkit` has a C part, which only tt
+builds for now, so the build says so and fails (see
+[For LuaRocks users](#for-luarocks-users)):
 
 ```console
 $ cat ../dist/hashkit-1.0.0-1.rockspec
--- The rock of the tt package hashkit 1.0.0, which tt packs from the
--- files it lays out: its build is done.
+-- The rock of the tt package hashkit 1.0.0.
+-- tt package pack generated it from app.manifest.toml. tt builds the
+-- package from that manifest; LuaRocks cannot, as the build table says.
 rockspec_format = "3.0"
 package = "hashkit"
 version = "1.0.0-1"
@@ -346,7 +352,11 @@ dependencies = {
    "tarantool >= 3.0.0",
 }
 build = {
-   type = "none",
+   type = "command",
+   build_command = "printf '%s\\n' 'hashkit 1.0.0 builds with tt only: the " ..
+      "component \"hashkit\" is built by the tt backend \"lua-c\". Install " ..
+      "its binary rock, or depend on it in app.manifest.toml of a project " ..
+      "tt 3 builds.' >&2; exit 1",
 }
 deploy = {
    wrap_bin_scripts = false,
@@ -363,17 +373,19 @@ files at their path in the project and a `VERSION` file, and a project that
 depends on the module builds it from there when no binary rock fits its
 platform (see [Build from the source rock](#build-from-the-source-rock)).
 Packed alone, it takes no build: tt checks the manifest and the lock and
-compiles nothing, so the pack needs no compiler and no headers of Tarantool:
+compiles nothing, so the pack needs no compiler and no headers of Tarantool.
+It warns that the source rock builds with tt only:
 
 ```console
 $ tt package pack --format rock-src --out ../dist
+   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c"; LuaRocks, tt rocks included, fails to build it, saying so
 .../dist/hashkit-1.0.0-1.src.rock
 .../dist/hashkit-1.0.0-1.rockspec
 $ unzip -l ../dist/hashkit-1.0.0-1.src.rock
 Archive:  ../dist/hashkit-1.0.0-1.src.rock
   Length      Date    Time    Name
 ---------  ---------- -----   ----
-      561  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
+      916  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
         6  1980-01-01 00:00   hashkit/VERSION
        34  1980-01-01 00:00   hashkit/.gitignore
        51  1980-01-01 00:00   hashkit/LICENSE
@@ -384,7 +396,7 @@ Archive:  ../dist/hashkit-1.0.0-1.src.rock
       242  1980-01-01 00:00   hashkit/test/bucket_test.lua
       230  1980-01-01 00:00   hashkit/test/hash_test.lua
 ---------                     -------
-     3172                     10 files
+     3527                     10 files
 ```
 
 Both rocks are reproducible: packing the same commit again gives the same
@@ -429,9 +441,10 @@ $ tt package pack --format tt,rock
 ```
 
 A package of Lua alone, with no C part, packs one rock for every platform,
-`<name>-<version>.all.rock`, and needs no source rock. See
+`<name>-<version>.all.rock`, and needs no source rock; LuaRocks builds its
+source rock with no tool at all, should it get one. See
 [Packing a rock](../concepts/packages.md#packing-a-rock) for what goes into
-a rock and what fails a pack.
+a rock, how LuaRocks builds a source rock, and what fails a pack.
 
 ## Publish
 
@@ -709,6 +722,7 @@ the commit, this time without a `v`, pack both rocks of 1.1.0 into
 ```console
 $ git tag 1.1.0
 $ tt package pack --format rock,rock-src --out ../dist
+   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c"; LuaRocks, tt rocks included, fails to build it, saying so
 .../dist/hashkit-1.1.0-1.linux-x86_64.rock
 .../dist/hashkit-1.1.0-1.src.rock
 .../dist/hashkit-1.1.0-1.rockspec
@@ -803,6 +817,7 @@ rock alone, which builds nothing, into a directory of its own:
 ```console
 $ cd ../hashkit
 $ tt package pack --format rock-src --out ../dist-src
+   ⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c"; LuaRocks, tt rocks included, fails to build it, saying so
 .../dist-src/hashkit-1.1.0-1.src.rock
 .../dist-src/hashkit-1.1.0-1.rockspec
 $ cd ../kv-api
@@ -899,12 +914,12 @@ $ tarantool -e "local h = require('hashkit') print(h.VERSION, h.bucket('user:1',
 1.1.0	4
 ```
 
-The source rock needs tt. Its rockspec is the one of the binary rocks, of
-build type `none`, so LuaRocks installs the rock with nothing to build and
-no module in it. A platform with no binary rock gets the source rock from
-LuaRocks; `tt rocks` sees that LuaRocks built nothing of it, removes it from
-the tree again and fails, after LuaRocks has said the rock is installed. The
-tree, `.rocks/`, was made for the rock, so it goes as well:
+A platform with no binary rock gets the source rock from LuaRocks, which
+builds it by its rockspec. The rockspec of a package of Lua alone installs
+the files of the binary rock (see
+[Packing a rock](../concepts/packages.md#packing-a-rock)). `hashkit` has a C
+part, which only tt builds for now: its build prints which component needs
+tt, and with which backend, and fails, and the rock is not installed:
 
 ```console
 $ cd ..
@@ -913,18 +928,20 @@ $ tt rocks install hashkit --only-server ../dist-src
 Installing ../dist-src/hashkit-1.1.0-1.src.rock
 
 hashkit 1.1.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
-No existing manifest. Attempting to rebuild...
-hashkit 1.1.0-1 is now installed in .../lr-src/.rocks (license: BSD-2-Clause)
+printf '%s\n' 'hashkit 1.1.0 builds with tt only: the component "hashkit" is built by the tt backend "lua-c". Install its binary rock, or depend on it in app.manifest.toml of a project tt 3 builds.' >&2; exit 1
+hashkit 1.1.0 builds with tt only: the component "hashkit" is built by the tt backend "lua-c". Install its binary rock, or depend on it in app.manifest.toml of a project tt 3 builds.
 
-   ⨯ LuaRocks built nothing of the source rock of a tt package: hashkit 1.1.0-1 is not installed, whatever LuaRocks printed above; tt removed it from the tree again. Install the binary rock of linux-x86_64 from a server that has one, or depend on the rock in app.manifest.toml and run tt package build, which builds the source rock with its manifest
-$ ls -A
+Error: Build error: Failed building.
+   ⨯ failed to run luarocks: luaEngine: [install hashkit 1.1.0-1 --only-server ../dist-src] exited with code 1
 $ tarantool -e "require('hashkit')" - </dev/null 2>&1 | head -2
 (command line):1: module 'hashkit' not found:
 	no field package.preload['hashkit']
 ```
 
-Plain `luarocks` does the same install with no such check: it says the rock
-is installed, and `require` of its module fails as above.
+`tt rocks` of tt 2 and plain `luarocks` fail the same way. The rockspec of
+a source rock an older tt packed builds nothing: LuaRocks says such a rock
+is installed, with no module in it, and `tt rocks` of tt 3 removes it from
+the tree again and fails, saying that LuaRocks built nothing of it.
 
 Nor does LuaRocks read a rock index:
 

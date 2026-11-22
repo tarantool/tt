@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	luarocks "github.com/tarantool/go-luarocks"
@@ -158,7 +157,8 @@ func Rockspec(pkg Package) (*luarocks.Rockspec, error) {
 }
 
 // luaQuote quotes s as a Lua 5.1 string literal: Lua knows no \u or \x
-// escape, so every byte outside printable ASCII is a decimal one.
+// escape, so every byte outside printable ASCII is a decimal one, of three
+// digits, which a digit after it cannot lengthen.
 func luaQuote(text string) string {
 	var out strings.Builder
 
@@ -172,7 +172,7 @@ func luaQuote(text string) string {
 			out.WriteByte('\\')
 			out.WriteByte(char)
 		case char < ' ' || char > '~':
-			out.WriteString("\\" + strconv.Itoa(int(char)))
+			fmt.Fprintf(&out, `\%03d`, char)
 		default:
 			out.WriteByte(char)
 		}

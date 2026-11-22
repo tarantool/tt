@@ -20,8 +20,10 @@ var errRevision = errors.New("the rock revision is a number from 1")
 const releaseHeader = "-- The rock of the tt package "
 
 // IsReleaseRockspec reports whether src, the text of a rockspec, is that of a
-// rock tt packed (ReleaseRockspec), whose build is done: LuaRocks building
-// its source rock builds nothing, since only tt builds the package in it.
+// rock tt packed (ReleaseRockspec), whose source rock holds a tt package: tt
+// builds it from its manifest, and LuaRocks by the build table of the
+// rockspec. The build table of an older pack built nothing, so LuaRocks
+// installed its source rock with no module in it.
 func IsReleaseRockspec(src []byte) bool {
 	return bytes.HasPrefix(src, []byte(releaseHeader))
 }
@@ -80,13 +82,19 @@ type Release struct {
 	// constraint expression in LuaRocks syntax; an empty expression is any
 	// version.
 	Dependencies map[string]string
+	// Build is how LuaRocks builds the package from its source rock, or from
+	// the source the rockspec names, without tt.
+	Build ReleaseBuild
 }
 
 // ReleaseRockspec renders the rockspec of the rock rel and evaluates it, so
 // that its RawSource is the rockspec the rock is packed with and published
-// beside it. The rock carries the files tt laid out, so its build is done:
-// the build type is none, whichever backends built them, and the rockspec is
-// the same for the rock of every platform.
+// beside it: one for the binary rock of every platform, the source rock and
+// the rockspec alone. LuaRocks installs a binary rock as it is, whatever its
+// build table says; it builds the source rock and the bare rockspec as
+// rel.Build says (ReleaseBuild), and tt builds them from the manifest in the
+// sources, reading no build table at all. A path of rel.Build.Install
+// build.install cannot say fails it (CheckInstallDest).
 func ReleaseRockspec(rel Release) (*luarocks.Rockspec, error) {
 	version, err := RockVersionAt(rel.Version, rel.Revision)
 	if err != nil {
@@ -95,8 +103,14 @@ func ReleaseRockspec(rel Release) (*luarocks.Rockspec, error) {
 
 	var src strings.Builder
 
-	fmt.Fprintf(&src, releaseHeader+"%s %s, which tt packs from the\n"+
-		"-- files it lays out: its build is done.\n", rel.Name, rel.Version)
+	luaRocks := "LuaRocks builds it as the build table says"
+	if rel.Build.TtOnly != "" {
+		luaRocks = "LuaRocks cannot, as the build table says"
+	}
+
+	fmt.Fprintf(&src, releaseHeader+"%s %s.\n"+
+		"-- tt package pack generated it from app.manifest.toml. tt builds the\n"+
+		"-- package from that manifest; %s.\n", rel.Name, rel.Version, luaRocks)
 	src.WriteString("rockspec_format = \"3.0\"\n")
 	fmt.Fprintf(&src, "package = %s\n", luaQuote(rel.Name))
 	fmt.Fprintf(&src, "version = %s\n", luaQuote(version))
@@ -121,7 +135,11 @@ func ReleaseRockspec(rel Release) (*luarocks.Rockspec, error) {
 
 	writeDependencies(&src, rel.Dependencies)
 
-	src.WriteString("build = {\n   type = \"none\",\n}\n")
+	err = writeBuild(&src, rel.Build)
+	if err != nil {
+		return nil, fmt.Errorf("the rockspec of %s %s: %w", rel.Name, rel.Version, err)
+	}
+
 	src.WriteString("deploy = {\n   wrap_bin_scripts = false,\n}\n")
 
 	name := rel.Name + "-" + version + ".rockspec"

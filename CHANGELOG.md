@@ -499,6 +499,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt package pack --format rock-src`: pack the source rock of the package,
   the same rockspec with the files git tracks, submodules included, and a
   `VERSION` file of the version, reproducibly.
+- LuaRocks, `tt rocks` of tt 2 included, builds the source rock of a tt
+  package with no build block, and its bare rockspec from the repository:
+  the rockspec `tt package pack` writes installs, by `build.install`, the
+  files of the layout the source rock holds where the binary rock has them,
+  and its `version.lua` from `build.extra_files`, the bytes of the binary
+  rock, so neither the source rock nor the repository holds a generated
+  file. The rockspec of a package with a build block fails the build under
+  LuaRocks, naming the components and hooks that need tt and their
+  backends, where LuaRocks installed the source rock with no module in it,
+  and the pack of its source rock warns so. A path of the layout
+  `build.install` cannot say, a directory with a dot in its name or a Lua
+  file with one before `.lua`, fails the pack of a package with no build
+  block, and a file of the source rock at `tt-rock-version.lua`,
+  `tt-rock.sh`, `.tt-rock/` or `.luarocks.patches.applied` of the root
+  fails the pack of either rock. A file of the layout git ignores is left
+  out of the source rock with a warning, as one it does not track is.
 - A registry dependency whose servers have no rock of the platform, but the
   source rock of a tt package, is built from it with its manifest, in
   `_build/src/` of the project, and installed at the version and revision
