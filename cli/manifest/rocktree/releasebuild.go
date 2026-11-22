@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/tarantool/tt/v3/cli/manifest/rockscript"
 )
 
 const (
@@ -56,11 +58,12 @@ type ReleaseBuild struct {
 	ExtraFiles map[string]string
 	// Script, when not empty, is the name of the extra file of the script of
 	// POSIX sh that builds the package without tt: the build is of type
-	// command, whose build_command runs sh ./<Script> build, given CC,
-	// CFLAGS, LIBFLAG and LUA_INCDIR of LuaRocks, and whose install_command
-	// runs sh ./<Script> install, given LUADIR, LIBDIR and BINDIR, the
-	// directories of the rock. It is a name of letters, digits and -_.
-	// alone. A build without it is of type none.
+	// command, whose build_command runs sh ./<Script> build -, given CC,
+	// CFLAGS, LIBFLAG and LUA_INCDIR of LuaRocks on stdin, and whose
+	// install_command runs sh ./<Script> install -, given LUADIR, LIBDIR and
+	// BINDIR, the directories of the rock, so (rockscript.Command). It is a
+	// name of letters, digits and -_. alone. A build without it is of type
+	// none.
 	Script string
 	// TtOnly, when not empty, says why LuaRocks cannot build the package,
 	// which only tt builds: the build, of type command, prints it to stderr
@@ -151,13 +154,14 @@ func writeBuild(src *strings.Builder, build ReleaseBuild) error {
 			return fmt.Errorf("%w: %q", errScriptName, build.Script)
 		}
 
-		// LuaRocks substitutes its variables, $(NAME), in the commands, and
-		// sh reads each value in single quotes as one word.
+		// LuaRocks substitutes its variables, $(NAME), in the commands as
+		// they are, so the values go in a quoted here-document, which sh
+		// reads no quote and no $ of.
 		src.WriteString("   type = \"command\",\n")
-		writeLongField(src, "build_command", "CC='$(CC)' CFLAGS='$(CFLAGS)' "+
-			"LIBFLAG='$(LIBFLAG)' LUA_INCDIR='$(LUA_INCDIR)' sh ./"+build.Script+" build")
-		writeLongField(src, "install_command", "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' "+
-			"BINDIR='$(BINDIR)' sh ./"+build.Script+" install")
+		fmt.Fprintf(src, "   build_command = %s,\n",
+			luaLongString(rockscript.Command(build.Script, rockscript.PhaseBuild)))
+		fmt.Fprintf(src, "   install_command = %s,\n",
+			luaLongString(rockscript.Command(build.Script, rockscript.PhaseInstall)))
 	}
 
 	tables, err := installTables(build.Install)

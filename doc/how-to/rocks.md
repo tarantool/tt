@@ -310,13 +310,13 @@ Archive:  ../dist/hashkit-1.0.0-1.linux-x86_64.rock
   Length      Date    Time    Name
 ---------  ---------- -----   ----
        51  1980-01-01 00:00   doc/LICENSE
-     8457  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
+     9790  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
     18456  1980-01-01 00:00   lib/hashkit/fnv.so
       143  1980-01-01 00:00   lua/hashkit/_version.lua
       310  1980-01-01 00:00   lua/hashkit/init.lua
       423  1980-01-01 00:00   rock_manifest
 ---------                     -------
-    27840                     6 files
+    29173                     6 files
 ```
 
 The rock holds what the build laid out, the C module built for this
@@ -354,10 +354,21 @@ dependencies = {
 }
 build = {
    type = "command",
-   build_command = "CC='$(CC)' CFLAGS='$(CFLAGS)' LIBFLAG='$(LIBFLAG)' " ..
-      "LUA_INCDIR='$(LUA_INCDIR)' sh ./tt-rock.sh build",
-   install_command = "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' " ..
-      "BINDIR='$(BINDIR)' sh ./tt-rock.sh install",
+   build_command = [=[
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=$(CC)
+CFLAGS=$(CFLAGS)
+LIBFLAG=$(LIBFLAG)
+LUA_INCDIR=$(LUA_INCDIR)
+TT_ROCK_VARIABLES
+]=],
+   install_command = [=[
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=$(LUADIR)
+LIBDIR=$(LIBDIR)
+BINDIR=$(BINDIR)
+TT_ROCK_VARIABLES
+]=],
    install = {
       lua = {
          ["hashkit._version"] = "tt-rock-version.lua",
@@ -436,7 +447,7 @@ $ unzip -l ../dist/hashkit-1.0.0-1.src.rock
 Archive:  ../dist/hashkit-1.0.0-1.src.rock
   Length      Date    Time    Name
 ---------  ---------- -----   ----
-     8457  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
+     9790  1980-01-01 00:00   hashkit-1.0.0-1.rockspec
         6  1980-01-01 00:00   hashkit/VERSION
        34  1980-01-01 00:00   hashkit/.gitignore
        51  1980-01-01 00:00   hashkit/LICENSE
@@ -447,7 +458,7 @@ Archive:  ../dist/hashkit-1.0.0-1.src.rock
       242  1980-01-01 00:00   hashkit/test/bucket_test.lua
       230  1980-01-01 00:00   hashkit/test/hash_test.lua
 ---------                     -------
-    11068                     10 files
+    12401                     10 files
 ```
 
 Both rocks are reproducible: packing the same commit again gives the same
@@ -981,10 +992,21 @@ $ tt rocks install hashkit --only-server ../dist-src
 Installing ../dist-src/hashkit-1.1.0-1.src.rock
 
 hashkit 1.1.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
-CC='gcc' CFLAGS='-O2 -fPIC' LIBFLAG='-shared' LUA_INCDIR='.../include/tarantool' sh ./tt-rock.sh build
-gcc -fPIC -std=gnu99 -Wall -Wextra -Werror -O2 -fPIC -I.../include/tarantool -c fnv.c -o .../luarocks_hashkit-1.1.0-1-te7Z1e/hashkit/.tt-rock/build/hashkit/fnv.c.040409a9.o
-gcc -shared -Wl,-Bsymbolic-functions -Wl,--as-needed -o .../luarocks_hashkit-1.1.0-1-te7Z1e/hashkit/.tt-rock/stage/lib/hashkit/fnv.so .../luarocks_hashkit-1.1.0-1-te7Z1e/hashkit/.tt-rock/build/hashkit/fnv.c.040409a9.o
-LUADIR='.../lr-src/.rocks/share/tarantool/rocks/hashkit/1.1.0-1/lua' LIBDIR='.../lr-src/.rocks/share/tarantool/rocks/hashkit/1.1.0-1/lib' BINDIR='.../lr-src/.rocks/share/tarantool/rocks/hashkit/1.1.0-1/bin' sh ./tt-rock.sh install
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=gcc
+CFLAGS=-O2 -fPIC
+LIBFLAG=-shared
+LUA_INCDIR=.../include/tarantool
+TT_ROCK_VARIABLES
+
+gcc -fPIC -std=gnu99 -Wall -Wextra -Werror -O2 -fPIC -I.../include/tarantool -c fnv.c -o .../luarocks_hashkit-1.1.0-1-hYclfI/hashkit/.tt-rock/build/hashkit/fnv.c.040409a9.o
+gcc -shared -Wl,-Bsymbolic-functions -Wl,--as-needed -o .../luarocks_hashkit-1.1.0-1-hYclfI/hashkit/.tt-rock/stage/lib/hashkit/fnv.so .../luarocks_hashkit-1.1.0-1-hYclfI/hashkit/.tt-rock/build/hashkit/fnv.c.040409a9.o
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=.../lr-src/.rocks/share/tarantool/rocks/hashkit/1.1.0-1/lua
+LIBDIR=.../lr-src/.rocks/share/tarantool/rocks/hashkit/1.1.0-1/lib
+BINDIR=.../lr-src/.rocks/share/tarantool/rocks/hashkit/1.1.0-1/bin
+TT_ROCK_VARIABLES
+
 No existing manifest. Attempting to rebuild...
 hashkit 1.1.0-1 is now installed in .../lr-src/.rocks (license: BSD-2-Clause)
 

@@ -196,10 +196,21 @@ func TestReleaseRockspecScript(t *testing.T) {
 		`table says.`)
 	assert.Contains(t, source, `build = {
    type = "command",
-   build_command = "CC='$(CC)' CFLAGS='$(CFLAGS)' LIBFLAG='$(LIBFLAG)' " ..
-      "LUA_INCDIR='$(LUA_INCDIR)' sh ./tt-rock.sh build",
-   install_command = "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' " ..
-      "BINDIR='$(BINDIR)' sh ./tt-rock.sh install",
+   build_command = [=[
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=$(CC)
+CFLAGS=$(CFLAGS)
+LIBFLAG=$(LIBFLAG)
+LUA_INCDIR=$(LUA_INCDIR)
+TT_ROCK_VARIABLES
+]=],
+   install_command = [=[
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=$(LUADIR)
+LIBDIR=$(LIBDIR)
+BINDIR=$(BINDIR)
+TT_ROCK_VARIABLES
+]=],
    install = {
       lua = {
          ["demo._version"] = "tt-rock-version.lua",
@@ -218,10 +229,11 @@ echo $(x)
 `)
 
 	assert.Equal(t, "command", spec.Build.Type)
-	assert.Equal(t, "CC='$(CC)' CFLAGS='$(CFLAGS)' LIBFLAG='$(LIBFLAG)' "+
-		"LUA_INCDIR='$(LUA_INCDIR)' sh ./tt-rock.sh build", spec.Build.BuildCommand)
-	assert.Equal(t, "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' BINDIR='$(BINDIR)' "+
-		"sh ./tt-rock.sh install", spec.Build.InstallCommand)
+	assert.Equal(t, "sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'\nCC=$(CC)\n"+
+		"CFLAGS=$(CFLAGS)\nLIBFLAG=$(LIBFLAG)\nLUA_INCDIR=$(LUA_INCDIR)\nTT_ROCK_VARIABLES\n",
+		spec.Build.BuildCommand)
+	assert.Equal(t, "sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'\nLUADIR=$(LUADIR)\n"+
+		"LIBDIR=$(LIBDIR)\nBINDIR=$(BINDIR)\nTT_ROCK_VARIABLES\n", spec.Build.InstallCommand)
 	assert.Equal(t, "#!/bin/sh\necho $(x)\n", spec.Build.ExtraFiles["tt-rock.sh"])
 	assert.Equal(t, "demo/init.lua", spec.Build.Install.Lua["demo.init"])
 

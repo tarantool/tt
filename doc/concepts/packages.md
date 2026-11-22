@@ -706,10 +706,13 @@ version, by the build table of the rockspec, which tt writes for it:
   [Without tt](../reference/app-manifest.md#without-tt)) - is of build
   type `command`, and its rockspec carries
   `tt-rock.sh`, a script of POSIX sh, in `build.extra_files` beside
-  `version.lua`. `build_command` runs `sh ./tt-rock.sh build` with `CC`,
+  `_version.lua`. `build_command` runs `sh ./tt-rock.sh build -` with `CC`,
   `CFLAGS`, `LIBFLAG` and `LUA_INCDIR` of LuaRocks, and `install_command`
-  runs `sh ./tt-rock.sh install`, which copies what the build made into
-  `LUADIR`, `LIBDIR` and `BINDIR` of the rock. The script does what a build
+  runs `sh ./tt-rock.sh install -`, which copies what the build made into
+  `LUADIR`, `LIBDIR` and `BINDIR` of the rock. Each gives the script the
+  variables in a quoted here-document, a line `NAME=value` each, so a
+  directory of any name but one with a newline reaches it as it is, and
+  the shell runs nothing of it. The script does what a build
   of tt does: it sets the `TT_*` variables of a build,
   `TT_TARANTOOL_INCLUDE_DIR` being `LUA_INCDIR`; looks for the tools of the
   builds in `PATH`; runs `pre_build`, the builds of the components in the
@@ -824,10 +827,21 @@ $ tt package pack --format rock,rock-src --out dist
 $ sed -n '/^build = {/,/^   extra_files/p' dist/fastlib-1.0.0-1.rockspec
 build = {
    type = "command",
-   build_command = "CC='$(CC)' CFLAGS='$(CFLAGS)' LIBFLAG='$(LIBFLAG)' " ..
-      "LUA_INCDIR='$(LUA_INCDIR)' sh ./tt-rock.sh build",
-   install_command = "LUADIR='$(LUADIR)' LIBDIR='$(LIBDIR)' " ..
-      "BINDIR='$(BINDIR)' sh ./tt-rock.sh install",
+   build_command = [=[
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=$(CC)
+CFLAGS=$(CFLAGS)
+LIBFLAG=$(LIBFLAG)
+LUA_INCDIR=$(LUA_INCDIR)
+TT_ROCK_VARIABLES
+]=],
+   install_command = [=[
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=$(LUADIR)
+LIBDIR=$(LIBDIR)
+BINDIR=$(BINDIR)
+TT_ROCK_VARIABLES
+]=],
    install = {
       lua = {
          ["fastlib._version"] = "tt-rock-version.lua",
@@ -883,11 +897,22 @@ $ tt rocks install fastlib --only-server ../fastlib/dist-src
 Installing ../fastlib/dist-src/fastlib-1.0.0-1.src.rock
 
 fastlib 1.0.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
-CC='gcc' CFLAGS='-O2 -fPIC' LIBFLAG='-shared' LUA_INCDIR='.../include/tarantool' sh ./tt-rock.sh build
-make: Entering directory '.../luarocks_fastlib-1.0.0-1-8HjWaC/fastlib/fastlib'
-gcc -O2 -fPIC -I.../include/tarantool -shared -o .../luarocks_fastlib-1.0.0-1-8HjWaC/fastlib/.tt-rock/stage/lib/fastlib/fast.so fast.c
-make: Leaving directory '.../luarocks_fastlib-1.0.0-1-8HjWaC/fastlib/fastlib'
-LUADIR='.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/lua' LIBDIR='.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/lib' BINDIR='.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/bin' sh ./tt-rock.sh install
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=gcc
+CFLAGS=-O2 -fPIC
+LIBFLAG=-shared
+LUA_INCDIR=.../include/tarantool
+TT_ROCK_VARIABLES
+
+make: Entering directory '.../luarocks_fastlib-1.0.0-1-ak8B5n/fastlib/fastlib'
+gcc -O2 -fPIC -I.../include/tarantool -shared -o .../luarocks_fastlib-1.0.0-1-ak8B5n/fastlib/.tt-rock/stage/lib/fastlib/fast.so fast.c
+make: Leaving directory '.../luarocks_fastlib-1.0.0-1-ak8B5n/fastlib/fastlib'
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/lua
+LIBDIR=.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/lib
+BINDIR=.../lr-src/.rocks/share/tarantool/rocks/fastlib/1.0.0-1/bin
+TT_ROCK_VARIABLES
+
 No existing manifest. Attempting to rebuild...
 fastlib 1.0.0-1 is now installed in .../lr-src/.rocks (license: BSD-2-Clause)
 
