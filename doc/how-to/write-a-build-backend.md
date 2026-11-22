@@ -1449,7 +1449,7 @@ The backends of the standard module `build` show the rest of the contract:
 | Package | Backends | Shows |
 | --- | --- | --- |
 | `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output`, `Cross` left to the script, `Exports` of the command it runs, checked by `CheckExport` in `modules/build/export_test.go` |
-| `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes |
+| `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes, `Exports` of the compiles and the link of `Run` with the toolchain of LuaRocks, with `NoExportf` for `static` and `bundle` |
 | `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored`, `Cross` with a linker of the target, `Exports` that finds what cargo built by its place in a target directory of its own, and says what it lacks in `Lost` |
 | `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh`, `Exports` that copies `output` itself |
 | `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo`, a `Vendorer` and a build from `Vendored`, `Exports` for the machine |

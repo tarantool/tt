@@ -159,6 +159,46 @@ jobs:
         if: contains(inputs.shard, 'tooling') || inputs.shard == 'all'
         uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
 
+      # rocks/test_luarocks_compat.py of the tooling group builds the source
+      # rocks of tt packages with tt rocks of tt 2, a plain LuaRocks 3.9.2,
+      # named by TT_TEST_TT2. tt 2 has releases for Linux; for macOS on arm64
+      # it has none, and Homebrew bottles it. The formula of the runner image
+      # may be one that still depends on bash-completion, which conflicts
+      # with the bash-completion@2 of the image, so the bottle goes in
+      # without the dependencies of the formula and with the one library tt
+      # links, openssl@3.
+      - name: Set up tt 2 for the LuaRocks tests
+        if: inputs.edition != 'none' && (contains(inputs.shard, 'tooling') || inputs.shard == 'all')
+        env:
+          TT2_VERSION: 2.15.2
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        # The path is fixed by this step, not PR metadata.
+        run: | # zizmor: ignore[github-env]
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install openssl@3
+            brew install --ignore-dependencies tt
+            # Off PATH and out of the completions the tests load.
+            brew unlink tt
+            tt2="$(brew --prefix tt)/bin/tt"
+          else
+            case "$RUNNER_ARCH" in
+              X64) arch=amd64 ;;
+              ARM64) arch=arm64 ;;
+              *) echo "tt $TT2_VERSION has no release for $RUNNER_ARCH" >&2; exit 1 ;;
+            esac
+            dir="$RUNNER_TEMP/tt2"
+            archive="tt-$TT2_VERSION-linux-$arch.tar.gz"
+            url="https://github.com/tarantool/tt/releases/download/v$TT2_VERSION"
+            mkdir -p "$dir"
+            curl -fsSL --retry 3 -o "$dir/$archive" "$url/$archive"
+            curl -fsSL --retry 3 -o "$dir/checksums.txt" "$url/checksums.txt"
+            (cd "$dir" && grep -F "  $archive" checksums.txt | sha256sum -c -)
+            tar -xzf "$dir/$archive" -C "$dir" tt
+            tt2="$dir/tt"
+          fi
+          "$tt2" version
+          echo "TT_TEST_TT2=$tt2" >> "$GITHUB_ENV"
+
       # The tests that fetch rocks install them from this directory rather
       # than from the registries; see test/rocks-mirror.txt. A job of tests
       # that fetch none goes without it.
