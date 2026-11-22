@@ -594,8 +594,10 @@ A `dirty` version, of uncommitted changes, and one a `VERSION` file gives
 name the repository with no commit, a `dirty` one with a comment saying so;
 a package with no `repository` has the source `file://.`. `[package]` gives the
 description, the license and the maintainers, `[platform].platforms` the
-supported platforms. The build is done, so the build type is `none`, and
-the rockspec is the same for the rock of every platform. A path dependency
+supported platforms. The rockspec is the same for the rock of every
+platform and for the source rock: LuaRocks installs a binary rock as it is,
+whatever its build table says, and builds the source rock by that table
+(see below). A path dependency
 fails the pack: the projects installing the rock have no such directory.
 So does a product with no rock of its own, and both fail it before the
 build, not after minutes of it. A dependency from a registry of its own is
@@ -672,8 +674,105 @@ did not track where it was packed, is a warning. The hooks of the package
 are not run. A rock built
 so is not built again while the tree holds it at that version. A source
 rock of no tt package, one without `app.manifest.toml`, fails the build.
-Only tt builds a source rock: LuaRocks, `tt rocks` included, finds nothing
-to build in it (see [tt rocks](rock-servers.md#tt-rocks)).
+tt reads no build table of a rockspec.
+
+LuaRocks, `tt rocks` of tt 2 and of tt 3 among them, knows no manifest: it
+builds the source rock, and the bare rockspec from the repository at the
+version, by the build table of the rockspec, which tt writes for it:
+
+- A package with no build block - no component of the product has one, and
+  there is no `pre_build` or `post_build` hook - is of build type `none`,
+  and its `build.install` installs every file the layouts of its components
+  take, where the binary rock has it: a Lua file by its module name,
+  `mylib/util/str.lua` of the namespace `mylib` as `mylib.util.str`, and any
+  other file by its directory, under the name it has. The `_version.lua` the
+  build generates is in `build.extra_files`, the bytes the binary rock has,
+  and LuaRocks writes it into the sources, as `tt-rock-version.lua`, before
+  it builds: neither the source rock nor the repository holds a file the
+  build generates. So LuaRocks installs into `lua/` and `lib/` of the tree
+  what the binary rock holds there, with no tool at all; `_rocks.lua` is in
+  neither rock. Its `doc/` is the one LuaRocks makes of any rock: the
+  `doc/` directory of the project, or, with none, the README, LICENSE,
+  COPYING and `*.md` files of its root. The binary rock has the license
+  files there instead, wherever they are in the project.
+- A package with a build block builds with tt alone, for now: the build of
+  its rockspec, of type `command`, prints the components and the hooks that
+  need tt, and their backends, and fails, so LuaRocks installs nothing. The
+  pack of its source rock warns that it builds with tt only.
+
+The rockspec of `mylib`, a package of Lua and data under its own name and a
+role under `roles`:
+
+```console
+$ tt package pack --format rock,rock-src --out dist
+.../mylib/dist/mylib-1.2.0-1.all.rock
+.../mylib/dist/mylib-1.2.0-1.src.rock
+.../mylib/dist/mylib-1.2.0-1.rockspec
+$ cat dist/mylib-1.2.0-1.rockspec
+-- The rock of the tt package mylib 1.2.0.
+-- tt package pack generated it from app.manifest.toml. tt builds the
+-- package from that manifest; LuaRocks builds it as the build table says.
+rockspec_format = "3.0"
+package = "mylib"
+version = "1.2.0-1"
+source = {
+   url = "git+https://github.com/example/mylib",
+   tag = "v1.2.0",
+}
+description = {
+   summary = "A library of Lua and data",
+   homepage = "https://github.com/example/mylib",
+   license = "BSD-2-Clause",
+}
+dependencies = {
+   "tarantool >= 3.0.0",
+}
+build = {
+   type = "none",
+   install = {
+      lua = {
+         ["mylib._version"] = "tt-rock-version.lua",
+         ["mylib.data.schema"] = "mylib/data/schema.json",
+         ["mylib.init"] = "mylib/init.lua",
+         ["mylib.util.str"] = "mylib/util/str.lua",
+         ["roles.mylib"] = "roles/mylib.lua",
+      },
+   },
+   extra_files = {
+      ["tt-rock-version.lua"] = [=[
+return {
+    version  = "1.2.0",
+    commit   = "119869b",
+    dirty    = false,
+    flavor   = "ce",
+    built_at = "2026-11-22T11:36:47Z",
+}
+]=],
+   },
+}
+deploy = {
+   wrap_bin_scripts = false,
+}
+```
+
+`build.install` installs only the files the source rock holds: a file of
+the layout git does not track, or ignores, is left out of it, as it is left
+out of the source rock, and the pack of the source rock warns of it. A path
+of the layout a module name of LuaRocks cannot say fails the pack of a
+package with no build block: a directory with a dot in its name, or a Lua
+file with one before `.lua`, `init.min.lua`:
+
+```console
+$ tt package pack --format rock-src --out dist
+   ⨯ build.install of a rockspec cannot say the path lua/mylib/data/v1.2/schema.json: the name of the directory "v1.2" has a dot, which a module name of LuaRocks says a slash with; the layout of the component "mylib" takes mylib/data/v1.2/schema.json there: rename it, or leave it out of the layout with the exclude of [components.mylib]
+```
+
+The rock reserves `tt-rock-version.lua`, `tt-rock.sh` and `.tt-rock/` at the
+root of its sources, for what LuaRocks and a build without tt write there,
+and `.luarocks.patches.applied`, with which LuaRocks writes no extra file: a
+file the source rock would hold at one of them - one git tracks, or any out
+of a git repository - fails the pack of either rock. See
+[tt rocks](rock-servers.md#tt-rocks) for LuaRocks.
 
 [Publish a module as a rock](../how-to/rocks.md) walks one module through
 all of it: its manifest, its versions, its rocks, a server and an index for

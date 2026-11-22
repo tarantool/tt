@@ -9,6 +9,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
@@ -93,6 +94,66 @@ func layoutComponent(
 	}
 
 	return written, nil
+}
+
+// LaidOut is a file of the project the layout of a component takes into the
+// stage of the product (Result.Layout).
+type LaidOut struct {
+	// Component is the name of the component whose layout takes the file.
+	Component string
+	// Source is the path of the file relative to the project root,
+	// slash-separated, as git names it; that of a component outside the
+	// project begins with ../.
+	Source string
+	// Dest is its path relative to the stage, slash-separated: under lua/ of
+	// the stage, or lib/ for a native module, and the namespace of the
+	// component (destPath).
+	Dest string
+}
+
+// planLayout lists the files the layouts of components of proj take into a
+// stage, in the order of components and of their walk, copying none
+// (laidOutFiles, destPath): the files layoutComponents copies, as
+// Result.Layout reports them.
+func planLayout(
+	proj project, components []string, backends *buildreg.Registry,
+) ([]LaidOut, error) {
+	var layout []LaidOut
+
+	for _, name := range components {
+		component := proj.man.Components[name]
+
+		lays, exclude := sourceLayout(backends, component)
+		if !lays {
+			continue
+		}
+
+		compAbsPath := resolveDir(proj.dir, component.Path)
+
+		files, err := laidOutFiles(component, compAbsPath, exclude)
+		if err != nil {
+			return nil, fmt.Errorf("component %q: %w", component.Path, err)
+		}
+
+		namespace := component.EffectiveNamespace(proj.man.Package.Name)
+
+		for _, rel := range files {
+			source, err := filepath.Rel(proj.dir,
+				filepath.Join(compAbsPath, filepath.FromSlash(rel)))
+			if err != nil {
+				return nil, fmt.Errorf("component %q: relativizing %s: %w", component.Path,
+					rel, err)
+			}
+
+			layout = append(layout, LaidOut{
+				Component: name,
+				Source:    filepath.ToSlash(source),
+				Dest:      filepath.ToSlash(destPath("", namespace, strings.Split(rel, "/"))),
+			})
+		}
+	}
+
+	return layout, nil
 }
 
 // relComponents returns path split into slash-separated components relative to

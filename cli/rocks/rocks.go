@@ -133,9 +133,9 @@ func ResolveTarantoolPrefix(cli *cmdcontext.CliCtx) (tarantool.Prefix, error) {
 // TT_CLI_REPO_ROCKS is left out with a warning, and one args name with
 // --server or --only-server fails the command with ErrIndexOnlyServer.
 //
-// LuaRocks builds nothing of the source rock of a tt package: a rock the
-// command installed so is removed again, and the command fails with
-// ErrEmptySrcRock (checkSrcRocks).
+// LuaRocks built nothing of the source rock of a tt package an older tt
+// packed: a rock the command installed so is removed again, and the command
+// fails with ErrEmptySrcRock (checkSrcRocks).
 func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	ctx := context.Background()
 	probe := newIndexProbe()

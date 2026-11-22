@@ -37,30 +37,20 @@ const (
 var srcExcluded = []string{gitDirName, buildDirName, rocksDirName, runtimeDirName}
 
 // writeSrcRock writes the source rock of the package at dest: the rockspec
-// at the root and, under srcDir, the files of the project and a VERSION file
-// holding the version it was packed at, which a build of the unpacked rock,
-// having no git history, derives its version from.
-//
-// The files are those git tracks in the project, those of its submodules
-// included, as they are in the working tree, or, out of a git repository,
-// every file of the project; the directories tt and git keep (srcExcluded)
-// are left out either way. The license files, licenseFiles, are packed
-// whether git tracks them or not (sourceFiles). The rock is written through
-// a temporary file renamed into place.
+// at the root and, under srcDir, files, the files of the project by their
+// slash-separated paths in it (sourceFiles), and a VERSION file holding the
+// version it was packed at, which a build of the unpacked rock, having no git
+// history, derives its version from. The rock is written through a temporary
+// file renamed into place.
 func writeSrcRock(
-	ctx context.Context, dest, projectDir, srcDir, rockspecName string, rockspec []byte,
-	semver string, licenseFiles []string,
+	dest, projectDir, srcDir, rockspecName string, rockspec []byte, semver string,
+	files []string,
 ) error {
-	files, err := sourceFiles(ctx, projectDir, licenseFiles)
-	if err != nil {
-		return err
-	}
-
 	var buf bytes.Buffer
 
 	archive := zip.NewWriter(&buf)
 
-	err = addZipEntry(archive, rockspecName, srcFileMode, bytes.NewReader(rockspec))
+	err := addZipEntry(archive, rockspecName, srcFileMode, bytes.NewReader(rockspec))
 	if err != nil {
 		return err
 	}
@@ -141,11 +131,15 @@ func addZipEntry(archive *zip.Writer, name string, mode fs.FileMode, content io.
 }
 
 // sourceFiles lists the source files of the project, slash-separated and
-// sorted, without the version file the source rock writes itself: those git
-// tracks, submodules included, or, when the project is no git work tree,
-// every file under it. The manifest is one whether git tracks it or not: a
-// source rock without it is of no package. So are the files of the entries
-// of licenseFiles, checked as the binary rock and the archive check them
+// sorted, without the version file the source rock writes itself: the files
+// its source rock carries (writeSrcRock), and the ones build.install of its
+// rockspec may install (releaseBuild). They are those git tracks, submodules
+// included, as they are in the working tree, or, when the project is no git
+// work tree, every file under it; the directories tt and git keep
+// (srcExcluded) are left out either way. The manifest is one whether git
+// tracks it or not: a source rock without it is of no package. So are the
+// files of the entries of licenseFiles, checked as the binary rock and the
+// archive check them
 // (checkEntry) and listed as the binary rock copies them, through symlinks
 // (rocktree.EntryFiles): a build of the source rock installs them as the
 // binary rock has them, and an untracked LICENSE is still the license.
@@ -246,20 +240,25 @@ func untrackedSources(ctx context.Context, projectDir string, paths []string) []
 // untrackedWarning is the warning about the files untrackedSources lists, or
 // "" when there are none.
 func untrackedWarning(files []string) string {
-	const shown = 5
-
 	if len(files) == 0 {
 		return ""
 	}
+
+	return fmt.Sprintf("the source rock leaves out the files git does not track in the "+
+		"components: %s; a build of the source rock, by tt or by LuaRocks, lacks them, so "+
+		"commit them, or make git ignore them", fileList(files))
+}
+
+// fileList lists files for a warning: the first few, and how many more.
+func fileList(files []string) string {
+	const shown = 5
 
 	list := strings.Join(files[:min(len(files), shown)], ", ")
 	if len(files) > shown {
 		list += fmt.Sprintf(" and %d more", len(files)-shown)
 	}
 
-	return fmt.Sprintf("the source rock leaves out the files git does not track in the "+
-		"components: %s; a build of the source rock lacks them, so commit them, or make "+
-		"git ignore them", list)
+	return list
 }
 
 // walkFiles lists every file under projectDir, slash-separated, skipping the

@@ -81,6 +81,52 @@ func writeGenerated(dst, key, content string, laidOut []string) error {
 	return nil
 }
 
+// GeneratedFile is a file a build generates into the stage of the product
+// (Result.VersionLua).
+type GeneratedFile struct {
+	// Dest is its path relative to the stage, slash-separated.
+	Dest string
+	// Content is what the build writes into it.
+	Content string
+}
+
+// stagedVersionLua reads _version.lua of a build of proj from stage, the bytes
+// the rock of the package has (Result.VersionLua); the zero file when the
+// package generates none.
+func stagedVersionLua(proj project, stage string) (GeneratedFile, error) {
+	if !proj.man.Package.GenerateVersionLuaValue() {
+		return GeneratedFile{}, nil
+	}
+
+	path := versionLuaPath(stage, proj.versionLuaNamespace())
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return GeneratedFile{}, fmt.Errorf("reading %s: %w", versionLuaName, err)
+	}
+
+	return GeneratedFile{Dest: versionLuaDest(proj), Content: string(data)}, nil
+}
+
+// plannedVersionLua is _version.lua a build of proj at ver would generate at
+// builtAt, as Prepare reports it; the zero file when the package generates
+// none.
+func plannedVersionLua(proj project, ver version.Version, builtAt time.Time) GeneratedFile {
+	if !proj.man.Package.GenerateVersionLuaValue() {
+		return GeneratedFile{}
+	}
+
+	return GeneratedFile{
+		Dest: versionLuaDest(proj), Content: version.GenerateVersionLua(ver, builtAt),
+	}
+}
+
+// versionLuaDest is the path of _version.lua of a build of proj relative to
+// its stage, slash-separated.
+func versionLuaDest(proj project) string {
+	return filepath.ToSlash(versionLuaPath("", proj.versionLuaNamespace()))
+}
+
 // versionLuaPath is where writeVersionLua writes _version.lua of the namespace
 // pkgName in stage.
 func versionLuaPath(stage, pkgName string) string {
