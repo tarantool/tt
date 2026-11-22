@@ -1284,6 +1284,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   same as the `kernel.core_pattern` pipe it can be.
 - `tt coredump pack --time` gives the time of the dump to the pack script,
   which names the archive by it: the flag was taken and ignored.
+- `tt coredump inspect` loads the gdb extensions: `lj-stack` and the other
+  commands of LuaJIT, `info tt-fibers` and the pretty-printers of
+  Tarantool. `pack` puts them into `ext/` of the archive, but `gdb.sh` only
+  made the directory of the archive safe to auto-load from, gdb found no
+  script to auto-load there, and the commands were undefined; with an
+  archive, unpacked into a temporary directory, they could not be sourced
+  by hand either. inspect runs the `gdb.sh` of tt, never the one of the
+  archive, which an older tt packed, with `-d` naming the unpacked archive
+  and `-x` each extension, which it sources once the core is loaded, after
+  `python import gdb.printing`: `tarantool-gdb.py` uses `gdb.printing`
+  without importing it and failed to load with `module 'gdb' has no
+  attribute 'printing'` on its own. The `gdb.sh` of an archive run by hand
+  sources the extensions of its `ext/`.
+- `tt coredump inspect` of a core of a tarantool without debugging
+  information starts gdb: `gdb.sh` failed with exit code 1 when gdb found
+  no line of `main` to map to the sources, before gdb ran, and now runs it
+  without the mapping, for the backtraces such a core has.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read
