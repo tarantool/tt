@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tarantool/tt/sdk"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
@@ -67,7 +68,16 @@ func instanceOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 // application name is refused with a hint. --scope and --template of the
 // command apply.
 func resolveInstances(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.InstanceCtx, error) {
-	opts, err := instanceTargetOptions(cmdCtx)
+	return lookupInstances(cmdCtx, instanceFlags, args)
+}
+
+// lookupInstances resolves args as resolveInstances does, with the scope and
+// the template lookup gives rather than those of the flags of the instance
+// commands.
+func lookupInstances(cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup, args []string) (
+	[]running.InstanceCtx, error,
+) {
+	opts, err := lookupOptions(cmdCtx, lookup)
 	if err != nil {
 		return nil, err
 	}
