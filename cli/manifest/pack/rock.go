@@ -242,8 +242,9 @@ func packRocks(
 		backends = buildreg.Process()
 	}
 
-	plan, err := releaseBuild(built, rel,
-		rockSources{dir: opts.ProjectDir, carried: carried, backends: backends})
+	plan, err := releaseBuild(built, rel, rockSources{
+		dir: opts.ProjectDir, carried: carried, backends: backends, built: !opts.srcRockOnly(),
+	})
 	if err != nil {
 		return rockResult{}, err
 	}

@@ -721,9 +721,15 @@ version, by the build table of the rockspec, which tt writes for it:
   `post_build`, as `tt package build` of the package does; tt runs no hook
   of a source rock it builds. Everything goes into `.tt-rock/stage/`.
   `build.install` installs the files of the layout as for type `none`; the
-  script lays out those it cannot install - a file a build made, which the
+  script lays out those it cannot install - a file of `output`, which the
   layout of tt takes after the builds, and one at a path `build.install`
-  cannot say - so every file is in the rock once. A build by the script has
+  cannot say - so every file is in the rock once. The rockspec has no other
+  file a build makes: a file the layout of tt takes from what a build left
+  in the directory of its component, which `output` does not list, is in
+  the binary rock and not in one LuaRocks builds, and the pack that built
+  the package warns of it once a component, naming the `output` to list it
+  in. So the rockspec is the same whether the project was built or not. A
+  build by the script has
   no cache and no incremental build, and none of the checks tt makes of what
   a build made, and LuaRocks resolves the dependencies by the rockspec, not
   by the lock; what the build of a backend lacks besides is in the comments
@@ -881,8 +887,9 @@ tt_build() {
 A pack of the source rock alone, which builds nothing, writes the same
 rockspec, and so LuaRocks builds the bare rockspec from the repository of
 the package, which holds no file of the script, as it builds the source
-rock: the layout of a file a build makes is planned whether the project has
-it or not. Into a directory of its own, from which LuaRocks takes the
+rock: the layout of a file of `output` is planned whether the project has
+it or not, and no other file a build makes is laid out. Into a directory of
+its own, from which LuaRocks takes the
 source rock, as it takes the binary rock of its platform where a server has
 one; `tt rocks`, which runs LuaRocks, builds it so, with no manifest, and the
 module loads:
