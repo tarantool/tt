@@ -525,16 +525,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   or 0.17, is the user's to install.
 - `[distribution] standard` and `exclude` in `tt.manifest.toml`: a
   distribution of tt takes the standard modules of its core - the ones the
-  official tt is built with, `aeon`, `build`, `emmylua` and `wasm` now, which the
-  package `github.com/tarantool/tt/v3/standard` lists - at the commit of the core,
-  without listing them in `[dependencies]`, and gets the ones a newer core
-  adds. `standard` is on by default; `exclude = ["aeon"]` leaves modules
-  out, their code too, and `"builtin"` in it is `builtin = false`. A module of
-  `[dependencies]` named as a standard one takes its place, and the build
-  warns of it unless `exclude` names it too. `tt.manifest.lock` names the
-  standard modules the binary has, `standard = ['aeon', 'build',
-  'emmylua', 'wasm']` in `[core]`. A core before 3.0.0-alpha.3 has no such package: a distribution
-  built on it needs `standard = false`.
+  official tt is built with, `aeon`, `build`, `coredump`, `emmylua` and
+  `wasm` now, which the package `github.com/tarantool/tt/v3/standard` lists -
+  at the commit of the core, without listing them in `[dependencies]`, and
+  gets the ones a newer core adds. `standard` is on by default;
+  `exclude = ["aeon"]` leaves modules out, their code too, and `"builtin"`
+  in it is `builtin = false`. A module of `[dependencies]` named as a
+  standard one takes its place, and the build warns of it unless `exclude`
+  names it too. `tt.manifest.lock` names the standard modules the binary
+  has, `standard = ['aeon', 'build', 'coredump', 'emmylua', 'wasm']` in
+  `[core]`. A core before 3.0.0-alpha.3 has no such package: a
+  distribution built on it needs `standard = false`.
 - `tt package clean [COMPONENT]` removes what the builds made, and nothing
   else: `_build/` but its lock - the build trees, the records of the
   incremental builds and of what the components made, the stages, the
@@ -928,6 +929,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   files the components lay out: a `.wasm` a build of `make`, `shell` or
   `cmake` puts there with `output = [{ path = "x.wasm", to = "share" }]` that
   is no WebAssembly binary fails the build, as one laid out does.
+- `tt coredump` is a standard module, `coredump`
+  (`github.com/tarantool/tt/modules/coredump`), written against the SDK
+  alone, which `tt version --modules` lists, so a distribution may exclude
+  it. `tt coredump pack` packs a core with the Tarantool tt runs, that of
+  the project or of `PATH`, as it did. Its `--directory` is `--dir` now:
+  tt reserves `--directory` for the project directory, `-C`, of every
+  command; `-d` is as it was. The other flags, the help and the output of
+  `pack`, `unpack` and `inspect` are as they were, but for the lines
+  `pack` and `unpack` log, which end with `module=coredump`, as those of
+  every module do.
 - `tt package build`, `fetch` and `pack` no longer warn of a component
   tarawasm builds on the SDK of another tarantool-wasm release than the
   `wasm` rock the package declares (`component "<name>" is built with the

@@ -2841,7 +2841,7 @@ USAGE
   tt coredump pack COREDUMP [flags]
 
 FLAGS
-  -d, --directory string    Directory the resulting archive is created in
+  -d, --dir string          Directory the resulting archive is created in
   -e, --executable string   Tarantool executable path
   -h, --help                help for pack
   -p, --pid uint            PID of the dumped process, as seen in the PID

@@ -1,3 +1,8 @@
+// Package coredump packs a core dump of Tarantool with what gdb needs to
+// read it into a tar.gz archive, unpacks such an archive, and opens it in
+// gdb. The packing is tarabrt.sh, the opening gdb.sh: tt runs the scripts it
+// embeds, and the archive carries gdb.sh and the gdb extensions for a user
+// without tt.
 package coredump
 
 import (
@@ -12,8 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/sdk/output"
 )
 
 //go:embed scripts/*
@@ -31,7 +35,7 @@ const (
 )
 
 // Pack packs coredump into a tar.gz archive.
-func Pack(corePath, executable, outputDir string, pid uint, time string) error {
+func Pack(streams output.Streams, corePath, executable, outputDir string, pid uint) error {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
 		return fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
@@ -57,7 +61,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
 
-	err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, inspectPath, scriptFileMode)
+	err = copyEmbedded(coreScripts, inspectEmbedPath, inspectPath, scriptFileMode)
 	if err != nil {
 		return fmt.Errorf("failed to put the inspecting script into the archive: %w", err)
 	}
@@ -76,7 +80,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 		extSrc := filepath.Join(extDirName, extEntry.Name())
 		extDst := filepath.Join(tmpDir, extEntry.Name())
 
-		err = util.FsCopyFileChangePerms(extensions, extSrc, extDst, extensionFileMode)
+		err = copyEmbedded(extensions, extSrc, extDst, extensionFileMode)
 		if err != nil {
 			return fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
 		}
@@ -96,33 +100,29 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	cmd := exec.CommandContext(context.Background(), "bash", append(cmdArgs, scriptArgs...)...)
 
 	cmd.Stdin = script
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = streams.Out
+	cmd.Stderr = streams.Err
 
 	err = cmd.Run()
 	if err != nil {
 		return fmt.Errorf("pack script execution failed: %w", err)
 	}
 
-	log.Info("Core was successfully packed.")
-
 	return nil
 }
 
 // Unpack unpacks a tar.gz archive.
 func Unpack(archivePath string) error {
-	err := util.ExtractTarGz(archivePath, ".")
+	err := extractTarGz(archivePath, ".")
 	if err != nil {
 		return fmt.Errorf("failed to unpack: %w", err)
 	}
-
-	log.Info("Archive was successfully unpacked.")
 
 	return nil
 }
 
 // Inspect allows user to inspect coredump.
-func Inspect(archiveOrDir, sourceDir string) error {
+func Inspect(streams output.Streams, archiveOrDir, sourceDir string) error {
 	stat, err := os.Stat(archiveOrDir)
 	if err != nil {
 		return fmt.Errorf("failed to inspect: %w", err)
@@ -144,7 +144,7 @@ func Inspect(archiveOrDir, sourceDir string) error {
 			_ = os.RemoveAll(tmpDir)
 		}() // Clean up on function return.
 
-		err = util.ExtractTarGz(archiveOrDir, tmpDir)
+		err = extractTarGz(archiveOrDir, tmpDir)
 		if err != nil {
 			return fmt.Errorf("failed to unpack: %w", err)
 		}
@@ -162,7 +162,7 @@ func Inspect(archiveOrDir, sourceDir string) error {
 
 	if errors.Is(err, fs.ErrNotExist) {
 		// If the wrapper is missing in archive, then use the embedded one.
-		err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, scriptPath, scriptFileMode)
+		err = copyEmbedded(coreScripts, inspectEmbedPath, scriptPath, scriptFileMode)
 	}
 
 	if err != nil {
@@ -178,9 +178,9 @@ func Inspect(archiveOrDir, sourceDir string) error {
 	// rather than pass it over standard input to bash -s.
 	cmd := exec.CommandContext(context.Background(), scriptPath, scriptArgs...)
 
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = streams.In
+	cmd.Stdout = streams.Out
+	cmd.Stderr = streams.Err
 
 	err = cmd.Run()
 	if err != nil {

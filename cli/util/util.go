@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"os/user"
@@ -15,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
 )
@@ -376,24 +374,6 @@ func IsRegularFile(filePath string) bool {
 	}
 
 	return fileInfo.Mode().IsRegular()
-}
-
-// FsCopyFileChangePerms copies file from the certain FS with changing perms.
-func FsCopyFileChangePerms(fsys fs.FS, src, dst string, perms int) error {
-	// Read data from src.
-	data, err := fs.ReadFile(fsys, src)
-	if err != nil {
-		return fmt.Errorf("cannot read the source file: %w", err)
-	}
-
-	// Write data to dst.
-	//nolint:gosec // perms is a file mode chosen by the caller, not external input.
-	err = execfile.WriteFile(dst, data, fs.FileMode(perms))
-	if err != nil {
-		return fmt.Errorf("cannot write the destination file: %w", err)
-	}
-
-	return nil
 }
 
 // CreateDirectory create a directory with existence and error checks.

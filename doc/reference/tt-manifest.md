@@ -112,8 +112,8 @@ manifest's directory; `VERSION_LABEL` follows it.
 ### Standard modules
 
 The standard modules are the modules of the core's repository that the
-official tt is built with: `aeon`, `build`, `emmylua` and `wasm` in tt
-3.0.0-alpha.3. `build` has the build backends of tt (see
+official tt is built with: `aeon`, `build`, `coredump`, `emmylua` and `wasm`
+in tt 3.0.0-alpha.3. `build` has the build backends of tt (see
 [the application manifest](app-manifest.md#componentsnamebuild)); the core
 has none of its own. `wasm` has `tt wasm` and the check of the `.wasm` files
 of a package. The package `standard` of the core,
@@ -137,8 +137,8 @@ as every module of the core's repository is.
   newer core adds to the set, still build.
 - The lock names the standard modules the binary has, without the excluded
   ones and those `[dependencies]` replaces, and without `builtin`:
-  `standard = ['aeon', 'build', 'wasm']` in its `[core]` for the manifest
-  above. `--locked` fails when the build
+  `standard = ['aeon', 'build', 'coredump', 'wasm']` in its `[core]` for the
+  manifest above. `--locked` fails when the build
   would take others.
 - The build reads the list from the source of the package `standard` and
   imports the constructor of each module it takes into the `main` it
