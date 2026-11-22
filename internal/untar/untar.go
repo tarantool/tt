@@ -18,6 +18,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"syscall"
 )
 
@@ -66,7 +67,21 @@ func ExtractTarGz(archivePath, dir string, opts Options) error {
 		return fmt.Errorf("cannot decompress %q: %w", archivePath, err)
 	}
 
-	err = os.MkdirAll(dir, dirMode)
+	return extract(stream, dir, opts, strconv.Quote(archivePath))
+}
+
+// ExtractTar extracts the tar archive read from stream into dir, as
+// ExtractTarGz extracts a file: for an archive inside another file, which
+// the caller decompresses and bounds. It reads stream up to the end of the
+// archive, which may leave the padding after it unread.
+func ExtractTar(stream io.Reader, dir string, opts Options) error {
+	return extract(stream, dir, opts, "the archive")
+}
+
+// extract extracts the tar archive of stream into dir; name names the
+// archive in the errors.
+func extract(stream io.Reader, dir string, opts Options, name string) error {
+	err := os.MkdirAll(dir, dirMode)
 	if err != nil {
 		return fmt.Errorf("cannot create the destination: %w", err)
 	}
@@ -89,7 +104,7 @@ func ExtractTarGz(archivePath, dir string, opts Options) error {
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			return fmt.Errorf("cannot read %q: %w", archivePath, err)
+			return fmt.Errorf("cannot read %s: %w", name, err)
 		}
 
 		err = ext.entry(header, reader)
