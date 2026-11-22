@@ -532,9 +532,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   cannot set - has a rockspec that fails under LuaRocks, naming the
   components and hooks that need tt, their backends and the field, and the
   pack of its source rock warns so. tt builds a source rock from its
-  manifest as ever. A path of the layout `build.install` cannot say, a
-  directory with a dot in its name or a Lua file with one before `.lua`,
-  fails the pack of a package with no build block, and a file of the source
+  manifest as ever. A file at a path of the layout `build.install` cannot
+  say, a directory with a dot in its name or a Lua file with one before
+  `.lua`, is laid out by `tt-rock.sh`, which runs no build for a package
+  with no build block, and a file of the source
   rock at `tt-rock-version.lua`, `tt-rock.sh`, `.tt-rock/` or
   `.luarocks.patches.applied` of the root fails the pack of either rock. A
   file of the layout git ignores is left out of the source rock with a
