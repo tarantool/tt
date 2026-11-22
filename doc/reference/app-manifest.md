@@ -860,6 +860,48 @@ root of the project does as well, which clangd finds above every source:
 `ln -s _build/component/memcached/compile_commands.json .`, with
 `/compile_commands.json` in `.gitignore`.
 
+LuaRocks builds the source rock of a package of `c` and `lua-c` too, by
+the script its rockspec carries (see
+[Packing a rock](../concepts/packages.md#packing-a-rock)). The script
+compiles each source and links the module as tt does, by the same flags in
+the same order and into the same file, with the toolchain of LuaRocks:
+
+- a C or assembler source compiles with `$CC` and `$CFLAGS` of LuaRocks,
+  `-O2 -fPIC` by default, which take the place of tt's `-O2 -g` as
+  `CFLAGS` of the environment does under tt; a C++ one with `CXX` of the
+  environment, `c++` by default, and `CXXFLAGS`, `-O2` by default;
+- the module is linked with `$LIBFLAG` of LuaRocks, `-shared`, or
+  `-bundle -undefined dynamic_lookup -all_load` on macOS, then
+  `-Wl,-Bsymbolic-functions` on Linux, and ends with `LDFLAGS` of the
+  environment;
+- the headers of Tarantool are `LUA_INCDIR` of LuaRocks, and a build
+  where it has no `module.h` fails, saying so;
+- the lists of `platforms.<os>` are those of the OS the rock is built on,
+  as `uname` names it; pkg-config, `PKG_CONFIG` of the environment, runs
+  where the rock is built; the libraries of `link` are those the components
+  made, looked for when the build runs; `$ORIGIN` of `rpath` is
+  `@loader_path` on macOS;
+- `CC`, `CXX`, `PKG_CONFIG`, the flags of the environment and what
+  pkg-config prints are split on blanks, a quote being a character of a
+  word, and the first word of each compiler and of pkg-config is looked for
+  in `PATH` before anything of the component is compiled; tt's handling of
+  `zig cc` and `zig c++` is not done.
+
+The script prints each compile and the link before it runs it. It lacks
+the cache of the objects and `compile_commands.json`, the checks of the
+module once it is linked - the entry point of `lua-c`, the symbols
+Tarantool exports too and the load into Tarantool - the debug information
+of `-g`, and the flags that keep the paths of the project out of the
+objects: its comments say so, and the pack of the source rock warns of it.
+A build of `static = true`, whose libraries tt takes from their static
+libraries and whose module it checks, and one of `bundle`, whose libraries
+tt copies beside the module, are made with tt alone: the source rock of
+their package fails under LuaRocks, saying why, and the pack says so:
+
+```text
+⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c" with tt alone, for components.hashkit.build.static: tt links a module of static = true of the static library it finds of each library, and checks that it needs no library of the machine, which a build without tt does not; LuaRocks, tt rocks included, fails to build it, saying so
+```
+
 `cmake` builds the CMake project of `cwd`, where its `CMakeLists.txt` is,
 out of the source, in `TT_BUILD_DIR`:
 
@@ -1116,6 +1158,7 @@ empty when the build begins. The Tarantool of the build is that of
 | Backend | The script | What it lacks against tt, and refuses |
 | --- | --- | --- |
 | `make`, `shell` | the command of the build, then a copy of each file of `output` | nothing |
+| `c`, `lua-c` | the compiles and the link of the build, by the flags of tt in their order, with `$CC`, `$CFLAGS` and `$LIBFLAG` of LuaRocks and `CXX`, `CXXFLAGS` and `LDFLAGS` of the environment (see [`c` and `lua-c`](#componentsnamebuild) above) | the cache, `compile_commands.json`, the checks of the module, `-g` and the flags that keep the paths of the project out of the objects; `static = true` and `bundle` are made with tt alone |
 | `cmake` | `cmake -S . -B "$TT_BUILD_DIR"` with the `-D` of the build and the prefix of Tarantool on `CMAKE_PREFIX_PATH`, and `cmake --build` with `--parallel "$TT_BUILD_JOBS"`, or none when `CMAKE_BUILD_PARALLEL_LEVEL` is set; then a copy of each file of `output` from the build tree, a `.so` module as `.dylib` on macOS | nothing; cmake takes `CC` and `CFLAGS` of LuaRocks from the environment, as it takes those of the environment of tt |
 | `go` | `go build` of the build, for the `GOOS` and `GOARCH` of `go env GOHOSTOS` and `GOHOSTARCH` | nothing; `static = true` fails on macOS, as with tt |
 | `cargo` | `cargo rustc --lib --crate-type cdylib` and `cargo build --bin` of the build, with `CARGO_TARGET_DIR` set to `TT_BUILD_DIR` whatever `env` and the environment say, a static program for `<arch>-unknown-linux-musl`; then a copy of the library and of the binary cargo built there | the crates of a mirror of `tt package download`: cargo downloads those `Cargo.lock` pins; a workspace without `Cargo.lock`, a static program on macOS and a musl target that is not installed fail, as with tt |

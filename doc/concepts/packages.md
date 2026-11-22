@@ -530,9 +530,12 @@ fails before it builds:
 The `c` and `lua-c` builds compile with `-g`, and a `cmake` build is
 `RelWithDebInfo`, so the modules and the programs of a package carry their
 debug information: a module that crashes Tarantool has a backtrace with its
-lines. `--debuginfo` chooses what the pack does with it: `keep`, the
-default, packs the files as the builds made them, and `strip` packs them
-without it, the symbols kept, so a backtrace still names the functions:
+lines; a build of `c` and `lua-c` by LuaRocks, of the source rock, compiles
+with `CFLAGS` of LuaRocks instead, which has no `-g` (see
+[Packing a rock](#packing-a-rock)). `--debuginfo` chooses what the pack
+does with it: `keep`, the default, packs the files as the builds made them,
+and `strip` packs them without it, the symbols kept, so a backtrace still
+names the functions:
 
 ```console
 $ tt package pack --debuginfo strip
@@ -697,8 +700,9 @@ version, by the build table of the rockspec, which tt writes for it:
   files there instead, wherever they are in the project.
 - A package with a build block, whose builds are all made without tt too -
   those of `make` and `shell`, the backends that run a command of the
-  project's own, and of `cmake`, `go`, `cargo` and `zig`, which run their
-  tool as tt runs it (see
+  project's own, of `c` and `lua-c`, whose compiles and link the script
+  runs with the compiler of LuaRocks, and of `cmake`, `go`, `cargo` and
+  `zig`, which run their tool as tt runs it (see
   [Without tt](../reference/app-manifest.md#without-tt)) - is of build
   type `command`, and its rockspec carries
   `tt-rock.sh`, a script of POSIX sh, in `build.extra_files` beside
@@ -722,8 +726,9 @@ version, by the build table of the rockspec, which tt writes for it:
   by the lock; what the build of a backend lacks besides is in the comments
   of the script, and the pack warns of it.
 - A package with a build that is made with tt alone - one of a backend that
-  is not made without tt, such as `lua-c` for now, or one whose field has no
-  counterpart in a script - builds with tt alone: the build of its rockspec,
+  is not made without tt, or one whose field has no counterpart in a
+  script, such as `static = true` or `bundle` of `lua-c` - builds with tt
+  alone: the build of its rockspec,
   of type `command`, prints which components and hooks need tt, their
   backends and why, and fails, so LuaRocks installs nothing. The pack of its
   source rock warns that it builds with tt only. A package builds without tt

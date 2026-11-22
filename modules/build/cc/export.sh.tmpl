@@ -1,0 +1,150 @@
+{{/*
+The script of the export of a c or lua-c build (export.go): each source
+compiled on its own and the objects linked, as Run does, with the
+toolchain of LuaRocks. Each line of the script ends with a newline: the
+dash of an action trims the newline on its side, so that a line of control
+leaves none in the script.
+*/}}
+
+{{/*
+script is the whole script: the functions cc_fail, which fails the build,
+cc_run, which runs a compile or the link, and cc_need, which checks a
+compiler, the check of the headers of Tarantool, the compilers, pkg-config
+and the directory of the module of rpath, cc_link_libraries, which finds
+the libraries a component of link made, as linkedLibrariesOf does, the
+part of the OS the script runs on, and a compile of each source and the
+link of the objects.
+*/}}
+{{define "script" -}}
+# The module {{comment .Module}} of the tt backend {{printf "%q" .Backend}}: each source compiled on its
+# own into an object of TT_BUILD_DIR, and the objects linked, as tt builds
+# it, with the toolchain of LuaRocks. Globs are off, so that a variable of
+# flags splits into its words alone.
+set -f
+# cc_fail message: fails the build of the component, saying why.
+cc_fail() {
+	printf 'the component "%s": %s\n' "$TT_COMPONENT_NAME" "$*" >&2
+	exit 1
+}
+# cc_run command...: runs the command, printing it first, as LuaRocks
+# prints the commands of a build.
+cc_run() {
+	printf '%s\n' "$*"
+	"$@"
+}
+# cc_need variable value: fails the build unless the program of value, the
+# first word of the variable, is in PATH.
+cc_need() {
+	cc_value=$2
+	set -- "$1" $2
+	command -v "${2-}" >/dev/null 2>&1 ||
+		cc_fail "$1=$cc_value: ${2-} is not in PATH"
+}
+[ -n "${TT_TARANTOOL_INCLUDE_DIR-}" ] || cc_fail "no headers of Tarantool to" \
+	"compile against: LUA_INCDIR of LuaRocks names no directory of module.h"
+{{if .CXX -}}
+cc_cxx=${CXX:-c++} cc_cxxflags=${CXXFLAGS-'-O2'}
+{{end -}}
+{{if .PkgConfig -}}
+cc_pkg_config=${PKG_CONFIG:-pkg-config}
+{{end -}}
+{{if .C -}}
+cc_need CC "$CC"
+{{end -}}
+{{if .CXX -}}
+cc_need CXX "$cc_cxx"
+{{end -}}
+{{if .Origin -}}
+case $TT_PLATFORM_OS in
+darwin) cc_origin=@loader_path ;;
+*) cc_origin='$ORIGIN' ;;
+esac
+{{end -}}
+{{if .Link -}}
+# cc_link_libraries component: adds to cc_link_libs
+# -l<name> of each library the component of link made, lib<name>.a, .so or
+# .dylib in "$TT_LINK_ROOT/<component>", but one cc_listed names, which
+# libraries lists, as tt links them; fails when it made none.
+cc_link_libraries() {
+	[ -d "$TT_LINK_ROOT/$1" ] ||
+		cc_fail "the component $1 of link has not been built"
+	cc_made=
+	set +f
+	for cc_file in "$TT_LINK_ROOT/$1"/lib*; do
+		cc_name=${cc_file##*/}
+		case $cc_name in
+		lib?*.a) cc_name=${cc_name%.a} ;;
+		lib?*.so) cc_name=${cc_name%.so} ;;
+		lib?*.dylib) cc_name=${cc_name%.dylib} ;;
+		*) continue ;;
+		esac
+		[ ! -d "$cc_file" ] || continue
+		cc_name=${cc_name#lib} cc_made=1
+		case $cc_listed in *" $cc_name "*) continue ;; esac
+		cc_listed="$cc_listed$cc_name " cc_link_libs="$cc_link_libs -l$cc_name"
+	done
+	set -f
+	[ -n "$cc_made" ] || cc_fail "the component $1 of link made no library to link," \
+		"lib<name>.a, .so or .dylib: its output sends one to = \"link\""
+}
+{{range .Link -}}
+[ ! -d "$TT_LINK_ROOT"/{{q .}}/include ] || {{includeVar .}}=
+{{end -}}
+{{end -}}
+{{if .Arms -}}
+case $TT_PLATFORM_OS in
+{{range .Arms -}}
+{{.OS}})
+{{template "part" .Part}}
+	;;
+{{end -}}
+{{with .Other -}}
+*)
+{{template "part" .}}
+	;;
+{{end -}}
+esac
+{{else -}}
+{{template "part" .Base}}
+{{end -}}
+{{range .Sources -}}
+{{if .CXX}}{{command "" "cc_compile_cxx" (q .Path) .Object}}{{else}}{{command "" "cc_compile_c" (q .Path) .Object}}{{end}}
+{{end -}}
+{{command "" "cc_link" .Objects}}
+{{end}}
+
+{{/*
+part is what the script runs for an OS, of its plan (exportPlanOf), at
+Indent: pkg-config, the libraries of link, and the functions that compile a
+source of each language and link the module. Its lines are joined by
+newlines, with none after the last.
+*/}}
+{{define "part" -}}
+{{if .Packages -}}
+{{.Indent}}cc_need PKG_CONFIG "$cc_pkg_config"
+{{.Indent}}cc_pkg_cflags=`$cc_pkg_config --cflags{{range .Packages}} {{q .}}{{end}}`
+{{.Indent}}cc_pkg_libs=`$cc_pkg_config --libs{{range .Packages}} {{q .}}{{end}}`
+{{end -}}
+{{if .Link -}}
+{{.Indent}}cc_listed={{q .Listed}} cc_link_libs=
+{{range .Link -}}
+{{$.Indent}}cc_link_libraries {{q .}}
+{{end -}}
+{{end -}}
+{{with .CompileC -}}
+{{$.Indent}}# cc_compile_c source object: compiles the C source into the object.
+{{$.Indent}}cc_compile_c() {
+{{command (print $.Indent "\t") "cc_run" .}}
+{{$.Indent}}}
+{{end -}}
+{{with .CompileCXX -}}
+{{$.Indent}}# cc_compile_cxx source object: compiles the C++ source into the object.
+{{$.Indent}}cc_compile_cxx() {
+{{command (print $.Indent "\t") "cc_run" .}}
+{{$.Indent}}}
+{{end -}}
+{{.Indent}}# cc_link object...: links the objects into the module.
+{{.Indent}}cc_link() {
+{{command (print .Indent "\t") "cc_run" .LinkWords}}
+{{.Indent}}}
+{{- end}}

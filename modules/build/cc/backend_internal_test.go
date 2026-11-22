@@ -62,6 +62,7 @@ func TestBackends(t *testing.T) {
 		assert.False(t, backend.Hook, name)
 		assert.Equal(t, build.OutputNone, backend.OutputFrom, name)
 		assert.Empty(t, backend.Exclude, name)
+		assert.True(t, backend.Exports, name)
 	}
 
 	fields, err := C().Fields()

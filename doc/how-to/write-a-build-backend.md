@@ -918,7 +918,9 @@ with `Exports: true`, and each of its builds is a `build.Exporter`, whose
 its product and of its `pre_build` and `post_build` hooks exports; otherwise
 the rockspec fails under LuaRocks, saying which builds need tt and why, and
 the pack warns so. `make` and `shell` export, the command each runs, and
-so do `cmake`, `go`, `cargo` and `zig`, the commands of their tool `Run`
+`c` and `lua-c` the compiles and the link of their `Run`, with the compiler
+of LuaRocks, but for `static = true` and `bundle`, which are made with tt
+alone, and `cmake`, `go`, `cargo` and `zig` the commands of their tool `Run`
 runs (see [Without tt](../reference/app-manifest.md#without-tt)).
 
 `template` runs `envsubst`, which a script runs as well. Add
@@ -975,7 +977,10 @@ func (b templateBuild) Export(*build.ExportContext) (build.Export, error) {
   here-document in it ends as it would alone.
 - `Tools` are the programs the script runs: the script of the rock looks for
   each in `PATH` with `command -v` before the first build, as `Preflight`
-  does, and fails naming the tool and the component.
+  does, and fails naming the tool and the component. A program the machine
+  names, `CC` of the environment say, is none of them: its value may be the
+  words of a wrapper, `ccache cc`, which `command -v` does not take, so the
+  script looks for its first word itself, as that of `c` and `lua-c` does.
 - `Lost` says what a build by the script lacks against `Run`, a sentence
   each: the cache of a compiler, a check of what it made. The pack warns of
   them once, and the script has them in its comments.

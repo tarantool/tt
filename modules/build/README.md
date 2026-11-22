@@ -54,20 +54,24 @@ default. make and shell get none either: their commands read
 `TT_BUILD_JOBS`, which the core sets for every build. The jobs are in no
 key of the cache of `cc`.
 
-make, shell, cmake, go, cargo and zig are built without tt too
-(`Backend.Exports`): the script of the export of a build (the template
-`export.sh.tmpl` of each, which `Export` renders) runs the commands `Run`
-runs, and `tt package pack` writes it into the rockspec of the rock of the
-package, so that LuaRocks builds its source rock. A backend that says so
-is to prove it: `export_test.go` checks each case of `exportCases` with
+Every backend of the module is built without tt too (`Backend.Exports`):
+the script of the export of a build (the template `export.sh.tmpl` of
+each, which `Export` renders) runs the commands `Run` runs, and `tt
+package pack` writes it into the rockspec of the rock of the package, so
+that LuaRocks builds its source rock. The script of c and lua-c compiles
+and links as `Run` does, by the same functions of the flags, with the
+toolchain of LuaRocks, and lacks the cache, the checks of the module, `-g`
+and the flags that keep the paths of the project out of it; a build of
+`static = true` or of `bundle` is made with tt alone (`cc/export.go`). A
+backend that says so is to prove it: `export_test.go` checks each case of
+`exportCases` with
 `buildtest.CheckExport`, which runs `Run` and the script on two copies of
 one project and compares what they made, and fails for a backend that
-exports and has no case there. The cases of cmake, go, cargo and zig
-compile, and run under the `integration` build tag alone, with the
+exports and has no case there. The cases of c, lua-c, cmake, go, cargo and
+zig compile, and run under the `integration` build tag alone, with the
 toolchains below; `export_internal_test.go` of each checks, with no
 toolchain, that its script runs the argv `Run` runs and copies what `Run`
-copies, its tools functions of sh that record what they are given. c and
-lua-c build with tt alone so far.
+copies, its tools functions of sh that record what they are given.
 
 The fields of each backend are described in
 [the reference of the application manifest](../../doc/reference/app-manifest.md);
