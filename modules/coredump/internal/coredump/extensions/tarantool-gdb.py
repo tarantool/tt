@@ -52,6 +52,18 @@ def find_value(sym):
     except Exception as exc:
         return None
 
+def find(predicate, iterable, default=None):
+    return next(filter(predicate, iterable), default)
+
+def enumval_name(type, val, default):
+    assert type.code == gdb.TYPE_CODE_ENUM, "enumval_name expects enum type \
+        but type of code {} was given".format(type.code)
+    enumval_attr = 'enumval'
+    if not hasattr(type.fields()[0], 'enumval'):
+        enumval_attr = 'bitpos'
+    field = find(lambda x: getattr(x, enumval_attr) == val, type.fields())
+    return default if field is None else field.name
+
 def cast_ptr(dest_type, ptr, offset):
     dest_ptr = ptr.cast(gdb.lookup_type('char').pointer()) + offset
     return dest_ptr.cast(dest_type.pointer())
@@ -544,8 +556,6 @@ class TtMsgPack(MsgPack):
             clock_seq_low = data.read_u8(),
             node = [ data.read_u8() for _ in range(0, 6) ],
         ))
-        if not uuid.is_valid():
-            return uuid, "uuid_unpack: invalid uuid"
         return uuid, None
 
     @classmethod
@@ -998,12 +1008,6 @@ if find_type('struct tt_uuid') is not None:
         def __init__(self, val):
             self.val = val
 
-        def is_valid(self): # tt_uuid_validate
-            n = self.val['clock_seq_hi_and_reserved']
-            if (n & 0x80) != 0x00 and (n & 0xc0) != 0x80 and (n & 0xe0) != 0xc0:
-                return False
-            return True
-
         def __str__(self): # tt_uuid_to_string
             return '{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}'.format(
                 self.val['time_low'], self.val['time_mid'], self.val['time_hi_and_version'],
@@ -1115,8 +1119,8 @@ if find_type('struct datetime') is not None:
         MAX_EPOCH_SECS_VALUE = MAX_DT_DAY_VALUE * SECS_PER_DAY - SECS_EPOCH_1970_OFFSET
         MIN_EPOCH_SECS_VALUE = MIN_DT_DAY_VALUE * SECS_PER_DAY - SECS_EPOCH_1970_OFFSET
 
-        MAX_TZOFFSET = 14 * 60
-        MIN_TZOFFSET = -12 * 60
+        TZOFFSET_MAX = 14 * 60
+        TZOFFSET_MIN = -12 * 60
         MAX_TZINDEX = 1024
 
         def __init__(self, val):
@@ -1127,13 +1131,13 @@ if find_type('struct datetime') is not None:
                 return False
             if self.val['nsec'] < 0 or self.val['nsec'] >= self.MAX_NANOS_PER_SEC:
                 return False
-            if self.val['tzoffset'] < self.MIN_TZOFFSET or self.val['tzoffset'] > self.MAX_TZOFFSET:
+            if self.val['tzoffset'] < self.TZOFFSET_MIN or self.val['tzoffset'] > self.TZOFFSET_MAX:
                 return False
             if self.val['tzindex'] < 0 or self.val['tzindex'] > self.MAX_TZINDEX:
                 return False
             return True
 
-        def __str__(self): # datetime_to_string
+        def __str__(self): # datetime_snprint
             offset = self.val['tzoffset']
             tzindex = self.val['tzindex']
             rd_seconds = self.val['epoch'] + offset * 60 + self.SECS_EPOCH_1970_OFFSET
@@ -1217,7 +1221,7 @@ if find_type('struct interval') is not None:
             self.nsec = 0
             self.adjust = 0
 
-        def __str__(self): # interval_to_string
+        def __str__(self): # interval_snprint
             signed_fmt = [
                 '{:d}',
                 '{:+d}',
@@ -1431,7 +1435,16 @@ class TuplePrinter(object):
                 child_name = str()
                 child_val = (self.val.address.cast(self.ptr_char) + field.bitpos // 8).cast(field.type.pointer()).dereference()
             elif field.name == 'flags':
-                child_val = '0x{:02x}'.format(int(self.val['flags']))
+                flags_val = self.val['flags']
+                child_val = '0x{:02x}'.format(int(flags_val))
+                bits_set = []
+                for bit in range(flags_val.type.sizeof * 8):
+                    if int(flags_val) & (1 << bit) != 0:
+                        tuple_flag_type = gdb.lookup_type('tuple_flag')
+                        bits_set.append(enumval_name(tuple_flag_type,
+                                                     bit, '*unknown*'))
+                if len(bits_set) != 0:
+                    child_val += ' ({})'.format(', '.join(bits_set))
             else:
                 child_val = self.val[field.name]
             yield child_name, child_val
@@ -1674,12 +1687,12 @@ class RlistLut(ListLut):
         ('on_schema_init', 'trigger::link'),
         ('on_shutdown_trigger_list', 'on_shutdown_trigger::link'),
         ('popen_head', 'popen_handle::list'),
-        ('replicaset_on_quorum_gain', 'trigger::link'),
-        ('replicaset_on_quorum_loss', 'trigger::link'),
+        ('replicaset_on_quorum_change', 'trigger::link'),
         ('session_on_auth', 'trigger::link'),
         ('session_on_connect', 'trigger::link'),
         ('session_on_disconnect', 'trigger::link'),
         ('shutdown_list', 'session::in_shutdown_list'),
+        ('txns', 'txn::in_txns'),
     )
     _containers = (
         ('alter_space::ops', 'AlterSpaceOp::link'),
@@ -1735,7 +1748,6 @@ class RlistLut(ListLut):
         ('tx_manager::read_view_txs', 'txn::in_read_view_txs'),
         ('tx_manager::all_stories', 'memtx_story::in_all_stories'),
         ('tx_manager::traverse_all_stories', 'memtx_story::in_all_stories'), # struct rlist*
-        ('tx_manager::all_txs', 'txn::in_all_txs'),
         ('txn::conflict_list', 'tx_conflict_tracker::in_conflict_list'),
         ('txn::conflicted_by_list', 'tx_conflict_tracker::in_conflicted_by_list'),
         ('txn::gap_list', 'gap_item::in_gap_list'),
@@ -1766,7 +1778,6 @@ class RlistLut(ListLut):
         ('vy_recovery::lsms', 'vy_lsm_recovery_info::in_recovery'),
         ('vy_tx::on_destroy', 'trigger::link'),
         ('vy_tx_manager::read_views', 'vy_read_view::in_read_views'),
-        ('vy_tx_manager::writers', 'vy_tx::in_writers'),
         ('vy_write_iterator::src_list', 'vy_write_src::in_src_list'),
         ('wal_writer::watchers', 'wal_watcher::next'),
         ('watchable::pending_watchers', 'watcher::in_idle_or_pending'),
@@ -1845,9 +1856,9 @@ class StailqLut(ListLut):
         ('cpipe::input', 'cmsg::fifo'),
         ('fiber_pool::output', 'cmsg::fifo'),
         ('iproto_stream::pending_requests', 'iproto_msg::in_stream'),
-        ('MemtxAllocator<Allocator>::gc', 'memtx_tuple::in_gc'),
+        ('MemtxAllocator<Allocator>::gc', 'memtx_block::in_gc'),
         ('memtx_engine::gc_queue', 'memtx_gc_task::link'),
-        ('memtx_tuple_rv_list::tuples', 'memtx_tuple::in_gc'),
+        ('memtx_block_rv_list::blocks', 'memtx_block::in_gc'),
         ('relay::pending_gc', 'relay_gc_msg::in_pending'),
         ('swim::event_queue', 'swim_member::in_event_queue'),
         ('txn::stmts', 'txn_stmt::next'),

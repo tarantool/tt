@@ -2,7 +2,10 @@ package coredump
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,12 +16,23 @@ import (
 
 // Inspect opens the core dump of archiveOrDir, an archive tt coredump pack
 // made or the directory it unpacks into, in gdb, with the sources in
-// sourceDir when it is not empty.
+// sourceDir when it is not empty. It logs to log where the gdb extensions
+// come from and what may not work.
 //
 // gdb runs through the gdb.sh tt embeds, never the one of the archive: an
 // archive packed by an older tt carries the wrapper of that tt. The wrapper
-// sources the gdb extensions tt selects explicitly once the core is loaded.
-func Inspect(streams output.Streams, archiveOrDir, sourceDir string) error {
+// sources the gdb extensions tt selects explicitly once the core is loaded:
+// those that match the Tarantool of the core (see resolver.resolve).
+func Inspect(ctx context.Context, streams output.Streams, log *slog.Logger,
+	archiveOrDir, sourceDir string,
+) error {
+	return inspect(ctx, streams, newResolver(log), archiveOrDir, sourceDir)
+}
+
+// inspect is Inspect with the extensions found by res.
+func inspect(ctx context.Context, streams output.Streams, res *resolver,
+	archiveOrDir, sourceDir string,
+) error {
 	stat, err := os.Stat(archiveOrDir)
 	if err != nil {
 		return fmt.Errorf("failed to inspect: %w", err)
@@ -65,19 +79,32 @@ func Inspect(streams output.Streams, archiveOrDir, sourceDir string) error {
 		return fmt.Errorf("failed to write the inspect script: %w", err)
 	}
 
-	exts, err := writeExtensions(work)
+	exts, err := selectExtensions(ctx, res, dir, sourceDir)
 	if err != nil {
-		return fmt.Errorf("failed to write the GDB-extensions: %w", err)
+		return err
 	}
 
-	args, err := inspectArgs(script, dir, sourceDir, exts)
+	paths := make([]string, 0, len(exts))
+
+	for _, ext := range exts {
+		path := filepath.Join(work, ext.Name)
+
+		err = os.WriteFile(path, ext.Data, extensionFileMode)
+		if err != nil {
+			return fmt.Errorf("failed to write the GDB-extension: %w", err)
+		}
+
+		paths = append(paths, path)
+	}
+
+	args, err := inspectArgs(script, dir, sourceDir, paths)
 	if err != nil {
 		return err
 	}
 
 	// The wrapper is run by sh, so that a temporary directory mounted
 	// noexec runs it too; gdb reads the standard input of tt.
-	cmd := exec.CommandContext(context.Background(), "sh", args...)
+	cmd := exec.CommandContext(ctx, "sh", args...)
 
 	cmd.Stdin = streams.In
 	cmd.Stdout = streams.Out
@@ -89,6 +116,46 @@ func Inspect(streams output.Streams, archiveOrDir, sourceDir string) error {
 	}
 
 	return nil
+}
+
+// selectExtensions returns the gdb extensions for the core of the
+// artefacts in dir (resolver.resolve). Artefacts without a version are
+// none of an archive of pack, and gdb.sh refuses them: the copies of tt are
+// returned for them.
+func selectExtensions(ctx context.Context, res *resolver, dir, sourceDir string,
+) ([]extension, error) {
+	version, err := readVersion(filepath.Join(dir, "version"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return embeddedExtensions()
+	}
+
+	if err != nil {
+		res.log.Warn("cannot read the version of the core: " + err.Error())
+	}
+
+	return res.resolve(ctx, sourceDir, version)
+}
+
+// embeddedExtensions returns the copies of the gdb extensions tt embeds,
+// in the order of their names.
+func embeddedExtensions() ([]extension, error) {
+	entries, err := extensions.ReadDir(extensionsDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find embedded GDB-extensions: %w", err)
+	}
+
+	exts := make([]extension, 0, len(entries))
+
+	for _, entry := range entries {
+		data, err := extensions.ReadFile(extensionsDir + "/" + entry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read embedded GDB-extension: %w", err)
+		}
+
+		exts = append(exts, extension{Name: entry.Name(), Data: data})
+	}
+
+	return exts, nil
 }
 
 // inspectArgs returns the arguments of sh that run the gdb wrapper script

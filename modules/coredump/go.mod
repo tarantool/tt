@@ -6,6 +6,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/tt/sdk v0.0.0-0
+	github.com/tarantool/tt/sdk/fetch v0.0.0-0
 )
 
 require (
@@ -34,4 +35,5 @@ replace (
 	github.com/tarantool/tt/sdk => ../../sdk
 	github.com/tarantool/tt/sdk/build => ../../sdk/build
 	github.com/tarantool/tt/sdk/connect => ../../sdk/connect
+	github.com/tarantool/tt/sdk/fetch => ../../sdk/fetch
 )

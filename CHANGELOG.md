@@ -939,6 +939,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `pack`, `unpack` and `inspect` are as they were, but for the lines
   `pack` and `unpack` log, which end with `module=coredump`, as those of
   every module do.
+- `tt coredump inspect` loads the gdb extensions of the Tarantool of the
+  core, whose structures they read and which change from version to
+  version: the extension of LuaJIT is `luajit-gdb.py` in Tarantool 3.3 to
+  3.7 and `luajit_dbg.py`, with 15 commands, in 3.8 and later, and
+  `tarantool-gdb.py` follows the structures of its release. With
+  `-s/--sourcedir` they are those of the sources,
+  `third_party/luajit/src/luajit_dbg.py` or `luajit-gdb.py` and
+  `tools/tarantool-gdb.py`. Otherwise they are looked up on GitHub by the
+  version of the core, `/version` of the archive: at its commit for a
+  Community build, else at the tag of its release, `x.y.z` for Enterprise,
+  whose commits are not those of `tarantool/tarantool`; the one of LuaJIT
+  at the commit of the `third_party/luajit` submodule there. What is
+  downloaded is cached by its commit in `tt/coredump/` of the cache
+  directory of the user (`$XDG_CACHE_HOME`, `~/.cache` on Linux), and the
+  next inspect of a core of that commit asks GitHub nothing. Without the
+  network, or for a version GitHub has no files of, inspect loads the
+  copies tt embeds and warns that they may not match: `luajit_dbg.py` of
+  LuaJIT 8af934d9 and `tarantool-gdb.py` of Tarantool 3.9.0, which `pack`
+  puts into `ext/` of the archive. tt had one copy of each, of April 2024,
+  for every version.
 - `tt package build`, `fetch` and `pack` no longer warn of a component
   tarawasm builds on the SDK of another tarantool-wasm release than the
   `wasm` rock the package declares (`component "<name>" is built with the
