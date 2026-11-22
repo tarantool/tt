@@ -12,7 +12,10 @@
 // without the core's encoders.
 //
 // Cluster configurations come from [WithClusterConfig] rather than from
-// files or storages. The project reads, edits, builds and installs no file:
+// files or storages. Connect connects to nothing: the Conn of a target
+// [WithInstance] names answers with the function it gives, and the calls
+// are recorded ([Services.Connects], [Services.Evals], [Services.Conns]).
+// The project reads, edits, builds and installs no file:
 // its manifest is the one [WithManifest] and [WithDeclared] give, which
 // AddDependency, RemoveDependency, AddComponent, UpdateComponent and
 // RemoveComponent change as the core would, and they, Resolve, Build, Clean,
@@ -98,6 +101,10 @@ type options struct {
 	buildContext func(opts sdk.BuildContextOptions) (*build.Context, build.Build, error)
 	// clean answers Project.Clean.
 	clean func(opts sdk.CleanOptions) (sdk.CleanResult, error)
+	// instances answer the Evals of the Conns Connect opens, by target.
+	instances map[string]EvalFunc
+	// connectErrs are the errors Connect fails with, by target.
+	connectErrs map[string]error
 }
 
 // Option configures the Services New returns.
@@ -320,6 +327,12 @@ type Services struct {
 	environments int
 	// indexed are the calls of Rocks().Index, in order.
 	indexed []Index
+	// connects are the calls of Connect, in order.
+	connects []ConnectCall
+	// evals are the calls of Conn.Eval, in order.
+	evals []EvalCall
+	// conns counts the Conns Connect opened, and open those not closed.
+	conns, open int
 }
 
 // Index is a call of Rocks().Index ([Services.Indexed]).
@@ -361,6 +374,8 @@ func New(tb testing.TB, opts ...Option) *Services {
 		clean:     nil,
 
 		buildContext: nil,
+		instances:    map[string]EvalFunc{},
+		connectErrs:  map[string]error{},
 	}
 
 	for _, opt := range opts {
@@ -435,6 +450,10 @@ func New(tb testing.TB, opts ...Option) *Services {
 		indexed:      nil,
 		locks:        0,
 		held:         0,
+		connects:     nil,
+		evals:        nil,
+		conns:        0,
+		open:         0,
 	}
 }
 

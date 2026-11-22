@@ -245,6 +245,7 @@ func demoModule(services sdk.Services) []sdk.Mount {
 		}},
 		printCmd,
 		newDemoClusterCmd(services),
+		newDemoEvalCmd(services),
 		&cobra.Command{
 			Use:  "cluster-dir",
 			Args: cobra.ExactArgs(1),
@@ -340,6 +341,60 @@ func newDemoClusterCmd(services sdk.Services) *cobra.Command {
 	sdk.AddAppFlags(cluster, &lookup)
 
 	return cluster
+}
+
+// newDemoEvalCmd returns "demo eval <target> <expr> [<arg>...]": it
+// connects to the target with the flags of tt connect, runs expr with the
+// string arguments and prints the results. A target that is not found is
+// printed as "not found: <error>", and a Lua error as "lua error: <error>";
+// neither is a failure.
+func newDemoEvalCmd(services sdk.Services) *cobra.Command {
+	var opts sdk.ConnectOptions
+
+	eval := &cobra.Command{
+		Use:  "eval",
+		Args: cobra.MinimumNArgs(2),
+		RunE: func(command *cobra.Command, args []string) error {
+			out := services.Streams().IO().Out
+
+			conn, err := services.Connect(command.Context(), args[0], opts)
+			if errors.Is(err, sdk.ErrNotFound) {
+				_, err = fmt.Fprintf(out, "not found: %v\n", err)
+
+				return err
+			}
+
+			if err != nil {
+				return err
+			}
+
+			defer func() { _ = conn.Close() }()
+
+			evalArgs := make([]any, 0, len(args)-2)
+			for _, arg := range args[2:] {
+				evalArgs = append(evalArgs, arg)
+			}
+
+			results, err := conn.Eval(command.Context(), args[1], evalArgs)
+			if errors.Is(err, sdk.ErrEval) {
+				_, err = fmt.Fprintf(out, "lua error: %v\n", err)
+
+				return err
+			}
+
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintf(out, "%v\n", results)
+
+			return err
+		},
+	}
+
+	sdk.AddConnectFlags(eval, &opts)
+
+	return eval
 }
 
 // result is how a tt process ended.

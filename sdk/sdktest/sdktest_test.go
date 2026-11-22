@@ -65,6 +65,9 @@ func TestServicesPanicBeforeStart(t *testing.T) {
 		"ClusterConfig": func() {
 			_, _ = services.ClusterConfig(t.Context(), sdk.AppSource("app"))
 		},
+		"Connect": func() {
+			_, _ = services.Connect(t.Context(), "app:inst", sdk.ConnectOptions{})
+		},
 		"Exit": func() { services.Exit(nil) },
 	}
 

@@ -703,6 +703,8 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
+            # A Lua error of an eval over iproto is told by its code.
+            - "github.com/tarantool/go-iproto"
             - "github.com/tarantool/go-tarantool/v3"
             - "github.com/tarantool/tt/sdk/dial"
             # The text protocol reads pushed values as the console reads YAML.
@@ -995,6 +997,10 @@ linters:
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/cmd"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            # A Conn of the SDK runs on a connector of the console or of
+            # iproto, and decodes the MessagePack of the results itself, the
+            # same for both.
+            - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "github.com/tarantool/tt/v3/cli/manifest"
@@ -1011,6 +1017,7 @@ linters:
             # The help golden and the command reference are of tt as its
             # main package builds it, from the standard modules.
             - "github.com/tarantool/tt/v3/standard"
+            - "github.com/vmihailenco/msgpack/v5"
             - "go.yaml.in/yaml/v3"
         # The extraction of a tar.gz archive that keeps its entries in the
         # destination: a leaf, under the commands that unpack archives.

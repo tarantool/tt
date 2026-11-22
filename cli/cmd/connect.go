@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -274,6 +275,70 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 		Ssl:            ssl,
 		ConnectTimeout: connCtx.ConnectTimeout,
 	}
+}
+
+// ConnectTarget connects to target, an instance of an application of this
+// host or a URI, as tt connect connects to it without --binary, for
+// Services.Connect of the core: opts are the flags of tt connect
+// (sdk.AddConnectFlags), the application of an app:inst target is found as
+// opts.Lookup says, and an instance that is not running is told as tt
+// connect tells it. ctx bounds the setup of the connection. The passwords of
+// opts are secrets of the log.
+func ConnectTarget(ctx context.Context, target string, opts sdk.ConnectOptions) (
+	connector.Connector, error,
+) {
+	connectCtx, err := connectCtxOf(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	log.RegisterSecret(opts.Password)
+	log.RegisterSecret(opts.SslPassword)
+
+	//nolint:contextcheck // The scope roots ask uname and take no context.
+	connOpts, err := resolveTargetConnectOpts(&cmdCtx, opts.Lookup, &connectCtx, target)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := connector.ConnectContext(ctx, connOpts)
+	if err != nil {
+		//nolint:contextcheck // As above.
+		return nil, instanceNotRunningErr(&cmdCtx, opts.Lookup, false, target, connOpts, err)
+	}
+
+	return conn, nil
+}
+
+// connectCtxOf returns the context tt connect connects with for the flags
+// opts: the credentials, the authentication method, the TLS settings and the
+// timeout of the setup. The rest, which no flag of opts gives, is the
+// default of tt connect.
+func connectCtxOf(opts sdk.ConnectOptions) (connect.ConnectCtx, error) {
+	auth, err := dial.ParseAuth(opts.AuthType)
+	if err != nil {
+		return connect.ConnectCtx{}, fmt.Errorf("--auth-type: %w", err)
+	}
+
+	return connect.ConnectCtx{
+		Username:        opts.Username,
+		Password:        opts.Password,
+		ConnectTimeout:  opts.ConnectTimeout,
+		SrcFile:         "",
+		Language:        connect.DefaultLanguage,
+		Format:          formatter.DefaultFormat,
+		SslKeyFile:      opts.SslKeyFile,
+		SslCertFile:     opts.SslCertFile,
+		SslCaFile:       opts.SslCaFile,
+		SslCiphers:      opts.SslCiphers,
+		SslPassword:     opts.SslPassword,
+		SslPasswordFile: opts.SslPasswordFile,
+		Transport:       dial.TransportDefault,
+		Auth:            auth,
+		ConnectTarget:   "",
+		Binary:          false,
+		Evaler:          "",
+	}, nil
 }
 
 // resolveConnectOpts resolves target as resolveTargetConnectOpts does, its

@@ -22,7 +22,11 @@
 //     [Project.PrepareEnvironment]) - rock servers indexed as tt package
 //     index indexes one ([Services.Rocks]), prompts ([Services.Confirm]),
 //     the standard [Streams] with their printers, the cluster configuration
-//     of a [ClusterSource] ([Services.ClusterConfig]) and the core's way to
+//     of a [ClusterSource] ([Services.ClusterConfig]), a connection to an
+//     instance, by its <app>:<instance> target or a URI, on which Lua runs
+//     the same over the console and over iproto ([Services.Connect],
+//     [Conn.Eval], whose Lua errors wrap [ErrEval]), with the flags of tt
+//     connect ([AddConnectFlags], [ConnectOptions]), and the core's way to
 //     end the process for code that cannot return an error ([Services.Exit]);
 //   - [ExitError] and [ExitCode] carry the exit code a command's error should
 //     end tt with, [UsageError] marks an error in how a command was invoked,
