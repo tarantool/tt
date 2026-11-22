@@ -36,8 +36,9 @@ type exportCase struct {
 	// module without it skips.
 	integration bool
 	// setup, when set, prepares each harness after files are written, as
-	// files cannot: the Tarantool of the build, a file of a path of the
-	// harness. It may skip the test.
+	// files cannot: the Tarantool of the build, what another component would
+	// have made for linking, a file of a path of the harness. It may skip
+	// the test.
 	setup func(t *testing.T, h *buildtest.Harness)
 	// observe, when set, is what the build of a harness made that the
 	// comparison of the files does not see - what a program it made prints:
@@ -82,11 +83,11 @@ printf '#define X 1\n' > x.h
 `
 
 // exportCases are the cases of TestExport: each backend that exports has
-// one at least (TestExportCovered).
+// one at least (TestExportCovered). Those of c and lua-c are ccExportCases.
 func exportCases() []exportCase {
 	tricky := "it's $HOME $(echo no) `echo no` \\ *\nand a line"
 
-	return []exportCase{
+	return append([]exportCase{
 		{
 			// A flag of make is a word of sh; make reads a $ in it itself.
 			name: "make", backend: "make",
@@ -253,7 +254,7 @@ func exportCases() []exportCase {
 				return runProgram(t, h, "answer-cli")
 			},
 		},
-	}
+	}, ccExportCases()...)
 }
 
 // backendNamed returns the backend of the module named name.
@@ -360,5 +361,6 @@ func TestExportCovered(t *testing.T) {
 			backend.Name)
 	}
 
-	assert.Equal(t, []string{"make", "shell", "cargo", "cmake", "go", "zig"}, exports)
+	assert.Equal(t, []string{"make", "shell", "c", "cargo", "cmake", "go", "lua-c", "zig"},
+		exports)
 }

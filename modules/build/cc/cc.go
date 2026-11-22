@@ -19,6 +19,12 @@
 // component come from its block, and CFLAGS, CXXFLAGS and LDFLAGS from the
 // environment tt runs in, last.
 //
+// A build is made without tt too (build.Backend.Exports): the script of its
+// export (export.go) runs the compiles and the link of Run with the
+// toolchain of LuaRocks, so that LuaRocks builds the source rock of a
+// package of c and lua-c. A build of static = true or of bundle is made with
+// tt alone.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package cc
@@ -89,8 +95,10 @@ func backend(name string) build.Backend {
 		// CC and CXX of the machine compile for the machine, and no
 		// compiler of another platform is looked for.
 		Cross: false,
-		// A build is made with tt alone so far.
-		Exports: false,
+		// The script of a build compiles and links as Run does, with the
+		// toolchain of LuaRocks, but one of static = true or bundle
+		// (export.go).
+		Exports: true,
 	}
 }
 
@@ -240,7 +248,8 @@ func newBuild(name string, config *Config, component build.Component, common bui
 		return nil, err
 	}
 
-	return ccBuild{name: name, config: *config, lookupEnv: os.LookupEnv}, nil
+	return ccBuild{name: name, config: *config, static: common.Static, lookupEnv: os.LookupEnv},
+		nil
 }
 
 // Links names the components whose libraries the build links, link, which
@@ -382,6 +391,9 @@ type ccBuild struct {
 	// name is the name of the backend, c or lua-c.
 	name   string
 	config Config
+	// static is static of the block (build.Common.Static), which Run reads
+	// from the Context and Export, which has none, from here.
+	static bool
 	// lookupEnv reads the environment tt runs in, for CC, CXX, CFLAGS,
 	// CXXFLAGS and LDFLAGS: os.LookupEnv outside tests.
 	lookupEnv func(string) (string, bool)
