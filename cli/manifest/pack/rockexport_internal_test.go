@@ -76,6 +76,30 @@ func TestExportStep(t *testing.T) {
 			`the component "gen": components.gen.build.env: the variable has no name of sh: ` +
 				`"NOT-OK"`,
 		},
+		{
+			"an env of a NUL byte", shell(map[string]string{"OK": "1", "NUL": "a\x00b"}), "gen",
+			`the component "gen": components.gen.build.env: the value of NUL holds a NUL byte, ` +
+				`which no script of sh holds`,
+		},
+		{
+			"an argument of a NUL byte",
+			manifest.Build{
+				Backend: "shell", Cwd: "", Env: nil, Incremental: nil, Static: nil, Output: nil,
+				Rest: map[string]any{"command": "sh", "args": []any{"-c", "true\x00; touch PWNED"}},
+			},
+			"gen", `the component "gen" is built by the tt backend "shell" with tt alone: the ` +
+				`script of its export holds a NUL byte, which no script of sh holds`,
+		},
+		{
+			"an output of a NUL byte",
+			manifest.Build{
+				Backend: "shell", Cwd: "", Env: nil, Incremental: nil, Static: nil,
+				Output: manifest.OutputList{{Path: "out/x\x00.so", To: manifest.OutputToLib}},
+				Rest:   map[string]any{"command": "true"},
+			},
+			"gen", `the component "gen" is built by the tt backend "shell" with tt alone: a ` +
+				`file of its output holds a NUL byte, which no script of sh holds`,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -109,6 +133,35 @@ func TestExportStep(t *testing.T) {
 	assert.Empty(t, reason)
 	assert.Empty(t, step.Cwd)
 	assert.Empty(t, step.Outputs, "a hook has no output copied")
+}
+
+// TestReleaseBuildOfANulByte: a package whose script would hold a NUL byte,
+// one that slips by the checks of each build - in the name of the package
+// here, which the manifest checks - builds with tt alone, saying so.
+func TestReleaseBuildOfANulByte(t *testing.T) {
+	t.Parallel()
+
+	//nolint:exhaustruct // The package and its hook alone matter.
+	built := &build.Result{
+		Manifest: &manifest.Manifest{
+			Package: manifest.Package{Name: "de\x00mo"},
+			Hooks: map[string]manifest.Hook{"pre_build": {
+				Backend: "shell", Cwd: "", Env: nil, Incremental: nil, Static: nil, Output: nil,
+				Rest: map[string]any{"command": "true"},
+			}},
+		},
+		Product: manifest.ImplicitProduct,
+	}
+
+	//nolint:exhaustruct // The name and the version alone matter.
+	plan, err := releaseBuild(built, rocktree.Release{Name: "demo", Version: "1.0.0"},
+		rockSources{dir: t.TempDir(), carried: nil, backends: buildregtest.Registry()})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"tt-rock.sh, the script that builds the package without tt, " +
+		"holds a NUL byte, which no script of sh holds"}, plan.ttOnly)
+	assert.Empty(t, plan.build.ExtraFiles)
+	assert.Contains(t, plan.build.TtOnly, "demo 1.0.0 builds with tt only: tt-rock.sh")
 }
 
 // TestScriptedBuildLaysOutOnce: each file the layout of tt takes is put in

@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"text/template"
@@ -57,7 +58,8 @@ import (
 // (build.ErrNoExport): tt takes the static libraries of the first, checks
 // that it needs nothing of the machine, and links the C++ library into it,
 // and copies the shared libraries of the second beside the module, none of
-// which the script does.
+// which the script does. So is a build whose block has a NUL byte in a
+// string (nulField), which no word of sh holds.
 func (b ccBuild) Export(*build.ExportContext) (build.Export, error) {
 	switch {
 	case b.static:
@@ -69,12 +71,70 @@ func (b ccBuild) Export(*build.ExportContext) (build.Export, error) {
 			"bundle beside the module, which a build without tt does not")
 	}
 
+	if field := nulField(b.config); field != "" {
+		return build.Export{}, build.NoExportf(field, "holds a NUL byte, which no string of "+
+			"sh holds")
+	}
+
 	script, err := b.exportScript()
 	if err != nil {
 		return build.Export{}, err
 	}
 
 	return build.Export{Script: script, Tools: nil, Lost: b.exportLost()}, nil
+}
+
+// nulField is the field of config, as a FieldError names it, the first of
+// a string, or of a list an entry of which, that holds a NUL byte; "" when
+// none does. A NUL byte would be taken for a part of a mark of the plan of
+// the script (shellWord).
+func nulField(config Config) string {
+	lists := overlayLists("", Overlay{
+		IncludeDirs: config.IncludeDirs, Libraries: config.Libraries,
+		LibraryDirs: config.LibraryDirs, Rpath: config.Rpath, PkgConfig: config.PkgConfig,
+		Defines: config.Defines, Cflags: config.Cflags, Cxxflags: config.Cxxflags,
+		Ldflags: config.Ldflags,
+	})
+
+	field := nulList(slices.Concat([]flagList{
+		{"module", []string{config.Module}}, {"sources", config.Sources},
+		{"link", config.Link}, {"bundle", config.Bundle},
+	}, lists))
+
+	for _, goos := range slices.Sorted(maps.Keys(config.Platforms)) {
+		if field != "" {
+			break
+		}
+
+		field = nulList(overlayLists("platforms."+goos+".", config.Platforms[goos]))
+	}
+
+	return field
+}
+
+// overlayLists are the lists of overlay, each named by prefix and its key.
+func overlayLists(prefix string, overlay Overlay) []flagList {
+	return []flagList{
+		{prefix + "include_dirs", overlay.IncludeDirs}, {prefix + "libraries", overlay.Libraries},
+		{prefix + "library_dirs", overlay.LibraryDirs}, {prefix + "rpath", overlay.Rpath},
+		{prefix + "pkg_config", overlay.PkgConfig}, {prefix + "defines", overlay.Defines},
+		{prefix + "cflags", overlay.Cflags}, {prefix + "cxxflags", overlay.Cxxflags},
+		{prefix + "ldflags", overlay.Ldflags},
+	}
+}
+
+// nulList is the name of the first of lists an entry of which holds a NUL
+// byte, or "" when none does.
+func nulList(lists []flagList) string {
+	for _, list := range lists {
+		if slices.ContainsFunc(list.flags, func(value string) bool {
+			return strings.Contains(value, "\x00")
+		}) {
+			return list.name
+		}
+	}
+
+	return ""
 }
 
 // The marks of the words of a plan of the script (exportMarks): each stands

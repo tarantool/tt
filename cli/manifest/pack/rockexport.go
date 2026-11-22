@@ -36,9 +36,10 @@ type exported struct {
 // them. A build exports when its backend says its builds are made without tt
 // (sdkbuild.Backend.Exports) and its Export does not fail with
 // sdkbuild.ErrNoExport, when its working directory is in the project, whose
-// files the sources of the rock are, and when the script can set the env of
-// its block (rockscript.CheckEnv). Any other failure of an Export fails the
-// pack.
+// files the sources of the rock are, when the script can set the env of its
+// block (rockscript.CheckEnv), and when no value of it the script would hold
+// has a NUL byte (rockscript.CheckStep). Any other failure of an Export
+// fails the pack.
 func exportBuilds(built *build.Result, backends *buildreg.Registry) (exported, error) {
 	man := built.Manifest
 	locked := lockedVersions(built.Lock, built.Product)
@@ -175,10 +176,18 @@ func exportStep(
 		outputs = buildreg.OutputFiles(backend, block.Output, target.Kind)
 	}
 
-	return rockscript.Step{
+	step := rockscript.Step{
 		Component: "", Hook: "", Backend: backend.Name, Cwd: rel, Env: block.Env,
 		Namespace: "", ProgramsOnly: false, Export: export, Outputs: outputs,
-	}, "", nil
+	}
+
+	err = rockscript.CheckStep(step)
+	if err != nil {
+		return rockscript.Step{}, fmt.Sprintf("%s is built by the tt backend %q with tt "+
+			"alone: %v", what, backend.Name, err), nil
+	}
+
+	return step, "", nil
 }
 
 // noExportReason says why the build of what, the block at field of the tt

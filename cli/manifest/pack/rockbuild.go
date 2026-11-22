@@ -102,9 +102,10 @@ type rockSources struct {
 //
 // A product whose builds all export (exportBuilds) is built by tt-rock.sh,
 // the script the rockspec carries in build.extra_files too
-// (scriptedBuild). A product with a build that does not builds with tt
-// alone: the build of the rockspec fails, saying which builds need tt and
-// why (rockBuild.ttOnly).
+// (scriptedBuild). A product with a build that does not, or whose script
+// would hold a NUL byte, which no script of sh holds, builds with tt alone:
+// the build of the rockspec fails, saying which builds need tt and why
+// (rockBuild.ttOnly).
 //
 // A file of the sources at a name the rock reserves fails either
 // (checkRockReserved).
@@ -123,18 +124,20 @@ func releaseBuild(built *build.Result, rel rocktree.Release, sources rockSources
 		}
 
 		if len(builds.ttOnly) > 0 {
-			return rockBuild{
-				build: rocktree.ReleaseBuild{
-					Install: nil, ExtraFiles: nil, Script: "",
-					TtOnly: fmt.Sprintf("%s %s builds with tt only: %s. Install its binary "+
-						"rock, or depend on it in app.manifest.toml of a project tt 3 builds.",
-						rel.Name, rel.Version, strings.Join(builds.ttOnly, "; ")),
-				},
-				ttOnly: builds.ttOnly, leftOut: nil, scripted: false, lost: nil,
-			}, nil
+			return ttOnlyBuild(rel, builds.ttOnly), nil
 		}
 
-		return scriptedBuild(built, sources, builds.script), nil
+		plan := scriptedBuild(built, sources, builds.script)
+
+		// No value of a build exportBuilds takes has a NUL byte, and no other
+		// value of the script has one - the names and the version of the
+		// manifest, the paths of files; this is for what slips by them.
+		if strings.Contains(plan.build.ExtraFiles[rockScriptFile], "\x00") {
+			return ttOnlyBuild(rel, []string{fmt.Sprintf("%s, the script that builds the "+
+				"package without tt, %v", rockScriptFile, rockscript.ErrNUL)}), nil
+		}
+
+		return plan, nil
 	}
 
 	plan := rockBuild{
@@ -165,6 +168,21 @@ func releaseBuild(built *build.Result, rel rocktree.Release, sources rockSources
 	addVersionLua(&plan.build, built)
 
 	return plan, nil
+}
+
+// ttOnlyBuild is the build of rel, the rock of a package that builds with tt
+// alone for reasons, a sentence each: the build of the rockspec fails,
+// saying so.
+func ttOnlyBuild(rel rocktree.Release, reasons []string) rockBuild {
+	return rockBuild{
+		build: rocktree.ReleaseBuild{
+			Install: nil, ExtraFiles: nil, Script: "",
+			TtOnly: fmt.Sprintf("%s %s builds with tt only: %s. Install its binary rock, or "+
+				"depend on it in app.manifest.toml of a project tt 3 builds.", rel.Name,
+				rel.Version, strings.Join(reasons, "; ")),
+		},
+		ttOnly: reasons, leftOut: nil, scripted: false, lost: nil,
+	}
 }
 
 // lastLaidOut are the files of layout but those another file is laid out

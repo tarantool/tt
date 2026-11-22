@@ -112,17 +112,56 @@ type Lay struct {
 // nameRe is the shape of the name of a variable of POSIX sh.
 var nameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// ErrEnv reports a variable of the env of a build block the script cannot
-// set (CheckEnv).
-var ErrEnv = errors.New("the variable has no name of sh")
+var (
+	// ErrEnv reports a variable of the env of a build block the script
+	// cannot set (CheckEnv).
+	ErrEnv = errors.New("the variable has no name of sh")
+	// ErrNUL reports a value of a build the script would hold with a NUL
+	// byte in it (CheckEnv, CheckStep): no string of sh holds one.
+	ErrNUL = errors.New("holds a NUL byte, which no script of sh holds")
+)
 
-// CheckEnv reports, wrapping ErrEnv, a variable of env, the env of a build
-// block, that the script cannot set: one whose name is no name of a
-// variable of POSIX sh.
+// CheckEnv reports a variable of env, the env of a build block, that the
+// script cannot set: one whose name is no name of a variable of POSIX sh,
+// wrapping ErrEnv, or whose value holds a NUL byte, wrapping ErrNUL.
 func CheckEnv(env map[string]string) error {
 	for _, key := range slices.Sorted(maps.Keys(env)) {
 		if !nameRe.MatchString(key) {
 			return fmt.Errorf("%w: %q", ErrEnv, key)
+		}
+
+		if strings.Contains(env[key], "\x00") {
+			return fmt.Errorf("the value of %s %w", key, ErrNUL)
+		}
+	}
+
+	return nil
+}
+
+// CheckStep reports, wrapping ErrNUL, a value of step but its env
+// (CheckEnv) that the script would hold with a NUL byte in it: the script of
+// its export, a tool or a sentence of what it lacks, its working directory,
+// or the path of a file of its output.
+func CheckStep(step Step) error {
+	outputs := make([]string, 0, len(step.Outputs))
+	for _, file := range step.Outputs {
+		outputs = append(outputs, file.Path)
+	}
+
+	for _, value := range []struct {
+		what  string
+		texts []string
+	}{
+		{"the script of its export", []string{step.Export.Script}},
+		{"a tool of its export", step.Export.Tools},
+		{"what its export lacks", step.Export.Lost},
+		{"its working directory", []string{step.Cwd}},
+		{"a file of its output", outputs},
+	} {
+		if slices.ContainsFunc(value.texts, func(text string) bool {
+			return strings.Contains(text, "\x00")
+		}) {
+			return fmt.Errorf("%s %w", value.what, ErrNUL)
 		}
 	}
 
