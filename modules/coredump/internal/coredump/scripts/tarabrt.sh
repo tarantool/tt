@@ -13,6 +13,8 @@ a single archive with unified format:
   - /coredump       - the core dump file produced by the executable
   - /etc/os-release - the plain text file with OS identification data
   - all shared libraries loaded (even via dlopen(3)) at the crash moment
+  - /usr/lib/debug/.build-id/XX/YYYY.debug - the separate debugging
+                      information of the executable, when the host has it
 
 SYNOPSIS
 
@@ -275,6 +277,30 @@ echo "${ARCHIVENAME}/version" >>"${TARLIST}"
 stage "${OSRELEASE#/}" "${OSRELEASE}"
 stage tarantool "${BINARY}"
 stage coredump "${COREFILE}"
+
+# The separate debugging information of the binary, when the host has
+# it: a debuginfo package installs it under a debug directory of gdb,
+# /usr/lib/debug by default, by the build ID of the binary, which may
+# itself carry none. It goes where gdb.sh points gdb to, under the same
+# name in usr/lib/debug of the archive.
+BUILDID=$(file -L "${BINARY}" | \
+	sed -n 's/.*BuildID\[[^]]*\]=\([0-9a-f][0-9a-f][0-9a-f]*\).*/\1/p')
+if [ -n "${BUILDID}" ]; then
+	BUILDIDFILE=.build-id/$(echo "${BUILDID}" | cut -c1-2)/$(echo "${BUILDID}" | cut -c3-).debug
+	DEBUGDIRS=$(gdb -batch -ex 'show debug-file-directory' 2>/dev/null | \
+		sed -n 's/^.*"\(.*\)"\.$/\1/p')
+	set -f
+	OLDIFS=${IFS}
+	IFS=:
+	for DEBUGDIR in ${DEBUGDIRS:-/usr/lib/debug}; do
+		if [ -f "${DEBUGDIR}/${BUILDIDFILE}" ]; then
+			stage "usr/lib/debug/${BUILDIDFILE}" "$(abspath "${DEBUGDIR}/${BUILDIDFILE}")"
+			break
+		fi
+	done
+	IFS=${OLDIFS}
+	set +f
+fi
 
 SEPARATOR1='Shared Object Library'
 SEPARATOR2='Shared library is missing debugging information'

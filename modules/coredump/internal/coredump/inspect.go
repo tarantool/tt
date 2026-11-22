@@ -102,6 +102,8 @@ func inspect(ctx context.Context, streams output.Streams, res *resolver,
 		return err
 	}
 
+	warnDebugInfo(res.log, dir)
+
 	// The wrapper is run by sh, so that a temporary directory mounted
 	// noexec runs it too; gdb reads the standard input of tt.
 	cmd := exec.CommandContext(ctx, "sh", args...)
@@ -116,6 +118,22 @@ func inspect(ctx context.Context, streams output.Streams, res *resolver,
 	}
 
 	return nil
+}
+
+// warnDebugInfo warns, before gdb starts, when gdb will find no debugging
+// information for the tarantool of the artefacts in dir: the extensions
+// look the types of LuaJIT and Tarantool up and fail without them.
+func warnDebugInfo(log *slog.Logger, dir string) {
+	err := checkDebugInfo(dir)
+
+	switch {
+	case errors.Is(err, errNoDebugInfo):
+		log.Warn(fmt.Sprintf("the tarantool of the core has %s: the lj-* commands of LuaJIT "+
+			"and the pretty-printers of Tarantool will not work, plain backtraces will; a core "+
+			"packed where the debug file of its tarantool is installed has it", err))
+	case err != nil:
+		log.Debug("cannot tell whether the tarantool has debugging information: " + err.Error())
+	}
 }
 
 // selectExtensions returns the gdb extensions for the core of the
