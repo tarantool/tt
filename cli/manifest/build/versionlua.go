@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )

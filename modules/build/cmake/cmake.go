@@ -12,7 +12,7 @@
 // build.
 //
 // The package depends on the standard library and the contract of a build
-// backend (github.com/tarantool/tt/sdk/build) only.
+// backend (github.com/tarantool/tt/sdk/build/v3) only.
 package cmake
 
 import (
@@ -28,7 +28,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // Name is the name of the cmake backend.

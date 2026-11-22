@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/tarantool/tt/sdk/console"
+	"github.com/tarantool/tt/sdk/v3/console"
 )
 
 var (

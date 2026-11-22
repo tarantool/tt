@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/sdk/fetch
+module github.com/tarantool/tt/sdk/fetch/v3
 
 go 1.27.0
 

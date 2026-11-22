@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-luarocks/remote"
 
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/fetch/v3"
 )
 
 // indexedServer makes dir a rock server that publishes a tt-rocks-index.json

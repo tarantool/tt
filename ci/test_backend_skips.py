@@ -17,7 +17,7 @@ PACKAGE = "github.com/tarantool/tt/modules/build/cargo"
 # has them.
 BACKENDS = [
     PACKAGE,
-    "github.com/tarantool/tt/sdk/build",
+    "github.com/tarantool/tt/sdk/build/v3",
     "github.com/tarantool/tt/v3/cli/manifest/build",
 ]
 

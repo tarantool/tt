@@ -8,7 +8,7 @@ package aeon
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // New builds the aeon module's commands: the aeon group with its connect

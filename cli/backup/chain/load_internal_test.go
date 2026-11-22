@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
 	"github.com/tarantool/tt/v3/cli/backup"
 )
 

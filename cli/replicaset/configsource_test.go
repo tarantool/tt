@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 

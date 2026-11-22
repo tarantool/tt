@@ -15,9 +15,9 @@ import (
 
 	"github.com/tarantool/go-luarocks/client"
 
-	sdkbuild "github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/execfile"
-	"github.com/tarantool/tt/sdk/log/logtest"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3/execfile"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/internal/cmakepolicy"

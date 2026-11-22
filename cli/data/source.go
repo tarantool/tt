@@ -14,7 +14,7 @@ import (
 	"github.com/tarantool/go-xlog/format"
 	"github.com/tarantool/go-xlog/reader"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // Kind is the kind of a journal file.

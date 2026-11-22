@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3/output"
 
 	"github.com/tarantool/tt/v3/cli/printing"
 )

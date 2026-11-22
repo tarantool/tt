@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // This file runs pkg-config for the packages of pkg_config: the flags it

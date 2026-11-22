@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	"github.com/tarantool/tt/sdk/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
 )

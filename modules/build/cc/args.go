@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // language is the language of a source, which picks its compiler and its

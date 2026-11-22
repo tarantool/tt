@@ -8,7 +8,7 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/deps"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // defaultServer is the rock server LuaRocks of go-luarocks queries when it is

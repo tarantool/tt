@@ -17,7 +17,7 @@
 //
 // The package takes the options as they are: parsing a URI and choosing
 // the credentials is the caller's work, with
-// [github.com/tarantool/tt/sdk/connect]:
+// [github.com/tarantool/tt/sdk/connect/v3]:
 //
 //	uri, user, password := connect.ParseCredentialsURI(target)
 //	base, params, err := connect.SplitURIQuery(uri)

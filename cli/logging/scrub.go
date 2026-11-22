@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
-	sdklog "github.com/tarantool/tt/sdk/log"
+	sdklog "github.com/tarantool/tt/sdk/v3/log"
 )
 
 // scrubHandler prepares every record before the inner handler renders it,

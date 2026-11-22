@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // TestParseTarantoolVersion parses the version strings tt's own version

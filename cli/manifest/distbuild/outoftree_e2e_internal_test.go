@@ -26,15 +26,15 @@ const smokeGoMod = `module example.com/tt-smoke
 go 1.27.0
 
 require (
-	github.com/tarantool/tt/sdk ` + unpushedSDK + `
-	github.com/tarantool/tt/sdk/build ` + unpushedSDK + `
-	github.com/tarantool/tt/sdk/connect ` + unpushedSDK + `
+	github.com/tarantool/tt/sdk/v3 ` + unpushedSDK + `
+	github.com/tarantool/tt/sdk/build/v3 ` + unpushedSDK + `
+	github.com/tarantool/tt/sdk/connect/v3 ` + unpushedSDK + `
 )
 
 replace (
-	github.com/tarantool/tt/sdk => CORE/sdk
-	github.com/tarantool/tt/sdk/build => CORE/sdk/build
-	github.com/tarantool/tt/sdk/connect => CORE/sdk/connect
+	github.com/tarantool/tt/sdk/v3 => CORE/sdk
+	github.com/tarantool/tt/sdk/build/v3 => CORE/sdk/build
+	github.com/tarantool/tt/sdk/connect/v3 => CORE/sdk/connect
 )
 `
 
@@ -103,7 +103,7 @@ func TestOutOfTreeModule(t *testing.T) {
 	}
 
 	out, err := goIn(t, dir, env, "list", "-m", "-f", "{{.Replace.Dir}}",
-		"github.com/tarantool/tt/sdk")
+		"github.com/tarantool/tt/sdk/v3")
 	require.NoError(t, err, out)
 	assert.Equal(t, filepath.Join(coreDir, "sdk"), strings.TrimSpace(out))
 

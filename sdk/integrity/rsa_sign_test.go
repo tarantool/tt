@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 // assertNoFile checks that there is no directory entry at path.

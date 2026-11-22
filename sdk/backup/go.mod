@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/sdk/backup
+module github.com/tarantool/tt/sdk/backup/v3
 
 go 1.27.0
 

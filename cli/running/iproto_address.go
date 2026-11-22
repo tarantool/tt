@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 // The keys of the config a client address of an instance comes from.

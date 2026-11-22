@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/modules/aeon"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // clusterYAML is a cluster configuration with a plain router, a router

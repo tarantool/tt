@@ -15,7 +15,7 @@ import (
 	"slices"
 	"sync/atomic"
 
-	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/v3"
 )
 
 // Registry holds the build backends and the file checks of a tt. It is

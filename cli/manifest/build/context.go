@@ -3,8 +3,8 @@ package build
 import (
 	"fmt"
 
-	"github.com/tarantool/tt/sdk"
-	sdkbuild "github.com/tarantool/tt/sdk/build"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 

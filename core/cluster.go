@@ -10,10 +10,10 @@ import (
 
 	gsintegrity "github.com/tarantool/go-storage/v2/integrity"
 
-	"github.com/tarantool/tt/sdk"
-	sdkcluster "github.com/tarantool/tt/sdk/cluster"
-	"github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster/v3"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/integrity/v3"
+	"github.com/tarantool/tt/sdk/v3"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmd"

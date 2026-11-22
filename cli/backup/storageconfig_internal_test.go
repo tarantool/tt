@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
 )
 
 // awsEnvNames is every variable the parser reads. A case starts from a known

@@ -15,9 +15,9 @@ import (
 
 	"github.com/tarantool/go-luarocks/remote"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/fetch"
-	"github.com/tarantool/tt/sdk/sdktest"
+	"github.com/tarantool/tt/sdk/fetch/v3"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/sdktest"
 )
 
 // assetServer serves body for any path and counts the requests.

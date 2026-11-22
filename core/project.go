@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/tarantool/tt/sdk"
-	sdkbuild "github.com/tarantool/tt/sdk/build"
-	"github.com/tarantool/tt/sdk/scope"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/scope"
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rockindex"

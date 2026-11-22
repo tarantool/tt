@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 // verificationError is the text of the error crypto/rsa returns for a

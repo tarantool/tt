@@ -18,7 +18,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/datetime"
 	"github.com/tarantool/go-tarantool/v3/decimal"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // luaEvalLoop is the script of the tarantool child: it evaluates each line

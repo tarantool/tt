@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	sdkconnect "github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/log"
+	sdkconnect "github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"

@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/v3/log"
+	"github.com/tarantool/tt/sdk/v3/scope"
 
 	"github.com/tarantool/tt/v3/cli/app"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"

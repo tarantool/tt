@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/v3/scope"
 )
 
 // Names returns the names of the applications a target may name with opts,

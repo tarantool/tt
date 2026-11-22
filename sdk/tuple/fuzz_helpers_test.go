@@ -25,7 +25,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/decimal"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/tarantool/tt/sdk/tuple"
+	"github.com/tarantool/tt/sdk/tuple/v3"
 )
 
 // decodeDepth is the deepest a value Decode returns nests: the items of the

@@ -3,7 +3,7 @@ package connect
 import (
 	"strings"
 
-	"github.com/tarantool/tt/sdk/formatter"
+	"github.com/tarantool/tt/sdk/v3/formatter"
 )
 
 // formatShortcuts are the commands that set each output format.

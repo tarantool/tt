@@ -19,8 +19,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/tarantool/tt/modules/aeon/pb"
-	"github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/connect/v3"
+	"github.com/tarantool/tt/sdk/v3/log"
 )
 
 var (

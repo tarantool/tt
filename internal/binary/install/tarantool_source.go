@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	cp "github.com/otiai10/copy"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )

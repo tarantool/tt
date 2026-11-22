@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.0.0-rc.1] - 2026-11-20
+
+The first release candidate of tt 3. The SDK goes with it: every module of
+it is tagged `sdk/v3.0.0-rc.1` and `sdk/<name>/v3.0.0-rc.1`, and the paths
+of the modules gain the major version, `github.com/tarantool/tt/sdk` is
+`github.com/tarantool/tt/sdk/v3` now. A module compiled into a tt of an
+alpha imports the old paths and moves with the new ones. tt 3 is for new
+installations: a project of tt 2 is built anew rather than moved in place.
 
 ### Added
 

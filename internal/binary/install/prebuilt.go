@@ -14,8 +14,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/bundle"
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/v3/bundle"
+	"github.com/tarantool/tt/sdk/v3/log"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 

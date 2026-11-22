@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/v3/scope"
 )
 
 // writeTree creates the files under root, each with the given content, and

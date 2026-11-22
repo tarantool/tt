@@ -3,7 +3,7 @@ package deps
 import (
 	"errors"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // File names the dependency commands read and write in the project root.

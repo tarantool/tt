@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sdkbuild "github.com/tarantool/tt/sdk/build"
+	sdkbuild "github.com/tarantool/tt/sdk/build/v3"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )

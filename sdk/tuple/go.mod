@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/sdk/tuple
+module github.com/tarantool/tt/sdk/tuple/v3
 
 go 1.27.0
 

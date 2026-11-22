@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/sdk/fetch"
+	"github.com/tarantool/tt/sdk/fetch/v3"
 )
 
 // maxProgramSize bounds a program unpacked from an asset: the programs are

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 )
 
 // promptTimeout is how long a call given a FIFO may take: it fails at once

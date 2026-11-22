@@ -15,7 +15,7 @@ import (
 	"github.com/tarantool/go-xlog/writer"
 	"github.com/vmihailenco/msgpack/v5"
 
-	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/v3/output"
 	"github.com/tarantool/tt/v3/cli/printing"
 )
 

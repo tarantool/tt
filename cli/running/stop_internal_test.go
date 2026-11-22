@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/log/logtest"
+	"github.com/tarantool/tt/sdk/v3/log/logtest"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/internal/pidfile"
 )

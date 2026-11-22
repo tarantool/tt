@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/modules/emmylua/internal/analyzer"
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/scope"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/scope"
 )
 
 var (

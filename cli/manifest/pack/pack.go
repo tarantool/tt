@@ -28,7 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/native"

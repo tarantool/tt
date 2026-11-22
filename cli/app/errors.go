@@ -3,7 +3,7 @@ package app
 import (
 	"errors"
 
-	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/v3"
 )
 
 // The failures the resolver tells apart. An error about a target, a flag, a

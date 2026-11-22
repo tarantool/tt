@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
 	"github.com/tarantool/tt/v3/cli/backup"
 	"github.com/tarantool/tt/v3/cli/backup/chain"
 )

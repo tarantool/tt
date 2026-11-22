@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
-	"github.com/tarantool/tt/sdk/bundle"
-	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/integrity/v3"
+	"github.com/tarantool/tt/sdk/v3"
+	"github.com/tarantool/tt/sdk/v3/bundle"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"

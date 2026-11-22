@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/backup/archive"
-	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/backup/v3/archive"
+	"github.com/tarantool/tt/sdk/backup/v3/storage"
 )
 
 var (
