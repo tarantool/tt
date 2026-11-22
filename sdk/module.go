@@ -114,6 +114,39 @@ type Services interface {
 	// the prefix (or at the key) wrap ErrNotFound. A storage that cannot be
 	// reached is another error.
 	ClusterConfig(ctx context.Context, src ClusterSource) (ClusterConfig, error)
+	// Connect connects to the instance target names, as tt connect connects
+	// to it without --binary, for a command that runs Lua on it
+	// ([Conn.Eval]); the caller closes the connection. target is one of:
+	//
+	//   - <app>:<instance>, an instance of an application of this host,
+	//     found as the instance commands find it with opts.Lookup, which is
+	//     reached at its console socket and runs the code as the admin, with
+	//     no credentials: opts with a user or a password are refused, as tt
+	//     connect refuses them without --binary. A bare application name is
+	//     refused with a hint to name an instance, as the instance commands
+	//     refuse it, and <app>:* is the instance of an application that has
+	//     one. An application or an instance that is not found is an error
+	//     that wraps ErrNotFound. An instance tt does not run, whose socket
+	//     is missing or refuses connections, is an error that says so and
+	//     how to start it, with ExitFailure.
+	//   - a URI, as tt connect takes one: host:port, tcp://host:port,
+	//     unix/:path, unix://path or a path, with user:password@ before the
+	//     address, and a query after it of transport (ssl or plain),
+	//     auth_type and the TLS settings ssl_key_file, ssl_cert_file,
+	//     ssl_ca_file, ssl_ciphers, ssl_password and ssl_password_file. It
+	//     is reached over iproto, with TLS as transport and the TLS settings
+	//     say, and logged in to with the credentials of the URI, which opts
+	//     must not carry then, else those of opts, each empty one taken from
+	//     TT_CLI_USERNAME or TT_CLI_PASSWORD, else as the guest. The code
+	//     runs with the rights of the user, who needs the right to execute
+	//     Lua. A setting given both in the query and in opts is refused. A
+	//     URI may name a console socket as well, which is spoken to as that
+	//     of an instance.
+	//
+	// A target that fits <app>:<instance> and names no application of this
+	// host, such as localhost:3301, is the URI. ctx bounds the setup of the
+	// connection, as opts.ConnectTimeout bounds it over iproto.
+	Connect(ctx context.Context, target string, opts ConnectOptions) (Conn, error)
 	// Rocks returns the rock servers tt writes.
 	Rocks() Rocks
 	// Exit ends the process as the core ends it for a command that returned

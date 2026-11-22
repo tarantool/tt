@@ -140,7 +140,17 @@ core uses, and the core never requires older ones.
   under `--no-prompt`), `Streams` (the standard streams and a `Printer` with
   the core's formats), `ClusterConfig` (the cluster configuration of a
   `ClusterSource` as Tarantool 3 sees it, an immutable go-config snapshot,
-  with the directory of the file it was read from)
+  with the directory of the file it was read from), `Connect` (a `Conn` to
+  an instance, as `tt connect` reaches it without `--binary`: an
+  `app:inst` target at its console socket, as the admin, a URI over
+  iproto, with the credentials of the URI, of `ConnectOptions` or of
+  `TT_CLI_USERNAME` and `TT_CLI_PASSWORD`; `AddConnectFlags` declares the
+  flags of `tt connect` bound to the options. `Conn.Eval` runs a Lua chunk
+  with arguments and returns every value it returns, nils included, as the
+  same Go values over either transport - integers as `int64`, strings
+  byte for byte, tables as `[]any` or `map[any]any` - and a Lua error as
+  an error that wraps `ErrEval` and reads as its message alone; the
+  deadline of its context bounds the wait for the answer)
   and `Exit` (reports an error and ends the process with tt's code for it,
   for code such as a prompt callback that cannot return the error).
   `ErrNotFound` is wrapped by what is not found.
@@ -258,7 +268,13 @@ core uses, and the core never requires older ones.
   (`WithIntegrity`) and the cluster configuration a source returns, from
   YAML built with the Tarantool hierarchy (`WithClusterConfig`, with the
   directory it reports set by `WithClusterConfigDir`; any other source is not
-  found). The project reads, edits and installs nothing: its root is the
+  found). `Connect` connects to nothing: the `Conn` of a target
+  `WithInstance` names answers every `Eval` with the function it gives,
+  which returns `EvalError` for a Lua error, `WithConnectError` makes a
+  target fail, any other target is not found, and the calls and the
+  connections left open are recorded (`Connects`, `Evals`, `Conns`); an
+  `Eval` its context ends closes the `Conn`, as the core's does. The
+  project reads, edits and installs nothing: its root is the
   project directory or the one `WithRoot` sets, its manifest the one
   `WithManifest` gives - empty by default, none with `WithNoManifest` - with
   the names `WithDeclared` declares, and `AddDependency`,

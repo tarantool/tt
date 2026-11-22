@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- The SDK connects a module to an instance and runs Lua on it, where only
+  the core could: `Services.Connect(ctx, target, opts)` returns a
+  `sdk.Conn` as `tt connect` reaches the target without `--binary`, an
+  `app:inst` of this host at its console socket, as the admin, found with
+  `--scope` and `--template`, or a URI over iproto, with the credentials of
+  the URI, of the options or of `TT_CLI_USERNAME` and `TT_CLI_PASSWORD` and
+  the transport, `auth_type` and TLS settings of its query. A bare
+  application, credentials with an `app:inst`, an instance that is not
+  running and a conflict of the URI and the options fail as for `tt
+  connect`; an application or an instance not found wraps
+  `sdk.ErrNotFound`. `sdk.AddConnectFlags` declares the flags of `tt
+  connect` bound to `sdk.ConnectOptions`: `-u`, `-p`, `--auth-type`, the
+  `--ssl*` settings, `--connect-timeout`, `--scope` and `--template`.
+  `Conn.Eval(ctx, expr, args)` is the same over the console and iproto:
+  `expr` is the body of a chunk, comments included, whose `...` are the
+  arguments; every value it returns comes back, nils included, as `int64`
+  (`uint64` above the range), `float64`, `bool`, a `string` byte for byte,
+  `[]byte`, `[]any` or `map[any]any`; a Lua error is an error that wraps
+  `sdk.ErrEval` and reads as its message, without its position in the
+  chunk; the context bounds the wait for the answer, and a `Conn` it ends
+  is closed. `sdktest` fakes it: `WithInstance` answers the `Eval`s of a
+  target with a function, `WithConnectError` fails one, `EvalError` is a
+  Lua error, and `Connects`, `Evals` and `Conns` record the calls. A
+  module such as one of `tt perf` needed the code of `tt connect`, which a
+  module cannot import. `Services` has a method more, which a module that
+  implemented it, as it must not, has to add.
 - `tt package build --target OS/ARCH` and `tt package pack --target
   OS/ARCH` build the components of the package for another platform than
   the machine tt runs on: `linux/amd64`, `linux/arm64`, `darwin/amd64` or

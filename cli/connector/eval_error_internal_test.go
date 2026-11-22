@@ -3,13 +3,48 @@ package connector
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/go-iproto"
+	"github.com/tarantool/go-tarantool/v3"
 )
+
+// TestLuaError pins which errors of an eval are Lua errors of the code: the
+// one the console answers with and ER_PROC_LUA over iproto, wrapped or
+// not, with their messages; not an error of the connection, nor one of the
+// server that is not of the code.
+func TestLuaError(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		err     error
+		message string
+		lua     bool
+	}{
+		{"console", newEvaluationError("eval:1: x"), "x", true},
+		{"console wrapped", fmt.Errorf("eval: %w", newEvaluationError("y")), "y", true},
+		{"iproto", tarantool.ServerError{
+			Code: iproto.ER_PROC_LUA, Msg: "eval:1: x", ExtendedInfo: nil,
+		}, "eval:1: x", true},
+		{"iproto access", tarantool.ServerError{
+			Code: iproto.ER_ACCESS_DENIED, Msg: "Execute access to universe '' is denied",
+			ExtendedInfo: nil,
+		}, "", false},
+		{"connection", errors.New("failed to read: EOF"), "", false},
+		{"nil", nil, "", false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			message, lua := LuaError(testCase.err)
+			assert.Equal(t, testCase.lua, lua)
+			assert.Equal(t, testCase.message, message)
+		})
+	}
+}
 
 // TestEvalErrorWithoutChunkPosition pins that the error of an eval over the
 // console loses the position in the chunk of the eval, which Lua puts in
