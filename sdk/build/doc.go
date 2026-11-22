@@ -44,6 +44,17 @@
 // a backend whose sources are no files of the package switches off
 // ([Backend.NoSourceLayout]).
 //
+// A backend whose builds are made without tt too says so
+// ([Backend.Exports]), and each of its builds is an [Exporter]: it returns a
+// script of POSIX sh that makes what Run makes ([Export]), with the
+// variables of a build of tt and a few of its own, and quotes the literals
+// of its block with [ShellQuote]. tt package pack writes the scripts of the
+// components and the hooks into the rockspec of the rock of the package, so
+// that LuaRocks, which knows no manifest, builds its source rock; a build
+// whose field has no counterpart in a script fails its Export with
+// [ErrNoExport] ([NoExportf]). buildtest.CheckExport checks that the script
+// makes what Run makes.
+//
 // A backend whose [Backend.Hook] is set runs lifecycle hooks too: the core
 // checks the block of a hook as it checks a build block, New given the zero
 // Component, and runs its build around those of the components, in a

@@ -89,6 +89,8 @@ func backend(name string) build.Backend {
 		// CC and CXX of the machine compile for the machine, and no
 		// compiler of another platform is looked for.
 		Cross: false,
+		// A build is made with tt alone so far.
+		Exports: false,
 	}
 }
 

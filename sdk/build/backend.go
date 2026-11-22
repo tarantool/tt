@@ -149,6 +149,15 @@ type Backend struct {
 	// core checks the programs and the modules a build made against the
 	// target, whatever the backend.
 	Cross bool
+	// Exports says that the builds of the backend are made without tt too,
+	// by a script of POSIX sh: each is an [Exporter], which tt package pack
+	// asks for its script, so that LuaRocks builds the source rock of a
+	// package of the backend. A Build of a backend that says so and is no
+	// Exporter is refused, and so is an Exporter of a backend that does not
+	// ([Backend.ValidateBuild]): what the field says is what the builds do.
+	// A build of the backend may still be made with tt alone, for a value of
+	// a field that has no counterpart in a script ([ErrNoExport]).
+	Exports bool
 }
 
 // CheckTarget reports, wrapping [ErrTarget], a build of the backend for

@@ -132,6 +132,8 @@ func Backend() build.Backend {
 		// go builds for another platform with GOOS and GOARCH, but with cgo
 		// (Preflight).
 		Cross: true,
+		// A build is made with tt alone so far.
+		Exports: false,
 	}
 }
 
