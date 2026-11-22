@@ -127,6 +127,28 @@ func TestCheckEnv(t *testing.T) {
 	err := rockscript.CheckEnv(map[string]string{"OK": "", "NUL": "a\x00b"})
 	require.ErrorIs(t, err, rockscript.ErrNUL)
 	assert.Equal(t, "the value of NUL holds a NUL byte, which no script of sh holds", err.Error())
+
+	// The variables of the script and of the scripts of the exports.
+	for _, name := range []string{"tt_root", "tt_state", "tt_stage", "tt_cmake_file", "cc_cxx"} {
+		err := rockscript.CheckEnv(map[string]string{"OK": "", name: "x"})
+		require.ErrorIs(t, err, rockscript.ErrEnvOwn, name)
+		assert.Equal(t, "the script that builds the package without tt keeps a value of its "+
+			"own in the variable: "+name, err.Error())
+	}
+
+	for _, name := range []string{"IFS", "CDPATH", "ENV", "PS4", "OPTIND", "OPTARG", "PPID"} {
+		err := rockscript.CheckEnv(map[string]string{"OK": "", name: "x"})
+		require.ErrorIs(t, err, rockscript.ErrEnvShell, name)
+		assert.Equal(t, "the variable changes how sh runs the script that builds the package "+
+			"without tt: "+name, err.Error())
+	}
+
+	// PATH, the tools and the variables of tt, which the script sets over
+	// the env, are the env's.
+	require.NoError(t, rockscript.CheckEnv(map[string]string{
+		"PATH": "/bin", "CC": "cc", "CFLAGS": "-O3", "HOME": "/", "TT_PACKAGE": "x", "tt": "",
+		"TT_ROOT": "", "ifs": "",
+	}))
 }
 
 // TestCheckStep: no value of a step the script holds has a NUL byte.

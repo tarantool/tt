@@ -77,6 +77,16 @@ func TestExportStep(t *testing.T) {
 				`"NOT-OK"`,
 		},
 		{
+			"an env of a variable of the script", shell(map[string]string{"tt_stage": "/"}), "gen",
+			`the component "gen": components.gen.build.env: the script that builds the ` +
+				`package without tt keeps a value of its own in the variable: tt_stage`,
+		},
+		{
+			"an env of IFS", shell(map[string]string{"IFS": ":"}), "gen",
+			`the component "gen": components.gen.build.env: the variable changes how sh runs ` +
+				`the script that builds the package without tt: IFS`,
+		},
+		{
 			"an env of a NUL byte", shell(map[string]string{"OK": "1", "NUL": "a\x00b"}), "gen",
 			`the component "gen": components.gen.build.env: the value of NUL holds a NUL byte, ` +
 				`which no script of sh holds`,

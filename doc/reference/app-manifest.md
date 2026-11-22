@@ -1166,7 +1166,11 @@ empty when the build begins. The Tarantool of the build is that of
 
 A build of another backend is made with tt alone: the build of the
 rockspec fails, saying which component needs tt, and the pack of the source
-rock warns of it. What the script of a backend lacks is in the comments of
+rock warns of it. So is a build whose `env` sets a variable of a name sh
+has no variable of, one the script keeps a value of its own in, of a name
+beginning with `tt_` or `cc_`, or one that changes how sh runs the script:
+`IFS`, `CDPATH`, `PWD`, `OLDPWD`, `ENV`, `PS1`, `PS2`, `PS4`, `OPTIND`,
+`OPTARG`, `LINENO`, `PPID`, `SHELLOPTS`, `BASHOPTS` and `BASH_ENV`. What the script of a backend lacks is in the comments of
 `tt-rock.sh`, and the pack warns of it once:
 
 ```text

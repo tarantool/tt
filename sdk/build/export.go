@@ -91,7 +91,10 @@ type ExportContext struct {
 //     tt, and the environment LuaRocks runs the build in.
 //
 // TT_TARANTOOL_PREFIX and the toolchain of the environment may be unset, so
-// a script reads them as "${CXX-}" under set -u.
+// a script reads them as "${CXX-}" under set -u. A variable a script keeps a
+// value of its own in is named tt_<backend>_<name>: the core keeps its own
+// in variables of tt_, and refuses the env of a block that sets one of tt_
+// or cc_, which the scripts of the standard backends name theirs with.
 type Export struct {
 	// Script is the script of POSIX sh that makes what Run makes. A literal
 	// of the build block goes into it through ShellQuote, so that it is the
