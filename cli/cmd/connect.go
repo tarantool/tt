@@ -276,10 +276,24 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 	}
 }
 
-// resolveConnectOpts tries to resolve target argument to replace it
-// with a control socket or as a URI with/without credentials.
-// It returns connection options and the remaining args.
+// resolveConnectOpts resolves target as resolveTargetConnectOpts does, its
+// application found as --scope and --template of the instance commands
+// say: for tt replicaset, tt data play and tt backup.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
+	connectCtx *connect.ConnectCtx, target string) (
+	connector.ConnectOpts, error,
+) {
+	return resolveTargetConnectOpts(cmdCtx, instanceFlags, connectCtx, target)
+}
+
+// resolveTargetConnectOpts returns how target is reached, as tt connect
+// reaches it: an instance of an application of this host, found as lookup
+// says, at its control socket, or over iproto with --binary of connectCtx
+// (instanceBinaryConnOpts); a URI, with the credentials it carries or those
+// of connectCtx, else of the environment, and the settings of its query. It
+// fills connectCtx with what the URI gives, and ConnectTarget with the
+// target as the title of a console shows it.
+func resolveTargetConnectOpts(cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup,
 	connectCtx *connect.ConnectCtx, target string) (
 	connector.ConnectOpts, error,
 ) {
@@ -290,7 +304,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 
 	// A target that resolves to no instance may still be a URI that happens
 	// to fit <app>:<instance>, such as localhost:3301.
-	instances, resolveErr := resolveInstances(cmdCtx, []string{target})
+	instances, resolveErr := lookupInstances(cmdCtx, lookup, []string{target})
 
 	switch {
 	case resolveErr == nil:
@@ -597,15 +611,25 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return notRunningErr(cmdCtx, args[0], connOpts, connect.Connect(connectCtx, connOpts))
 }
 
-// notRunningErr returns the error of a connection to the target that failed
-// with err: if the target is an instance that tt does not run (its pid file,
-// running.Status), and nothing was there to dial at the address of
-// connOpts, a socket that is missing or a socket or a port that refuses
-// connections, the instance is not running, which is the user's to fix, by
-// starting it. The error says so in one line, without the dial error, which
-// would make it a failure of the system. Any other error is err itself.
+// notRunningErr returns the error of tt connect to target that failed with
+// err, as instanceNotRunningErr returns it for the flags of tt connect.
 func notRunningErr(cmdCtx *cmdcontext.CmdCtx, target string, connOpts connector.ConnectOpts,
 	err error,
+) error {
+	return instanceNotRunningErr(cmdCtx, instanceFlags, connectBinary, target, connOpts, err)
+}
+
+// instanceNotRunningErr returns the error of a connection to target that
+// failed with err: if the target is an instance that tt does not run (its
+// pid file, running.Status), found as lookup says, and nothing was there to
+// dial at the address of connOpts, a socket that is missing or a socket or a
+// port that refuses connections, the instance is not running, which is the
+// user's to fix, by starting it. The error says so in one line, without the
+// dial error, which would make it a failure of the system, and names the
+// socket as binary tells: the binary port, or the control socket. Any other
+// error is err itself.
+func instanceNotRunningErr(cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup, binary bool,
+	target string, connOpts connector.ConnectOpts, err error,
 ) error {
 	var opErr *net.OpError
 
@@ -619,7 +643,7 @@ func notRunningErr(cmdCtx *cmdcontext.CmdCtx, target string, connOpts connector.
 	}
 
 	// Only now, as a URI that fits <app>:<instance> may be no instance.
-	instances, resolveErr := resolveInstances(cmdCtx, []string{target})
+	instances, resolveErr := lookupInstances(cmdCtx, lookup, []string{target})
 	if resolveErr != nil || len(instances) != 1 {
 		return err
 	}
@@ -633,7 +657,7 @@ func notRunningErr(cmdCtx *cmdcontext.CmdCtx, target string, connOpts connector.
 	name := running.GetAppInstanceName(instances[0])
 
 	socket := "control socket"
-	if connectBinary {
+	if binary {
 		socket = "binary port"
 	}
 
