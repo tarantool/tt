@@ -4647,7 +4647,10 @@ A project that depends on the rock builds it from the source rock, with its
 manifest, where the server has no rock of the platform. LuaRocks, which knows no
 manifest, builds it by the rockspec: that of a package with no build block
 installs the files of its layout and the _version.lua the rockspec carries, and
-that of a package with one fails, saying which component needs tt.
+that of a package with build blocks runs tt-rock.sh, a script of sh the rockspec
+carries, which runs the builds as tt does. A package with a build that is made
+with tt alone has a rockspec that fails, saying which component or hook needs tt
+and why, and the pack warns of it.
 
 --target OS/ARCH builds the components for another platform than the machine tt
 runs on: linux/amd64, linux/arm64, darwin/amd64 or darwin/arm64, also spelled
