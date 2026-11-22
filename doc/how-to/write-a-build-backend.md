@@ -612,8 +612,10 @@ of the manifest reference has where every `to` is installed.
 A build may implement more interfaces. The core asks for each with a type
 assertion, so a method of another signature would never be called: the
 core refuses a build whose `Preflight`, `Produces`, `Programs`, `Links`,
-`Inputs`, `Clean`, `Vendor` or `Export` is not the method of the interface, or is a method of a pointer while
-`New` returns a value, when it checks the manifest, with exit code 1:
+`Inputs`, `Clean` or `Vendor` is not the method of the interface, or is a
+method of a pointer while `New` returns a value, when it checks the
+manifest, with exit code 1. So it does with `Export` of a backend that says
+`Exports`; one of another backend is a method of its own:
 
 ```text
 ⨯ invalid manifest: components.config.build: invalid build backend "template": Preflight of its build template.templateBuild is func(*build.Context) error, not func(context.Context, *build.Context) error of build.Preflighter: the core would never call it
@@ -991,9 +993,10 @@ func (b templateBuild) Export(*build.ExportContext) (build.Export, error) {
   field from the manifest. Any other error of `Export` fails the pack.
 
 The core refuses a build of a backend that says `Exports` and has no
-`Export`, and an `Export` of a backend that does not say it, as it refuses
-an optional method of another signature: what `Exports` says is what the
-builds do.
+`Export` of `build.Exporter`, or one of another signature, and a
+`build.Exporter` of a backend that does not say it: what `Exports` says is
+what the builds do. A method `Export` of another signature of a backend
+that does not say `Exports` is left alone, as the core never calls it.
 
 The script sees the variables of a build of tt, by the same names and of the
 same meaning, and some of its own:
