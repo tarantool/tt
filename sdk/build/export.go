@@ -19,10 +19,11 @@ import (
 // A backend whose builds are Exporters says so ([Backend.Exports]), and the
 // core refuses a Build of it that is none, and an Exporter of a backend that
 // does not say so ([Backend.ValidateBuild]). It finds an Exporter by a type
-// assertion; a method Export of another signature is refused too, rather
-// than never called. buildtest.CheckExport runs Run and the script on two
-// copies of one project and compares what they made, so that a script that
-// makes something else fails the tests of its backend.
+// assertion; a method Export of another signature of a backend that says so
+// is refused too, rather than never called, and one of a backend that does
+// not is the backend's own. buildtest.CheckExport runs Run and the script on
+// two copies of one project and compares what they made, so that a script
+// that makes something else fails the tests of its backend.
 type Exporter interface {
 	Export(e *ExportContext) (Export, error)
 }

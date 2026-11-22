@@ -539,9 +539,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a `build.Export`, the script of sh that makes what `Run` makes, the tools
   it runs and what it lacks against `Run`; the doc of `build.Export` is the
   contract of the variables the script sees. `build.Backend.ValidateBuild`
-  refuses a build of a backend that says so and is no `Exporter`, and an
-  `Exporter`, or an `Export` of another signature, of a backend that does
-  not. A build whose field has no counterpart in a script fails its
+  refuses a build of a backend that says so and is no `Exporter`, or has an
+  `Export` of another signature, and an `Exporter` of a backend that does
+  not, whose own `Export` of another signature it leaves alone. A build
+  whose field has no counterpart in a script fails its
   `Export` with `build.ErrNoExport` and the `FieldError` of the field,
   `build.NoExportf`, and `build.ShellQuote` quotes a literal as one word of
   sh. `buildtest.CheckExport` and `buildtest.CheckExportHook` run `Run` and

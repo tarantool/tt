@@ -80,9 +80,16 @@ func (exportWithoutContext) Export() (build.Export, error) {
 	return build.Export{Script: "true", Tools: nil, Lost: nil}, nil
 }
 
+// pointerExport is a Build whose Export, of another signature, has a pointer
+// receiver.
+type pointerExport struct{ plainBuild }
+
+func (*pointerExport) Export(string) error { return nil }
+
 // TestValidateBuildExports checks that a Build is an Exporter when its
-// backend says its builds are made without tt, and only then, and that an
-// Export of another signature is refused whatever the backend says.
+// backend says its builds are made without tt, and only then, that an Export
+// of another signature is refused when the backend says so, and that one of
+// a backend that does not, a method of its own, is let through.
 func TestValidateBuildExports(t *testing.T) {
 	t.Parallel()
 
@@ -92,6 +99,11 @@ func TestValidateBuildExports(t *testing.T) {
 	require.NoError(t, exports.ValidateBuild(exportBuild{}))
 	require.NoError(t, exports.ValidateBuild(&exportBuild{}))
 	require.NoError(t, plain.ValidateBuild(plainBuild{}))
+
+	// A backend written before Exports may have a method Export of its own.
+	require.NoError(t, plain.ValidateBuild(exportWithoutContext{}))
+	require.NoError(t, plain.ValidateBuild(&exportWithoutContext{}))
+	require.NoError(t, plain.ValidateBuild(pointerExport{}))
 
 	for _, test := range []struct {
 		name    string
@@ -109,8 +121,12 @@ func TestValidateBuildExports(t *testing.T) {
 		{"an Export of another signature", exports, exportWithoutContext{}, `Export of its ` +
 			`build build_test.exportWithoutContext is func() (build.Export, error), not ` +
 			`func(*build.ExportContext) (build.Export, error) of build.Exporter`},
-		{"an Export of another signature of a backend that does not export", plain,
-			exportWithoutContext{}, `the core would never call it`},
+		{"an Export of a pointer of another signature", exports, pointerExport{}, `Export ` +
+			`of its build is a method of *build_test.pointerExport, but New returns a ` +
+			`build_test.pointerExport: the core would never call it`},
+		{"no Export of a backend that exports, but one of its own", exports,
+			&exportWithoutContext{}, `Export of its build *build_test.exportWithoutContext ` +
+				`is func() (build.Export, error)`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
