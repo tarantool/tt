@@ -66,14 +66,30 @@ type rockBuild struct {
 	ttOnly []string
 	// leftOut are the files the layout takes that the sources of the rock do
 	// not hold, by path in the project, but those the output of a build
-	// lists: build.install leaves them out, and the script lays them out
-	// when a build makes them.
+	// lists: the rockspec leaves them out. Those of a pack that built the
+	// package, of a package built by the script, are unlisted instead.
 	leftOut []string
+	// unlisted are the files the layout of a build of the package took that
+	// the sources do not hold and no output lists, of a package built by the
+	// script whose pack built it, by component: files a build made, which
+	// the rockspec leaves out, as LuaRocks does not know them.
+	unlisted []unlistedFiles
 	// scripted is set for a package built by the script, tt-rock.sh.
 	scripted bool
 	// lost are what the builds of the script lack against those of tt, a
 	// sentence each, prefixed with what each builds.
 	lost []string
+}
+
+// unlistedFiles are the files of rockBuild.unlisted of a component.
+type unlistedFiles struct {
+	// component is the name of the component whose layout took them.
+	component string
+	// ofBuild is set for a component with a build block, whose output may
+	// list them.
+	ofBuild bool
+	// files are their paths in the project.
+	files []string
 }
 
 // rockSources are the sources of the rock of a package, and how they are
@@ -87,6 +103,11 @@ type rockSources struct {
 	carried []string
 	// backends are the backends of the build of the package.
 	backends *buildreg.Registry
+	// built is set when the pack built the package, so that the layout of
+	// the build of the result is that of what the builds made; a pack of the
+	// source rock alone builds nothing, and its layout is of the files of
+	// the project as they are.
+	built bool
 }
 
 // releaseBuild plans how LuaRocks builds rel, the rock built is released as,
@@ -142,7 +163,7 @@ func releaseBuild(built *build.Result, rel rocktree.Release, sources rockSources
 
 	plan := rockBuild{
 		build:  rocktree.ReleaseBuild{Install: nil, ExtraFiles: nil, Script: "", TtOnly: ""},
-		ttOnly: nil, leftOut: nil, scripted: false, lost: nil,
+		ttOnly: nil, leftOut: nil, unlisted: nil, scripted: false, lost: nil,
 	}
 
 	inSources := sources.holds()
@@ -181,7 +202,7 @@ func ttOnlyBuild(rel rocktree.Release, reasons []string) rockBuild {
 				"depend on it in app.manifest.toml of a project tt 3 builds.", rel.Name,
 				rel.Version, strings.Join(reasons, "; ")),
 		},
-		ttOnly: reasons, leftOut: nil, scripted: false, lost: nil,
+		ttOnly: reasons, leftOut: nil, unlisted: nil, scripted: false, lost: nil,
 	}
 }
 
@@ -241,22 +262,26 @@ func (sources rockSources) holds() map[string]bool {
 //
 // The layout of tt runs after the builds of the components, and takes the
 // files of the components that are there then: those of the sources, and
-// those a build made - the layout of the files the output of a build lists
-// is planned whether the project has them or not (build.LayoutOf). Each file
-// it takes is put in the rock once. build.install installs one the sources
-// hold, at a path it can say (rocktree.CheckInstallDest), unless a file of
-// the output of a build goes there too, which the layout writes over in tt:
-// such a file, and one of another path, is laid out by the script after the
-// builds. So is a file the sources do not hold, when a build made it - one
-// the default include takes of what a make target left in the directory of
-// its component; a file of the layout that is a file of the output of a
-// build, copied where the script copies the output, is left to that copy.
+// those a build made. The rockspec is the same whatever the project holds
+// when it is packed - a clean clone, or a tree a build left its files in -
+// so it lays out the files of the sources and those the output of a build
+// lists, whose layout is planned whether the project has them or not
+// (build.LayoutOf), and no other (scriptLayout). Each file is put in the
+// rock once. build.install installs one the sources hold, at a path it can
+// say (rocktree.CheckInstallDest), unless a file of the output of a build
+// goes there too, which the layout writes over in tt: such a file, one of
+// another path, and a file of the output the layout takes, is laid out by
+// the script after the builds; a file of the layout that is a file of the
+// output, copied where the script copies the output, is left to that copy.
+// A file of the layout of a build that is neither - one a make target left
+// in the directory of its component, which the default include takes - is
+// left out, and the pack warns of it (rockBuild.unlisted).
 func scriptedBuild(built *build.Result, sources rockSources, script rockscript.Script) rockBuild {
 	plan := rockBuild{
 		build: rocktree.ReleaseBuild{
 			Install: nil, ExtraFiles: nil, Script: rockScriptFile, TtOnly: "",
 		},
-		ttOnly: nil, leftOut: nil, scripted: true, lost: nil,
+		ttOnly: nil, leftOut: nil, unlisted: nil, scripted: true, lost: nil,
 	}
 
 	inSources := sources.holds()
@@ -283,14 +308,7 @@ func scriptedBuild(built *build.Result, sources rockSources, script rockscript.S
 		}
 	}
 
-	layout := slices.Clone(built.Layout)
-
-	for _, file := range build.LayoutOf(sources.dir, built.Manifest, built.Product,
-		sources.backends, madeFiles) {
-		if !slices.Contains(layout, file) {
-			layout = append(layout, file)
-		}
-	}
+	layout, left := scriptLayout(built, sources, madeFiles, inSources, made)
 
 	for _, file := range lastLaidOut(layout) {
 		source, toOutput := outputs[file.Dest]
@@ -303,10 +321,24 @@ func scriptedBuild(built *build.Result, sources rockSources, script rockscript.S
 				rocktree.ReleaseFile{Source: file.Source, Dest: file.Dest})
 		default:
 			script.Lay = append(script.Lay, rockscript.Lay{Source: file.Source, Dest: file.Dest})
+		}
+	}
 
-			if !inSources[file.Source] && !made[file.Source] {
-				plan.leftOut = append(plan.leftOut, file.Source)
-			}
+	for _, file := range left {
+		switch {
+		case !sources.built:
+			plan.leftOut = append(plan.leftOut, file.Source)
+		case len(plan.unlisted) > 0 && plan.unlisted[len(plan.unlisted)-1].component ==
+			file.Component:
+			last := len(plan.unlisted) - 1
+
+			plan.unlisted[last].files = append(plan.unlisted[last].files, file.Source)
+		default:
+			plan.unlisted = append(plan.unlisted, unlistedFiles{
+				component: file.Component,
+				ofBuild:   built.Manifest.Components[file.Component].Build != nil,
+				files:     []string{file.Source},
+			})
 		}
 	}
 
@@ -325,6 +357,44 @@ func scriptedBuild(built *build.Result, sources rockSources, script rockscript.S
 	}
 
 	return plan
+}
+
+// scriptLayout returns the layout the rockspec of built, a package built by
+// its script, lays out, and the files of the layout of built it leaves out.
+// The first are, by component in the order of the product, the files of
+// the layout of built the sources hold (inSources), in the order of its
+// walk, and those of madeFiles, the files of the output of the builds
+// (made), the layout would take, whether the project has them or not
+// (build.LayoutOf): the same whatever else the project holds. The second
+// are the files of the layout of built that are neither, in the order of
+// the components and of the walk.
+func scriptLayout(
+	built *build.Result, sources rockSources, madeFiles []string, inSources, made map[string]bool,
+) ([]build.LaidOut, []build.LaidOut) {
+	planned := build.LayoutOf(sources.dir, built.Manifest, built.Product, sources.backends,
+		madeFiles)
+
+	var layout, left []build.LaidOut
+
+	for _, name := range built.Manifest.EffectiveProducts()[built.Product].Components {
+		for _, file := range built.Layout {
+			switch {
+			case file.Component != name:
+			case inSources[file.Source]:
+				layout = append(layout, file)
+			case !made[file.Source]:
+				left = append(left, file)
+			}
+		}
+
+		for _, file := range planned {
+			if file.Component == name && !slices.Contains(layout, file) {
+				layout = append(layout, file)
+			}
+		}
+	}
+
+	return layout, left
 }
 
 // scriptSteps are the builds of script in the order it runs them.
@@ -365,10 +435,11 @@ func outputStageDest(namespace string, file sdkbuild.OutputFile) string {
 }
 
 // warnings are the warnings of a pack of the source rock of plan: that it
-// builds with tt only, what its script lacks against a build of tt, and the
+// builds with tt only, what its script lacks against a build of tt, the
 // files its layout takes that it leaves out but those untracked lists, the
 // files git neither tracks nor ignores, which untrackedWarning warns of
-// already.
+// already, and one for each component whose build made files its layout
+// took that the rockspec leaves out (rockBuild.unlisted).
 func (plan rockBuild) warnings(untracked []string) []string {
 	var warnings []string
 
@@ -394,13 +465,31 @@ func (plan rockBuild) warnings(untracked []string) []string {
 
 	lacks := "a build of the source rock, by tt or by LuaRocks, lacks them"
 	if plan.scripted {
-		lacks += " unless a build of the package makes them"
+		lacks += " unless a build of the package makes them, and one by LuaRocks unless " +
+			"the output of that build lists them"
 	}
 
 	if len(ignored) > 0 {
 		warnings = append(warnings, fmt.Sprintf("the source rock leaves out the files of the "+
 			"layout that git ignores, or that are out of the project: %s; %s, so commit "+
 			"them, or leave them out of the layout", fileList(ignored), lacks))
+	}
+
+	for _, unlisted := range plan.unlisted {
+		them := "them"
+		if len(unlisted.files) == 1 {
+			them = "it"
+		}
+
+		output := "the output of the build that makes " + them
+		if unlisted.ofBuild {
+			output = fmt.Sprintf("the output of [components.%s.build]", unlisted.component)
+		}
+
+		warnings = append(warnings, fmt.Sprintf("the layout of the component %q took %s, "+
+			"which git does not track and no output lists: the rockspec leaves %s out, and a "+
+			"build of the source rock by LuaRocks does not have %s unless %s lists %s",
+			unlisted.component, fileList(unlisted.files), them, them, output, them))
 	}
 
 	return warnings

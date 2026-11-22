@@ -177,14 +177,23 @@ func TestReleaseBuildOfANulByte(t *testing.T) {
 // TestScriptedBuildLaysOutOnce: each file the layout of tt takes is put in
 // the rock once - by build.install when the sources hold it, the script
 // lays it out otherwise - and a file of the layout that is a file of the
-// output, copied there by the script already, is left to that copy.
+// output, copied there by the script already, is left to that copy. A file
+// of the layout of the build that the sources do not hold and no output
+// lists is left out: the pack warns of it, as of a file git ignores when it
+// built nothing, and naming the output to list it in when it built the
+// package.
 func TestScriptedBuildLaysOutOnce(t *testing.T) {
 	t.Parallel()
 
 	//nolint:exhaustruct // The layout alone matters.
 	built := &build.Result{
-		Manifest: &manifest.Manifest{Package: manifest.Package{Name: "demo"}},
-		Product:  manifest.ImplicitProduct,
+		Manifest: &manifest.Manifest{
+			Package: manifest.Package{Name: "demo"},
+			Components: map[string]manifest.Component{"native": {
+				Path: "native", Build: &manifest.Build{Backend: "shell"},
+			}},
+		},
+		Product: manifest.ImplicitProduct,
 		Layout: []build.LaidOut{
 			{Component: "native", Source: "native/fast.so", Dest: "lib/demo/fast.so"},
 			{Component: "native", Source: "prebuilt/x.so", Dest: "lib/demo/x.so"},
@@ -207,10 +216,12 @@ func TestScriptedBuildLaysOutOnce(t *testing.T) {
 		}},
 	}
 
-	plan := scriptedBuild(built, rockSources{
+	sources := rockSources{
 		dir: t.TempDir(), carried: []string{"prebuilt/x.so", "prebuilt/y.so", "native/v1.2/w.lua"},
-		backends: buildregtest.Registry(),
-	}, script)
+		backends: buildregtest.Registry(), built: false,
+	}
+
+	plan := scriptedBuild(built, sources, script)
 
 	assert.Equal(t, []rocktree.ReleaseFile{{Source: "prebuilt/x.so", Dest: "lib/demo/x.so"}},
 		plan.build.Install)
@@ -219,14 +230,28 @@ func TestScriptedBuildLaysOutOnce(t *testing.T) {
 	assert.Equal(t, []string{"the source rock leaves out the files of the layout that git " +
 		"ignores, or that are out of the project: native/gen.lua; a build of the source " +
 		"rock, by tt or by LuaRocks, lacks them unless a build of the package makes them, " +
-		"so commit them, or leave them out of the layout"}, plan.warnings(nil))
+		"and one by LuaRocks unless the output of that build lists them, so commit them, or " +
+		"leave them out of the layout"}, plan.warnings(nil))
 
+	// The files of the output the layout takes, whether the project has them
+	// or not, and no file a build made but those.
 	rendered := plan.build.ExtraFiles[rockScriptFile]
 	assert.Contains(t, rendered, "\ttt_lay prebuilt/y.so lib/demo/y.so\n"+
-		"\ttt_lay native/gen.lua lua/demo/gen.lua\n"+
-		"\ttt_lay native/out/z.so lib/demo/out/z.so\n"+
-		"\ttt_lay native/v1.2/w.lua lua/demo/v1.2/w.lua\n}\n")
+		"\ttt_lay native/v1.2/w.lua lua/demo/v1.2/w.lua\n"+
+		"\ttt_lay native/out/y.so lib/demo/out/y.so\n"+
+		"\ttt_lay native/out/z.so lib/demo/out/z.so\n}\n")
 	assert.NotContains(t, rendered, "tt_lay native/fast.so")
+	assert.NotContains(t, rendered, "gen.lua")
+
+	sources.built = true
+
+	again := scriptedBuild(built, sources, script)
+	assert.Equal(t, plan.build, again.build, "the rockspec is the same")
+	assert.Empty(t, again.leftOut)
+	assert.Equal(t, []string{`the layout of the component "native" took native/gen.lua, ` +
+		`which git does not track and no output lists: the rockspec leaves it out, and a ` +
+		`build of the source rock by LuaRocks does not have it unless the output of ` +
+		`[components.native.build] lists it`}, again.warnings(nil))
 }
 
 // TestLockedVersions: a build is told the version of the closure of the

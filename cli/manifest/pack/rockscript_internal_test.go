@@ -283,6 +283,89 @@ func TestSrcRockOfBuildsBuildsWithLuaRocks(t *testing.T) {
 	}
 }
 
+// TestScriptedRockspecIsOfTheSources: the rockspec of a package built by its
+// script is the same packed of a clone that was never built and of a tree a
+// build left a file in that the layout takes and no output lists -
+// gen/made.lua of a make target, which git ignores: the rockspec leaves the
+// file out, as LuaRocks has no way to know it. The pack that built the
+// package warns of the file once, naming the output it is to be listed in,
+// and one of the source rock alone of the tree warns of it as of a file git
+// ignores.
+func TestScriptedRockspecIsOfTheSources(t *testing.T) {
+	t.Parallel()
+
+	_, err := exec.LookPath("make")
+	if err != nil {
+		t.Skip("no make")
+	}
+
+	src := writePurePackage(t, map[string]string{
+		manifestFileName: fmt.Sprintf(pureManifest, "git+file://") + `
+[components.gen]
+path = 'gen'
+
+[components.gen.build]
+backend = 'make'
+make_target = 'all'
+`,
+		".gitignore": pureGitignore + "/gen/made.lua\n/gen/also.lua\n",
+		"gen/Makefile": "all:\n\tprintf 'return 1\\n' > made.lua\n" +
+			"\tprintf 'return 2\\n' > also.lua\n",
+	})
+
+	clone := filepath.Join(t.TempDir(), "clone")
+	git(t, src, "clone", "-q", src, clone)
+
+	fresh, err := Run(context.Background(),
+		packOptions(clone, filepath.Join(t.TempDir(), "out"), FormatRockSrc))
+	require.NoError(t, err)
+
+	var warnings []string
+
+	opts := packOptions(src, filepath.Join(t.TempDir(), "out"), FormatRock, FormatRockSrc)
+
+	opts.Warn = func(msg string) { warnings = append(warnings, msg) }
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	entries := zipEntries(t, result.Rock)
+	require.Contains(t, entries, "lua/puredemo/made.lua", "the binary rock has what tt laid out")
+
+	want, err := os.ReadFile(fresh.Rockspec)
+	require.NoError(t, err)
+
+	got, err := os.ReadFile(result.Rockspec)
+	require.NoError(t, err)
+	assert.Equal(t, string(want), string(got))
+	assert.NotContains(t, buildTable(t, result.Rockspec), "made.lua")
+
+	const unlisted = `the layout of the component "gen" took gen/also.lua, gen/made.lua, ` +
+		`which git does not track and no output lists: the rockspec leaves them out, and a ` +
+		`build of the source rock by LuaRocks does not have them unless the output of ` +
+		`[components.gen.build] lists them`
+
+	assert.Equal(t, []string{unlisted}, warnings)
+
+	warnings = nil
+
+	opts = packOptions(src, filepath.Join(t.TempDir(), "out"), FormatRockSrc)
+
+	opts.Warn = func(msg string) { warnings = append(warnings, msg) }
+
+	again, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	got, err = os.ReadFile(again.Rockspec)
+	require.NoError(t, err)
+	assert.Equal(t, string(want), string(got))
+	assert.Equal(t, []string{"the source rock leaves out the files of the layout that git " +
+		"ignores, or that are out of the project: gen/also.lua, gen/made.lua; a build of the " +
+		"source rock, by tt or by LuaRocks, lacks them unless a build of the package makes " +
+		"them, and one by LuaRocks unless the output of that build lists them, so commit " +
+		"them, or leave them out of the layout"}, warnings)
+}
+
 // TestSrcRockOfBuildsBuildsWithTt: tt builds the source rock of a package
 // of builds from its manifest, not by the script of its rockspec, as it does
 // any source rock it packed: it runs no hook of it, as the script does.
