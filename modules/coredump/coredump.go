@@ -134,8 +134,9 @@ func newInspectCmd(services sdk.Services) *cobra.Command {
 		Use:   "inspect {ARCHIVE|DIRECTORY}",
 		Short: "inspect tarantool coredump",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			return coredump.Inspect(services.Streams().IO(), args[0], sourceDir)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return coredump.Inspect(cmd.Context(), services.Streams().IO(), services.Log(),
+				args[0], sourceDir)
 		},
 	}
 

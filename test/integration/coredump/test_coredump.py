@@ -350,21 +350,44 @@ def gdb_env(env=None):
     return env
 
 
-def inspect(tt_cmd, cwd, target, commands, *args, env=None):
-    """The exit code and the output, stdout and stderr, of tt coredump
-    inspect of target given the gdb commands on its standard input, in env
+def offline_env(tmp_path):
+    """The environment of a tt that cannot reach GitHub, where inspect looks
+    up the gdb extensions of the version of a core: every request goes to a
+    proxy that refuses the connection. The cache of the user, which may
+    hold them, is replaced with an empty one. gdb runs with its own Python
     (gdb_env)."""
-    env = gdb_env(env)
+    env = gdb_env()
+    for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        env[name] = "http://127.0.0.1:9"
+    for name in ("NO_PROXY", "no_proxy"):
+        env.pop(name, None)
+    env["XDG_CACHE_HOME"] = (tmp_path / "cache").as_posix()
+    return env
+
+
+def inspect(tt_cmd, tmp_path, target, commands, *args):
+    """The exit code and the output, stdout and stderr, of tt coredump
+    inspect of target given the gdb commands on its standard input, with no
+    GitHub (offline_env)."""
     process = subprocess.run(
         [tt_cmd, "coredump", "inspect", target, *args],
-        cwd=cwd,
+        cwd=tmp_path,
         input="".join(command + "\n" for command in [*commands, "q"]),
         capture_output=True,
         text=True,
-        env=env,
+        env=offline_env(tmp_path),
     )
     print(process.stdout, process.stderr)
     return process.returncode, process.stdout + process.stderr
+
+
+def fallback_warning(name):
+    """The pattern of the warning of inspect that loads the copy of tt of
+    the extension name, GitHub out of reach."""
+    return (
+        rf"cannot get the {re.escape(name)} of Tarantool [^:]+: cannot reach GitHub: [^;]+; "
+        r"using the one of tt, of [^,]+, which may not match"
+    )
 
 
 # The gdb commands that tell the extensions are loaded: help of a command of
@@ -382,19 +405,55 @@ def check_extensions(output):
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
-    if not has_debug_info(shutil.which("tarantool")):
-        pytest.skip("the tarantool has no debugging information")
-
+    """With no sources and no GitHub inspect loads the extensions of tt, and
+    warns that they may not match the core."""
     rc, output = inspect(tt_cmd, tmp_path, coredump_packed, EXTENSION_COMMANDS)
     assert rc == 0, output
+    assert re.search(fallback_warning("luajit_dbg.py"), output), output
+    assert re.search(fallback_warning("tarantool-gdb.py"), output), output
+
+    if not has_debug_info(shutil.which("tarantool")):
+        pytest.skip("the tarantool has no debugging information")
     check_extensions(output)
 
 
+# The lines each extension of the fake sources starts with, which gdb prints
+# when it sources the extension, before what may fail to load without the
+# debugging information of the tarantool.
+SOURCES_MARK = "import gdb as tt_test_gdb\ntt_test_gdb.write('tt-test: {} of the sources\\n')\n"
+
+
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
-def test_coredump_inspect_unpacked(tt_cmd, tmp_path, coredump_unpacked):
+def test_coredump_inspect_sourcedir(tt_cmd, tmp_path, coredump_unpacked):
+    """inspect -s loads the extensions of the sources: luajit_dbg.py of the
+    LuaJIT submodule and tools/tarantool-gdb.py, here the copies of tt with
+    a mark, and asks GitHub nothing."""
+    sources = tmp_path / "tarantool"
+    luajit = sources / "third_party" / "luajit" / "src"
+    tools = sources / "tools"
+    luajit.mkdir(parents=True)
+    tools.mkdir()
+    for directory, name in ((luajit, "luajit_dbg.py"), (tools, "tarantool-gdb.py")):
+        content = (EXTENSIONS_DIR / name).read_text()
+        (directory / name).write_text(SOURCES_MARK.format(name) + content)
+    # An older LuaJIT extension the newer one is preferred to.
+    (luajit / "luajit-gdb.py").write_text("raise Exception('luajit-gdb.py is loaded')\n")
+
+    rc, output = inspect(
+        tt_cmd,
+        tmp_path,
+        coredump_unpacked,
+        EXTENSION_COMMANDS,
+        "-s",
+        sources.as_posix(),
+    )
+    assert rc == 0, output
+    assert "tt-test: luajit_dbg.py of the sources" in output
+    assert "tt-test: tarantool-gdb.py of the sources" in output
+    assert "luajit-gdb.py is loaded" not in output
+    assert "on GitHub" not in output
+    assert "cannot get the" not in output
+
     if not has_debug_info(shutil.which("tarantool")):
         pytest.skip("the tarantool has no debugging information")
-
-    rc, output = inspect(tt_cmd, tmp_path, coredump_unpacked, EXTENSION_COMMANDS)
-    assert rc == 0, output
     check_extensions(output)

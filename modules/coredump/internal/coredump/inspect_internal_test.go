@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,12 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk/execfile"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/sdk/output"
 )
 
 // fakeGDB is a gdb that answers the question of gdb.sh about the line of
 // main as a gdb on a tarantool with debugging information does, and
-// otherwise prints its arguments, one per line, after a line "gdb".
+// otherwise prints its arguments, one per line, after a line "gdb", and
+// the first line of each file it sources after "content: ".
 const fakeGDB = `#!/bin/sh
 if [ "$1" = -batch ]; then
 	echo 'Line 747 of "/build/tarantool/src/main.cc" starts at address 0x1 <main>.'
@@ -30,6 +33,9 @@ fi
 echo gdb
 for arg in "$@"; do
 	echo "$arg"
+	case "$arg" in
+		"source "*) echo "content: $(head -n 1 "${arg#source }")";;
+	esac
 done
 `
 
@@ -97,27 +103,43 @@ func writeArtefactsArchive(t *testing.T, dir string) string {
 	return path
 }
 
-// inspect runs Inspect and returns what it printed to stdout.
-func inspect(t *testing.T, archiveOrDir, sourceDir string) string {
+// runInspect runs inspect with the extensions of the fake GitHub, which has
+// those of the version of artefacts, and returns what it printed to stdout
+// and the recorder of its log.
+func runInspect(t *testing.T, archiveOrDir, sourceDir string) (string, *logtest.Recorder) {
 	t.Helper()
+
+	_, server := newFakeGitHub(t)
+	res, recorder := testResolver(t, server, t.TempDir())
 
 	var stdout, stderr bytes.Buffer
 
-	err := Inspect(output.Streams{In: strings.NewReader(""), Out: &stdout, Err: &stderr},
-		archiveOrDir, sourceDir)
+	err := inspect(t.Context(), output.Streams{
+		In: strings.NewReader(""), Out: &stdout, Err: &stderr,
+	}, res, archiveOrDir, sourceDir)
 	require.NoError(t, err, stdout.String()+stderr.String())
 
-	return stdout.String()
+	return stdout.String(), recorder
 }
 
-// sourced returns the files the gdb command line of out sources.
-func sourced(out string) []string {
-	var files []string
+// sourced returns the files the gdb command line of out sources, and the
+// first line of each.
+func sourced(out string) map[string]string {
+	files := map[string]string{}
+	file := ""
 
 	for line := range strings.Lines(out) {
-		file, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), "source ")
+		line = strings.TrimSuffix(line, "\n")
+
+		path, ok := strings.CutPrefix(line, "source ")
 		if ok {
-			files = append(files, filepath.Base(file))
+			file = filepath.Base(path)
+			files[file] = ""
+		}
+
+		content, ok := strings.CutPrefix(line, "content: ")
+		if ok && file != "" {
+			files[file] = content
 		}
 	}
 
@@ -142,8 +164,8 @@ func TestInspectArgs(t *testing.T) {
 
 // TestInspectDirectory checks that inspect of an unpacked archive runs the
 // wrapper of tt rather than the archive's, on the artefacts of the
-// directory, and that the wrapper sources the extensions of tt once the
-// core is loaded, gdb.printing imported first.
+// directory, and that the wrapper sources the extensions of the version of
+// the core once the core is loaded, gdb.printing imported first.
 //
 //nolint:paralleltest // Sets PATH.
 func TestInspectDirectory(t *testing.T) {
@@ -152,21 +174,16 @@ func TestInspectDirectory(t *testing.T) {
 	dir := t.TempDir()
 	writeArtefacts(t, dir)
 
-	out := inspect(t, dir, "")
+	out, recorder := runInspect(t, dir, "")
 	assert.NotContains(t, out, "the gdb.sh of the archive")
 	assert.Contains(t, out, "gdb\n"+filepath.Join(dir, "tarantool")+"\n")
 	assert.Contains(t, out, "-ex\nset sysroot "+dir+"\n")
 	assert.Contains(t, out, "-ex\ncore "+filepath.Join(dir, "coredump")+"\n")
-
-	embedded, err := extensions.ReadDir(extensionsDir)
-	require.NoError(t, err)
-
-	names := make([]string, 0, len(embedded))
-	for _, entry := range embedded {
-		names = append(names, entry.Name())
-	}
-
-	assert.Equal(t, names, sourced(out))
+	assert.Equal(t, map[string]string{
+		luajitDbgName:    "luajit_dbg.py of " + luajitNew,
+		tarantoolGDBName: "tarantool-gdb.py of 8b9a0f59a95b",
+	}, sourced(out))
+	assert.Empty(t, warnings(recorder))
 
 	core := strings.Index(out, "core "+filepath.Join(dir, "coredump"))
 	printing := strings.Index(out, "python import gdb.printing")
@@ -180,10 +197,18 @@ func TestInspectDirectory(t *testing.T) {
 	assert.Contains(t, out, "set substitute-path /build/tarantool "+
 		filepath.Join(dir, "sources")+"\n")
 
-	sources := t.TempDir()
+	// The extensions of the sources come first.
+	sources := writeSources(t, map[string]string{
+		"third_party/luajit/src/luajit_dbg.py": "luajit_dbg.py of the sources",
+		"tools/tarantool-gdb.py":               "tarantool-gdb.py of the sources",
+	})
 
-	out = inspect(t, dir, sources)
+	out, _ = runInspect(t, dir, sources)
 	assert.Contains(t, out, "set substitute-path /build/tarantool "+sources+"\n")
+	assert.Equal(t, map[string]string{
+		luajitDbgName:    "luajit_dbg.py of the sources",
+		tarantoolGDBName: "tarantool-gdb.py of the sources",
+	}, sourced(out))
 }
 
 // TestInspectArchive checks that inspect of an archive does the same on
@@ -195,11 +220,48 @@ func TestInspectArchive(t *testing.T) {
 
 	archive := writeArtefactsArchive(t, t.TempDir())
 
-	out := inspect(t, archive, "")
+	out, _ := runInspect(t, archive, "")
 	assert.NotContains(t, out, "the gdb.sh of the archive")
 	assert.Regexp(t, `\n-ex\ncore /.*/tarantool-core-N-202611230344-host/coredump\n`, out)
-	assert.NotContains(t, sourced(out), "old-gdb.py")
-	assert.NotEmpty(t, sourced(out))
+	assert.Equal(t, map[string]string{
+		luajitDbgName:    "luajit_dbg.py of " + luajitNew,
+		tarantoolGDBName: "tarantool-gdb.py of 8b9a0f59a95b",
+	}, sourced(out))
+}
+
+// TestInspectOffline checks that inspect with no GitHub loads the copies
+// of the extensions tt embeds, and warns.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectOffline(t *testing.T) {
+	withFakeGDB(t)
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+
+	github, server := newFakeGitHub(t)
+	github.fail(http.StatusBadGateway)
+
+	res, recorder := testResolver(t, server, t.TempDir())
+
+	var stdout bytes.Buffer
+
+	err := inspect(t.Context(), output.Streams{
+		In: strings.NewReader(""), Out: &stdout, Err: &stdout,
+	}, res, dir, "")
+	require.NoError(t, err, stdout.String())
+
+	firstLine := func(name string) string {
+		line, _, _ := strings.Cut(embeddedContent(t, name), "\n")
+
+		return line
+	}
+
+	assert.Equal(t, map[string]string{
+		luajitDbgName:    firstLine(luajitDbgName),
+		tarantoolGDBName: firstLine(tarantoolGDBName),
+	}, sourced(stdout.String()))
+	assert.Len(t, warnings(recorder), 2)
 }
 
 // TestWrapperSourcesTheArchiveExtensions checks that the gdb.sh of an
@@ -228,10 +290,16 @@ func TestWrapperSourcesTheArchiveExtensions(t *testing.T) {
 func TestWrapperWithoutVersion(t *testing.T) {
 	withFakeGDB(t)
 
+	github, server := newFakeGitHub(t)
+	res, recorder := testResolver(t, server, t.TempDir())
+
 	var stdout bytes.Buffer
 
-	err := Inspect(output.Streams{In: strings.NewReader(""), Out: &stdout, Err: &stdout},
-		t.TempDir(), "")
+	err := inspect(t.Context(), output.Streams{
+		In: strings.NewReader(""), Out: &stdout, Err: &stdout,
+	}, res, t.TempDir(), "")
 	require.ErrorContains(t, err, "inspect script execution failed")
 	assert.Contains(t, stdout.String(), "version file is missing")
+	assert.Empty(t, github.Requests())
+	assert.Empty(t, warnings(recorder))
 }
