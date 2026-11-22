@@ -1017,7 +1017,11 @@ same meaning, and some of its own:
 
 The `env` of the block is there too, and the variables above win over it, as
 those of tt do. Under `set -u` a script reads a variable that may be unset
-as `"${CXX-}"`.
+as `"${CXX-}"`. A variable the script keeps a value of its own in is named
+`tt_<backend>_<name>`: `tt-rock.sh` keeps its own in variables of `tt_`, and
+a package whose `env` sets one of `tt_` or `cc_`, or a variable that
+changes how sh runs the script, such as `IFS` or `CDPATH`, builds with tt
+alone.
 
 `buildtest.CheckExport` checks that the script makes what `Run` makes: it
 runs the build on two harnesses of one project, `Run` on one and the script

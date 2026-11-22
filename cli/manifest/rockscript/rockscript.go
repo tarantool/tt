@@ -116,21 +116,61 @@ var (
 	// ErrEnv reports a variable of the env of a build block the script
 	// cannot set (CheckEnv).
 	ErrEnv = errors.New("the variable has no name of sh")
+	// ErrEnvOwn reports a variable of the env of a build block that the
+	// script, or the script of an export, keeps a value of its own in
+	// (CheckEnv).
+	ErrEnvOwn = errors.New("the script that builds the package without tt keeps a value " +
+		"of its own in the variable")
+	// ErrEnvShell reports a variable of the env of a build block that
+	// changes how sh runs the script (CheckEnv).
+	ErrEnvShell = errors.New("the variable changes how sh runs the script that builds the " +
+		"package without tt")
 	// ErrNUL reports a value of a build the script would hold with a NUL
 	// byte in it (CheckEnv, CheckStep): no string of sh holds one.
 	ErrNUL = errors.New("holds a NUL byte, which no script of sh holds")
 )
 
+// ownPrefixes begin the names of the variables the script keeps values of
+// its own in: tt_ those of the script and of the exports of cmake, go,
+// cargo and zig, tt_<backend>_, cc_ those of the exports of c and lua-c.
+// The variables of a build of tt, TT_*, are not among them: the script
+// sets them for each build over the env of its block, as tt does.
+//
+//nolint:gochecknoglobals // A constant list.
+var ownPrefixes = []string{"tt_", "cc_"}
+
+// shellVariables are the variables that change how sh runs the script, or
+// that sh sets itself: IFS splits the words of the variables of flags,
+// CDPATH and PWD change cd, ENV, PS1, PS2 and PS4 are read by an
+// interactive sh or set -x, OPTIND and OPTARG by getopts; LINENO, PPID and
+// OLDPWD are sh's own, and SHELLOPTS, BASHOPTS and BASH_ENV those of a sh
+// that is bash, which refuses some of them.
+//
+//nolint:gochecknoglobals // A constant list.
+var shellVariables = []string{
+	"IFS", "CDPATH", "PWD", "OLDPWD", "ENV", "PS1", "PS2", "PS4", "OPTIND", "OPTARG",
+	"LINENO", "PPID", "SHELLOPTS", "BASHOPTS", "BASH_ENV",
+}
+
 // CheckEnv reports a variable of env, the env of a build block, that the
 // script cannot set: one whose name is no name of a variable of POSIX sh,
-// wrapping ErrEnv, or whose value holds a NUL byte, wrapping ErrNUL.
+// wrapping ErrEnv, one that the script keeps a value of its own in, of a
+// name beginning with tt_ or cc_, wrapping ErrEnvOwn, one that changes how
+// sh runs it, IFS say, wrapping ErrEnvShell, or one whose value holds a NUL
+// byte, wrapping ErrNUL. PATH and the variables of the tools, CC and CFLAGS
+// among them, are set, as in tt.
 func CheckEnv(env map[string]string) error {
 	for _, key := range slices.Sorted(maps.Keys(env)) {
-		if !nameRe.MatchString(key) {
+		switch {
+		case !nameRe.MatchString(key):
 			return fmt.Errorf("%w: %q", ErrEnv, key)
-		}
-
-		if strings.Contains(env[key], "\x00") {
+		case slices.ContainsFunc(ownPrefixes, func(prefix string) bool {
+			return strings.HasPrefix(key, prefix)
+		}):
+			return fmt.Errorf("%w: %s", ErrEnvOwn, key)
+		case slices.Contains(shellVariables, key):
+			return fmt.Errorf("%w: %s", ErrEnvShell, key)
+		case strings.Contains(env[key], "\x00"):
 			return fmt.Errorf("the value of %s %w", key, ErrNUL)
 		}
 	}
