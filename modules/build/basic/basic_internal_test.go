@@ -53,13 +53,26 @@ func TestExport(t *testing.T) {
 			"shell", shellBuild{config: ShellConfig{
 				Command: "sh", Args: []string{"-c", "echo $(date) > out\necho done", ""},
 			}},
-			"sh -c 'echo $(date) > out\necho done' ''", []string{"sh"},
+			"env -- sh -c 'echo $(date) > out\necho done' ''", []string{"sh"},
 		},
 		{
 			"shell of a path", shellBuild{config: ShellConfig{
 				Command: "./build.sh", Args: nil,
 			}},
-			"./build.sh", nil,
+			"env -- ./build.sh", nil,
+		},
+		{
+			// A word sh reads itself is the program of the name, as for Run.
+			"shell of a reserved word", shellBuild{config: ShellConfig{
+				Command: "if", Args: []string{"x"},
+			}},
+			"env -- if x", []string{"if"},
+		},
+		{
+			"shell of a function of the script", shellBuild{config: ShellConfig{
+				Command: "tt_output", Args: nil,
+			}},
+			"env -- tt_output", []string{"tt_output"},
 		},
 	} {
 		exporter, ok := test.bld.(build.Exporter)
@@ -72,6 +85,25 @@ func TestExport(t *testing.T) {
 		assert.Equal(t, test.tools, export.Tools, test.name)
 		assert.Empty(t, export.Lost, test.name)
 	}
+}
+
+// TestExportOfACommandOfAnAssignment: a command of shell with a = is made
+// with tt alone, as env, which the script runs the command by, would take
+// it for a variable to set.
+func TestExportOfACommandOfAnAssignment(t *testing.T) {
+	t.Parallel()
+
+	//nolint:exhaustruct // shell reads nothing of the context.
+	_, err := shellBuild{config: ShellConfig{Command: "A=1", Args: []string{"x"}}}.Export(
+		&build.ExportContext{})
+	require.ErrorIs(t, err, build.ErrNoExport)
+
+	var fieldErr *build.FieldError
+
+	require.ErrorAs(t, err, &fieldErr)
+	assert.Equal(t, "command", fieldErr.Field)
+	assert.Equal(t, `"A=1" has a =, and the script runs the command by env, as Run execs it, `+
+		`which takes a word with a = for a variable to set`, fieldErr.Msg)
 }
 
 // TestOutputNames pins the programs a make or shell build names: the files

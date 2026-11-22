@@ -8,9 +8,9 @@
 // writes what else it makes into TT_OUTPUT_DIR itself.
 //
 // Either is built without tt too (build.Backend.Exports): the script of its
-// export runs the command Run runs, with the variables a build of tt has,
-// so the source rock of a package of make and shell builds under LuaRocks
-// as under tt.
+// export runs the command Run runs, with the variables a build of tt has -
+// that of shell by env, which execs it as Run does - so the source rock of a
+// package of make and shell builds under LuaRocks as under tt.
 //
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
@@ -207,16 +207,27 @@ func (b shellBuild) Run(ctx context.Context, c *build.Context) error {
 }
 
 // Export runs the command as Run does, each argument the word it is in the
-// block. A command of a bare name is looked for in PATH before the build, as
-// a command with a slash, a path from the working directory, is not.
+// block: by env -- <command> <args...>, which execs it from PATH as Run
+// does, so that a command named as a word sh reads itself - a reserved word,
+// if, a builtin, test or ., a function of the script - runs the program of
+// the name all the same. A command with a = is made with tt alone
+// (build.ErrNoExport): env takes it for a variable to set. A command of a
+// bare name is looked for in PATH before the build, as a command with a
+// slash, a path from the working directory, is not.
 func (b shellBuild) Export(*build.ExportContext) (build.Export, error) {
+	if strings.Contains(b.config.Command, "=") {
+		return build.Export{}, build.NoExportf("command", "%q has a =, and the script runs "+
+			"the command by env, as Run execs it, which takes a word with a = for a variable "+
+			"to set", b.config.Command)
+	}
+
 	var tools []string
 
 	if !strings.Contains(b.config.Command, "/") {
 		tools = []string{b.config.Command}
 	}
 
-	script, err := renderScript("command", commandView{
+	script, err := renderScript("env", commandView{
 		Name: b.config.Command, Args: b.config.Args,
 	})
 	if err != nil {

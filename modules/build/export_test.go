@@ -131,6 +131,17 @@ func exportCases() []exportCase {
 			}},
 		},
 		{
+			// A program named as a builtin of sh is run, as Run runs it.
+			name: "shell of a program of the name of a builtin", backend: "shell",
+			fields: map[string]any{"command": "test", "args": []any{"-n", tricky}},
+			setup:  builtinProgram("test", `printf '%s\n' "$@" > "$TT_OUTPUT_DIR/test.so"`),
+		},
+		{
+			name: "shell hook of a program of the name of a builtin", backend: "shell", hook: true,
+			fields: map[string]any{"command": "true", "args": []any{"gen.txt"}},
+			setup:  builtinProgram("true", `printf 'ran\n' > "$1"`),
+		},
+		{
 			// The prefix of Tarantool after that of the block on
 			// CMAKE_PREFIX_PATH, where find_path finds module.h.
 			name: "cmake", backend: "cmake", integration: true,
@@ -255,6 +266,21 @@ func exportCases() []exportCase {
 			},
 		},
 	}, ccExportCases()...)
+}
+
+// builtinProgram returns the setup of a case that puts a program name, a
+// script of sh of body, first in the PATH of the build: one named as a
+// builtin of sh, which the script of shell is to run as Run runs it.
+func builtinProgram(name, body string) func(t *testing.T, h *buildtest.Harness) {
+	return func(t *testing.T, h *buildtest.Harness) {
+		t.Helper()
+
+		tools := h.Context.Dirs.Tools
+
+		require.NoError(t, os.MkdirAll(tools, 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(tools, name),
+			[]byte("#!/bin/sh\nset -eu\n"+body+"\n"), 0o755))
+	}
 }
 
 // backendNamed returns the backend of the module named name.

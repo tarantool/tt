@@ -1157,7 +1157,7 @@ empty when the build begins. The Tarantool of the build is that of
 
 | Backend | The script | What it lacks against tt, and refuses |
 | --- | --- | --- |
-| `make`, `shell` | the command of the build, then a copy of each file of `output` | nothing |
+| `make`, `shell` | the command of the build, that of `shell` by `env -- <command> <args...>`, which runs the program of `PATH` as tt does, even one named as a word of sh such as `test`; then a copy of each file of `output` | nothing; a `command` with `=` in it, which `env` takes for a variable, is made with tt alone |
 | `c`, `lua-c` | the compiles and the link of the build, by the flags of tt in their order, with `$CC`, `$CFLAGS` and `$LIBFLAG` of LuaRocks and `CXX`, `CXXFLAGS` and `LDFLAGS` of the environment (see [`c` and `lua-c`](#componentsnamebuild) above) | the cache, `compile_commands.json`, the checks of the module, `-g` and the flags that keep the paths of the project out of the objects; `static = true` and `bundle` are made with tt alone |
 | `cmake` | `cmake -S . -B "$TT_BUILD_DIR"` with the `-D` of the build and the prefix of Tarantool on `CMAKE_PREFIX_PATH`, and `cmake --build` with `--parallel "$TT_BUILD_JOBS"`, or none when `CMAKE_BUILD_PARALLEL_LEVEL` is set; then a copy of each file of `output` from the build tree, a `.so` module as `.dylib` on macOS | nothing; cmake takes `CC` and `CFLAGS` of LuaRocks from the environment, as it takes those of the environment of tt |
 | `go` | `go build` of the build, for the `GOOS` and `GOARCH` of `go env GOHOSTOS` and `GOHOSTARCH` | nothing; `static = true` fails on macOS, as with tt |
