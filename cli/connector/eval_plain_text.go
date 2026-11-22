@@ -275,25 +275,26 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 
 		data = append(data, nextByte)
 
-		dataString := string(data)
-
-		if strings.HasPrefix(endOfYAMLOutput, dataString) ||
-			strings.HasPrefix(tagPushPrefixYAML, dataString) ||
-			strings.HasPrefix(tagPushPrefixLua, dataString) {
+		// The checks look at the ends of data only: data grows a byte at a
+		// time, and a check of the whole of it at every byte made the read
+		// of an answer quadratic in its size, minutes for a megabyte.
+		if isPrefixOf(data, endOfYAMLOutput) ||
+			isPrefixOf(data, tagPushPrefixYAML) ||
+			isPrefixOf(data, tagPushPrefixLua) {
 			continue
 		}
 
 		if !hasYAMLOutputPrefix &&
-			strings.HasPrefix(dataString, startOfYamlOutput) ||
-			strings.HasPrefix(dataString, tagPushPrefixYAML) {
+			hasPrefix(data, startOfYamlOutput) ||
+			hasPrefix(data, tagPushPrefixYAML) {
 			hasYAMLOutputPrefix = true
 		}
 
-		if hasYAMLOutputPrefix && strings.HasSuffix(dataString, endOfYAMLOutput) {
+		if hasYAMLOutputPrefix && hasSuffix(data, endOfYAMLOutput) {
 			break
 		}
 
-		if strings.HasSuffix(dataString, endOfLuaOutput) {
+		if hasSuffix(data, endOfLuaOutput) {
 			break
 		}
 	}
@@ -303,6 +304,22 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 	}
 
 	return data, nil
+}
+
+// isPrefixOf reports whether data is a prefix of marker, so that the bytes
+// that follow may make marker of it.
+func isPrefixOf(data []byte, marker string) bool {
+	return len(data) <= len(marker) && marker[:len(data)] == string(data)
+}
+
+// hasPrefix reports whether data begins with prefix.
+func hasPrefix(data []byte, prefix string) bool {
+	return len(data) >= len(prefix) && string(data[:len(prefix)]) == prefix
+}
+
+// hasSuffix reports whether data ends with suffix.
+func hasSuffix(data []byte, suffix string) bool {
+	return len(data) >= len(suffix) && string(data[len(data)-len(suffix):]) == suffix
 }
 
 func pushTagIsReceived(dataPortion string) bool {
