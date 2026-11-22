@@ -182,6 +182,39 @@ func TestExportOfTtAlone(t *testing.T) {
 	}
 }
 
+// TestExportOfANulByte: a block with a NUL byte in a string of it is made
+// with tt alone, naming the field, as no string of sh holds the byte, and
+// one would be taken for a part of a mark of the plan of the script: the
+// mark of include/ of a component of link, which is no word of sh but
+// what follows it, among them.
+func TestExportOfANulByte(t *testing.T) {
+	t.Parallel()
+
+	const injected = "\x00include:x}; touch PWNED; : ${y\x00"
+
+	for field, rest := range map[string]map[string]any{
+		"cflags":  module(map[string]any{"cflags": []any{injected}}),
+		"defines": module(map[string]any{"defines": []any{"A=" + injected}}),
+		"module":  {"module": "m\x00", "sources": []any{"fnv.c"}},
+		"sources": {"module": "m", "sources": []any{"a\x00.c"}},
+		"platforms.linux.ldflags": module(map[string]any{
+			"platforms": map[string]any{"linux": map[string]any{"ldflags": []any{injected}}},
+		}),
+	} {
+		bld, err := buildtest.Validate(LuaC(), component(), block(rest, nil))
+		require.NoError(t, err, field)
+
+		_, err = buildtest.New(t, LuaC(), component()).Export(bld)
+		require.ErrorIs(t, err, build.ErrNoExport, field)
+
+		var fieldErr *build.FieldError
+
+		require.ErrorAs(t, err, &fieldErr, field)
+		assert.Equal(t, field, fieldErr.Field)
+		assert.Equal(t, "holds a NUL byte, which no string of sh holds", fieldErr.Msg)
+	}
+}
+
 // loggingCompiler is a fake compiler: it writes each of its arguments on a
 // line of $FAKE_LOG, then a line --, and makes the file of its -o.
 const loggingCompiler = `#!/bin/sh

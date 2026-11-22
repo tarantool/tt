@@ -118,10 +118,42 @@ func TestCheckEnv(t *testing.T) {
 	require.NoError(t, rockscript.CheckEnv(nil))
 	require.NoError(t, rockscript.CheckEnv(map[string]string{"CFLAGS": "-O3", "_x1": ""}))
 
-	for _, name := range []string{"FOO-BAR", "1X", "A B", ""} {
+	for _, name := range []string{"FOO-BAR", "1X", "A B", "", "A\x00"} {
 		err := rockscript.CheckEnv(map[string]string{"OK": "", name: "x"})
 		require.ErrorIs(t, err, rockscript.ErrEnv, name)
-		assert.Contains(t, err.Error(), `"`+name+`"`)
+		assert.Contains(t, err.Error(), `"`+strings.ReplaceAll(name, "\x00", `\x00`)+`"`)
+	}
+
+	err := rockscript.CheckEnv(map[string]string{"OK": "", "NUL": "a\x00b"})
+	require.ErrorIs(t, err, rockscript.ErrNUL)
+	assert.Equal(t, "the value of NUL holds a NUL byte, which no script of sh holds", err.Error())
+}
+
+// TestCheckStep: no value of a step the script holds has a NUL byte.
+func TestCheckStep(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, rockscript.CheckStep(demoScript().Components[0]))
+
+	for what, change := range map[string]func(step *rockscript.Step){
+		"the script of its export": func(step *rockscript.Step) { step.Export.Script += "\x00" },
+		"a tool of its export": func(step *rockscript.Step) {
+			step.Export.Tools = []string{"cc", "m\x00ake"}
+		},
+		"what its export lacks": func(step *rockscript.Step) {
+			step.Export.Lost = []string{"the cache\x00"}
+		},
+		"its working directory": func(step *rockscript.Step) { step.Cwd = "nat\x00ive" },
+		"a file of its output": func(step *rockscript.Step) {
+			step.Outputs = []sdkbuild.OutputFile{{Path: "out/\x00x.so", To: sdkbuild.Module}}
+		},
+	} {
+		step := demoScript().Components[0]
+		change(&step)
+
+		err := rockscript.CheckStep(step)
+		require.ErrorIs(t, err, rockscript.ErrNUL, what)
+		assert.Equal(t, what+" holds a NUL byte, which no script of sh holds", err.Error())
 	}
 }
 
