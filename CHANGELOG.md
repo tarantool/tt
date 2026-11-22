@@ -1208,6 +1208,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt connect` to an `app:inst`, and every command that asks an instance
+  over its console socket, reads the answer in a time linear in its size:
+  a statement whose result is a megabyte, such as the `select` of a big
+  space, took more than three minutes to print, and takes 0.1 s.
 - The watchdog of an instance, `tt daemon` and `tt tcm` started while their
   pid file was probed again and again, as by `tt instance status` run in a
   loop, could fail to come up on a loaded machine with "the pid file belongs
