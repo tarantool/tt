@@ -46,11 +46,14 @@ func (err evaluationError) Error() string {
 }
 
 // chunkPosition matches the position Lua puts in front of an error raised
-// at level 1 in the chunk the console runs for an eval, the whole
-// eval_func_template.lua on one line:
-// `[string "local function func(...) local sharding = req..."]:1: `. It
-// names no place a reader can look up.
-var chunkPosition = regexp.MustCompile(`^\[string "local function func\(\.\.\.\).*?"\]:\d+: `)
+// by the body of an eval over the console: at level 1, in the body, which
+// the template loads as the chunk "eval", as Tarantool loads the expression
+// of an eval over iproto, `eval:12: `; at level 2, in the chunk the console
+// runs, the template on one line,
+// `[string "local func, err = load(string.fromhex('6c6f..."]:1: `, where
+// over iproto the caller of the expression is C, which has no position.
+// Neither names a line the user sees.
+var chunkPosition = regexp.MustCompile(`^(eval:\d+|\[string "local func, err = load\(.*?"\]:\d+): `)
 
 // newEvaluationError returns the error an eval over the console ended with,
 // without the position in the chunk of the eval.
@@ -97,6 +100,11 @@ func evalPlainTextConn(conn net.Conn, funcBody string, args []any,
 	return data, nil
 }
 
+// formatAndSendEvalFunc sends the console the chunk evalFuncTmpl makes of
+// funcBody and args, on one line, as the console runs a line at a time. The
+// body goes in hex and the chunk loads it, so that it is run as it is
+// written: a line comment of it, joined to the next lines, would comment
+// them out.
 func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 	evalFuncTmpl string,
 ) error {
@@ -110,7 +118,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 	}
 
 	evalFunc, err := util.GetTextTemplatedStr(&evalFuncTmpl, map[string]string{
-		"FunctionBody": funcBody,
+		"FunctionBody": hex.EncodeToString([]byte(funcBody)),
 		"ArgsEncoded":  hex.EncodeToString(argsEncoded),
 	})
 	if err != nil {

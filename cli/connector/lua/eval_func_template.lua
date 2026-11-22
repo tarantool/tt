@@ -1,5 +1,6 @@
-local function func(...)
-    {{ .FunctionBody }}
+local func, err = load(string.fromhex('{{ .FunctionBody }}'), '=eval')
+if func == nil then
+    error(err, 0)
 end
 local args = require('msgpack').decode(string.fromhex('{{ .ArgsEncoded }}'))
 
