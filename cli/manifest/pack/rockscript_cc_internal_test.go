@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -150,20 +151,28 @@ func TestSrcRockOfCBuildsWithLuaRocks(t *testing.T) {
 	assert.Contains(t, table, "\ncc_link_libraries fnvlib\n")
 	assert.Contains(t, table, `'-DGREETING="it'\''s"'`)
 
+	// The module is a .dylib on macOS, as Tarantool loads it there.
+	module := "fast.so"
+	if runtime.GOOS == "darwin" {
+		module = "fast.dylib"
+	}
+
 	entries := zipEntries(t, result.Rock)
-	assert.Contains(t, entries, "lib/cdemo/fast.so")
+	assert.Contains(t, entries, "lib/cdemo/"+module)
+
+	// The binary rock is installed by the native backend alone, as
+	// TestSrcRockOfBuildsBuildsWithLuaRocks says why.
+	binary := luaRocksInstall(t, client.BackendNative, result.Rock)
+	require.NoError(t, binary.err)
+
+	want := installedRock(t, binary.tree, result.Rockspec)
+	require.Contains(t, want.Lib, "cdemo/"+module)
 
 	for name, backend := range map[string]client.Backend{
 		"native": client.BackendNative, "lua": client.BackendLua,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-
-			binary := luaRocksInstall(t, backend, result.Rock)
-			require.NoError(t, binary.err)
-
-			want := installedRock(t, binary.tree, result.Rockspec)
-			require.Contains(t, want.Lib, "cdemo/fast.so")
 
 			srcRock := luaRocksInstall(t, backend, result.SrcRock)
 			require.NoError(t, srcRock.err)
@@ -176,10 +185,10 @@ func TestSrcRockOfCBuildsWithLuaRocks(t *testing.T) {
 			} {
 				assertSameRock(t, want, installedRock(t, tree, result.Rockspec), what)
 
-				module, err := os.ReadFile(filepath.Join(tree, "lib", "tarantool", "cdemo",
-					"fast.so"))
+				built, err := os.ReadFile(filepath.Join(tree, "lib", "tarantool", "cdemo",
+					module))
 				require.NoError(t, err, what)
-				assert.Contains(t, string(module), "luaopen_cdemo_fast", what)
+				assert.Contains(t, string(built), "luaopen_cdemo_fast", what)
 			}
 		})
 	}
