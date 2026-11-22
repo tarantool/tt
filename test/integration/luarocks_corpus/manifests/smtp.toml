@@ -1,0 +1,29 @@
+# smtp as a tt 3 package. The upstream rockspec builds with cmake: the
+# CMake project of the root builds the module smtp/lib.so (lib.c, smtpc.c,
+# against the headers of Tarantool and its curl) into LIBDIR/smtp/, and
+# installs smtp/init.lua and smtp/version.lua into LUADIR/smtp/.
+manifest_version = "0.1"
+
+[package]
+name = "smtp"
+description = "SMTP client for Tarantool"
+license = "BSD"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/smtp"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.smtp]
+path = "smtp"
+include = ["*.lua"]
+
+[components.smtp.build]
+backend = "cmake"
+cwd = "."
+targets = ["lib"]
+output = ["smtp/lib.so"]

@@ -40,11 +40,11 @@ from rocks_catalog_helpers import (
     LEVELS,
     fetch_manifest,
     load_catalog,
-    platforms,
     registry,
     rock_modules,
     skip_reason,
 )
+from rocks_platforms import platforms
 
 pytestmark = pytest.mark.rocks_catalog
 

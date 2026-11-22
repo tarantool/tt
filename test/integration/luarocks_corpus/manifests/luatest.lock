@@ -1,0 +1,12 @@
+lock_version = '0.1'
+manifest_version = '0.1'
+generated_by = 'tt 3.0.0-alpha.2'
+manifest_hash = 'toml1-sha256:5a85bd52b00fff91149e3c82fd17562c7a5918201079fbceaa73a862bbfa2580'
+
+[lock]
+[lock.products]
+[lock.products.default]
+[[lock.products.default.dependencies]]
+name = 'checks'
+version = '3.4.1-1'
+source = 'registry'

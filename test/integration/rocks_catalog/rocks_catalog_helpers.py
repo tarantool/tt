@@ -3,21 +3,15 @@ rock_manifest of an installed rock and test/rocks-catalog.yaml, the file of
 its exceptions."""
 
 import os
-import platform
 import re
 import time
 import urllib.request
 from pathlib import Path
 
 import yaml
+from rocks_platforms import DISTROS, SYSTEMS, is_platform
 
 LEVELS = ("project", "user", "system", "os")
-SYSTEMS = ("linux", "darwin")
-# The distributions rocks.yml checks the rocks on, by the ID of their
-# /etc/os-release: an os of a skip names one of them, or one of them and the
-# major number of its version, as rocky-8.
-DISTROS = ("arch", "debian", "fedora", "gentoo", "rocky", "ubuntu")
-_DISTRO = re.compile(rf"(?:{'|'.join(DISTROS)})(?:-\d+)?")
 PACKAGE_MANAGERS = ("apt", "brew", "dnf", "emerge", "pacman")
 DEFAULT_REGISTRY = "https://rocks.tarantool.org"
 CATALOG_FILE = Path(__file__).resolve().parents[2] / "rocks-catalog.yaml"
@@ -236,7 +230,7 @@ def _entry_problems(entry):
             for key in ("os", "levels")
             if key in entry
         )
-    if "os" in entry and not _is_list(entry["os"], _is_platform):
+    if "os" in entry and not _is_list(entry["os"], is_platform):
         problems.append(
             f"os must be a list of {', '.join(SYSTEMS)} and of the distributions "
             f"{', '.join(DISTROS)}, each alone or with its major version, as rocky-8",
@@ -269,33 +263,6 @@ def _is_list(values, valid):
         and bool(values)
         and all(isinstance(value, str) and valid(value) for value in values)
     )
-
-
-def _is_platform(value):
-    return value in SYSTEMS or _DISTRO.fullmatch(value) is not None
-
-
-def platforms(os_release=None):
-    """Return the names an os of a skip may give the system the check runs
-    on: linux or darwin and, on Linux, the ID of /etc/os-release alone and
-    with the major number of its VERSION_ID (debian, debian-12). os_release
-    is the content of os-release, read from the system when None."""
-    system = platform.system().lower()
-    names = {system}
-    if system != "linux":
-        return names
-    if os_release is None:
-        try:
-            os_release = platform.freedesktop_os_release()
-        except OSError:
-            return names
-    distro = os_release.get("ID", "")
-    if distro:
-        names.add(distro)
-        major = os_release.get("VERSION_ID", "").split(".")[0]
-        if major:
-            names.add(f"{distro}-{major}")
-    return names
 
 
 def skip_reason(entry, names, level):

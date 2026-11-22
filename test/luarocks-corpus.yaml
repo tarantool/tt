@@ -1,0 +1,193 @@
+# The LuaRocks corpus: real rocks, each given an app.manifest.toml, whose
+# source rocks build under a plain LuaRocks, tt rocks of tt 2.
+#
+# The check, test/integration/luarocks_corpus, which .github/workflows/rocks.yml
+# runs on a pull request labelled ci-rocks, takes each rock at its pinned
+# commit, drops in its manifest from test/integration/luarocks_corpus/manifests,
+# commits and tags it, and packs the binary rock and the source rock in one
+# pack with tt 3. tt 2 installs the source rock into one tree and builds the
+# bare rockspec from the git repository of the rock into another; tt 3
+# installs the binary rock into a third. The three trees must have the same
+# files in lua/, lib/ and bin/, and the main module must load from the tree
+# of the source rock. It runs on Ubuntu 24.04 of amd64 and arm64 and on macOS
+# of arm64, and on other Linux distributions in containers.
+#
+# The toolchains the rocks build with are those of the rocks catalogue check
+# (ci/rocks-container.sh in a container), and ci/luarocks-corpus-tools.sh adds
+# tt 2, zig and, where the machine has none, Go and Rust. None of the rocks
+# needs a system library the toolchains lack: libraries of an entry says
+# which it needs of them.
+#
+# rocks: an entry per rock, of
+#   url: the upstream git repository, https; with
+#     TT_TEST_CORPUS_GIT_SSH=1 the test clones git@github.com: instead;
+#   commit: the full sha of the upstream commit the manifest is for, fetched
+#     alone, with --depth 1;
+#   fixture: instead of url and commit, the source tree of a rock of this
+#     repository, test/integration/luarocks_corpus/fixtures/<fixture>;
+#   tag: the tag the test makes on the commit of the manifest: the version
+#     of the rock, v and the upstream version;
+#   main: the module to require from the tree of the source rock;
+#   backends: the build backends of the manifest, none for a package of
+#     layouts only; the test checks them against it;
+#   tools: the programs the build needs but git, which every rock does: the
+#     rock is skipped where one is not on PATH;
+#   libraries: the system libraries the build links, by the package of
+#     Debian and Ubuntu, which have them in the toolchain of the containers
+#     and on the runners: what a system without them lacks, as a skip says;
+#   submodules: true when the build needs the submodules of the commit;
+#   own_manifest: true when the commit has its own app.manifest.toml, which
+#     the test takes instead of one of manifests/;
+#   skip, os: why the rock is not checked, on the systems of os only, as in
+#     test/rocks-catalog.yaml: linux, darwin, and the distributions by the ID
+#     of /etc/os-release, alone or with the major number of its VERSION_ID;
+#   workaround: what the manifest does that the upstream does not, and why.
+#
+# A rock whose manifest asks for a newer Tarantool than the tarantool on PATH
+# ([platform].tarantool) is skipped as well. manifests/<name>.lock, when there
+# is one, is the lock the manifest was resolved with: the pack holds the
+# versions of the dependencies it names.
+
+rocks:
+  checks:
+    url: https://github.com/tarantool/checks.git
+    commit: 287c88e11e45f77238d6ccc742877af4e600ff07
+    tag: v3.4.1
+    main: checks
+    backends: []
+  crud:
+    url: https://github.com/tarantool/crud.git
+    commit: fb060c890e2057398b956d53f30f9fd08c789b4a
+    tag: v1.8.0
+    main: crud
+    backends: []
+  vshard:
+    url: https://github.com/tarantool/vshard.git
+    commit: 9e08182b63082bfab4fef5b46f11eb95a39bb223
+    tag: v1.0.0
+    main: vshard
+    backends: []
+  expirationd:
+    url: https://github.com/tarantool/expirationd.git
+    commit: f77bc362eedaa587605797ffcfe3b8b5530ba671
+    tag: v1.7.0
+    main: expirationd
+    backends: []
+  queue:
+    url: https://github.com/tarantool/queue.git
+    commit: d28002cce4a48634ab4dd3b72e147be1fecd59f2
+    tag: v1.5.0
+    main: queue
+    backends: []
+  luatest:
+    url: https://github.com/tarantool/luatest.git
+    commit: c8809738cd8f57c45800e2101602b8f6dd82e915
+    tag: v1.4.5
+    main: luatest
+    backends: []
+  metrics:
+    url: https://github.com/tarantool/metrics.git
+    commit: 62be919f4ded2aa6e3ca9b60b66c2e98e59bb89c
+    tag: v1.8.4
+    main: metrics
+    backends: []
+  tracing:
+    url: https://github.com/tarantool/tracing.git
+    commit: cb8d7873e72b9c357f29e7d546600357d1b7dff4
+    tag: v0.1.1
+    main: opentracing
+    backends: []
+  http:
+    url: https://github.com/tarantool/http.git
+    commit: 5eb14af333b74864a217fdb46bd7f88a64ef8724
+    tag: v1.9.1
+    main: http.server
+    backends: [lua-c]
+    tools: [cc]
+  smtp:
+    url: https://github.com/tarantool/smtp.git
+    commit: fef86d702e68fb2b48b76180be1aca861186f5fe
+    tag: v0.0.7
+    main: smtp
+    backends: [cmake]
+    tools: [cc, cmake]
+    skip: >-
+      on macOS its CMake project makes lib.dylib (add_library SHARED), and
+      output names lib.so, which a manifest has no way to name per platform
+    os: [darwin]
+  avro-schema:
+    url: https://github.com/tarantool/avro-schema.git
+    commit: 49c20f7dd72700ab04e6de2aeb4c43310fee8964
+    tag: v3.1.0
+    main: avro_schema
+    backends: [cmake]
+    tools: [cc, c++, cmake]
+  mqtt:
+    url: https://github.com/tarantool/mqtt.git
+    commit: db283743f4fc96dccf1e4c77afa6e5d54f660d4c
+    tag: v1.5.1
+    main: mqtt
+    backends: [cmake]
+    tools: [cc, cmake]
+    libraries: [libssl-dev, zlib1g-dev]
+    submodules: true
+    skip: >-
+      STATIC_BUILD=ON links the static OpenSSL, libssl.a, which Rocky Linux
+      (with EPEL), Fedora, Arch Linux and Gentoo do not package; on macOS
+      lib/mosquitto.c of its mosquitto calls mach_absolute_time without
+      <mach/mach_time.h>, which clang refuses
+    os: [rocky, fedora, arch, gentoo, darwin]
+    workaround: >-
+      ZLIB_LIBRARY = "z": an OpenSSL built with zlib, as that of Ubuntu 26.04
+      is, brings zlib to the static link, which FindOpenSSL looks for as a
+      static library too, and the libz.a of Debian and Ubuntu is not built
+      with -fPIC, so the link of driver.so fails; set, FindZLIB looks for
+      nothing and -lz links the shared zlib, of whatever directory the
+      system has it in. Where OpenSSL has no zlib (Ubuntu 24.04 and 22.04,
+      Debian 12) CMake leaves the variable unused
+  sqlparser:
+    url: https://github.com/tarantool/sqlparser.git
+    commit: e43ccd53dff060ff52153ff83a441187b2170c98
+    tag: v1.0.2
+    main: sqlparser
+    backends: [make]
+    tools: [make, g++]
+    submodules: true
+    skip: >-
+      make makes libsqlparser.so, which the make backend installs under that
+      name, and sqlparser.lua finds it by package.search, which looks for a
+      .dylib on macOS
+    os: [darwin]
+    workaround: >-
+      LIB_CFLAGS without -Werror and with -include cstdint: hyrise/ uses
+      uintmax_t without <cstdint>, which GCC 15 and later no longer include
+      with the other headers ("'uintmax_t' does not name a type"); the
+      Makefile reads no CXXFLAGS, so its flags are given whole
+  zig-kv:
+    fixture: zig-kv
+    tag: v0.1.0
+    main: zigkv
+    backends: [zig]
+    tools: [zig]
+  rust-fastrs:
+    fixture: rust-fastrs
+    tag: v0.1.0
+    main: fastrs
+    backends: [cargo]
+    tools: [cargo, cc]
+  go-hello:
+    fixture: go-hello
+    tag: v0.1.0
+    main: gohello
+    backends: [go]
+    tools: [go]
+  memcached:
+    # The master of tarantool-contrib/memcached: the tree of the commit of
+    # the pull request the corpus was made on, 9a5bdfb3, merged by rebase.
+    url: https://github.com/tarantool-contrib/memcached.git
+    commit: ef770e2ac245dc003ae66dc23d962f203a498cb7
+    tag: v0.1.0
+    main: memcached
+    backends: [lua-c]
+    tools: [cc]
+    own_manifest: true

@@ -1,0 +1,25 @@
+# fastrs: a package of one module in Rust on the tarantool crate (crates.io,
+# version 11), the crate of tt's how-to "Build a module in Rust", built as
+# the module fastrs at the top level, require('fastrs').
+manifest_version = "0.1"
+
+[package]
+name = "fastrs"
+description = "A module of Tarantool in Rust on the tarantool crate"
+license = "MIT"
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "git+file:///fixtures/rust-fastrs"
+
+[platform]
+tarantool = ">=3.0.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.fastrs]
+path = "."
+namespace = ""
+
+[components.fastrs.build]
+backend = "cargo"
+module = "fastrs"

@@ -1,0 +1,15 @@
+.{
+    .name = .kv,
+    .version = "0.1.0",
+    .fingerprint = 0x7eb6749aea8d3594,
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{
+        // The commit of zig-tarantool the zig tests of tt build against
+        // (.github/actions/setup-build-toolchains).
+        .tarantool = .{
+            .url = "https://github.com/tarantool-contrib/zig-tarantool/archive/2ece203e626cb72922cc01e957407fbb2c3abdd3.tar.gz",
+            .hash = "tarantool-0.0.0-LczyxTwvEQC19W4vsXUbauN_kO8EABpFyamoek3lPuqV",
+        },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

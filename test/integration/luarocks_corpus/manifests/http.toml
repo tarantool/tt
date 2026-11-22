@@ -1,0 +1,33 @@
+# http as a tt 3 package. The upstream rockspec is builtin: the C module
+# http.lib of http/lib.c, compiled against the headers of Tarantool, and the
+# Lua modules http.server, http.sslsocket, http.version, http.mime_types,
+# http.codes and roles.httpd. The C module is a lua-c build; the Lua files of
+# http/ and roles/ are the layouts of two components.
+manifest_version = "0.1"
+
+[package]
+name = "http"
+description = "HTTP server for Tarantool"
+license = "BSD"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/http"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.http]
+path = "http"
+include = ["*.lua"]
+
+[components.http.build]
+backend = "lua-c"
+module = "lib"
+sources = ["lib.c"]
+
+[components.roles]
+path = "roles"
+namespace = "roles"

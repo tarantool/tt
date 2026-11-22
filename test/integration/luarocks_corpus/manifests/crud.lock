@@ -1,0 +1,22 @@
+lock_version = '0.1'
+manifest_version = '0.1'
+generated_by = 'tt 3.0.0-alpha.2'
+manifest_hash = 'toml1-sha256:0ea983828c138c49de8694bcfc56453b46cd3ab95bea79457e0c70b888210f74'
+
+[lock]
+[lock.products]
+[lock.products.default]
+[[lock.products.default.dependencies]]
+name = 'checks'
+version = '3.4.1-1'
+source = 'registry'
+
+[[lock.products.default.dependencies]]
+name = 'errors'
+version = '2.2.1-1'
+source = 'registry'
+
+[[lock.products.default.dependencies]]
+name = 'vshard'
+version = '1.0.0-1'
+source = 'registry'
