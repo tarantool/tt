@@ -11,9 +11,9 @@ constructor, `func New(sdk.Services) []sdk.Mount`, that returns the commands
 it adds, or `func New(sdk.Services) sdk.Module`, that returns the build
 backends and the checks of the files of a package it adds as well. tt itself is the core with its **standard modules**: `builtin`,
 its own commands, and the modules of its repository the core's package
-`standard` lists, `aeon`, `build`, `emmylua` and `wasm`. `build` has the
-build backends of tt: the core has none of its own. `wasm` has `tt wasm`
-and the check of the `.wasm` files of a package.
+`standard` lists, `aeon`, `build`, `coredump`, `emmylua` and `wasm`. `build`
+has the build backends of tt: the core has none of its own. `wasm` has
+`tt wasm` and the check of the `.wasm` files of a package.
 
 A **distribution** of tt is the core and a set of modules built into one
 binary, described by `tt.manifest.toml`. It takes the standard modules of

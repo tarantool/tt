@@ -16,7 +16,6 @@ COMMANDS
   completion  Generate autocomplete for a specified shell. Supported shell type:
               bash | zsh | fish
   connect     Connect to the tarantool instance (tt instance connect)
-  coredump    Perform manipulations with the tarantool coredumps
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
   data        Read and replay snapshots and write-ahead logs

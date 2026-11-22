@@ -36,6 +36,7 @@ require (
 	github.com/tarantool/go-xlog v0.2.0
 	github.com/tarantool/tt/modules/aeon v0.0.0-0
 	github.com/tarantool/tt/modules/build v0.0.0-0
+	github.com/tarantool/tt/modules/coredump v0.0.0-0
 	github.com/tarantool/tt/modules/emmylua v0.0.0-0
 	github.com/tarantool/tt/modules/wasm v0.0.0-0
 	github.com/tarantool/tt/sdk v0.0.0-0
@@ -185,6 +186,7 @@ require (
 replace (
 	github.com/tarantool/tt/modules/aeon => ./modules/aeon
 	github.com/tarantool/tt/modules/build => ./modules/build
+	github.com/tarantool/tt/modules/coredump => ./modules/coredump
 	github.com/tarantool/tt/modules/emmylua => ./modules/emmylua
 	github.com/tarantool/tt/modules/wasm => ./modules/wasm
 	github.com/tarantool/tt/sdk => ./sdk

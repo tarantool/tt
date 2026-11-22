@@ -566,9 +566,9 @@ presents itself (`title`, `edition`), the integrity provider (`none` or
 `rsa`), and whether it has the standard modules of the core (`standard`),
 tt's own commands (`builtin`) and external modules (`external_modules`), all
 on by default. The standard modules are the ones the official tt is built
-with, `aeon`, `build` (the build backends of tt), `emmylua` and `wasm` now, which
-the core's package `standard` lists; `exclude = ["emmylua"]` leaves some
-out, and a core before v3.0.0-alpha.3,
+with, `aeon`, `build` (the build backends of tt), `coredump`, `emmylua` and
+`wasm` now, which the core's package `standard` lists;
+`exclude = ["emmylua"]` leaves some out, and a core before v3.0.0-alpha.3,
 which has no such package, needs `standard = false`. `[build]` sets the TLS
 implementation (`ssl`: `default`, `openssl` or `openssl_static`, overridden
 by `TT_CLI_BUILD_SSL`), extra build `tags` and `ldflags`.
@@ -627,6 +627,7 @@ Tarantool CLI core version 3.0.0. commit: 9031d7ad96d9 (v3.0.1-0.20261028190206-
   aeon        v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/aeon
   build       v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/build
   builtin     v3.0.1-0.20261028190206-9031d7ad96d9  github.com/tarantool/tt/v3
+  coredump    v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/coredump
   emmylua     v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/emmylua
   foo         v1.2.0                                github.com/acme/tt-foo
   migrations  (devel)                               example.com/tt-ee/plugins/migrations

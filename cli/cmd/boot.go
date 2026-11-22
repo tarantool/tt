@@ -88,7 +88,6 @@ func BuiltinCommands() []*cobra.Command {
 		NewRocksCmd(),
 		NewDataCmd(),
 		NewClusterCmd(),
-		NewCoredumpCmd(),
 		NewReplicasetCmd(),
 		NewRunCmd(),
 		NewTestCmd(),

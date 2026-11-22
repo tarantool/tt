@@ -408,6 +408,7 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/modules/aeon"
             - "github.com/tarantool/tt/modules/build"
+            - "github.com/tarantool/tt/modules/coredump"
             - "github.com/tarantool/tt/modules/emmylua"
             - "github.com/tarantool/tt/modules/wasm"
             - "github.com/tarantool/tt/v3/standard"
@@ -431,6 +432,18 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/modules/build"
+            - "github.com/tarantool/tt/sdk"
+        # The module coredump, tt coredump, is written against the SDK
+        # alone, as any module is: nothing of the core, its own packages,
+        # and cobra.
+        dir-modules-coredump:
+          files:
+            - "**/modules/coredump/**"
+          allow:
+            - $gostd
+            - "github.com/spf13/cobra"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/modules/coredump"
             - "github.com/tarantool/tt/sdk"
         # The module wasm, tt wasm and the check of the .wasm files, is
         # written against the SDK alone, as any module is: nothing of the
@@ -611,7 +624,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/configure"
             - "github.com/tarantool/tt/v3/cli/connect"
             - "github.com/tarantool/tt/v3/cli/connector"
-            - "github.com/tarantool/tt/v3/cli/coredump"
             - "github.com/tarantool/tt/v3/cli/create"
             - "github.com/tarantool/tt/v3/cli/daemon"
             - "github.com/tarantool/tt/v3/cli/data"
@@ -714,14 +726,6 @@ linters:
             - "github.com/vmihailenco/msgpack/v5"
             - "github.com/yuin/gopher-lua"
             - "go.yaml.in/yaml/v3"
-        dir-cli-coredump:
-          files:
-            - "**/cli/coredump/**"
-          allow:
-            - $gostd
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/coredump"
-            - "github.com/tarantool/tt/v3/cli/util"
         dir-cli-create:
           files:
             - "**/cli/create/**"

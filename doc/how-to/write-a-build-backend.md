@@ -1120,7 +1120,7 @@ $ cd dist
 $ tt binary build tt
    • Resolving the core github.com/tarantool/tt/v3
    •   core github.com/tarantool/tt/v3 (path ../tt)
-   •   standard aeon, build, emmylua, wasm (with the core)
+   •   standard aeon, build, coredump, emmylua, wasm (with the core)
    •   template example.com/tt-template (path ../tt-template)
    • Building tt
    • Built /home/me/dist/tt
@@ -1130,6 +1130,7 @@ Tarantool CLI version 3.0.0-alpha.2, linux/amd64. commit: 2f4ff650 (v3.0.0-alpha
   aeon      (devel)  github.com/tarantool/tt/modules/aeon
   build     (devel)  github.com/tarantool/tt/modules/build
   builtin   (devel)  github.com/tarantool/tt/v3
+  coredump  (devel)  github.com/tarantool/tt/modules/coredump
   emmylua   (devel)  github.com/tarantool/tt/modules/emmylua
   template  (devel)  example.com/tt-template
   wasm      (devel)  github.com/tarantool/tt/modules/wasm

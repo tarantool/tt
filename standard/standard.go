@@ -25,6 +25,7 @@ package standard
 import (
 	"github.com/tarantool/tt/modules/aeon"
 	"github.com/tarantool/tt/modules/build"
+	"github.com/tarantool/tt/modules/coredump"
 	"github.com/tarantool/tt/modules/emmylua"
 	"github.com/tarantool/tt/modules/wasm"
 )
@@ -38,9 +39,10 @@ import (
 // backend of build.
 func Modules() map[string]any {
 	return map[string]any{
-		"aeon":    aeon.New,
-		"build":   build.New,
-		"emmylua": emmylua.New,
-		"wasm":    wasm.New,
+		"aeon":     aeon.New,
+		"build":    build.New,
+		"coredump": coredump.New,
+		"emmylua":  emmylua.New,
+		"wasm":     wasm.New,
 	}
 }
