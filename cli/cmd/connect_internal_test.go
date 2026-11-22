@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
@@ -14,14 +16,12 @@ import (
 )
 
 func TestConnectionTLSFlags(t *testing.T) {
-	oldPassword, oldPasswordFile, oldTimeout := connectSslPassword,
-		connectSslPasswordFile, connectTimeout
+	oldConnect := connectFlags
 	oldRSPassword, oldRSPasswordFile, oldRSTimeout := replicasetSslPassword,
 		replicasetSslPasswordFile, replicasetConnectTimeout
 
 	t.Cleanup(func() {
-		connectSslPassword, connectSslPasswordFile, connectTimeout =
-			oldPassword, oldPasswordFile, oldTimeout
+		connectFlags = oldConnect
 		replicasetSslPassword, replicasetSslPasswordFile, replicasetConnectTimeout =
 			oldRSPassword, oldRSPasswordFile, oldRSTimeout
 	})
@@ -52,11 +52,9 @@ func TestConnectionTLSFlags(t *testing.T) {
 				"--connect-timeout=250ms",
 			}))
 
-			connectCtx := connect.ConnectCtx{
-				SslPassword:     connectSslPassword,
-				SslPasswordFile: connectSslPasswordFile,
-				ConnectTimeout:  connectTimeout,
-			}
+			connectCtx, err := connectCtxOf(connectFlags)
+			require.NoError(t, err)
+
 			if testCase.replicaset {
 				connectCtx = newReplicasetConnectCtx()
 			}
@@ -74,6 +72,46 @@ func TestConnectionTLSFlags(t *testing.T) {
 			assert.Equal(t, 250*time.Millisecond, opts.ConnectTimeout)
 		})
 	}
+}
+
+// TestConnectFlagsOfSDK pins that tt connect has the flags of a connection a
+// module gets from sdk.AddConnectFlags, with the same help and defaults, and
+// that connectCtxOf takes them as tt connect takes its own.
+func TestConnectFlagsOfSDK(t *testing.T) {
+	var opts sdk.ConnectOptions
+
+	module := &cobra.Command{Use: "record"}
+	sdk.AddConnectFlags(module, &opts)
+
+	connectCmd := NewConnectCmd()
+
+	module.Flags().VisitAll(func(flag *pflag.Flag) {
+		own := connectCmd.Flags().Lookup(flag.Name)
+		require.NotNil(t, own, flag.Name)
+		assert.Equal(t, flag.Shorthand, own.Shorthand, flag.Name)
+		assert.Equal(t, flag.Usage, own.Usage, flag.Name)
+		assert.Equal(t, flag.DefValue, own.DefValue, flag.Name)
+		assert.Equal(t, flag.Value.Type(), own.Value.Type(), flag.Name)
+	})
+
+	assert.Equal(t, connector.DefaultConnectTimeout, sdk.DefaultConnectTimeout)
+
+	require.NoError(t, module.Flags().Parse([]string{
+		"-u", "user", "-p", "secret", "--auth-type", "chap-sha1", "--sslcafile", "ca.pem",
+		"--connect-timeout", "2s",
+	}))
+
+	connectCtx, err := connectCtxOf(opts)
+	require.NoError(t, err)
+	assert.Equal(t, "user", connectCtx.Username)
+	assert.Equal(t, "secret", connectCtx.Password)
+	assert.Equal(t, dial.AuthChapSha1, connectCtx.Auth)
+	assert.Equal(t, "ca.pem", connectCtx.SslCaFile)
+	assert.Equal(t, 2*time.Second, connectCtx.ConnectTimeout)
+	assert.Equal(t, dial.TransportDefault, connectCtx.Transport)
+
+	_, err = connectCtxOf(sdk.ConnectOptions{AuthType: "md5"})
+	require.ErrorContains(t, err, `--auth-type: unknown authentication method "md5"`)
 }
 
 func TestResolveConnectOptsURIQuery(t *testing.T) {
