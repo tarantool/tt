@@ -811,15 +811,18 @@ def test_rocks_builds_the_source_rock_of_a_tt_package(tt_cmd, tmp_path):
         assert rc == 0, output
         return output
 
-    def install(server):
-        consumer = tmp_path / f"consumer-{server}"
+    def install(name, *args):
+        consumer = tmp_path / f"consumer-{name}"
         consumer.mkdir()
         rc, output = run_command_and_get_output(
-            [tt_cmd, "rocks", "install", "lualib", "--only-server", str(tmp_path / server)],
+            [tt_cmd, "rocks", "install", *args],
             cwd=consumer,
             env=dict(os.environ, PWD=str(consumer)),
         )
         return consumer / ".rocks" / "share" / "tarantool" / "lualib", rc, output
+
+    def install_from(server):
+        return install(server, "lualib", "--only-server", str(tmp_path / server))
 
     def files(share):
         return {
@@ -828,25 +831,36 @@ def test_rocks_builds_the_source_rock_of_a_tt_package(tt_cmd, tmp_path):
             if path.is_file()
         }
 
-    pack("rock-src", "src")
-    pack("rock", "bin")
-
-    from_source, rc, output = install("src")
+    # One pack makes both rocks: _version.lua, which says when the package was
+    # built, is the same in the rockspec of the source rock and in the binary
+    # rock of one pack alone. The server prefers the binary rock, so the
+    # source rock is installed from its file.
+    formats = ["--format", "rock", "--format", "rock-src"]
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "package", "pack", *formats, "--out", str(tmp_path / "bin")],
+        cwd=package,
+        env=dict(os.environ, PWD=str(package)),
+    )
     assert rc == 0, output
-    from_binary, rc, output = install("bin")
+
+    from_source, rc, output = install("src", str(tmp_path / "bin" / "lualib-1.0.0-1.src.rock"))
+    assert rc == 0, output
+    from_binary, rc, output = install_from("bin")
     assert rc == 0, output
     assert set(files(from_source)) == {"init.lua", "_version.lua"}
     assert files(from_source) == files(from_binary)
 
-    build_block = "\n[components.lualib.build]\nbackend = 'shell'\ncommand = 'true'\n"
+    # A variable of env that sh cannot set leaves the build to tt alone, as
+    # the build of a backend that is not built without tt does.
+    build_block = (
+        "\n[components.lualib.build]\nbackend = 'shell'\ncommand = 'true'\n"
+        "env = { 'NOT-A-NAME' = '1' }\n"
+    )
     (package / "app.manifest.toml").write_text(LUA_PACKAGE_MANIFEST + build_block)
     output = pack("rock-src", "src-build")
     assert "the source rock builds with tt only" in output
 
-    installed, rc, output = install("src-build")
+    installed, rc, output = install_from("src-build")
     assert rc == 1, output
-    assert (
-        'lualib 1.0.0 builds with tt only: the component "lualib" is built by the tt '
-        'backend "shell"' in output
-    )
+    assert 'lualib 1.0.0 builds with tt only: the component "lualib"' in output
     assert not installed.exists()

@@ -18,6 +18,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -236,7 +237,13 @@ func packRocks(
 
 	rel := releaseRock(built, rock, opts.Revision)
 
-	plan, err := releaseBuild(built, rel, carried)
+	backends := opts.Build.Backends
+	if backends == nil {
+		backends = buildreg.Process()
+	}
+
+	plan, err := releaseBuild(built, rel,
+		rockSources{dir: opts.ProjectDir, carried: carried, backends: backends})
 	if err != nil {
 		return rockResult{}, err
 	}

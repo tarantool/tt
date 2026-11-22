@@ -20,6 +20,12 @@
 //
 // make, shell and both build for another platform (build.Backend.Cross), as
 // make, shell and cargo do; the others do not.
+//
+// make and shell are built without tt too (build.Backend.Exports), by the
+// command of their block, as those of modules/build are, and so is tree,
+// which copies its output in its script, but for a block with variables,
+// whose build is made with tt alone (build.ErrNoExport). The others build
+// with tt alone.
 package buildregtest
 
 import (
@@ -127,6 +133,7 @@ func Make() build.Backend {
 		NoSourceLayout: false,
 		Hook:           true,
 		Cross:          true,
+		Exports:        true,
 	}
 }
 
@@ -156,6 +163,7 @@ func Shell() build.Backend {
 		NoSourceLayout: false,
 		Hook:           true,
 		Cross:          true,
+		Exports:        true,
 	}
 }
 
@@ -212,6 +220,25 @@ func (b commandBuild) Programs() ([]string, bool) {
 // Run runs the command in the working directory of the build.
 func (b commandBuild) Run(ctx context.Context, c *build.Context) error {
 	return c.Run(c.Command(ctx, b.name, b.args...))
+}
+
+// Export runs the command as Run does, each argument a word of its own; a
+// command of a bare name is looked for in PATH first.
+func (b commandBuild) Export(*build.ExportContext) (build.Export, error) {
+	words := make([]string, 0, 1+len(b.args))
+
+	words = append(words, build.ShellQuote(b.name))
+	for _, arg := range b.args {
+		words = append(words, build.ShellQuote(arg))
+	}
+
+	var tools []string
+
+	if !strings.Contains(b.name, "/") {
+		tools = []string{b.name}
+	}
+
+	return build.Export{Script: strings.Join(words, " "), Tools: tools, Lost: nil}, nil
 }
 
 // ExeConfig are the fields of a block of exe.
@@ -491,7 +518,8 @@ func Tree() build.Backend {
 		Produces: build.Results(),
 		Config:   func() any { return new(TreeConfig) },
 		New: func(cfg any, _ build.Component, common build.Common) (build.Build, error) {
-			if _, ok := cfg.(*TreeConfig); !ok {
+			config, ok := cfg.(*TreeConfig)
+			if !ok {
 				return nil, fmt.Errorf("%w: %T", build.ErrConfig, cfg)
 			}
 
@@ -499,7 +527,7 @@ func Tree() build.Backend {
 				return nil, build.FieldErrorf("", "output is required for backend %q", TreeName)
 			}
 
-			return treeBuild{outputs: common.Output}, nil
+			return treeBuild{outputs: common.Output, variables: len(config.Variables) > 0}, nil
 		},
 		Incremental:    false,
 		OutputFrom:     build.OutputBackend,
@@ -507,12 +535,43 @@ func Tree() build.Backend {
 		NoSourceLayout: false,
 		Hook:           false,
 		Cross:          false,
+		Exports:        true,
 	}
 }
 
 // treeBuild is a block of tree.
 type treeBuild struct {
 	outputs
+
+	// variables is set for a block with variables, which builds with tt
+	// alone.
+	variables bool
+}
+
+// Export copies the files of output as Run does; a block with variables
+// builds with tt alone.
+func (b treeBuild) Export(*build.ExportContext) (build.Export, error) {
+	if b.variables {
+		return build.Export{}, build.NoExportf("variables", "the variables of a tree are "+
+			"set by tt alone")
+	}
+
+	dirs := map[build.Result]string{
+		build.Module: "$TT_OUTPUT_DIR", build.Data: "$TT_SHARE_DIR",
+		build.Program: "$TT_PROGRAMS_DIR", build.Link: "$TT_LINK_DIR",
+	}
+
+	var script strings.Builder
+
+	for _, file := range b.outputs {
+		fmt.Fprintf(&script, "cp %s \"%s\"/%s\n", build.ShellQuote(file.Path), dirs[file.To],
+			build.ShellQuote(filepath.Base(file.Path)))
+	}
+
+	return build.Export{
+		Script: script.String(), Tools: nil,
+		Lost: []string{"the variables of a tree, which tt alone sets"},
+	}, nil
 }
 
 // Programs names the programs of output: all the build makes.
