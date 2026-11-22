@@ -359,11 +359,19 @@ def rock_of(out: Path, package: Package, suffix: str) -> Path:
     return found[0]
 
 
+def hostile_dir(root: Path) -> tuple[Path, Path]:
+    """A directory under root whose path has a quote, a $, spaces and a ;,
+    and the file the shell makes when it runs any of it unquoted: the name
+    is the command "touch <file>" among them. The directory is not made."""
+    canary = root / "PWNED"
+    return root / f"it's $HOME $(touch {canary}) a b; touch {canary}; echo '" / "end", canary
+
+
 def tt2_install(tt2, consumer: Path, rock: Path) -> tuple[int, str]:
     """Install the rock, or build the rockspec, with tt rocks of tt 2 into
     .rocks of consumer, a new tt 2 environment, and return its exit code and
     what it printed."""
-    consumer.mkdir()
+    consumer.mkdir(parents=True)
     env = dict(os.environ, PWD=str(consumer))
     rc, output = run_command_and_get_output([tt2, "init"], cwd=consumer, env=env)
     assert rc == 0, output
@@ -469,6 +477,34 @@ def test_luarocks_builds_the_source_rock(tt_cmd, tt2, tmp_path, package):
         assert got["lua"] == want["lua"], what
         assert set(got["lib"]) == set(want["lib"]), what
         assert set(got["bin"]) == set(want["bin"]), what
+
+
+@pytest.mark.parametrize("package", [SCRIPTED, LUA_C], ids=["shell-make", "lua-c"])
+def test_luarocks_builds_into_a_tree_of_any_name(tt_cmd, tt2, tmp_path, package):
+    """tt rocks of tt 2 installs the source rock of the package, and builds
+    its bare rockspec, into trees in a directory whose name has a quote, a $,
+    spaces and a ;, which LuaRocks gives the commands of the rockspec as it
+    is, LUADIR, LIBDIR and BINDIR of the install: the shell runs nothing of
+    it, and every file of the rock is installed. Tarantool loads no module
+    from there, as a ; separates the entries of package.path."""
+    tmp = tmp_path.resolve()
+    project = write_package(tmp, package)
+    out = tmp / "out"
+    pack(tt_cmd, project, out, "rock-src")
+
+    consumers, canary = hostile_dir(tmp)
+
+    for what, suffix in (("source rock", ".src.rock"), ("bare rockspec", ".rockspec")):
+        consumer = consumers / what.replace(" ", "-")
+        rc, output = tt2_install(tt2, consumer, rock_of(out, package, suffix))
+        assert not canary.exists(), f"{what}: the shell ran the name of the tree: {output}"
+        assert rc == 0, output
+        assert f"{package.name} {VERSION}-1 is now installed" in output
+
+        got = installed(consumer)
+        assert set(got["lua"]) == package.lua, what
+        assert set(got["lib"]) == package.lib, what
+        assert set(got["bin"]) == package.bin, what
 
 
 def test_luarocks_fails_on_the_source_rock_of_a_build_of_tt_alone(tt_cmd, tt2, tmp_path):

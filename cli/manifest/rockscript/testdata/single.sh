@@ -8,7 +8,10 @@
 #   sh ./tt-rock.sh install  copies the stage into LUADIR, LIBDIR and BINDIR
 #
 # LuaRocks gives the build CC, CFLAGS, LIBFLAG and LUA_INCDIR, the directory
-# of the headers of Tarantool. A build of the script has no cache and no
+# of the headers of Tarantool, and the install LUADIR, LIBDIR and BINDIR:
+# the rockspec runs either with the argument - and writes them to its
+# stdin, a line NAME=value each, in that order; without -, they are those
+# of the environment. A build of the script has no cache and no
 # incremental build, and none of the checks tt makes of what a build made;
 # the rocks it builds with are those LuaRocks resolved by the rockspec, not
 # those of the lock of the package.
@@ -45,6 +48,24 @@ tt_lay() {
 	[ -f "$tt_root/$1" ] || return 0
 	mkdir -p -- "$tt_stage/${2%/*}"
 	cp -- "$tt_root/$1" "$tt_stage/$2"
+}
+
+# tt_read name: reads the line name=value of stdin, the next variable of
+# LuaRocks the rockspec gives the script, into tt_value.
+tt_read() {
+	IFS= read -r tt_line ||
+		tt_die "stdin ends before $1=<value>, a variable of LuaRocks"
+	case $tt_line in
+	"$1"=*) tt_value=${tt_line#*=} ;;
+	*) tt_die "stdin has \"$tt_line\" for $1=<value>, a variable of LuaRocks" ;;
+	esac
+}
+
+# tt_read_end: fails unless stdin ends after the variables of LuaRocks, as
+# it does unless a value of one of them has a newline.
+tt_read_end() {
+	! IFS= read -r tt_line ||
+		tt_die "stdin has \"$tt_line\" after the variables of LuaRocks"
 }
 
 # tt_env sets the variables every build of the package has: those of a
@@ -134,7 +155,33 @@ tt_install() {
 }
 
 case ${1-} in
-build) tt_build ;;
-install) tt_install ;;
-*) tt_die "usage: sh ./tt-rock.sh build | install" ;;
+build)
+	if [ "${2-}" = - ]; then
+		tt_read CC
+		CC=$tt_value
+		tt_read CFLAGS
+		CFLAGS=$tt_value
+		tt_read LIBFLAG
+		LIBFLAG=$tt_value
+		tt_read LUA_INCDIR
+		LUA_INCDIR=$tt_value
+		tt_read_end
+		export CC CFLAGS LIBFLAG LUA_INCDIR
+	fi
+	tt_build
+	;;
+install)
+	if [ "${2-}" = - ]; then
+		tt_read LUADIR
+		LUADIR=$tt_value
+		tt_read LIBDIR
+		LIBDIR=$tt_value
+		tt_read BINDIR
+		BINDIR=$tt_value
+		tt_read_end
+		export LUADIR LIBDIR BINDIR
+	fi
+	tt_install
+	;;
+*) tt_die "usage: sh ./tt-rock.sh build [-] | install [-]" ;;
 esac

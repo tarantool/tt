@@ -446,6 +446,22 @@ type luaRocksRun struct {
 	err  error
 }
 
+// hostileDir returns a new directory whose path has a quote, a $, spaces
+// and a ;, and the path of the file the shell makes when it runs any of it,
+// which reads it unquoted: the name of the directory is the command
+// "touch <file>" among them.
+func hostileDir(t *testing.T) (string, string) {
+	t.Helper()
+
+	base := t.TempDir()
+	canary := filepath.Join(base, "PWNED")
+	dir := filepath.Join(base, "it's $HOME $(touch "+canary+") a b; touch "+canary+"; echo '",
+		"end")
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+
+	return dir, canary
+}
+
 // luaRocksClient is a go-luarocks client of backend, as LuaRocks is with no
 // tt: no manifest, and the tree at tree of a Tarantool 3.0.0, from the rock
 // server server. The Tarantool is one of a prefix with the headers
@@ -491,7 +507,9 @@ func rockOf(path string) (string, string) {
 
 // luaRocksInstall installs the rock at path from a rock server holding it
 // alone into a new tree with go-luarocks of backend, without its
-// dependencies, which LuaRocks has the Tarantool of for one.
+// dependencies, which LuaRocks has the Tarantool of for one. The tree is a
+// hostileDir, of whose name the install is to run nothing, and its
+// directories LUADIR, LIBDIR and BINDIR of the commands of the rockspec.
 func luaRocksInstall(t *testing.T, backend client.Backend, rock string) luaRocksRun {
 	t.Helper()
 
@@ -504,22 +522,25 @@ func luaRocksInstall(t *testing.T, backend client.Backend, rock string) luaRocks
 		remote.MakeManifestOpts{}))
 
 	name, _ := rockOf(rock)
-	tree := t.TempDir()
+	tree, canary := hostileDir(t)
 
 	err = luaRocksClient(t, backend, tree, server).Install(context.Background(), name,
 		client.InstallOpts{Deps: client.DepsNone})
+	assert.NoFileExists(t, canary, "the shell ran the name of the tree")
 
 	return luaRocksRun{tree: tree, err: err}
 }
 
 // luaRocksBuild builds the bare rockspec at path, from the source it names,
-// into a new tree with go-luarocks of backend.
+// into a new tree with go-luarocks of backend: a hostileDir, as for
+// luaRocksInstall.
 func luaRocksBuild(t *testing.T, backend client.Backend, rockspec string) luaRocksRun {
 	t.Helper()
 
-	tree := t.TempDir()
+	tree, canary := hostileDir(t)
 	err := luaRocksClient(t, backend, tree, t.TempDir()).Build(context.Background(), rockspec,
 		client.BuildOpts{})
+	assert.NoFileExists(t, canary, "the shell ran the name of the tree")
 
 	return luaRocksRun{tree: tree, err: err}
 }

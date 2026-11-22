@@ -1086,8 +1086,19 @@ $ ../dist/tt rocks install myapp --only-server ../dist-src
 Installing ../dist-src/myapp-1.0.0-1.src.rock
 
 myapp 1.0.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
-CC='gcc' CFLAGS='-O2 -fPIC' LIBFLAG='-shared' LUA_INCDIR='.../include/tarantool' sh ./tt-rock.sh build
-LUADIR='.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/lua' LIBDIR='.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/lib' BINDIR='.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/bin' sh ./tt-rock.sh install
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=gcc
+CFLAGS=-O2 -fPIC
+LIBFLAG=-shared
+LUA_INCDIR=.../include/tarantool
+TT_ROCK_VARIABLES
+
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/lua
+LIBDIR=.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/lib
+BINDIR=.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/bin
+TT_ROCK_VARIABLES
+
 No existing manifest. Attempting to rebuild...
 myapp 1.0.0-1 is now installed in .../lr/.rocks
 

@@ -228,9 +228,10 @@ var componentVariables = []string{
 }
 
 // Render writes the script, which runs as sh ./tt-rock.sh build and sh
-// ./tt-rock.sh install from the root of the sources (see the package). The
-// text of the script is the template tt-rock.sh.tmpl, which Render executes
-// on the view of script.
+// ./tt-rock.sh install from the root of the sources (see the package), each
+// with - after it and the variables of LuaRocks on stdin when the rockspec
+// runs it (Command). The text of the script is the template tt-rock.sh.tmpl,
+// which Render executes on the view of script.
 func Render(script Script) string {
 	var out strings.Builder
 
@@ -293,6 +294,9 @@ type view struct {
 	LayAt int
 	// Lay are the files the script lays out into the stage (Script.Lay).
 	Lay []Lay
+	// Phases are the phases of the script, which its entry point runs by
+	// its first argument (phases).
+	Phases []scriptPhase
 }
 
 // stepView is a Step as the template of the script takes it.
@@ -360,7 +364,7 @@ func newView(script Script) view {
 
 	return view{
 		Package: script.Package, Version: script.Version, Steps: views, LayAt: layAt,
-		Lay: script.Lay,
+		Lay: script.Lay, Phases: phases,
 	}
 }
 
@@ -464,6 +468,75 @@ func outputDest(step Step, file sdkbuild.OutputFile) string {
 // hookPreBuild is the hook the script runs before the builds of the
 // components.
 const hookPreBuild = "pre_build"
+
+// The phases of the script, its first argument.
+const (
+	// PhaseBuild builds the package into the stage.
+	PhaseBuild = "build"
+	// PhaseInstall copies the stage into the directories of the rock.
+	PhaseInstall = "install"
+)
+
+// scriptPhase is a phase of the script (phases).
+type scriptPhase struct {
+	// Name is the name of the phase, the first argument of the script.
+	Name string
+	// Variables are the variables of LuaRocks the rockspec gives the
+	// phase (Command), in the order the script reads them.
+	Variables []string
+}
+
+// phases are the phases of the script in order, and the variables of
+// LuaRocks the rockspec gives each (Command), in the order it reads them.
+//
+//nolint:gochecknoglobals // A constant table.
+var phases = []scriptPhase{
+	{PhaseBuild, []string{"CC", "CFLAGS", "LIBFLAG", "LUA_INCDIR"}},
+	{PhaseInstall, []string{"LUADIR", "LIBDIR", "BINDIR"}},
+}
+
+// variablesEnd ends the here-document of the variables of LuaRocks of a
+// command of the rockspec (Command): every line of it but the last is
+// NAME=value, and is not that word, unless a value has a newline.
+const variablesEnd = "TT_ROCK_VARIABLES"
+
+// Command is the command of the rockspec that runs the phase of the script
+// named script, a word of sh, with the variables of LuaRocks of the phase -
+// CC, CFLAGS, LIBFLAG and LUA_INCDIR for the build, LUADIR, LIBDIR and
+// BINDIR for the install - in a quoted here-document, a line NAME=$(NAME)
+// each, after the argument -:
+//
+//	sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+//	LUADIR=$(LUADIR)
+//	LIBDIR=$(LIBDIR)
+//	BINDIR=$(BINDIR)
+//	TT_ROCK_VARIABLES
+//
+// LuaRocks substitutes the value of each $(NAME) as it is, wherever it is
+// in the command, and the shell reads no quote and no $ of a here-document
+// of a quoted delimiter, so a value of any byte but a newline reaches the
+// script as it is: a directory with a quote, a $ or a ; in its name. The
+// script reads them from stdin, and LuaRocks prints the command so, a
+// variable a line.
+func Command(script, phase string) string {
+	var out strings.Builder
+
+	fmt.Fprintf(&out, "sh ./%s %s - <<'%s'\n", script, phase, variablesEnd)
+
+	for _, entry := range phases {
+		if entry.Name != phase {
+			continue
+		}
+
+		for _, name := range entry.Variables {
+			fmt.Fprintf(&out, "%s=$(%s)\n", name, name)
+		}
+	}
+
+	out.WriteString(variablesEnd + "\n")
+
+	return out.String()
+}
 
 // comment is text on one line of a comment of the script.
 func comment(text string) string {

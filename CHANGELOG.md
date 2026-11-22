@@ -510,13 +510,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   repository holds a generated file. A package with build blocks builds by
   `tt-rock.sh`, a script of sh the rockspec carries in `build.extra_files`,
   which a build table of type `command` runs with `CC`, `CFLAGS`, `LIBFLAG`
-  and `LUA_INCDIR` of LuaRocks: the script sets the `TT_*` variables of a
-  build of tt, for the machine `uname` names, a module `.so` or `.dylib`,
-  looks for the tools of every build with `command -v`, runs `pre_build`,
-  each component in the order of the product, in its working directory with
-  the `env` of its block, by the commands tt runs, copies what `output`
-  lists, and runs `post_build`, all into `.tt-rock/stage/`, which its
-  install copies into `LUADIR`, `LIBDIR` and `BINDIR`. The builds of
+  and `LUA_INCDIR` of LuaRocks, given on its stdin, so that the shell runs
+  nothing of the name of a tree, one with a quote say: the script sets the
+  `TT_*` variables of a build of tt, for the machine `uname` names, a
+  module `.so` or `.dylib`, looks for the tools of every build with
+  `command -v`, runs `pre_build`, each component in the order of the
+  product, in its working directory with the `env` of its block, by the
+  commands tt runs, copies what `output` lists, and runs `post_build`, all
+  into `.tt-rock/stage/`, which its install copies into `LUADIR`, `LIBDIR`
+  and `BINDIR`, given so too. The builds of
   `make`, `shell`, `cmake`, `go`, `cargo` and `zig` are made so, and those
   of `c` and `lua-c` but for `static = true` and `bundle`; the pack warns
   once of what a script lacks against a build of tt, such as the cache of
