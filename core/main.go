@@ -161,7 +161,7 @@ func WithIntegrity(provider integrity.Provider) Option {
 // install and tt binary search ask for the products they have, in order:
 // the first source with a product is the one asked for it, and no other.
 // Without it tt has the customer zone of tarantool.io ([CustomerZone]), the
-// RPMs of Tarantool on rws.tarantool.org ([RWS]) and the releases of tt on
+// debs of Tarantool on rws.tarantool.org ([RWS]) and the releases of tt on
 // GitHub ([GitHubReleases]); with no sources tt installs Tarantool
 // Enterprise, the SDK, TCM and tt-ee from --local-dir only and builds
 // Tarantool Community and tt from source. --local-dir is not a source: tt
@@ -183,7 +183,7 @@ func CustomerZone() bundle.Source {
 	return customerzone.New()
 }
 
-// RWS returns the repository of the static RPMs of Tarantool 3 on
+// RWS returns the repository of the static deb packages of Tarantool 3 on
 // rws.tarantool.org: the source of the prebuilt Tarantool Community that tt
 // binary install takes for a release tag on Linux with glibc. Without a
 // source of tarantool, tt builds every version of it from source.

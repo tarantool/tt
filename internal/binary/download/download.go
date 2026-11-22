@@ -1,5 +1,5 @@
 // Package download is the bounded HTTP delivery of the release files the
-// sources of the Community products read: the RPM repository of Tarantool
+// sources of the Community products read: the deb repository of Tarantool
 // and the releases of tt on GitHub. A request has a timeout, a body has a
 // size limit, and a reply other than 200 OK is an error that names the file.
 //

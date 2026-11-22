@@ -4,7 +4,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	encodingbinary "encoding/binary"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +23,6 @@ import (
 	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/internal/binary/download"
-	"github.com/ulikunitz/xz"
 )
 
 const packageTestURL = "https://packages.test"
@@ -66,6 +66,7 @@ func packageTestSource(t *testing.T, client *http.Client) *Source {
 		client:        download.Client{HTTP: client, FileLimit: download.FileLimit},
 		repositoryURL: packageTestURL,
 		indexLimit:    download.IndexLimit,
+		dataLimit:     maxDebDataSize,
 		systemRoot:    packagePlatformFixture(t),
 	}
 }
@@ -112,151 +113,154 @@ func packageTestLocator(t *testing.T, artifact bundle.Artifact) locator {
 	return packages
 }
 
-func TestSelectPackages(t *testing.T) {
-	const packagesURL = packageTestURL + "/x86_64/Packages/"
+// repositoryPackage is a package of the fake repository.
+type repositoryPackage struct {
+	name, version, arch string
+	content             []byte
+	// indexed is the content the index lists the size and the digest of;
+	// nil is content.
+	indexed []byte
+}
 
-	tests := []struct {
-		name    string
-		files   []string
-		line    string
-		want    map[string][2]string
-		message string
-	}{
-		{
-			name: "exact tag and newest numeric RPM revision",
-			files: []string{
-				"tarantool-3.7.1-2.x86_64.rpm", "tarantool-devel-3.7.1-2.x86_64.rpm",
-				"tarantool-3.7.1-10.x86_64.rpm", "tarantool-devel-3.7.1-10.x86_64.rpm",
-				"tarantool-3.7.10-99.x86_64.rpm", "tarantool-3.7.1-99.aarch64.rpm",
-				"tarantool-debuginfo-3.7.1-99.x86_64.rpm", "tarantool-3.7.1-beta-99.x86_64.rpm",
-			},
-			line: "3.7.1",
-			want: map[string][2]string{"3.7.1": {
-				"tarantool-3.7.1-10.x86_64.rpm", "tarantool-devel-3.7.1-10.x86_64.rpm",
-			}},
-		},
-		{
-			name:  "missing runtime",
-			files: []string{"tarantool-devel-3.7.1-1.x86_64.rpm"},
-			line:  "3.7.1",
-		},
-		{
-			name: "missing matching newest headers does not downgrade",
-			files: []string{
-				"tarantool-3.7.1-1.x86_64.rpm", "tarantool-devel-3.7.1-1.x86_64.rpm",
-				"tarantool-3.7.1-2.x86_64.rpm",
-			},
-			line:    "3.7.1",
-			message: "no matching headers package tarantool-devel-3.7.1-2.x86_64.rpm",
-		},
-		{
-			name: "release line",
-			files: []string{
-				"tarantool-3.7.0-1.x86_64.rpm", "tarantool-devel-3.7.0-1.x86_64.rpm",
-				"tarantool-3.7.1-1.x86_64.rpm", "tarantool-devel-3.7.1-1.x86_64.rpm",
-				"tarantool-3.8.0-1.x86_64.rpm", "tarantool-devel-3.8.0-1.x86_64.rpm",
-				"tarantool-3.70.0-1.x86_64.rpm", "tarantool-devel-3.70.0-1.x86_64.rpm",
-			},
-			line: "3.7",
-			want: map[string][2]string{
-				"3.7.0": {"tarantool-3.7.0-1.x86_64.rpm", "tarantool-devel-3.7.0-1.x86_64.rpm"},
-				"3.7.1": {"tarantool-3.7.1-1.x86_64.rpm", "tarantool-devel-3.7.1-1.x86_64.rpm"},
-			},
-		},
-		{
-			name: "every version",
-			files: []string{
-				"tarantool-3.7.0-1.x86_64.rpm", "tarantool-devel-3.7.0-1.x86_64.rpm",
-				"tarantool-3.8.0-1.x86_64.rpm", "tarantool-devel-3.8.0-1.x86_64.rpm",
-			},
-			want: map[string][2]string{
-				"3.7.0": {"tarantool-3.7.0-1.x86_64.rpm", "tarantool-devel-3.7.0-1.x86_64.rpm"},
-				"3.8.0": {"tarantool-3.8.0-1.x86_64.rpm", "tarantool-devel-3.8.0-1.x86_64.rpm"},
-			},
-		},
+// filename is where the repository has the package, as the real one names
+// it.
+func (pkg repositoryPackage) filename() string {
+	return "pool/static/main/t/tarantool/" + pkg.name + "_" + pkg.version + "_" + pkg.arch + ".deb"
+}
+
+// repositoryIndex writes the Packages index of packages as the real
+// repository does: its order of fields, a multiline description and the
+// digests apt does not need here.
+func repositoryIndex(packages ...repositoryPackage) string {
+	var index strings.Builder
+
+	for _, pkg := range packages {
+		indexed := pkg.indexed
+		if indexed == nil {
+			indexed = pkg.content
+		}
+
+		digest := sha256.Sum256(indexed)
+
+		fmt.Fprintf(&index, "Architecture: %s\n", pkg.arch)
+
+		if pkg.name == headersPackage {
+			fmt.Fprintf(&index, "Depends: tarantool (= %s)\n", pkg.version)
+		}
+
+		fmt.Fprintf(&index, "Description: Tarantool is a high performance in-memory database.\n"+
+			" The package provides Tarantool.\nPackage: %s\nPriority: optional\n"+
+			"Version: %s\nInstalled-Size: 1\nSize: %d\nMD5Sum: 0\nSHA1: 0\nSHA256: %s\n"+
+			"Filename: %s\nFileTime: 1792748634.0\n\n",
+			pkg.name, pkg.version, len(indexed), hex.EncodeToString(digest[:]), pkg.filename())
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := recordLogs(t)
 
-			files := make(map[string]struct{})
-			for _, file := range test.files {
-				files[file] = struct{}{}
-			}
+	return index.String()
+}
 
-			got := make(map[string][2]string)
+// fakeRepository serves the index of packages for each architecture and
+// the packages, recording the paths requested. override, if set, answers a
+// request first; it returns false to leave the request to the repository.
+func fakeRepository(t *testing.T, requests *[]string, packages []repositoryPackage,
+	override func(http.ResponseWriter, *http.Request) bool,
+) *http.Client {
+	t.Helper()
 
-			for _, artifact := range selectPackages(files, packagesURL, test.line, "x86_64") {
-				packages := packageTestLocator(t, artifact)
+	return packageTestClient(t, func(writer http.ResponseWriter, request *http.Request) {
+		*requests = append(*requests, request.URL.Path)
 
-				assert.Empty(t, artifact.Flavor)
-				assert.Empty(t, artifact.SHA256, "the repository has no digests")
-				assert.Equal(t, strings.TrimSuffix(filepath.Base(packages.Runtime), ".rpm")+
-					".tar.gz", artifact.Name)
-				require.True(t, strings.HasPrefix(packages.Runtime, packagesURL))
-				require.True(t, strings.HasPrefix(packages.Headers, packagesURL))
+		if override != nil && override(writer, request) {
+			return
+		}
 
-				got[artifact.Version] = [2]string{
-					strings.TrimPrefix(packages.Runtime, packagesURL),
-					strings.TrimPrefix(packages.Headers, packagesURL),
+		for _, arch := range []string{debArchAMD64, debArchARM64} {
+			if request.URL.Path == "/dists/static/main/binary-"+arch+"/Packages" {
+				var listed []repositoryPackage
+
+				for _, pkg := range packages {
+					if pkg.arch == arch {
+						listed = append(listed, pkg)
+					}
 				}
-			}
 
-			if test.want == nil {
-				assert.Empty(t, got)
-			} else {
-				assert.Equal(t, test.want, got)
-			}
+				_, _ = io.WriteString(writer, repositoryIndex(listed...))
 
-			if test.message != "" {
-				requireLogged(t, recorder, test.message)
+				return
 			}
-		})
+		}
+
+		for _, pkg := range packages {
+			if request.URL.Path == "/"+pkg.filename() {
+				_, _ = writer.Write(pkg.content)
+
+				return
+			}
+		}
+
+		http.NotFound(writer, request)
+	})
+}
+
+// runtimeDeb and headersDeb are the packages of a build with the files
+// tt needs.
+func runtimeDeb(t *testing.T, entries ...debEntry) []byte {
+	t.Helper()
+
+	return debFixture(t, append([]debEntry{
+		{name: "./", kind: tar.TypeDir, mode: 0o755},
+		{name: "./usr/", kind: tar.TypeDir, mode: 0o755},
+		{name: "./usr/bin/", kind: tar.TypeDir, mode: 0o755},
+		{name: "./usr/bin/tarantool", mode: 0o755, data: "executable"},
+	}, entries...)...)
+}
+
+func headersDeb(t *testing.T) []byte {
+	t.Helper()
+
+	return debFixture(t,
+		debEntry{name: "./usr/include/tarantool/", kind: tar.TypeDir, mode: 0o755},
+		debEntry{name: "./usr/include/tarantool/module.h", mode: 0o644, data: "headers"},
+		debEntry{name: "./usr/share/doc/tarantool-dev/LICENSE", mode: 0o644, data: "dev license"},
+	)
+}
+
+// buildPackages are the packages of the build of version for arch.
+func buildPackages(version, arch string, runtime, headers []byte) []repositoryPackage {
+	return []repositoryPackage{
+		{name: runtimePackage, version: version, arch: arch, content: runtime, indexed: nil},
+		{name: headersPackage, version: version, arch: arch, content: headers, indexed: nil},
 	}
 }
 
 func TestListAndFetch(t *testing.T) {
-	for goarch, rpmArch := range map[string]string{"amd64": "x86_64", "arm64": "aarch64"} {
+	for goarch, debArch := range map[string]string{"amd64": "amd64", "arm64": "arm64"} {
 		t.Run(goarch, func(t *testing.T) {
 			temp := t.TempDir()
 			t.Setenv("TMPDIR", temp)
 
 			var requests []string
 
-			runtimeName := "tarantool-3.7.1-1." + rpmArch + ".rpm"
-			headersName := "tarantool-devel-3.7.1-1." + rpmArch + ".rpm"
-			runtimeRPM := packageTestRPM(t, "./usr/bin/tarantool", "executable", 0100755)
-			headersRPM := packageTestRPM(t, "./usr/include/tarantool/module.h", "headers", 0100644)
-			client := packageTestClient(t, func(
-				writer http.ResponseWriter, request *http.Request,
-			) {
-				requests = append(requests, request.URL.Path)
-				switch filepath.Base(request.URL.Path) {
-				case "Packages":
-					_, _ = fmt.Fprintf(writer, `<a href="%s">runtime</a><a href="%s">headers</a>`,
-						runtimeName, headersName)
-				case runtimeName:
-					_, _ = writer.Write(runtimeRPM)
-				case headersName:
-					_, _ = writer.Write(headersRPM)
-				default:
-					http.NotFound(writer, request)
-				}
-			})
+			other := map[string]string{"amd64": "arm64", "arm64": "amd64"}[debArch]
+			packages := append(append(
+				buildPackages("3.7.1-1", debArch, runtimeDeb(t), headersDeb(t)),
+				buildPackages("3.7.1-2", other, []byte("other"), []byte("other"))...),
+				buildPackages("3.7.0-1", debArch, []byte("older"), []byte("older"))...)
+			source := packageTestSource(t, fakeRepository(t, &requests, packages, nil))
 
-			source := packageTestSource(t, client)
 			artifacts, err := source.List(t.Context(), packageTestQuery(goarch, "3.7.1"))
 			require.NoError(t, err)
 			require.Len(t, artifacts, 1)
 			assert.Equal(t, "3.7.1", artifacts[0].Version)
-			require.Equal(t, []string{"/" + rpmArch + "/Packages/"}, requests)
+			assert.Equal(t, "tarantool_3.7.1-1_"+debArch+".tar.gz", artifacts[0].Name)
+
+			index := "/dists/static/main/binary-" + debArch + "/Packages"
+			require.Equal(t, []string{index}, requests)
 
 			var archive bytes.Buffer
 
 			require.NoError(t, source.Fetch(t.Context(), artifacts[0], &archive))
 			require.Equal(t, []string{
-				"/" + rpmArch + "/Packages/", "/" + rpmArch + "/Packages/" + runtimeName,
-				"/" + rpmArch + "/Packages/" + headersName,
+				index, "/" + packages[0].filename(), "/" + packages[1].filename(),
 			}, requests)
 			assert.Equal(t, []archiveTestEntry{
 				{"tarantool", tar.TypeReg, 0o755, "executable"},
@@ -267,32 +271,35 @@ func TestListAndFetch(t *testing.T) {
 
 			entries, err := os.ReadDir(temp)
 			require.NoError(t, err)
-			require.Empty(t, entries, "the RPMs and their files are removed")
+			require.Empty(t, entries, "the packages and their files are removed")
 		})
 	}
 }
 
 // TestFetchKeepsShareAndLicenses keeps the share/tarantool of the runtime
-// RPM, the EmmyLua stubs of Tarantool 3.9 and later, and its license files,
-// as the RPMs of rws.tarantool.org lay them out; the rest of usr/share is
-// left out.
+// package, the EmmyLua stubs of Tarantool 3.9 and later, and its license
+// files, as the debs of rws.tarantool.org lay them out; the rest of
+// usr/share is left out.
 func TestFetchKeepsShareAndLicenses(t *testing.T) {
 	for _, test := range []struct {
 		name    string
-		entries []cpioEntry
+		entries []debEntry
 		want    []archiveTestEntry
 	}{
 		{
-			name: "licenses",
-			entries: []cpioEntry{
-				{name: "./usr/share/licenses/tarantool/AUTHORS", mode: 0o100644, data: "authors"},
-				{name: "./usr/share/licenses/tarantool/LICENSE", mode: 0o100644, data: "license"},
-				{name: "./usr/share/doc/tarantool/LICENSE", mode: 0o100644, data: "doc license"},
-				{name: "./usr/share/doc/tarantool/README.md", mode: 0o100644, data: "readme"},
-				{name: "./usr/share/man/man1/tarantool.1.gz", mode: 0o100644, data: "man"},
-				{name: "./usr/share/tarantool/emmylua/box.lua", mode: 0o100644, data: "box"},
-				{name: "./usr/share/tarantool/emmylua/fio.lua", mode: 0o100644, data: "fio"},
-				{name: "./usr/share/tarantool/outside", mode: 0o120777, data: "../../outside"},
+			name: "deb",
+			entries: []debEntry{
+				{name: "./usr/share/doc/tarantool/AUTHORS", mode: 0o644, data: "authors"},
+				{name: "./usr/share/doc/tarantool/LICENSE", mode: 0o644, data: "license"},
+				{name: "./usr/share/doc/tarantool/README.md", mode: 0o644, data: "readme"},
+				{name: "./usr/share/doc/tarantool/copyright", mode: 0o644, data: "copyright"},
+				{name: "./usr/share/man/man1/tarantool.1", mode: 0o644, data: "man"},
+				{name: "./usr/share/tarantool/emmylua/checks.lua", mode: 0o644, data: "checks"},
+				{name: "./usr/share/tarantool/emmylua/metrics.lua", mode: 0o644, data: "metrics"},
+				{
+					name: "./usr/share/tarantool/outside", kind: tar.TypeSymlink,
+					data: "../../outside",
+				},
 			},
 			want: []archiveTestEntry{
 				{"LICENSE", tar.TypeReg, 0o644, "license"},
@@ -303,18 +310,19 @@ func TestFetchKeepsShareAndLicenses(t *testing.T) {
 				{"share/", tar.TypeDir, 0o755, ""},
 				{"share/tarantool/", tar.TypeDir, 0o755, ""},
 				{"share/tarantool/emmylua/", tar.TypeDir, 0o755, ""},
-				{"share/tarantool/emmylua/box.lua", tar.TypeReg, 0o644, "box"},
-				{"share/tarantool/emmylua/fio.lua", tar.TypeReg, 0o644, "fio"},
+				{"share/tarantool/emmylua/checks.lua", tar.TypeReg, 0o644, "checks"},
+				{"share/tarantool/emmylua/metrics.lua", tar.TypeReg, 0o644, "metrics"},
 			},
 		},
 		{
-			name: "licenses among the documents",
-			entries: []cpioEntry{
-				{name: "./usr/share/doc/tarantool/LICENSE", mode: 0o100644, data: "doc license"},
-				{name: "./usr/share/doc/tarantool/README.md", mode: 0o100644, data: "readme"},
+			name: "licenses before the documents",
+			entries: []debEntry{
+				{name: "./usr/share/licenses/tarantool/LICENSE", mode: 0o644, data: "license"},
+				{name: "./usr/share/doc/tarantool/LICENSE", mode: 0o644, data: "doc license"},
+				{name: "./usr/share/doc/tarantool/AUTHORS", mode: 0o644, data: "doc authors"},
 			},
 			want: []archiveTestEntry{
-				{"LICENSE", tar.TypeReg, 0o644, "doc license"},
+				{"LICENSE", tar.TypeReg, 0o644, "license"},
 				{"include/", tar.TypeDir, 0o755, ""},
 				{"include/tarantool/", tar.TypeDir, 0o755, ""},
 				{"include/tarantool/module.h", tar.TypeReg, 0o644, "headers"},
@@ -324,30 +332,11 @@ func TestFetchKeepsShareAndLicenses(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("TMPDIR", t.TempDir())
 
-			const (
-				runtimeName = "tarantool-3.9.0-1.x86_64.rpm"
-				headersName = "tarantool-devel-3.9.0-1.x86_64.rpm"
-			)
+			var requests []string
 
-			runtimeRPM := rpmFixture(t, "xz", cpioFixture(append([]cpioEntry{
-				{name: "./usr/bin/tarantool", mode: 0o100755, data: "executable"},
-			}, test.entries...)...))
-			headersRPM := packageTestRPM(t, "./usr/include/tarantool/module.h", "headers", 0100644)
-			client := packageTestClient(t, func(writer http.ResponseWriter, request *http.Request) {
-				switch filepath.Base(request.URL.Path) {
-				case "Packages":
-					_, _ = fmt.Fprintf(writer, `<a href="%s">runtime</a><a href="%s">headers</a>`,
-						runtimeName, headersName)
-				case runtimeName:
-					_, _ = writer.Write(runtimeRPM)
-				case headersName:
-					_, _ = writer.Write(headersRPM)
-				default:
-					http.NotFound(writer, request)
-				}
-			})
+			source := packageTestSource(t, fakeRepository(t, &requests, buildPackages(
+				"3.9.0-1", debArchAMD64, runtimeDeb(t, test.entries...), headersDeb(t)), nil))
 
-			source := packageTestSource(t, client)
 			artifacts, err := source.List(t.Context(), packageTestQuery("amd64", "3.9.0"))
 			require.NoError(t, err)
 			require.Len(t, artifacts, 1)
@@ -366,15 +355,18 @@ func TestListAndFetchErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		indexCode  int
+		index      string
 		fileCode   int
 		indexLimit int64
 		fileLimit  int64
-		invalidRPM bool
-		noBinary   bool
-		noHeaders  bool
-		listError  bool
-		wantIs     error
-		wantError  string
+		// runtime and headers replace the packages of the build; indexed
+		// replaces what the index lists the size and digest of.
+		runtime   []byte
+		headers   []byte
+		indexed   []byte
+		listError bool
+		wantIs    error
+		wantError string
 	}{
 		{name: "index unavailable", indexCode: 404, listError: true,
 			wantIs: download.ErrHTTPStatus, wantError: "HTTP 404"},
@@ -382,59 +374,74 @@ func TestListAndFetchErrors(t *testing.T) {
 			wantIs: download.ErrHTTPStatus, wantError: "HTTP 500"},
 		{name: "index limit", indexLimit: 12, listError: true,
 			wantIs: download.ErrTooLarge, wantError: "index exceeds 12 bytes"},
+		{name: "no index", index: "<html><body>Moved</body></html>\n", listError: true,
+			wantIs: errInvalidIndex, wantError: "read Tarantool package index " + packageTestURL +
+				"/dists/static/main/binary-amd64/Packages: invalid package index: " +
+				"line 1 is no field"},
 		{name: "package unavailable", fileCode: 404,
 			wantIs: download.ErrHTTPStatus, wantError: "HTTP 404"},
 		{name: "package server error", fileCode: 500,
 			wantIs: download.ErrHTTPStatus, wantError: "HTTP 500"},
 		{name: "package limit", fileLimit: 12,
 			wantIs: download.ErrTooLarge, wantError: "exceeds 12 bytes"},
-		{name: "corrupt package", invalidRPM: true, wantError: "extract Tarantool package"},
-		{name: "missing executable", noBinary: true, wantIs: errPackageContents,
-			wantError: "no executable usr/bin/tarantool"},
-		{name: "missing headers", noHeaders: true, wantIs: errPackageContents,
-			wantError: "no usr/include/tarantool/module.h"},
+		{name: "checksum mismatch", indexed: []byte("another package"), wantIs: errChecksum,
+			wantError: "has SHA-256 "},
+		{name: "corrupt package", runtime: []byte("invalid deb"), wantIs: errInvalidDeb,
+			wantError: "extract Tarantool package " + packageTestURL + "/pool/"},
+		{name: "unsupported compression", runtime: func() []byte {
+			members := debMembers(t, debEntry{name: "./usr/bin/tarantool", mode: 0o755})
+
+			members[2].name = "data.tar.zst"
+
+			return arFixture(members...)
+		}(), wantIs: errInvalidDeb, wantError: `unsupported deb data compression "data.tar.zst"`},
+		{name: "missing executable",
+			runtime: debFixture(t, debEntry{name: "./usr/bin/another", mode: 0o755, data: "x"}),
+			wantIs:  errPackageContents, wantError: "no executable usr/bin/tarantool"},
+		{name: "executable not executable",
+			runtime: debFixture(t, debEntry{name: "./usr/bin/tarantool", mode: 0o644, data: "x"}),
+			wantIs:  errPackageContents, wantError: "no executable usr/bin/tarantool"},
+		{name: "missing headers",
+			headers: debFixture(t, debEntry{name: "./usr/include/tarantool/lua.h", mode: 0o644}),
+			wantIs:  errPackageContents, wantError: "no usr/include/tarantool/module.h"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			temp := t.TempDir()
 			t.Setenv("TMPDIR", temp)
 
-			runtimeRPM := packageTestRPM(t, "./usr/bin/tarantool", "executable", 0100755)
-			if test.noBinary {
-				runtimeRPM = packageTestRPM(t, "./usr/bin/another", "executable", 0100755)
+			runtime, headers := runtimeDeb(t), headersDeb(t)
+			if test.runtime != nil {
+				runtime = test.runtime
 			}
 
-			headersRPM := packageTestRPM(t, "./usr/include/tarantool/module.h", "headers", 0100644)
-			if test.noHeaders {
-				headersRPM = packageTestRPM(t, "./usr/include/tarantool/lua.h", "headers", 0100644)
+			if test.headers != nil {
+				headers = test.headers
 			}
 
-			client := packageTestClient(t, func(
+			packages := buildPackages("3.7.1-1", debArchAMD64, runtime, headers)
+
+			packages[0].indexed = test.indexed
+
+			var requests []string
+
+			client := fakeRepository(t, &requests, packages, func(
 				writer http.ResponseWriter, request *http.Request,
-			) {
-				if strings.HasSuffix(request.URL.Path, "/Packages/") {
-					if test.indexCode != 0 {
-						writer.WriteHeader(test.indexCode)
-
-						return
-					}
-
-					_, _ = fmt.Fprint(writer, `<a href="tarantool-3.7.1-1.x86_64.rpm">runtime</a>`+
-						`<a href="tarantool-devel-3.7.1-1.x86_64.rpm">headers</a>`)
-
-					return
-				}
+			) bool {
+				isIndex := strings.HasSuffix(request.URL.Path, "/Packages")
 
 				switch {
-				case test.fileCode != 0:
+				case isIndex && test.indexCode != 0:
+					writer.WriteHeader(test.indexCode)
+				case isIndex && test.index != "":
+					_, _ = io.WriteString(writer, test.index)
+				case !isIndex && test.fileCode != 0:
 					writer.WriteHeader(test.fileCode)
-				case test.invalidRPM:
-					_, _ = fmt.Fprint(writer, "invalid RPM")
-				case strings.Contains(request.URL.Path, "devel"):
-					_, _ = writer.Write(headersRPM)
 				default:
-					_, _ = writer.Write(runtimeRPM)
+					return false
 				}
+
+				return true
 			})
 
 			source := packageTestSource(t, client)
@@ -459,12 +466,9 @@ func TestListAndFetchErrors(t *testing.T) {
 
 			err = source.Fetch(t.Context(), artifacts[0], io.Discard)
 			require.ErrorContains(t, err, test.wantError)
+			require.ErrorIs(t, err, test.wantIs)
 			require.NotErrorIs(t, err, bundle.ErrNotFound,
-				"an RPM the listing names is no build the repository lacks")
-
-			if test.wantIs != nil {
-				require.ErrorIs(t, err, test.wantIs)
-			}
+				"a package the index names is no build the repository lacks")
 
 			entries, err := os.ReadDir(temp)
 			require.NoError(t, err)
@@ -473,10 +477,46 @@ func TestListAndFetchErrors(t *testing.T) {
 	}
 }
 
+// TestFetchChecksumMessage names the package, both digests and both sizes.
+func TestFetchChecksumMessage(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+
+	runtime := runtimeDeb(t)
+	packages := buildPackages("3.7.1-1", debArchAMD64, runtime, headersDeb(t))
+
+	packages[0].indexed = append(bytes.Clone(runtime), 0)
+
+	var requests []string
+
+	source := packageTestSource(t, fakeRepository(t, &requests, packages, nil))
+
+	artifacts, err := source.List(t.Context(), packageTestQuery("amd64", "3.7.1"))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+
+	actual, listed := sha256.Sum256(runtime), sha256.Sum256(packages[0].indexed)
+
+	err = source.Fetch(t.Context(), artifacts[0], io.Discard)
+	require.EqualError(t, err, fmt.Sprintf("package checksum mismatch: Tarantool package "+
+		"%s/%s has SHA-256 %s and %d bytes, the package index lists %s and %d bytes; "+
+		"use --source-build to build from source", packageTestURL, packages[0].filename(),
+		hex.EncodeToString(actual[:]), len(runtime), hex.EncodeToString(listed[:]),
+		len(runtime)+1))
+}
+
 func TestFetchInvalidLocator(t *testing.T) {
-	for _, reference := range []string{"", "https://packages.test/a.rpm", `{"runtime":"a"}`} {
+	file := `{"url":"https://packages.test/a.deb","size":1,"sha256":"` +
+		strings.Repeat("a", sha256Length) + `"}`
+	empty := strings.Replace(file, `"size":1`, `"size":0`, 1)
+
+	for _, reference := range []string{
+		"", "https://packages.test/a.deb", `{"runtime":` + file + `}`,
+		`{"runtime":"https://packages.test/a.deb","headers":"https://packages.test/b.deb"}`,
+		`{"runtime":` + file + `,"headers":` + empty + `}`,
+		`{"runtime":` + file + `,"headers":` + strings.ReplaceAll(file, "a", "A") + `}`,
+	} {
 		err := New().Fetch(t.Context(), bundle.Artifact{Locator: reference}, io.Discard)
-		require.ErrorIs(t, err, errInvalidLocator)
+		require.ErrorIs(t, err, errInvalidLocator, reference)
 	}
 }
 
@@ -570,74 +610,4 @@ func readTestArchive(t *testing.T, data []byte) []archiveTestEntry {
 	}
 
 	return entries
-}
-
-func TestComparePackageReleases(t *testing.T) {
-	for _, pair := range [][2]string{
-		{"1", "2"}, {"2", "10"}, {"1.el8", "1.el9"}, {"1~rc1", "1"},
-		{"1", "1^git1"}, {"1^git1", "1.1"}, {"1a", "1.1"}, {"1.9", "1.10"},
-	} {
-		require.Negative(t, comparePackageReleases(pair[0], pair[1]), "%s < %s", pair[0], pair[1])
-		require.Positive(t, comparePackageReleases(pair[1], pair[0]))
-	}
-
-	for _, pair := range [][2]string{{"1", "01"}, {"1.1", "1+1"}, {"1", "1"}, {"", ""}} {
-		require.Zero(t, comparePackageReleases(pair[0], pair[1]))
-	}
-}
-
-// packageTestRPM writes a minimal XZ-compressed CPIO RPM so delivery tests
-// exercise the real extractor without external tools.
-func packageTestRPM(t *testing.T, name, content string, mode uint32) []byte {
-	t.Helper()
-
-	var payload bytes.Buffer
-
-	for _, entry := range []struct {
-		name, content string
-		mode          uint32
-	}{{name, content, mode}, {"TRAILER!!!", "", 0}} {
-		fmt.Fprintf(&payload, "070701%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x",
-			1, entry.mode, 0, 0, 1, 0, len(entry.content), 0, 0, 0, 0, len(entry.name)+1, 0)
-		payload.WriteString(entry.name + "\x00")
-
-		for payload.Len()%4 != 0 {
-			payload.WriteByte(0)
-		}
-
-		payload.WriteString(entry.content)
-
-		for payload.Len()%4 != 0 {
-			payload.WriteByte(0)
-		}
-	}
-
-	var archive bytes.Buffer
-
-	lead := make([]byte, 96)
-	copy(lead, []byte{0xed, 0xab, 0xee, 0xdb, 3})
-	archive.Write(lead)
-
-	headerMagic := []byte{0x8e, 0xad, 0xe8, 1, 0, 0, 0, 0}
-	archive.Write(headerMagic)
-	archive.Write(make([]byte, 8)) // Empty signature header, already aligned to 8 bytes.
-	archive.Write(headerMagic)
-
-	_ = encodingbinary.Write(&archive, encodingbinary.BigEndian, uint32(2))
-	_ = encodingbinary.Write(&archive, encodingbinary.BigEndian, uint32(len("cpio\x00xz\x00")))
-
-	for _, entry := range [][4]uint32{{1124, 6, 0, 1}, {1125, 6, 5, 1}} {
-		_ = encodingbinary.Write(&archive, encodingbinary.BigEndian, entry)
-	}
-
-	archive.WriteString("cpio\x00xz\x00")
-
-	writer, err := (xz.WriterConfig{DictCap: 1 << 20}).NewWriter(&archive)
-	require.NoError(t, err)
-
-	_, err = writer.Write(payload.Bytes())
-	require.NoError(t, err)
-	require.NoError(t, writer.Close())
-
-	return archive.Bytes()
 }

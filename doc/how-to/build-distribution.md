@@ -42,8 +42,9 @@ external modules (`external_modules`), all on by default, and where
 `tt binary install` finds prebuilt products (`bundle_sources`: by default
 `customer-zone`, the
 customer zone of tarantool.io, for Tarantool Enterprise, the SDK, TCM and
-tt-ee, `rws`, the RPMs of rws.tarantool.org, for Tarantool Community, and
-`github`, the releases of tt on GitHub, for tt; `[]` for none, and then
+tt-ee, `rws`, the deb packages of rws.tarantool.org, for Tarantool
+Community, and `github`, the releases of tt on GitHub, for tt; `[]` for
+none, and then
 Tarantool Community and tt are built from source). `[build]` sets the TLS
 implementation (`ssl`: `default`, `openssl` or `openssl_static`, overridden
 by `TT_CLI_BUILD_SSL`), whether to build with `cgo` (by default only for

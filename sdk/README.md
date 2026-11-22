@@ -186,7 +186,7 @@ core uses, and the core never requires older ones.
   and builds them from source when the source has no build for the
   platform. The sources are the distribution's choice
   (`core.WithBundleSources`); tt has the customer zone of tarantool.io, the
-  RPMs of Tarantool on rws.tarantool.org and the releases of tt on GitHub by
+  debs of Tarantool on rws.tarantool.org and the releases of tt on GitHub by
   default.
 - `sdk/console` is the interactive console `tt aeon connect` runs: a
   `Console` built by `NewConsole` from `ConsoleOpts` reads statements with
