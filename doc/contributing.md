@@ -58,6 +58,17 @@ cache directory of the user, `~/.cache` on Linux and `~/Library/Caches` on
 macOS, or `TT_TEST_CACHE`. A version stays there, `master` too: delete its
 directory to install it again.
 
+### LuaRocks of tt 2
+
+`test/integration/rocks/test_luarocks_compat.py` builds the source rocks of
+tt packages with `tt rocks` of tt 2, a plain LuaRocks 3.9.2, and is skipped
+unless `TT_TEST_TT2` names a tt 2 executable: that of a
+[release](https://github.com/tarantool/tt/releases/tag/v2.15.2) on Linux,
+the `tt` of Homebrew on macOS, where tt 2 has no release for arm64. It
+builds against the headers of the `tarantool` on `PATH` as tt 2 finds them,
+those of `TT_CLI_TARANTOOL_PREFIX` or of the prefix `tarantool --version`
+names, and is skipped without them.
+
 ### In a container
 
 `mage docker` runs targets in a container that has what CI installs: Go,
