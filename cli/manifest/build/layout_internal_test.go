@@ -138,6 +138,45 @@ func TestLayoutComponent_subdirComponentPath(t *testing.T) {
 	}, relSet(t, stage))
 }
 
+// TestLayoutOf: the layout of a file that is not there is what the layout
+// of each component would take of it were it there - by its include and
+// exclude, the default ones among them, under its namespace - as the layout
+// of the files that are takes them.
+func TestLayoutOf(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, manifestHead+`
+[components.native]
+path = 'native'
+namespace = 'fast'
+exclude = ['skip/']
+
+[components.data]
+path = 'data'
+include = ['*.json']
+`, map[string]string{"init.lua": "return 1"})
+
+	man, err := readManifest(dir, dryOptions(dir))
+	require.NoError(t, err)
+
+	got := LayoutOf(dir, man, "default", dryOptions(dir).backends(), []string{
+		"native/out/hash.so", "native/hash.lua", "native/skip/x.so", "native/test/y.so",
+		"native/hash.c", "data/a.json", "data/a.lua", "other/z.so", "init.lua",
+	})
+
+	// The components are in the order of the product. The one at the root
+	// takes the Lua of the others too, and its own init.lua, which is there,
+	// as Result.Layout has it.
+	assert.Equal(t, []LaidOut{
+		{Component: "data", Source: "data/a.json", Dest: "lua/my-app/a.json"},
+		{Component: "lua", Source: "native/hash.lua", Dest: "lua/my-app/native/hash.lua"},
+		{Component: "lua", Source: "data/a.lua", Dest: "lua/my-app/data/a.lua"},
+		{Component: "lua", Source: "init.lua", Dest: "lua/my-app/init.lua"},
+		{Component: "native", Source: "native/out/hash.so", Dest: "lib/fast/out/hash.so"},
+		{Component: "native", Source: "native/hash.lua", Dest: "lua/fast/hash.lua"},
+	}, got)
+}
+
 // TestResultLayout: a build reports what the layout of each component took,
 // from where in the project to where in the stage, and the _version.lua it
 // generated, as the stage has them; Prepare, which builds nothing, reports

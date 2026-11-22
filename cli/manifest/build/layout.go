@@ -156,6 +156,49 @@ func planLayout(
 	return layout, nil
 }
 
+// LayoutOf lists the files of paths, slash-separated paths relative to the
+// project at projectDir, that the layouts of the components of product of
+// man, of the backends of the registry backends, would take into a stage were
+// they there, whether they are or not, in the order of the components and of
+// paths: tt package pack plans by it the layout of the files a build makes,
+// the files its output lists, which Result.Layout lists only when they are
+// there - a pack of the source rock alone, which builds nothing, in a project
+// that has not been built.
+func LayoutOf(
+	projectDir string, man *manifest.Manifest, product string, backends *buildreg.Registry,
+	paths []string,
+) []LaidOut {
+	var layout []LaidOut
+
+	for _, name := range man.EffectiveProducts()[product].Components {
+		component := man.Components[name]
+
+		lays, exclude := sourceLayout(backends, component)
+		if !lays {
+			continue
+		}
+
+		compAbsPath := resolveDir(projectDir, component.Path)
+		filter := newFileFilter(component, exclude)
+		namespace := component.EffectiveNamespace(man.Package.Name)
+
+		for _, file := range paths {
+			rel, err := relComponents(compAbsPath,
+				filepath.Join(projectDir, filepath.FromSlash(file)))
+			if err != nil || len(rel) == 0 || rel[0] == ".." || !filter.takes(rel) {
+				continue
+			}
+
+			layout = append(layout, LaidOut{
+				Component: name, Source: file,
+				Dest: filepath.ToSlash(destPath("", namespace, rel)),
+			})
+		}
+	}
+
+	return layout
+}
+
 // relComponents returns path split into slash-separated components relative to
 // root. The component root itself yields an empty slice.
 func relComponents(root, path string) ([]string, error) {

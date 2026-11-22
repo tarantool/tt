@@ -83,6 +83,18 @@ func (f fileFilter) keepFile(rel []string) bool {
 	return f.include.Match(rel, false) && !f.exclude.Match(rel, false)
 }
 
+// takes reports whether the walk of a layout takes the file at rel: no
+// directory it is in is pruned, and the file is kept.
+func (f fileFilter) takes(rel []string) bool {
+	for depth := 1; depth < len(rel); depth++ {
+		if f.pruneDir(rel[:depth]) {
+			return false
+		}
+	}
+
+	return f.keepFile(rel)
+}
+
 // pruneDir reports whether the directory at rel is an excluded subtree that the
 // walk should skip entirely. The include allowlist never prunes directories — a
 // directory itself rarely matches a file glob like *.lua, yet its files may —
