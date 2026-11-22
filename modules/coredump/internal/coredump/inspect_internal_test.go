@@ -27,7 +27,13 @@ import (
 // the first line of each file it sources after "content: ".
 const fakeGDB = `#!/bin/sh
 if [ "$1" = -batch ]; then
-	echo 'Line 747 of "/build/tarantool/src/main.cc" starts at address 0x1 <main>.'
+	case "$*" in
+		*"show debug-file-directory"*)
+			echo 'The directory where separate debug symbols are searched for is' \
+				'"/usr/lib/debug".';;
+		*)
+			echo 'Line 747 of "/build/tarantool/src/main.cc" starts at address 0x1 <main>.';;
+	esac
 	exit 0
 fi
 echo gdb
@@ -176,7 +182,7 @@ func TestInspectDirectory(t *testing.T) {
 
 	out, recorder := runInspect(t, dir, "")
 	assert.NotContains(t, out, "the gdb.sh of the archive")
-	assert.Contains(t, out, "gdb\n"+filepath.Join(dir, "tarantool")+"\n")
+	assert.Contains(t, out, "gdb\n-iex\necho\n"+filepath.Join(dir, "tarantool")+"\n")
 	assert.Contains(t, out, "-ex\nset sysroot "+dir+"\n")
 	assert.Contains(t, out, "-ex\ncore "+filepath.Join(dir, "coredump")+"\n")
 	assert.Equal(t, map[string]string{
@@ -209,6 +215,36 @@ func TestInspectDirectory(t *testing.T) {
 		luajitDbgName:    "luajit_dbg.py of the sources",
 		tarantoolGDBName: "tarantool-gdb.py of the sources",
 	}, sourced(out))
+}
+
+// TestInspectDebugFile checks that gdb looks for the separate debugging
+// information in usr/lib/debug of the artefacts first, then where it looks
+// by default, from before it loads the tarantool, and that inspect warns
+// of none before gdb starts.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectDebugFile(t *testing.T) {
+	withFakeGDB(t)
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+	writeELF(t, filepath.Join(dir, "tarantool"), []testSection{text, buildIDSection(t)}, nil)
+
+	out, recorder := runInspect(t, dir, "")
+	assert.Contains(t, out, "gdb\n-iex\necho\n"+filepath.Join(dir, "tarantool")+"\n")
+	assert.Len(t, warnings(recorder), 1)
+	assert.Contains(t, warnings(recorder)[0], "the tarantool of the core has no debugging "+
+		"information")
+
+	debugFile := filepath.Join(dir, "usr", "lib", "debug", ".build-id", testBuildID[:2],
+		testBuildID[2:]+".debug")
+	writeELF(t, debugFile, []testSection{strippedText, debugInfo}, nil)
+
+	out, recorder = runInspect(t, dir, "")
+	assert.Contains(t, out, "gdb\n-iex\nset debug-file-directory "+
+		filepath.Join(dir, "usr", "lib", "debug")+":/usr/lib/debug\n"+
+		filepath.Join(dir, "tarantool")+"\n")
+	assert.Empty(t, warnings(recorder))
 }
 
 // TestInspectArchive checks that inspect of an archive does the same on

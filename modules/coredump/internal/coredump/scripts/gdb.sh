@@ -119,6 +119,22 @@ if [ -z "${EXTS}" ]; then
 	done
 fi
 
+# The separate debugging information of the tarantool, which pack
+# collects where a debuginfo package installs it, under the build ID of
+# the tarantool in usr/lib/debug of the artefacts. gdb looks for it
+# there first, then where it looks by default; the directory is set
+# before the tarantool is loaded (-iex). Without it the command is
+# echo, which prints nothing.
+DEBUGFILEDIR="echo"
+if [ -d "${ABSWORKDIR}/usr/lib/debug" ]; then
+	DEFAULTDEBUGDIR=$(gdb -batch -n -ex 'show debug-file-directory' 2>/dev/null | \
+		sed -n 's/^.*"\(.*\)"\.$/\1/p')
+	DEBUGFILEDIR="set debug-file-directory ${ABSWORKDIR}/usr/lib/debug"
+	if [ -n "${DEFAULTDEBUGDIR}" ]; then
+		DEBUGFILEDIR="${DEBUGFILEDIR}:${DEFAULTDEBUGDIR}"
+	fi
+fi
+
 # The arguments of gdb are collected in the positional parameters,
 # which hold no option any longer.
 set --
@@ -128,7 +144,8 @@ set --
 # considering it is located in src/main.cc within Tarantool repo.
 # A tarantool without debugging information has no line of main:
 # gdb is run without the mapping then.
-SUBPATH=$(gdb -batch -n "${ABSWORKDIR}/tarantool" -ex 'info line main' | \
+SUBPATH=$(gdb -batch -n -iex "${DEBUGFILEDIR}" "${ABSWORKDIR}/tarantool" \
+	-ex 'info line main' | \
 	grep -oP 'Line \d+ of \"\K.+(?=\/src\/main\.cc\")' || true)
 if [ -n "${SUBPATH}" ]; then
 	set -- "$@" -ex "set substitute-path ${SUBPATH} ${SOURCES}"
@@ -151,7 +168,7 @@ if [ -n "${EXTS}" ]; then
 fi
 
 # Launch gdb and load coredump with all related artefacts.
-exec gdb "${ABSWORKDIR}/tarantool" \
+exec gdb -iex "${DEBUGFILEDIR}" "${ABSWORKDIR}/tarantool" \
 	-ex "set sysroot ${ABSWORKDIR}" \
 	-ex "add-auto-load-safe-path ${ABSWORKDIR}" \
 	-ex "set auto-load libthread-db on" \

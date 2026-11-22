@@ -226,9 +226,11 @@ def check_archive_members(archive):
     the directory named after the archive, the version, the core, the
     tarantool, gdb.sh and the extensions of tt under their names there, and
     every other member a file of the host under its path, as the shared
-    libraries are. A transformation of the names that misfires renames one
-    of them: the version goes missing, and inspect refuses the archive, or a
-    library gets a path of no file."""
+    libraries are, but for the debug file of the tarantool, which pack takes
+    from a debug directory of gdb. A transformation of the names that
+    misfires renames one of them: the version goes missing, and inspect
+    refuses the archive, or a library gets a path of no file. Returns the
+    members, without the name of the archive."""
     name = os.path.basename(archive).split(".")[0]
     with tarfile.open(archive) as tar:
         members = tar.getnames()
@@ -247,7 +249,12 @@ def check_archive_members(archive):
     assert expected | extensions <= rests, members
 
     for rest in rests - expected - extensions:
-        assert os.path.isfile("/" + rest), rest
+        if rest.startswith("usr/lib/debug/.build-id/"):
+            assert re.fullmatch(r"usr/lib/debug/\.build-id/[0-9a-f]{2}/[0-9a-f]+\.debug", rest)
+        else:
+            assert os.path.isfile("/" + rest), rest
+
+    return rests
 
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
@@ -390,13 +397,29 @@ def fallback_warning(name):
     )
 
 
-# The gdb commands that tell the extensions are loaded: help of a command of
-# the LuaJIT one, and a command of the Tarantool one, which lists the fibers.
-EXTENSION_COMMANDS = ["help lj-stack", "info tt-fibers"]
+# The gdb commands that tell the extensions are loaded, help of a command of
+# the LuaJIT one and a command of the Tarantool one, which lists the fibers,
+# and a backtrace, which needs neither.
+EXTENSION_COMMANDS = ["help lj-stack", "info tt-fibers", "bt 1"]
+
+# The warning of inspect of a tarantool gdb finds no debugging information
+# for.
+NO_DEBUG_INFO_WARNING = (
+    r"the tarantool of the core has no debugging information: .*: the lj-\* commands of "
+    r"LuaJIT and the pretty-printers of Tarantool will not work, plain backtraces will"
+)
 
 
-def check_extensions(output):
-    """Check that the gdb extensions answered EXTENSION_COMMANDS."""
+def check_extensions(output, debug_info):
+    """Check that the gdb extensions answered EXTENSION_COMMANDS when the
+    tarantool has debugging information, and that inspect warned of none
+    otherwise. A backtrace works either way."""
+    assert re.search(r"#0 ", output), output
+    if not debug_info:
+        assert re.search(NO_DEBUG_INFO_WARNING, output), output
+        return
+
+    assert not re.search(NO_DEBUG_INFO_WARNING, output), output
     assert "The command receives a lua_State address" in output
     assert re.search(r'TtFiber\s+"sched"', output), output
     assert "Undefined command" not in output
@@ -411,10 +434,62 @@ def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
     assert rc == 0, output
     assert re.search(fallback_warning("luajit_dbg.py"), output), output
     assert re.search(fallback_warning("tarantool-gdb.py"), output), output
+    check_extensions(output, has_debug_info(shutil.which("tarantool")))
 
-    if not has_debug_info(shutil.which("tarantool")):
-        pytest.skip("the tarantool has no debugging information")
-    check_extensions(output)
+
+def gdb_debug_dir_env(tmp_path, debug_dir):
+    """The environment of a tt whose gdb looks for separate debug files in
+    debug_dir alone, as a debug-file-directory of the gdbinit of its home
+    says."""
+    home = tmp_path / ("home-" + debug_dir.name)
+    home.mkdir()
+    (home / ".gdbinit").write_text(f"set debug-file-directory {debug_dir}\n")
+    env = os.environ.copy()
+    env["HOME"] = home.as_posix()
+    env["XDG_CONFIG_HOME"] = (home / ".config").as_posix()
+    return env
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_pack_debug_file(tt_cmd, tmp_path, coredump):
+    """pack of a core of a tarantool without debugging information takes the
+    debug file of its build ID from a debug directory of gdb into the
+    archive, and inspect points gdb to it; with none there, inspect warns
+    before gdb starts. The tarantool and its debug file are those of the
+    tarantool of PATH, split by objcopy."""
+    tarantool = shutil.which("tarantool")
+    described = subprocess.run(["file", "-L", tarantool], capture_output=True, text=True)
+    if shutil.which("objcopy") is None or "with debug_info" not in described.stdout:
+        pytest.skip("needs objcopy and a tarantool with debugging information of its own")
+    build_id = re.search(r"BuildID\[[^]]*\]=([0-9a-f]+)", described.stdout).group(1)
+
+    stripped = tmp_path / "bin" / "tarantool"
+    stripped.parent.mkdir()
+    subprocess.run(["objcopy", "--strip-debug", tarantool, stripped], check=True)
+
+    debug_dir = tmp_path / "debug"
+    member = f"usr/lib/debug/.build-id/{build_id[:2]}/{build_id[2:]}.debug"
+    (debug_dir / member).parent.mkdir(parents=True)
+    subprocess.run(["objcopy", "--only-keep-debug", tarantool, debug_dir / member], check=True)
+
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    for collected, gdb_dir in ((True, debug_dir / "usr" / "lib" / "debug"), (False, empty_dir)):
+        out = tmp_path / f"out-{collected}"
+        out.mkdir()
+        cmd = [tt_cmd, "coredump", "pack", "-e", stripped, "-d", out, coredump]
+        env = gdb_debug_dir_env(tmp_path, gdb_dir)
+        rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
+        assert rc == 0, output
+
+        archives = list(out.glob("*.tar.gz"))
+        assert len(archives) == 1
+        assert (member in check_archive_members(archives[0])) == collected
+
+        rc, output = inspect(tt_cmd, tmp_path, archives[0], EXTENSION_COMMANDS)
+        assert rc == 0, output
+        check_extensions(output, collected)
 
 
 # The lines each extension of the fake sources starts with, which gdb prints
@@ -453,7 +528,4 @@ def test_coredump_inspect_sourcedir(tt_cmd, tmp_path, coredump_unpacked):
     assert "luajit-gdb.py is loaded" not in output
     assert "on GitHub" not in output
     assert "cannot get the" not in output
-
-    if not has_debug_info(shutil.which("tarantool")):
-        pytest.skip("the tarantool has no debugging information")
-    check_extensions(output)
+    check_extensions(output, has_debug_info(shutil.which("tarantool")))

@@ -763,6 +763,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `[package] generate_rocks_lua = false` leaves it out of the build, and a
   component shipping a `_rocks.lua` there fails the build as one shipping
   `_version.lua` does.
+- `tt coredump pack` puts the separate debugging information of the
+  tarantool into the archive when the host has it: the debug file a
+  debuginfo package installs by the build ID of the tarantool,
+  `.build-id/<xx>/<rest>.debug` under a debug directory of gdb,
+  `/usr/lib/debug` unless a gdbinit sets another, goes to
+  `usr/lib/debug/.build-id/<xx>/<rest>.debug` of the archive, and the
+  `gdb.sh` of tt looks for debug files there first. A tarantool stripped
+  of its debugging information has its types back from it, and the gdb
+  extensions work on its core. `tt coredump inspect` warns before gdb
+  starts when gdb will find no debugging information, neither
+  `.debug_info` of the tarantool nor a debug file of its build ID in the
+  archive: the `lj-*` commands of LuaJIT and the pretty-printers of
+  Tarantool, which look its types up, will not work, and plain backtraces
+  will. They failed with no word of why.
 
 ### Changed
 
