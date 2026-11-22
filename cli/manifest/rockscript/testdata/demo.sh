@@ -37,8 +37,8 @@ tt_need() {
 # dest, as tt copies the output of a backend that does not copy it itself.
 tt_output() {
 	[ -f "$1" ] || tt_die "the build made no $1, which its output lists"
-	mkdir -p "${2%/*}"
-	cp "$1" "$2"
+	mkdir -p -- "${2%/*}"
+	cp -- "$1" "$2"
 }
 
 # tt_lay path dest: copies path, a file of the project the layout of tt
@@ -46,8 +46,8 @@ tt_output() {
 # no build made is not there, and is left out.
 tt_lay() {
 	[ -f "$tt_root/$1" ] || return 0
-	mkdir -p "$tt_stage/${2%/*}"
-	cp "$tt_root/$1" "$tt_stage/$2"
+	mkdir -p -- "$tt_stage/${2%/*}"
+	cp -- "$tt_root/$1" "$tt_stage/$2"
 }
 
 # tt_env sets the variables every build of the package has: those of a
@@ -114,7 +114,7 @@ tt_step_2() {
 	TT_BUILD_DIR=$tt_state/build/native
 	TT_LINK_DIR=$TT_LINK_ROOT/native
 	export TT_COMPONENT_NAME TT_OUTPUT_DIR TT_SHARE_DIR TT_PROGRAMS_DIR TT_BUILD_DIR TT_LINK_DIR
-	mkdir -p "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
+	mkdir -p -- "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
 	cd "$tt_root"/native
 	(tt_export_2)
 	tt_output out/fast.so "$tt_stage"/lib/demo/fast.so
@@ -139,7 +139,7 @@ tt_step_3() {
 	TT_BUILD_DIR=$tt_state/build/calc
 	TT_LINK_DIR=$TT_LINK_ROOT/calc
 	export TT_COMPONENT_NAME TT_OUTPUT_DIR TT_SHARE_DIR TT_PROGRAMS_DIR TT_BUILD_DIR TT_LINK_DIR
-	mkdir -p "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
+	mkdir -p -- "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
 	cd "$tt_root"/calc/src
 	(tt_export_3)
 }
@@ -158,7 +158,7 @@ tt_step_4() {
 	TT_BUILD_DIR=$tt_state/build/gw
 	TT_LINK_DIR=$TT_LINK_ROOT/gw
 	export TT_COMPONENT_NAME TT_OUTPUT_DIR TT_SHARE_DIR TT_PROGRAMS_DIR TT_BUILD_DIR TT_LINK_DIR
-	mkdir -p "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
+	mkdir -p -- "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
 	cd "$tt_root"/gw
 	(tt_export_4)
 }
@@ -184,8 +184,8 @@ EOF
 # tt_build builds the package into the stage.
 tt_build() {
 	tt_env
-	rm -rf "$tt_state"
-	mkdir -p "$tt_stage/lua" "$tt_stage/lib" "$tt_stage/bin" "$TT_LINK_ROOT"
+	rm -rf -- "$tt_state"
+	mkdir -p -- "$tt_stage/lua" "$tt_stage/lib" "$tt_stage/bin" "$TT_LINK_ROOT"
 	tt_need sh 'the hook pre_build'
 	(PATH=/opt/make/bin:/usr/bin:/bin; tt_need make 'the component "calc"')
 	tt_need make 'the hook post_build'
@@ -201,10 +201,10 @@ tt_build() {
 # tt_copy dir dest: copies what dir of the stage holds into dest, when it
 # holds anything.
 tt_copy() {
-	tt_files=`ls -A "$tt_stage/$1"`
+	tt_files=`ls -A -- "$tt_stage/$1"`
 	[ -n "$tt_files" ] || return 0
-	mkdir -p "$2"
-	cp -R "$tt_stage/$1/." "$2"
+	mkdir -p -- "$2"
+	cp -R -- "$tt_stage/$1/." "$2"
 }
 
 # tt_install copies the stage into the directories of the rock LuaRocks
