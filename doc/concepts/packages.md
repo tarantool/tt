@@ -697,7 +697,9 @@ version, by the build table of the rockspec, which tt writes for it:
   neither rock. Its `doc/` is the one LuaRocks makes of any rock: the
   `doc/` directory of the project, or, with none, the README, LICENSE,
   COPYING and `*.md` files of its root. The binary rock has the license
-  files there instead, wherever they are in the project.
+  files there instead, wherever they are in the project. A file at a path
+  a module name cannot say makes the build of type `command` instead,
+  whose script lays that file out (see below).
 - A package with a build block, whose builds are all made without tt too -
   those of `make` and `shell`, the backends that run a command of the
   project's own, of `c` and `lua-c`, whose compiles and link the script
@@ -934,14 +936,86 @@ tool and the component, where one is not in `PATH`.
 `build.install` installs only the files the source rock holds: a file of
 the layout git does not track, or ignores, is left out of it, as it is left
 out of the source rock, and the pack of the source rock warns of it. A path
-of the layout a module name of LuaRocks cannot say fails the pack of a
-package with no build block, whose rockspec runs no script to lay it out: a
-directory with a dot in its name, or a Lua file with one before `.lua`,
-`init.min.lua`:
+of the layout a module name of LuaRocks cannot say - a directory with a dot
+in its name, `migrations/1.0.0/`, or a Lua file with one before `.lua`,
+`init.min.lua` - is laid out by `tt-rock.sh`, as for a package with build
+blocks, so no pack fails for it. The rockspec of `mylib` with a
+`mylib/data/v1.2/schema.json`, committed and tagged, is
+of type `command`, and its script runs no build and lays out that file
+alone; the others stay in `build.install`:
 
 ```console
-$ tt package pack --format rock-src --out dist
-   ⨯ build.install of a rockspec cannot say the path lua/mylib/data/v1.2/schema.json: the name of the directory "v1.2" has a dot, which a module name of LuaRocks says a slash with; the layout of the component "mylib" takes mylib/data/v1.2/schema.json there: rename it, or leave it out of the layout with the exclude of [components.mylib]
+$ tt package pack --format rock,rock-src --out dist
+.../mylib/dist/mylib-1.2.0-1.all.rock
+.../mylib/dist/mylib-1.2.0-1.src.rock
+.../mylib/dist/mylib-1.2.0-1.rockspec
+$ sed -n '/^build = {/,/^   extra_files/p' dist/mylib-1.2.0-1.rockspec
+build = {
+   type = "command",
+   build_command = [=[
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=$(CC)
+CFLAGS=$(CFLAGS)
+LIBFLAG=$(LIBFLAG)
+LUA_INCDIR=$(LUA_INCDIR)
+TT_ROCK_VARIABLES
+]=],
+   install_command = [=[
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=$(LUADIR)
+LIBDIR=$(LIBDIR)
+BINDIR=$(BINDIR)
+TT_ROCK_VARIABLES
+]=],
+   install = {
+      lua = {
+         ["mylib._version"] = "tt-rock-version.lua",
+         ["mylib.data.schema"] = "mylib/data/schema.json",
+         ["mylib.init"] = "mylib/init.lua",
+         ["mylib.util.str"] = "mylib/util/str.lua",
+         ["roles.mylib"] = "roles/mylib.lua",
+      },
+   },
+   extra_files = {
+$ sed -n '/^tt_build()/,/^}/p' dist/mylib-1.2.0-1.rockspec
+tt_build() {
+	tt_env
+	rm -rf -- "$tt_state"
+	mkdir -p -- "$tt_stage/lua" "$tt_stage/lib" "$tt_stage/bin" "$TT_LINK_ROOT"
+	tt_lay mylib/data/v1.2/schema.json lua/mylib/data/v1.2/schema.json
+}
+```
+
+LuaRocks installs the source rock with both files of `data`:
+
+```console
+$ tt package pack --format rock-src --out dist-src
+.../mylib/dist-src/mylib-1.2.0-1.src.rock
+.../mylib/dist-src/mylib-1.2.0-1.rockspec
+$ cd .. && mkdir lr && cd lr
+$ tt rocks install mylib --only-server ../mylib/dist-src
+Installing ../mylib/dist-src/mylib-1.2.0-1.src.rock
+
+mylib 1.2.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=gcc
+CFLAGS=-O2 -fPIC
+LIBFLAG=-shared
+LUA_INCDIR=.../include/tarantool
+TT_ROCK_VARIABLES
+
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=.../lr/.rocks/share/tarantool/rocks/mylib/1.2.0-1/lua
+LIBDIR=.../lr/.rocks/share/tarantool/rocks/mylib/1.2.0-1/lib
+BINDIR=.../lr/.rocks/share/tarantool/rocks/mylib/1.2.0-1/bin
+TT_ROCK_VARIABLES
+
+No existing manifest. Attempting to rebuild...
+mylib 1.2.0-1 is now installed in .../lr/.rocks (license: BSD-2-Clause)
+
+$ find .rocks/share/tarantool/mylib -name schema.json
+.rocks/share/tarantool/mylib/data/schema.json
+.rocks/share/tarantool/mylib/data/v1.2/schema.json
 ```
 
 The rock reserves `tt-rock-version.lua`, `tt-rock.sh` and `.tt-rock/` at the

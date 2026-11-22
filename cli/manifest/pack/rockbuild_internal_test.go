@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,7 +21,6 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
-	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
 // pureManifest is a package of Lua and data alone: a module with a data file
@@ -398,27 +398,104 @@ func TestPackRockRefusesReservedNames(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestPackRockRefusesInexpressiblePaths: a path of the layout that
-// build.install cannot say fails the pack of a package with no build block,
-// with a hint naming the component; the same path in a package with a build
-// block fails nothing, as its script lays the file out.
-func TestPackRockRefusesInexpressiblePaths(t *testing.T) {
+// TestSrcRockOfInexpressiblePathsBuildsWithLuaRocks: LuaRocks - go-luarocks
+// natively, and running the LuaRocks 3.9.2 that tt rocks of tt 2 is -
+// installs the source rock of a package with no build block and a file at
+// a path build.install cannot say, migrations/1.0.0/up.sql, and builds its
+// bare rockspec, into the files of its binary rock, the file laid out by
+// the script. The binary rock is installed by the native backend alone,
+// as TestSrcRockOfBuildsBuildsWithLuaRocks says why.
+func TestSrcRockOfInexpressiblePathsBuildsWithLuaRocks(t *testing.T) {
 	t.Parallel()
 
-	for file, reason := range map[string]string{
-		"puredemo/v1.2/schema.json": `the name of the directory "v1.2" has a dot`,
-		"puredemo/init.min.lua":     `the name of the Lua file "init.min.lua" has a dot`,
+	_, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+
+	src := writePurePackage(t, nil)
+	writeTree(t, src, map[string]string{
+		manifestFileName: fmt.Sprintf(pureManifest, "git+file://"+src) + `
+[components.migrations]
+path = 'migrations'
+namespace = 'migrations'
+include = ['*.sql']
+`,
+		"migrations/1.0.0/up.sql": "create table t(id int);\n",
+	})
+	git(t, src, "add", "-A")
+	git(t, src, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "migrations")
+	git(t, src, "tag", "-f", "v1.2.0")
+
+	var warnings []string
+
+	opts := packOptions(src, filepath.Join(t.TempDir(), "out"), FormatRock, FormatRockSrc)
+
+	opts.Warn = func(msg string) { warnings = append(warnings, msg) }
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+
+	table := buildTable(t, result.Rockspec)
+	assert.Contains(t, table,
+		"\ttt_lay migrations/1.0.0/up.sql lua/migrations/1.0.0/up.sql\n}\n")
+	assert.Contains(t, table, `["puredemo.init"] = "puredemo/init.lua",`)
+
+	binary := luaRocksInstall(t, client.BackendNative, result.Rock)
+	require.NoError(t, binary.err)
+
+	want := installedRock(t, binary.tree, result.Rockspec)
+	require.Contains(t, want.Lua, "migrations/1.0.0/up.sql")
+	require.Contains(t, want.Lua, "puredemo/_version.lua")
+
+	for name, backend := range map[string]client.Backend{
+		"native": client.BackendNative, "lua": client.BackendLua,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srcRock := luaRocksInstall(t, backend, result.SrcRock)
+			require.NoError(t, srcRock.err)
+
+			bare := luaRocksBuild(t, backend, result.Rockspec)
+			require.NoError(t, bare.err)
+
+			for what, tree := range map[string]string{
+				"source rock": srcRock.tree, "bare rockspec": bare.tree,
+			} {
+				assertSameRock(t, want, installedRock(t, tree, result.Rockspec), what)
+			}
+		})
+	}
+}
+
+// TestPackRockOfInexpressiblePaths: a file at a path of the layout that
+// build.install cannot say - a directory with a dot in its name, a Lua file
+// with one before .lua - makes the rockspec of a package with no build
+// block run the script, which runs no build and lays the file out, the
+// other files staying in build.install; every pack makes its rock. The same
+// path in a package with a build block is laid out by its script.
+func TestPackRockOfInexpressiblePaths(t *testing.T) {
+	t.Parallel()
+
+	for file, dest := range map[string]string{
+		"puredemo/v1.2/schema.json": "lua/puredemo/v1.2/schema.json",
+		"puredemo/init.min.lua":     "lua/puredemo/init.min.lua",
 	} {
 		src := writePurePackage(t, map[string]string{file: "{}\n"})
 
-		_, err := Run(context.Background(),
-			packOptions(src, filepath.Join(t.TempDir(), "out"), FormatRockSrc))
-		require.ErrorIs(t, err, rocktree.ErrInstallDest, file)
-		require.ErrorContains(t, err, reason, file)
-		require.ErrorContains(t, err, `the layout of the component "lib" takes `+file+
-			" there: rename it, or leave it out of the layout with the exclude of "+
-			"[components.lib]", file)
-		assert.Equal(t, sdk.ExitFailure, exitcode.Code(err), file)
+		result, err := Run(context.Background(),
+			packOptions(src, filepath.Join(t.TempDir(), "out"), FormatRock, FormatRockSrc))
+		require.NoError(t, err, file)
+		assert.Contains(t, zipEntries(t, result.Rock), dest, file)
+
+		table := buildTable(t, result.Rockspec)
+		assert.Contains(t, table, `   type = "command",`, file)
+		assert.Contains(t, table, "\ttt_lay "+file+" "+dest+"\n}\n", file)
+		assert.Contains(t, table, `["puredemo.init"] = "puredemo/init.lua",`, file)
+		assert.NotContains(t, table, `= "`+file+`"`, file)
+		assert.NotContains(t, table, "tt_step_", "the script runs no build")
 	}
 
 	src := writePurePackage(t, map[string]string{

@@ -74,7 +74,8 @@ type rockBuild struct {
 	// script whose pack built it, by component: files a build made, which
 	// the rockspec leaves out, as LuaRocks does not know them.
 	unlisted []unlistedFiles
-	// scripted is set for a package built by the script, tt-rock.sh.
+	// scripted is set for a package whose builds the script, tt-rock.sh,
+	// runs; not for one with no build block it lays out files of.
 	scripted bool
 	// lost are what the builds of the script lack against those of tt, a
 	// sentence each, prefixed with what each builds.
@@ -118,8 +119,11 @@ type rockSources struct {
 // (build.Result.Layout) and the _version.lua its build generated, which the
 // rockspec carries in build.extra_files: the files of the binary rock, but
 // _rocks.lua, which no rock has, and those of its layout the sources do not
-// hold (rockBuild.leftOut). A path of the layout build.install cannot say
-// fails the pack (rocktree.CheckInstallDest), the hint naming the component.
+// hold (rockBuild.leftOut). One with a file of the sources at a path
+// build.install cannot say (rocktree.CheckInstallDest) - a directory of a
+// dot, migrations/1.0.0/up.sql - is built by tt-rock.sh, which runs no
+// build and lays out such files, the others staying in build.install
+// (scriptedBuild).
 //
 // A product whose builds all export (exportBuilds) is built by tt-rock.sh,
 // the script the rockspec carries in build.extra_files too
@@ -169,17 +173,19 @@ func releaseBuild(built *build.Result, rel rocktree.Release, sources rockSources
 	inSources := sources.holds()
 
 	for _, file := range lastLaidOut(built.Layout) {
-		err := rocktree.CheckInstallDest(file.Dest)
-		if err != nil {
-			return rockBuild{}, stateErrorf("%w; the layout of the component %q takes %s "+
-				"there: rename it, or leave it out of the layout with the exclude of "+
-				"[components.%s]", err, file.Component, file.Source, file.Component)
-		}
-
 		if !inSources[file.Source] {
 			plan.leftOut = append(plan.leftOut, file.Source)
 
 			continue
+		}
+
+		// A file at a path build.install cannot say is laid out by the
+		// script, which runs no build then.
+		if !installable(file.Dest) {
+			return scriptedBuild(built, sources, rockscript.Script{
+				Package: built.Manifest.Package.Name, Version: built.Version.SemVer,
+				PreBuild: nil, PostBuild: nil, Components: nil, Lay: nil,
+			}), nil
 		}
 
 		plan.build.Install = append(plan.build.Install,
@@ -189,6 +195,12 @@ func releaseBuild(built *build.Result, rel rocktree.Release, sources rockSources
 	addVersionLua(&plan.build, built)
 
 	return plan, nil
+}
+
+// installable reports whether build.install can say dest, a path in the
+// rock (rocktree.CheckInstallDest).
+func installable(dest string) bool {
+	return rocktree.CheckInstallDest(dest) == nil
 }
 
 // ttOnlyBuild is the build of rel, the rock of a package that builds with tt
@@ -275,13 +287,17 @@ func (sources rockSources) holds() map[string]bool {
 // output, copied where the script copies the output, is left to that copy.
 // A file of the layout of a build that is neither - one a make target left
 // in the directory of its component, which the default include takes - is
-// left out, and the pack warns of it (rockBuild.unlisted).
+// left out, and the pack warns of it (rockBuild.unlisted). A script of no
+// build lays out the files of the sources build.install cannot install, of
+// a package with no build block.
 func scriptedBuild(built *build.Result, sources rockSources, script rockscript.Script) rockBuild {
+	builds := len(scriptSteps(script)) > 0
+
 	plan := rockBuild{
 		build: rocktree.ReleaseBuild{
 			Install: nil, ExtraFiles: nil, Script: rockScriptFile, TtOnly: "",
 		},
-		ttOnly: nil, leftOut: nil, unlisted: nil, scripted: true, lost: nil,
+		ttOnly: nil, leftOut: nil, unlisted: nil, scripted: builds, lost: nil,
 	}
 
 	inSources := sources.holds()
@@ -316,7 +332,7 @@ func scriptedBuild(built *build.Result, sources rockSources, script rockscript.S
 		switch {
 		case toOutput && source == file.Source:
 			// The copy of the output is this file.
-		case inSources[file.Source] && !toOutput && rocktree.CheckInstallDest(file.Dest) == nil:
+		case inSources[file.Source] && !toOutput && installable(file.Dest):
 			plan.build.Install = append(plan.build.Install,
 				rocktree.ReleaseFile{Source: file.Source, Dest: file.Dest})
 		default:
@@ -326,7 +342,7 @@ func scriptedBuild(built *build.Result, sources rockSources, script rockscript.S
 
 	for _, file := range left {
 		switch {
-		case !sources.built:
+		case !sources.built || !builds:
 			plan.leftOut = append(plan.leftOut, file.Source)
 		case len(plan.unlisted) > 0 && plan.unlisted[len(plan.unlisted)-1].component ==
 			file.Component:

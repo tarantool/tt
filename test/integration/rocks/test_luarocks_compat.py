@@ -123,6 +123,31 @@ namespace = 'roles'
     printed=f"42\tpurelib\t{VERSION}",
 )
 
+# A package with no build block and a file at a path build.install cannot
+# say, of a directory with dots in its name, which the script lays out.
+MIGRATIONS = Package(
+    name="migr",
+    body="""
+[components.migr]
+path = 'migr'
+
+[components.migrations]
+path = 'migrations'
+namespace = 'migr'
+include = ['*.sql']
+""",
+    files={
+        "migr/init.lua": "local fio = require('fio')\n"
+        "local dir = fio.dirname(debug.getinfo(1, 'S').source:sub(2))\n"
+        "return { up = fio.path.exists(fio.pathjoin(dir, '1.0.0', 'up.sql')) }\n",
+        "migrations/1.0.0/up.sql": "create table t(id int);\n",
+    },
+    tools=(),
+    lua={"migr/init.lua", "migr/_version.lua", "migr/1.0.0/up.sql"},
+    script="print(require('migr').up)",
+    printed="true",
+)
+
 LUA_C = Package(
     name="cmod",
     body="""
@@ -414,8 +439,8 @@ def is_bundle(path: Path) -> bool:
 
 @pytest.mark.parametrize(
     "package",
-    [PURE, LUA_C, SCRIPTED, CMAKE],
-    ids=["pure", "lua-c", "shell-make", "cmake"],
+    [PURE, MIGRATIONS, LUA_C, SCRIPTED, CMAKE],
+    ids=["pure", "pure-of-dotted-dirs", "lua-c", "shell-make", "cmake"],
 )
 def test_luarocks_builds_the_source_rock(tt_cmd, tt2, tmp_path, package):
     """tt rocks of tt 2 installs the source rock of the package, and builds
