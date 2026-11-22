@@ -11,6 +11,11 @@
 // would refuse, and it is configured anew; so is every tree of a fresh
 // build.
 //
+// A build is made without tt too (build.Backend.Exports): the script of its
+// export configures and builds as Run does, into TT_BUILD_DIR of the
+// script, and copies the files of output from there, so that LuaRocks
+// builds the source rock of a package of cmake as tt does.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package cmake
@@ -93,8 +98,8 @@ func Backend() build.Backend {
 		// The project is configured with the toolchain of the machine; a
 		// toolchain file of another platform is the project's to give.
 		Cross: false,
-		// A build is made with tt alone so far.
-		Exports: false,
+		// The script of a build runs the cmake Run runs (Export).
+		Exports: true,
 	}
 }
 

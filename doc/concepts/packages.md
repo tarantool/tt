@@ -697,7 +697,10 @@ version, by the build table of the rockspec, which tt writes for it:
   files there instead, wherever they are in the project.
 - A package with a build block, whose builds are all made without tt too -
   those of `make` and `shell`, the backends that run a command of the
-  project's own - is of build type `command`, and its rockspec carries
+  project's own, and of `cmake`, `go`, `cargo` and `zig`, which run their
+  tool as tt runs it (see
+  [Without tt](../reference/app-manifest.md#without-tt)) - is of build
+  type `command`, and its rockspec carries
   `tt-rock.sh`, a script of POSIX sh, in `build.extra_files` beside
   `version.lua`. `build_command` runs `sh ./tt-rock.sh build` with `CC`,
   `CFLAGS`, `LIBFLAG` and `LUA_INCDIR` of LuaRocks, and `install_command`
