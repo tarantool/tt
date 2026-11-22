@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -111,6 +112,15 @@ func inspect(ctx context.Context, streams output.Streams, res *resolver,
 	cmd.Stdin = streams.In
 	cmd.Stdout = streams.Out
 	cmd.Stderr = streams.Err
+
+	// Ctrl-C at the prompt of gdb interrupts the command gdb runs: the
+	// terminal sends SIGINT to tt as well, which must outlive gdb rather
+	// than die of it and leave gdb reading a terminal the shell has taken
+	// back. A signal caught rather than ignored is reset for the child.
+	interrupts := make(chan os.Signal, 1)
+	signal.Notify(interrupts, os.Interrupt)
+
+	defer signal.Stop(interrupts)
 
 	err = cmd.Run()
 	if err != nil {
