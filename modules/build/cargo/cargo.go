@@ -127,6 +127,8 @@ func Backend() build.Backend {
 		// rustc builds for the Rust target of another platform, and zig cc
 		// links for another Linux one (cross.go).
 		Cross: true,
+		// A build is made with tt alone so far.
+		Exports: false,
 	}
 }
 

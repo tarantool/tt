@@ -53,6 +53,8 @@ func Make() build.Backend {
 		// The Makefile is told the platform in TT_PLATFORM_OS and
 		// TT_PLATFORM_ARCH, and the core checks what it made against it.
 		Cross: true,
+		// A build is made with tt alone so far.
+		Exports: false,
 	}
 }
 
@@ -72,6 +74,8 @@ func Shell() build.Backend {
 		// The command is told the platform in TT_PLATFORM_OS and
 		// TT_PLATFORM_ARCH, and the core checks what it made against it.
 		Cross: true,
+		// A build is made with tt alone so far.
+		Exports: false,
 	}
 }
 

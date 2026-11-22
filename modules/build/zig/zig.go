@@ -158,6 +158,8 @@ func Backend() build.Backend {
 		Hook:           false,
 		// zig builds for the platform its -Dtarget names (targetArg).
 		Cross: true,
+		// A build is made with tt alone so far.
+		Exports: false,
 	}
 }
 

@@ -93,6 +93,8 @@ func Backend() build.Backend {
 		// The project is configured with the toolchain of the machine; a
 		// toolchain file of another platform is the project's to give.
 		Cross: false,
+		// A build is made with tt alone so far.
+		Exports: false,
 	}
 }
 

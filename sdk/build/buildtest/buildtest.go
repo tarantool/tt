@@ -1,7 +1,10 @@
 // Package buildtest runs a build backend in tests as the core runs it: it
 // checks a build block for it ([Validate], [ValidateHook]) and runs its
 // build in a [build.Context] on temporary directories ([New], [NewHook],
-// [Harness.Run]).
+// [Harness.Run]). Of a backend whose builds are made without tt
+// ([build.Backend.Exports]) it runs the script of an export as tt package
+// pack writes it ([Harness.Export], [Harness.RunExport]), and checks that the
+// script makes what Run makes ([CheckExport], [CheckExportHook]).
 //
 // The checks are those the core makes, with the same functions of
 // package build: of the backend before the core adds it
