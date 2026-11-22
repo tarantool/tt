@@ -322,7 +322,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   and `tt binary search` find Tarantool Enterprise, the SDK, TCM and tt-ee,
   and where `tt binary install` takes the prebuilt Tarantool Community and
   tt of a release. tt has, as before, the customer zone of tarantool.io
-  (`customer-zone`, `core.CustomerZone`), the static RPMs of
+  (`customer-zone`, `core.CustomerZone`), the static deb packages of
   rws.tarantool.org (`rws`, `core.RWS`) and the releases of tt on GitHub
   (`github`, `core.GitHubReleases`); with `bundle_sources = []` it has none,
   and no `--credentials-file`, installs the Enterprise products from
@@ -749,6 +749,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `require('<name>._version').version`. A checkout built by 3.0.0-alpha.2
   or older keeps `.rocks/share/tarantool/<name>/version.lua`, which no rock
   owns and `tt package clean` leaves: remove it by hand.
+- `tt binary install tarantool` takes the prebuilt Tarantool Community
+  from the static deb packages of rws.tarantool.org,
+  `release/series-3/linux-deb/`, rather than from its static RPMs. They are
+  the same builds - the executable has the same build-id - but the RPM has
+  the debug information of the executable stripped and the deb keeps it:
+  the gdb extensions of LuaJIT and Tarantool that `tt coredump inspect`
+  loads need its DWARF to debug the core of a Tarantool tt installed. The
+  packages are found in the `Packages` index of the repository rather than
+  in the HTML listing of a directory, and a package is checked against the
+  size and the SHA-256 the index lists, which the listing had none of; a
+  mismatch fails the install with `package checksum mismatch: Tarantool
+  package <url> has SHA-256 <digest> and <size> bytes, the package index
+  lists <digest> and <size> bytes; use --source-build to build from
+  source`. The versions, the platforms - Linux amd64 and arm64 with glibc -
+  and what is installed from a build are as before; the download of
+  Tarantool 3.9.0 for amd64 is 39 MB rather than 16 MB, and its executable
+  is 110 MB rather than 52 MB. A version installed before keeps its
+  executable until it is installed again with `--reinstall`.
 - A `cargo` component is built with `--locked`, from the versions the
   `Cargo.lock` of its workspace pins, as the project is built from the
   versions of its lock: two builds of one commit build the same crates. A
@@ -1064,8 +1082,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   are gone.
 - `tt backup-id` is `tt backup id`, next to the other steps of a backup. It
   prints the same identifier; `tt backup-id` is gone.
-- `tt binary install tarantool --no-clean` keeps the archive the RPMs of
-  rws.tarantool.org are unpacked into and the files of it, not the RPMs.
+- `tt binary install tarantool --no-clean` keeps the archive the packages
+  of rws.tarantool.org are unpacked into and the files of it, not the
+  packages.
   `tt binary install tt` reads `checksums.txt` of a release before it
   downloads the archive, and builds from source a release whose
   `checksums.txt` does not list the archive of the platform, where it
@@ -1242,7 +1261,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt binary install tarantool` and `tt binary install tt` of a prebuilt
   release work on a host without git, as the debian:12 and rockylinux:9
   images are. A version, a mask such as `3.9` or `3`, or none for the latest
-  is found among the releases the prebuilt binaries are of - the RPMs of
+  is found among the releases the prebuilt binaries are of - the packages of
   rws.tarantool.org, the releases of tt on GitHub, which tt lists with the
   GitHub API - and a mask is the newest release it matches, as before. The
   Git tags are asked for what they do not have: a development tag such as
@@ -1620,8 +1639,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A Tarantool `tt binary install` installs keeps its `share/tarantool/`,
   the EmmyLua stubs of its built-in modules (Tarantool 3.9 and later) among
   them, and its `LICENSE` and `AUTHORS`, whichever way it is installed:
-  from the RPMs of rws.tarantool.org, from an Enterprise archive or an SDK
-  of the customer zone or `--local-dir`, or built from source. Only the
+  from the packages of rws.tarantool.org, from an Enterprise archive or an
+  SDK of the customer zone or `--local-dir`, or built from source. Only the
   executable and the headers were kept, so `tt emmylua` checked a project
   without the types of the Tarantool API. The installation directory has
   them as `share/tarantool/` and, at its root, the license files, and

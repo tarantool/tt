@@ -47,7 +47,6 @@ require (
 	github.com/tarantool/tt/sdk/fetch v0.0.0-0
 	github.com/tarantool/tt/sdk/integrity v0.0.0-0
 	github.com/tarantool/tt/sdk/tuple v0.0.0-0
-	github.com/ulikunitz/xz v0.5.17
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.2
 	go.etcd.io/etcd/api/v3 v3.6.14

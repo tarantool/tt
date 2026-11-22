@@ -14,10 +14,10 @@ const (
 	executablePermissionMask = 0o111
 )
 
-// errUnsupportedPlatform reports a host the static RPMs do not run on.
+// errUnsupportedPlatform reports a host the static packages do not run on.
 var errUnsupportedPlatform = errors.New("unsupported platform")
 
-// packagePlatforms are the hosts the static RPMs run on, by GOARCH: the
+// packagePlatforms are the hosts the static packages run on, by GOARCH: the
 // glibc loader and the libraries the executable needs.
 var packagePlatforms = map[string]struct {
 	loaderPath string   // Relative to the system root.
@@ -33,7 +33,7 @@ var packagePlatforms = map[string]struct {
 	},
 }
 
-// checkPlatform checks for the loader, libc and libgcc used by the prebuilt RPMs.
+// checkPlatform checks for the loader, libc and libgcc used by the prebuilt packages.
 // It only inspects file metadata and symlinks. systemRoot is "/" on the host.
 func checkPlatform(goarch, systemRoot string) error {
 	platform, supported := packagePlatforms[goarch]

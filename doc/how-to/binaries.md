@@ -75,9 +75,10 @@ those of its dependencies and those of `tt rocks`: a rock that runs
 the project's.
 
 Community releases are installed from prebuilt binaries where there are
-some - Tarantool on Linux amd64 and arm64 with glibc, from the static RPMs
-of rws.tarantool.org, tt on Linux amd64 and arm64, tt 3 on macOS arm64 and
-tt 2 on macOS amd64, from the releases of tt on GitHub - and built from
+some - Tarantool on Linux amd64 and arm64 with glibc, from the static deb
+packages of rws.tarantool.org, whose executable keeps its debug information
+for `tt coredump inspect`, tt on Linux amd64 and arm64, tt 3 on macOS arm64
+and tt 2 on macOS amd64, from the releases of tt on GitHub - and built from
 source elsewhere. tt is the exception: the releases of tt on GitHub name
 the platforms they publish, so on another one, macOS amd64 for tt 3 say,
 `tt binary install tt` fails naming the platforms there are, and
@@ -171,7 +172,7 @@ tt says that it was not checked.
   latest stable `gc64` SDK, and a complete archive name an exact one.
 
 A Community release to be installed from a prebuilt binary is looked up
-among the prebuilt binaries, so it needs no Git: the RPMs of
+among the prebuilt binaries, so it needs no Git: the deb packages of
 rws.tarantool.org for Tarantool, the releases of tt on GitHub for tt, which
 tt lists with the GitHub API (`GITHUB_TOKEN` lifts its rate limit). `3`
 there is the latest release of Tarantool 3 that has a prebuilt binary. What

@@ -468,7 +468,6 @@ linters:
             # A Tarantool built from source gets the CMake policy version.
             - "github.com/tarantool/tt/v3/internal/cmakepolicy"
             - "github.com/tarantool/tt/v3/internal/untar"
-            - "github.com/ulikunitz/xz"
             - "golang.org/x/net/html"
             - "golang.org/x/sys"
             # The menus of tt binary switch are shown on a terminal only.
@@ -1004,7 +1003,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/core"
-            # The default sources of archives: the customer zone, the RPMs
+            # The default sources of archives: the customer zone, the debs
             # of rws.tarantool.org and the releases of tt on GitHub.
             - "github.com/tarantool/tt/v3/internal/binary/customerzone"
             - "github.com/tarantool/tt/v3/internal/binary/ghrelease"

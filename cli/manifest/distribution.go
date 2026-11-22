@@ -47,8 +47,9 @@ const (
 	// BundleSourceCustomerZone is the customer zone of tarantool.io: the
 	// source of Tarantool Enterprise, the SDK, TCM and tt-ee.
 	BundleSourceCustomerZone = "customer-zone"
-	// BundleSourceRWS is the repository of the static RPMs of Tarantool 3
-	// on rws.tarantool.org: the source of the prebuilt Tarantool Community.
+	// BundleSourceRWS is the repository of the static deb packages of
+	// Tarantool 3 on rws.tarantool.org: the source of the prebuilt Tarantool
+	// Community.
 	BundleSourceRWS = "rws"
 	// BundleSourceGitHub is the releases of tt on GitHub: the source of the
 	// prebuilt tt.

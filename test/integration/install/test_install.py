@@ -3,6 +3,7 @@ import platform
 import re
 import shlex
 import shutil
+import struct
 import subprocess
 import tarfile
 import tempfile
@@ -573,6 +574,25 @@ def retained_paths(output):
     return [Path(path.strip()) for path in paths]
 
 
+def elf_section_names(path):
+    """The names of the sections of a 64-bit little-endian ELF file."""
+    with open(path, "rb") as elf:
+        header = elf.read(64)
+        assert header[:6] == b"\x7fELF\x02\x01", path
+        (section_offset,) = struct.unpack_from("<Q", header, 0x28)
+        entry_size, count, names_index = struct.unpack_from("<HHH", header, 0x3A)
+        elf.seek(section_offset)
+        sections = elf.read(entry_size * count)
+
+        def field(index, kind, offset):
+            return struct.unpack_from(kind, sections, index * entry_size + offset)[0]
+
+        elf.seek(field(names_index, "<Q", 0x18))
+        names = elf.read(field(names_index, "<Q", 0x20))
+    starts = (field(index, "<I", 0) for index in range(count))
+    return [names[start : names.index(b"\0", start)].decode() for start in starts]
+
+
 @pytest.mark.parametrize("keep_temp", [False, True], ids=["clean", "no-clean"])
 @pytest.mark.parametrize("product,version", [("tt", "2.15.0"), ("tarantool", "3.7.1")])
 def test_install_community_prebuilt_release(
@@ -626,6 +646,9 @@ def test_install_community_prebuilt_release(
     else:
         assert (root / "include" / product).resolve(strict=True) == installed / "include" / product
         assert (root / "include" / product / "module.h").is_file()
+        # The debs keep the DWARF that the static RPMs of the same build
+        # strip, which the gdb extensions of tt coredump inspect need.
+        assert ".debug_info" in elf_section_names(executable)
     paths = retained_paths(output)
     if keep_temp:
         assert len(paths) == 1, output
@@ -636,7 +659,7 @@ def test_install_community_prebuilt_release(
             with tarfile.open(archives[0]) as archive:
                 assert archive.extractfile("tt").read() == executable.read_bytes()
         else:
-            # The RPMs are unpacked by the source into the archive of tarantool.
+            # The debs are unpacked by the source into the archive of tarantool.
             archives = list(paths[0].glob("tarantool-package-*/package-*.tar.gz"))
             assert len(archives) == 1
             with tarfile.open(archives[0]) as archive:
