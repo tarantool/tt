@@ -2,6 +2,7 @@ package untar_test
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"os"
 	"path/filepath"
@@ -269,6 +270,59 @@ func TestExtractTarGz_UnknownTypes(t *testing.T) {
 			require.ErrorContains(t, err, " in "+testCase.entry.name)
 		})
 	}
+}
+
+// tarStream returns the uncompressed tar archive of entries.
+func tarStream(t *testing.T, entries ...entry) *bytes.Reader {
+	t.Helper()
+
+	var archive bytes.Buffer
+
+	writer := tar.NewWriter(&archive)
+
+	for _, item := range entries {
+		require.NoError(t, writer.WriteHeader(&tar.Header{
+			Typeflag: item.kind, Name: item.name, Mode: item.mode, Linkname: item.linkname,
+			Size: int64(len(item.content)),
+		}))
+
+		_, err := writer.Write([]byte(item.content))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, writer.Close())
+
+	return bytes.NewReader(archive.Bytes())
+}
+
+// TestExtractTar extracts an archive read from a stream as ExtractTarGz
+// extracts a file, with the same checks.
+func TestExtractTar(t *testing.T) {
+	_, dst, outside := layout(t)
+
+	require.NoError(t, untar.ExtractTar(tarStream(t,
+		dir("./usr/"), file("./usr/bin/tarantool", "binary", 0o755),
+		symlink("./usr/bin/alias", "tarantool"),
+	), dst, untar.Options{Symlinks: true, EntryModes: true}))
+
+	content, err := os.ReadFile(filepath.Join(dst, "usr", "bin", "alias"))
+	require.NoError(t, err)
+	assert.Equal(t, "binary", string(content))
+
+	info, err := os.Stat(filepath.Join(dst, "usr", "bin", "tarantool"))
+	require.NoError(t, err)
+	assert.Equal(t, createdMode(t, 0o755), info.Mode().Perm())
+
+	err = untar.ExtractTar(tarStream(t, symlink("evil", "../outside"), file("evil/x", "x", 0o644)),
+		filepath.Join(dst, "other"), untar.Options{Symlinks: true, EntryModes: true})
+	require.ErrorIs(t, err, untar.ErrUnsafeLink)
+
+	written, err := os.ReadDir(outside)
+	require.NoError(t, err)
+	assert.Empty(t, written, "nothing is written outside the destination")
+
+	err = untar.ExtractTar(bytes.NewReader([]byte("text")), dst, untar.Options{})
+	require.ErrorContains(t, err, "cannot read the archive")
 }
 
 func TestExtractTarGz_BadArchive(t *testing.T) {
