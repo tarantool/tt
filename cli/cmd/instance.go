@@ -45,9 +45,10 @@ var stdinIsTerminal = func() bool {
 }
 
 // instanceFlags hold the flags that every command of tt instance takes, and
-// with them every other command that takes an application, tt connect,
-// tt replicaset, tt cluster and tt play: where the application of a target
-// is looked for, and the template of the pair it runs from.
+// with them every other command that takes an application, tt replicaset,
+// tt cluster and tt play: where the application of a target is looked for,
+// and the template of the pair it runs from. tt connect has the same flags
+// in connectFlags, with those of its connection.
 var instanceFlags sdk.AppLookup
 
 // instanceYes is --yes of the commands of tt instance that ask for a

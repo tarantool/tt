@@ -78,22 +78,17 @@ var uriParamFlags = map[string]string{
 }
 
 var (
-	connectUser            string
-	connectPassword        string
-	connectFile            string
-	connectLanguage        string
-	connectFormat          string
-	connectSslKeyFile      string
-	connectSslCertFile     string
-	connectSslCaFile       string
-	connectSslCiphers      string
-	connectSslPassword     string
-	connectSslPasswordFile string
-	connectAuthType        dial.Auth
-	connectTimeout         = connector.DefaultConnectTimeout
-	connectInteractive     bool
-	connectBinary          bool
-	connectEvaler          string
+	// connectFlags are the flags tt connect connects with, those the SDK
+	// gives a module (sdk.AddConnectFlags): the credentials, the TLS
+	// settings, the authentication method, the timeout, --scope and
+	// --template.
+	connectFlags       sdk.ConnectOptions
+	connectFile        string
+	connectLanguage    string
+	connectFormat      string
+	connectInteractive bool
+	connectBinary      bool
+	connectEvaler      string
 )
 
 // NewConnectCmd creates tt connect, the documented facade of
@@ -167,31 +162,14 @@ func newConnectCmd(path string) *cobra.Command {
 		},
 	}
 
-	addInstanceFlags(connectCmd)
+	sdk.AddConnectFlags(connectCmd, &connectFlags)
 
-	connectCmd.Flags().StringVarP(&connectUser, "username", "u", "", "username")
-	connectCmd.Flags().StringVarP(&connectPassword, "password", "p", "", "password")
 	connectCmd.Flags().StringVarP(&connectFile, "file", "f", "",
 		`file to read the script for evaluation. "-" - read the script from stdin`)
 	connectCmd.Flags().StringVarP(&connectLanguage, "language", "l",
 		connect.DefaultLanguage.String(), `language: lua or sql`)
 	connectCmd.Flags().StringVarP(&connectFormat, "outputformat", "x",
 		formatter.DefaultFormat.String(), "output format: "+connect.FormatsText(false))
-	connectCmd.Flags().StringVar(&connectSslKeyFile, "sslkeyfile", "",
-		`path to a private SSL key file`)
-	connectCmd.Flags().StringVar(&connectSslCertFile, "sslcertfile", "",
-		`path to an SSL certificate file`)
-	connectCmd.Flags().StringVar(&connectSslCaFile, "sslcafile", "",
-		`path to a trusted certificate authorities (CA) file`)
-	connectCmd.Flags().StringVar(&connectSslCiphers, "sslciphers", "",
-		`colon-separated (:) list of SSL cipher suites the connection can use`)
-	connectCmd.Flags().StringVar(&connectSslPassword, "sslpassword", "",
-		`password for decrypting the private SSL key file`)
-	connectCmd.Flags().StringVar(&connectSslPasswordFile, "sslpasswordfile", "",
-		`path to a file containing the password for decrypting the private SSL key file`)
-	addAuthTypeFlag(connectCmd, &connectAuthType)
-	connectCmd.Flags().DurationVar(&connectTimeout, "connect-timeout",
-		connector.DefaultConnectTimeout, `timeout for establishing a binary connection`)
 	connectCmd.Flags().BoolVarP(&connectInteractive, "interactive", "i",
 		false, `enter interactive mode after executing 'FILE'`)
 	connectCmd.Flags().BoolVarP(&connectBinary, "binary", "",
@@ -627,27 +605,18 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return util.NewArgError("unsupported output format: " + connectFormat)
 	}
 
-	connectCtx := connect.ConnectCtx{
-		Username:        connectUser,
-		Password:        connectPassword,
-		ConnectTimeout:  connectTimeout,
-		SrcFile:         connectFile,
-		Language:        language,
-		Format:          format,
-		SslKeyFile:      connectSslKeyFile,
-		SslCertFile:     connectSslCertFile,
-		SslCaFile:       connectSslCaFile,
-		SslCiphers:      connectSslCiphers,
-		SslPassword:     connectSslPassword,
-		SslPasswordFile: connectSslPasswordFile,
-		Transport:       dial.TransportDefault,
-		Auth:            connectAuthType,
-		ConnectTarget:   "",
-		Binary:          connectBinary,
-		Evaler:          connectEvaler,
+	connectCtx, err := connectCtxOf(connectFlags)
+	if err != nil {
+		return err
 	}
 
-	connOpts, err := resolveConnectOpts(cmdCtx, &connectCtx, args[0])
+	connectCtx.SrcFile = connectFile
+	connectCtx.Language = language
+	connectCtx.Format = format
+	connectCtx.Binary = connectBinary
+	connectCtx.Evaler = connectEvaler
+
+	connOpts, err := resolveTargetConnectOpts(cmdCtx, connectFlags.Lookup, &connectCtx, args[0])
 	if err != nil {
 		return err
 	}
@@ -681,7 +650,8 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 func notRunningErr(cmdCtx *cmdcontext.CmdCtx, target string, connOpts connector.ConnectOpts,
 	err error,
 ) error {
-	return instanceNotRunningErr(cmdCtx, instanceFlags, connectBinary, target, connOpts, err)
+	return instanceNotRunningErr(cmdCtx, connectFlags.Lookup, connectBinary, target, connOpts,
+		err)
 }
 
 // instanceNotRunningErr returns the error of a connection to target that

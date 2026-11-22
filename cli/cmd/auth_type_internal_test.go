@@ -47,14 +47,17 @@ func TestAuthTypeValue(t *testing.T) {
 // Every command that opens a binary connection to a target takes
 // --auth-type, and it reaches the options of the connection.
 func TestAuthTypeFlag(t *testing.T) {
-	oldConnect, oldReplicaset, oldBackup := connectAuthType, replicasetAuthType, backupAuthType
+	oldConnect, oldReplicaset, oldBackup := connectFlags, replicasetAuthType, backupAuthType
 
 	t.Cleanup(func() {
-		connectAuthType, replicasetAuthType, backupAuthType = oldConnect, oldReplicaset, oldBackup
+		connectFlags, replicasetAuthType, backupAuthType = oldConnect, oldReplicaset, oldBackup
 	})
 
 	connectConnectCtx := func() connect.ConnectCtx {
-		return connect.ConnectCtx{Auth: connectAuthType}
+		connectCtx, err := connectCtxOf(connectFlags)
+		require.NoError(t, err)
+
+		return connectCtx
 	}
 
 	cases := []struct {
@@ -73,8 +76,8 @@ func TestAuthTypeFlag(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			// The commands of a group share the variable of the flag.
-			connectAuthType, replicasetAuthType, backupAuthType =
-				dial.AuthAuto, dial.AuthAuto, dial.AuthAuto
+			connectFlags.AuthType, replicasetAuthType, backupAuthType =
+				"", dial.AuthAuto, dial.AuthAuto
 
 			command := testCase.newCommand()
 			flag := command.Flags().Lookup("auth-type")
