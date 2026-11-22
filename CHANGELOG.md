@@ -1335,6 +1335,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   information starts gdb: `gdb.sh` failed with exit code 1 when gdb found
   no line of `main` to map to the sources, before gdb ran, and now runs it
   without the mapping, for the backtraces such a core has.
+- Ctrl-C at the prompt of gdb in `tt coredump inspect` interrupts the
+  command of gdb and nothing else. The terminal sends SIGINT to tt as well,
+  which died of it and left gdb running on a terminal the shell had taken
+  back; tt now waits for gdb.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read
