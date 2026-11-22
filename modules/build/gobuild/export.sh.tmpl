@@ -1,0 +1,19 @@
+{{/*
+The script of the export of a go build (export.go), the go build of Run for
+the machine the script runs on. The lines of the script are joined by
+newlines, with none after the last: the dash of an action trims the
+newline on its side, so that a line of control leaves none in the script.
+*/}}
+
+{{define "script" -}}
+{{if .Static -}}
+if [ "$TT_PLATFORM_OS" = darwin ]; then
+	printf '%s\n' {{q (print .ErrStaticDarwin ": static = true needs a linux build")}} >&2
+	exit 1
+fi
+{{end -}}
+tt_go_os=`go env GOHOSTOS`
+tt_go_arch=`go env GOHOSTARCH`
+GOOS=$tt_go_os GOARCH=$tt_go_arch CGO_ENABLED={{.Cgo}} go
+{{- range $index, $arg := .Args}} {{if eq $index $.Output}}"$TT_PROGRAMS_DIR"/{{q $.Program}}{{else}}{{q $arg}}{{end}}{{end}}
+{{- end}}

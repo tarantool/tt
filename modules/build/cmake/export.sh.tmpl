@@ -1,0 +1,59 @@
+{{/*
+The script of the export of a cmake build (export.go): the configuration
+and the build of Run, in TT_BUILD_DIR, which is empty when the script runs,
+as the tree of a fresh build is, and the copies of copyOutputs. The lines of
+the script are joined by newlines, with none after the last: the dash of an
+action trims the newline on its side, so that a line of control leaves none
+in the script.
+*/}}
+
+{{define "script" -}}
+{{/*
+The configuration, that of configureArgs, with the prefix of the Tarantool
+of the script added to CMAKE_PREFIX_PATH as configureArgs adds that of tt,
+when it is set: to the first variable of the name, after what it lists (the
+prefix alone after no prefix, after a ; else, as cmakeList has it), or as a
+variable of its own.
+*/ -}}
+cmake -S . -B "$TT_BUILD_DIR" {{q (print "-DCMAKE_BUILD_TYPE=" .BuildType)}}
+{{- range .Variables}} {{q (print "-D" .Name "=" .Value)}}
+	{{- if .Prefix}}{{if .Value}}"${TT_TARANTOOL_PREFIX:+;$TT_TARANTOOL_PREFIX}"{{else}}"${TT_TARANTOOL_PREFIX-}"{{end}}{{end}}
+{{- end}}
+{{- if not .Prefixed}} ${TT_TARANTOOL_PREFIX:+"-DCMAKE_PREFIX_PATH=$TT_TARANTOOL_PREFIX"}{{end}}
+{{- /*
+The build, that of buildArgs with the jobs of jobs, which the script has
+none of but TT_BUILD_JOBS, one a CPU, and no --parallel when
+CMAKE_BUILD_PARALLEL_LEVEL says how many.
+*/}}
+# cmake reads CMAKE_BUILD_PARALLEL_LEVEL when it is given no --parallel.
+if [ -n "${CMAKE_BUILD_PARALLEL_LEVEL-}" ]; then
+	cmake --build "$TT_BUILD_DIR" --config {{q .BuildType}}{{template "targets" .Targets}}
+else
+	cmake --build "$TT_BUILD_DIR" --config {{q .BuildType}} --parallel "$TT_BUILD_JOBS"{{template "targets" .Targets}}
+fi
+{{- /*
+The copies of the files of output from the build tree, as copyOutputs
+makes them: when each is there, a file of the tree, each into the
+directory of its type under its base name, a .so module as one of
+TT_MODULE_EXT; a file the build did not make fails the script, all of them
+named at once.
+*/}}
+tt_cmake_missing=
+for tt_cmake_file in{{range .Outputs}} {{q .Path}}{{end}}; do
+	[ -f "$TT_BUILD_DIR/$tt_cmake_file" ] ||
+		tt_cmake_missing="$tt_cmake_missing, \"$tt_cmake_file\""
+done
+if [ -n "$tt_cmake_missing" ]; then
+	printf '%s\n' "output ${tt_cmake_missing#, }: {{.ErrMissingOutput}} $TT_BUILD_DIR; output names the files the build makes, relative to the build tree" >&2
+	exit 1
+fi
+{{- range .Outputs}}
+{{- if .Dir}}
+mkdir -p {{.Root}}/{{q .Dir}}
+{{- end}}
+cp "$TT_BUILD_DIR"/{{q .Path}} {{.Root}}/{{q .Name}}{{if .ModuleExt}}"$TT_MODULE_EXT"{{end}}
+{{- end}}
+{{- end}}
+
+{{/* targets are --target and the targets of the build, when it has any. */}}
+{{define "targets"}}{{with .}} --target{{range .}} {{q .}}{{end}}{{end}}{{end}}

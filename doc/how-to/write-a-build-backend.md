@@ -917,7 +917,9 @@ with `Exports: true`, and each of its builds is a `build.Exporter`, whose
 `Export` returns the script. A package builds without tt when every build of
 its product and of its `pre_build` and `post_build` hooks exports; otherwise
 the rockspec fails under LuaRocks, saying which builds need tt and why, and
-the pack warns so. `make` and `shell` export, the command each runs.
+the pack warns so. `make` and `shell` export, the command each runs, and
+so do `cmake`, `go`, `cargo` and `zig`, the commands of their tool `Run`
+runs (see [Without tt](../reference/app-manifest.md#without-tt)).
 
 `template` runs `envsubst`, which a script runs as well. Add
 `Exports: true` to `Backend()`, and to `backend.go`, with `maps`, `regexp`
@@ -1443,10 +1445,10 @@ The backends of the standard module `build` show the rest of the contract:
 | --- | --- | --- |
 | `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output`, `Cross` left to the script, `Exports` of the command it runs, checked by `CheckExport` in `modules/build/export_test.go` |
 | `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes |
-| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored`, `Cross` with a linker of the target |
-| `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
-| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo`, a `Vendorer` and a build from `Vendored` |
-| `modules/build/zig` | `zig` | `Incremental` with an `InputHasher`, `Cross` with `-Dtarget`, a `Vendorer` and a build from `Vendored` |
+| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored`, `Cross` with a linker of the target, `Exports` that finds what cargo built by its place in a target directory of its own, and says what it lacks in `Lost` |
+| `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh`, `Exports` that copies `output` itself |
+| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo`, a `Vendorer` and a build from `Vendored`, `Exports` for the machine |
+| `modules/build/zig` | `zig` | `Incremental` with an `InputHasher`, `Cross` with `-Dtarget`, a `Vendorer` and a build from `Vendored`, `Exports` that asks the tool its version as `Run` does |
 
 Their fields are in
 [the reference of the application manifest](../reference/app-manifest.md#componentsnamebuild).

@@ -1,0 +1,100 @@
+{{/*
+The script of the export of a zig build (export.go): the zig build of Run
+for the machine the script runs on, into TT_BUILD_DIR, and the copies of
+what it installed. The lines of the script are joined by newlines, with none
+after the last: the dash of an action trims the newline on its side, so
+that a line of control leaves none in the script.
+*/}}
+
+{{define "script" -}}
+{{if .Static -}}
+if [ "$TT_PLATFORM_OS" = darwin ]; then
+	printf '%s\n' {{q (print .ErrStaticDarwin ": static = true needs a linux build")}} >&2
+	exit 1
+fi
+{{end -}}
+{{/*
+The directories of dirArgs in TT_BUILD_DIR: the cache, and the packages for
+a zig of --pkg-dir, the versions takesPkgDir takes, 0.17.0 and later, its
+development versions but those of 0.17.0 among them.
+*/ -}}
+set -- --cache-dir "$TT_BUILD_DIR"/zig-cache
+# zig 0.17 and later keep the packages they fetch in --pkg-dir.
+if [ -z "${ZIG_LOCAL_PKG_DIR-}" ]; then
+	case `zig version` in
+	0.17.0 | 0.17.0+* | 0.17.[1-9]* | 0.1[89].* | 0.[2-9][0-9].* | 0.[1-9][0-9][0-9]*.* | [1-9]*.*.*)
+		set -- "$@" --pkg-dir "$TT_BUILD_DIR"/zig-pkg
+		;;
+	esac
+fi
+{{- if .Musl}}
+{{template "musl" .}}
+{{- end}}
+zig build{{range .Steps}} {{q .}}{{end}} -p "$TT_BUILD_DIR"/zig-out "$@"
+{{- with .ReleaseMode}} --release={{.}}{{end}}
+{{- range .Options}} {{q (print "-D" .Name "=" .Value)}}{{end}}
+{{- if .Musl}} ${tt_zig_target:+"-Dtarget=$tt_zig_target"}{{end}}
+{{- if .Module}}
+{{template "module" .}}
+{{- end}}
+{{- if .Bin}}
+{{template "program" .}}
+{{- end}}
+{{- end}}
+
+{{/*
+musl sets tt_zig_target to the musl target of the machine, as zigTarget
+names it, on Linux of an architecture zig is mapped for, when the build.zig
+takes -Dtarget, as acceptsTarget tells it from zig build --help of the
+directories of the build; it is empty otherwise.
+*/}}
+{{define "musl" -}}
+tt_zig_target=
+case $TT_PLATFORM_OS/$TT_PLATFORM_ARCH in
+{{- range .Targets}}
+linux/{{.Arch}}) tt_zig_target={{.Target}} ;;
+{{- end}}
+esac
+if [ -n "$tt_zig_target" ] &&
+	! zig build --help "$@" | grep -q -e -Dtarget=; then
+	tt_zig_target=
+fi
+{{- end}}
+
+{{/*
+module copies the module zig build installed, as copyModule does: the first
+of moduleCandidates in lib/ of the prefix to <module><TT_MODULE_EXT> of the
+modules, a dotted module being a path. A module is of letters, digits, _
+and dots, and so are the candidates, which a string of sh in double quotes
+holds as they are.
+*/}}
+{{define "module" -}}
+tt_zig_module=
+for tt_zig_name in{{range .Names}} {{q .}}{{end}}; do
+	if [ -f "$TT_BUILD_DIR/zig-out/lib/$tt_zig_name" ]; then
+		tt_zig_module=$TT_BUILD_DIR/zig-out/lib/$tt_zig_name
+		break
+	fi
+done
+if [ -z "$tt_zig_module" ]; then
+	printf '%s\n' "{{.ErrNoArtifact}} module \"{{.Module}}\": $TT_BUILD_DIR/zig-out/lib has none of {{join .Candidates ", "}}; install it with installModule of zig-tarantool, or name the step that installs it in steps" >&2
+	exit 1
+fi
+{{- with .ModuleDir}}
+mkdir -p "$TT_OUTPUT_DIR"/{{q .}}
+{{- end}}
+cp "$tt_zig_module" "$TT_OUTPUT_DIR"/{{q .ModulePath}}"$TT_MODULE_EXT"
+{{- end}}
+
+{{/*
+program copies the program zig build installed, as copyProgram does:
+bin/<bin> of the prefix to the programs. A program is of letters, digits
+and ._+-, which a string of sh in double quotes holds as they are.
+*/}}
+{{define "program" -}}
+if [ ! -f "$TT_BUILD_DIR"/zig-out/bin/{{q .Bin}} ]; then
+	printf '%s\n' "{{.ErrNoArtifact}} program \"{{.Bin}}\": $TT_BUILD_DIR/zig-out/bin has no {{.Bin}}; install it with b.installArtifact, or name the step that installs it in steps" >&2
+	exit 1
+fi
+cp "$TT_BUILD_DIR"/zig-out/bin/{{q .Bin}} "$TT_PROGRAMS_DIR"/{{q .Bin}}
+{{- end}}

@@ -25,11 +25,26 @@ type exportCase struct {
 	backend string
 	// hook makes the build that of a lifecycle hook.
 	hook bool
-	// fields and output are the fields of the block.
+	// fields, output and static are the fields of the block.
 	fields map[string]any
 	output []sdkbuild.OutputFile
+	static bool
 	// files are the files of the working directory of the build, by path.
 	files map[string]string
+	// integration runs the case under the integration build tag alone: a
+	// build of a toolchain that compiles, which a run of the tests of the
+	// module without it skips.
+	integration bool
+	// setup, when set, prepares each harness after files are written, as
+	// files cannot: the Tarantool of the build, a file of a path of the
+	// harness. It may skip the test.
+	setup func(t *testing.T, h *buildtest.Harness)
+	// observe, when set, is what the build of a harness made that the
+	// comparison of the files does not see - what a program it made prints:
+	// Run and the script are to make the same.
+	observe func(t *testing.T, h *buildtest.Harness) string
+	// lost says whether the export lacks something against Run.
+	lost bool
 }
 
 // exportComponent is the component of the cases of exportCases.
@@ -114,6 +129,130 @@ func exportCases() []exportCase {
 				"-c", `printf '%s %s\n' "$1" "${TT_COMPONENT_NAME-unset}" > gen.txt`, "sh", tricky,
 			}},
 		},
+		{
+			// The prefix of Tarantool after that of the block on
+			// CMAKE_PREFIX_PATH, where find_path finds module.h.
+			name: "cmake", backend: "cmake", integration: true,
+			fields: map[string]any{
+				"build_type": "Debug", "targets": []any{"answer", "fnv", "tool"},
+				"variables": map[string]any{"WORD": exportWord, "CMAKE_PREFIX_PATH": "/none"},
+			},
+			output: cmakeOutput(), files: cmakeProject(true),
+			setup: func(t *testing.T, h *buildtest.Harness) {
+				t.Helper()
+				requireCC(t)
+				exportTarantool(t, h)
+			},
+			observe: func(t *testing.T, h *buildtest.Harness) string {
+				t.Helper()
+
+				return runProgram(t, h, "tool")
+			},
+		},
+		{
+			// No Tarantool, no CMAKE_PREFIX_PATH; the jobs cmake reads.
+			name: "cmake of no Tarantool", backend: "cmake", integration: true,
+			output: cmakeOutput(), files: cmakeProject(false),
+			setup: func(t *testing.T, h *buildtest.Harness) {
+				t.Helper()
+				requireCC(t)
+
+				h.Context.Env["CMAKE_BUILD_PARALLEL_LEVEL"] = "2"
+			},
+		},
+		{
+			name: "go", backend: "go", integration: true,
+			fields: map[string]any{
+				"name": "hello", "tags": []any{"demo"},
+				"ldflags": []any{"-X", "main.word=" + exportWord},
+			},
+			files: goProject(false),
+			observe: func(t *testing.T, h *buildtest.Harness) string {
+				t.Helper()
+
+				return runProgram(t, h, "hello")
+			},
+		},
+		{
+			name: "go with cgo", backend: "go", integration: true,
+			fields: map[string]any{"name": "hello", "cgo": true},
+			files:  goProject(true),
+			setup: func(t *testing.T, _ *buildtest.Harness) {
+				t.Helper()
+				requireCC(t)
+			},
+			observe: func(t *testing.T, h *buildtest.Harness) string {
+				t.Helper()
+
+				return runProgram(t, h, "hello")
+			},
+		},
+		{
+			// A profile of the package's own, the directory cargo builds it
+			// into.
+			name: "cargo", backend: "cargo", integration: true, lost: true,
+			fields: map[string]any{
+				"module": "demo", "bin": "demo-cli", "features": []any{"extra"}, "profile": "fast",
+			},
+			files: cargoProject(),
+			observe: func(t *testing.T, h *buildtest.Harness) string {
+				t.Helper()
+
+				return runProgram(t, h, "demo-cli")
+			},
+		},
+		{
+			name: "cargo library under its own name", backend: "cargo", integration: true,
+			lost: true, files: cargoProject(),
+		},
+		{
+			// For the musl target of the machine.
+			name: "cargo static program", backend: "cargo", integration: true, lost: true,
+			fields: map[string]any{"bin": "demo-cli"}, static: true, files: cargoProject(),
+			setup: func(t *testing.T, _ *buildtest.Harness) {
+				t.Helper()
+				requireMusl(t)
+			},
+			observe: func(t *testing.T, h *buildtest.Harness) string {
+				t.Helper()
+
+				return runProgram(t, h, "demo-cli")
+			},
+		},
+		{
+			name: "zig", backend: "zig", integration: true,
+			fields: map[string]any{
+				"module": "answer", "bin": "answer-cli", "optimize": "Debug",
+				"options": map[string]any{"word": exportWord},
+			},
+			files: zigProject(false),
+			observe: func(t *testing.T, h *buildtest.Harness) string {
+				t.Helper()
+
+				return runProgram(t, h, "answer-cli")
+			},
+		},
+		{
+			name: "zig of zig-tarantool", backend: "zig", integration: true,
+			fields: map[string]any{"module": "hello", "bin": "hello-client", "optimize": "Debug"},
+			setup:  zigTarantoolProject,
+		},
+		{
+			// For the musl target of the machine, as the build.zig takes
+			// -Dtarget.
+			name: "zig static program", backend: "zig", integration: true,
+			fields: map[string]any{"bin": "answer-cli", "optimize": "Debug"}, static: true,
+			files: zigProject(true),
+			setup: func(t *testing.T, _ *buildtest.Harness) {
+				t.Helper()
+				requireLinux(t)
+			},
+			observe: func(t *testing.T, h *buildtest.Harness) string {
+				t.Helper()
+
+				return runProgram(t, h, "answer-cli")
+			},
+		},
 	}
 }
 
@@ -137,22 +276,37 @@ func TestExport(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			if test.integration && !integrationTag {
+				t.Skip("a build of a toolchain, run with -tags integration")
+			}
+
 			backend := backendNamed(t, test.backend)
 			block := buildtest.Block{
-				Common:      sdkbuild.Common{Cwd: "", Env: nil, Output: test.output, Static: false},
+				Common: sdkbuild.Common{
+					Cwd: "", Env: nil, Output: test.output, Static: test.static,
+				},
 				Incremental: false,
 				Fields:      test.fields,
 			}
 
-			setup := func(h *buildtest.Harness) {
-				h.Context.Env["TT_VERSION"] = "1.2.3"
+			// The harnesses of Run and of the script, in this order.
+			var harnesses []*buildtest.Harness
+
+			setup := func(harness *buildtest.Harness) {
+				harness.Context.Env["TT_VERSION"] = "1.2.3"
 
 				for path, content := range test.files {
-					file := filepath.Join(h.Context.Dirs.Cwd, path)
+					file := filepath.Join(harness.Context.Dirs.Cwd, path)
 
 					require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o750))
 					require.NoError(t, os.WriteFile(file, []byte(content), 0o700))
 				}
+
+				if test.setup != nil {
+					test.setup(t, harness)
+				}
+
+				harnesses = append(harnesses, harness)
 			}
 
 			var export sdkbuild.Export
@@ -163,7 +317,14 @@ func TestExport(t *testing.T) {
 				export = buildtest.CheckExport(t, backend, exportComponent(), block, setup)
 			}
 
-			assert.Empty(t, export.Lost, "make and shell lose nothing")
+			assert.Equal(t, test.lost, len(export.Lost) > 0, "what the script lacks: %q",
+				export.Lost)
+
+			if test.observe != nil {
+				require.Len(t, harnesses, 2)
+				assert.Equal(t, test.observe(t, harnesses[0]), test.observe(t, harnesses[1]),
+					"what Run made, and what the script made")
+			}
 		})
 	}
 }
@@ -199,5 +360,5 @@ func TestExportCovered(t *testing.T) {
 			backend.Name)
 	}
 
-	assert.Equal(t, []string{"make", "shell"}, exports)
+	assert.Equal(t, []string{"make", "shell", "cargo", "cmake", "go", "zig"}, exports)
 }
