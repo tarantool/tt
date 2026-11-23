@@ -238,13 +238,13 @@ def test_local_launch_two_env_modules(tt_cmd, tmp_path):
 
     cmd = [tt_cmd, *modules]
 
-    rc, own_help, _ = run_command_and_get_streams(cmd, env={"TT_CLI_MODULES_PATH": ""})
+    rc, own_help, _ = run_command_and_get_streams(cmd, env=modules_path_env())
     assert rc == 0
     assert own_help.startswith("Show Tarantool CLI version information\n")
 
     rc, stdout, stderr = run_command_and_get_streams(
         cmd,
-        env={"TT_CLI_MODULES_PATH": f"{modules_path / 'modules1'}:{modules_path / 'modules2'}"},
+        env=modules_path_env(modules_path / "modules1", modules_path / "modules2"),
     )
     assert rc == 0
     assert stdout == own_help

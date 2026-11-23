@@ -4,7 +4,12 @@ import subprocess
 
 import pytest
 
-from utils import cluster_config_file, run_command_and_get_output, run_command_with_tty
+from utils import (
+    cluster_config_file,
+    env_with,
+    run_command_and_get_output,
+    run_command_with_tty,
+)
 
 
 def copy_app(tmpdir, app_name):
@@ -1141,14 +1146,16 @@ def test_cluster_publish_cluster(
                 instance.connection_password,
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix?timeout=5"
             publish_cmd = [tt_cmd, "cluster", "publish", "--yes", url, "src.yaml"]
 

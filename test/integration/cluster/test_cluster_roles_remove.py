@@ -1,6 +1,7 @@
 import pytest
 
 from utils import (
+    env_with,
     run_command_and_get_output,
 )
 
@@ -202,14 +203,16 @@ roles:
                 "-G",
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix?timeout=5"
             roles_remove_cmd = [
                 tt_cmd,

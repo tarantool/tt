@@ -27,8 +27,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from utils import bare_host_env, sha256_of, write_rock_index
 from utils import manifest_hash as manifest_hash_of
-from utils import sha256_of, write_rock_index
 
 MANIFEST_HEAD = """manifest_version = '0.1'
 
@@ -523,7 +523,7 @@ def test_deps_without_a_manifest_fails(run_tt):
     assert "app.manifest.toml" in result.stderr
 
 
-def test_deps_needs_no_tarantool(tree, run_tt):
+def test_deps_needs_no_tarantool(tree, run_tt, tmp_path):
     """The report is a read of two files, so no tarantool has to be around.
 
     `PATH` is emptied, which is what a machine that never installed Tarantool
@@ -533,7 +533,8 @@ def test_deps_needs_no_tarantool(tree, run_tt):
     root = tree.root
     write_manifest(root, "\n[dependencies]\nstat = '>=0.3.1'\n")
 
-    result = run_tt("package", "deps", "-o", "json", env={"PATH": "/nonexistent"})
+    env = bare_host_env(tmp_path / "home", PATH="/nonexistent")
+    result = run_tt("package", "deps", "-o", "json", env=env)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["package"] == "my-app"
 

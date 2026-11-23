@@ -1,6 +1,7 @@
 import pytest
 
 from utils import (
+    env_with,
     run_command_and_get_output,
 )
 
@@ -270,14 +271,16 @@ def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, instance_name, auth, reque
                 "instance-001",
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix?timeout=5"
             demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f", url, "instance-001"]
 

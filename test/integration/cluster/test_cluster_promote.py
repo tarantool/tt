@@ -3,6 +3,7 @@ import os
 import pytest
 
 from utils import (
+    env_with,
     read_kv,
     run_command_and_get_output,
 )
@@ -518,14 +519,16 @@ def test_cluster_promote_auth(
                 "instance-002",
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix?timeout=5"
             promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
 

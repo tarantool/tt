@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from utils import config_name, run_command_and_get_output
+from utils import bare_host_env, config_name, run_command_and_get_output
 
 
 def test_version_cmd(tt_cmd, tmp_path):
@@ -260,7 +260,7 @@ def test_search_tarantool_without_git(tt_cmd, tmp_path):
     process = subprocess.run(
         [tt_cmd, "binary", "search", "tarantool"],
         cwd=tmp_path,
-        env={"PATH": str(tools), "HOME": str(tmp_path / "home")},
+        env=bare_host_env(tmp_path / "home", PATH=str(tools)),
         capture_output=True,
         text=True,
     )
