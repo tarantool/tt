@@ -57,6 +57,14 @@ on:
           which one job does
         type: boolean
         default: false
+      pie-tarantool:
+        description: >-
+          Build Tarantool CE from its source as a PIE, the newest release the
+          manifest of the vendored tarantool-gdb-tools covers, or restore the
+          build from the cache, for the coredump tests to take a core of as
+          well (TT_TEST_PIE_TARANTOOL); needs full and require-debug-info
+        type: boolean
+        default: false
       rocks-mirror:
         description: Build the rock mirror the tests that fetch rocks install from
         type: boolean
@@ -95,6 +103,14 @@ jobs:
     continue-on-error: ${{ inputs.continue-on-error }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
+      # The test-dir of the name of the test reports: that of a file,
+      # coredump/test_gdb_tools.py, is coredump-test_gdb_tools.py there.
+      - name: Name the test reports
+        id: reports
+        env:
+          TEST_DIR: ${{ inputs.test-dir || 'all' }}
+        run: echo "test-dir=${TEST_DIR//\//-}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
@@ -158,6 +174,70 @@ jobs:
         if: inputs.rocks-mirror && inputs.edition != 'none' && steps.rocks-mirror.outputs.cache-hit != 'true'
         run: ci/retry-network.sh python3 test/ci.py rocks-mirror --dir "$RUNNER_TEMP/rocks-mirror" --tt-cmd "$PWD/tt"
 
+      # The PIE is there for the relocation, not for the newest Tarantool: it
+      # is the newest release the manifest of the vendored extensions says
+      # they are checked on, the last max of its ranges, whatever version the
+      # tarantool of PATH is of, so that every test of the extensions runs on
+      # it once the latest Tarantool of CI is past the manifest. The cache is
+      # keyed by that release.
+      - name: Resolve the release to build as a PIE
+        id: pie-release
+        if: inputs.pie-tarantool
+        env:
+          EDITION: ${{ inputs.edition }}
+          FULL: ${{ inputs.full }}
+          REQUIRE_DEBUG_INFO: ${{ inputs.require-debug-info }}
+          MANIFEST: modules/coredump/internal/coredump/extensions/gdb-tools/extensions.json
+        run: |
+          # Without the coredump tests, or with a skip of the tests of a
+          # tarantool gdb finds no debugging information of, the PIE would go
+          # untested and the job green.
+          if [ "$EDITION" != ce ] || [ "$FULL" != true ] || [ "$REQUIRE_DEBUG_INFO" != true ]; then
+            echo "pie-tarantool needs edition ce, full and require-debug-info" >&2
+            exit 2
+          fi
+          # A max that is no release x.y.z fails the step.
+          release=$(python3 -c '
+          import json
+          import sys
+
+          ranges = [entry["tarantool"] for entry in json.load(open(sys.argv[1]))["extensions"]]
+          print(max((r["max"] for r in ranges), key=lambda v: tuple(map(int, v.split(".")))))
+          ' "$MANIFEST")
+          if ! [[ $release =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "The newest max of $MANIFEST is no release x.y.z: $release" >&2
+            exit 1
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+      # The binary links the libraries of the image, which the runner names.
+      - name: Restore the tarantool built as a PIE
+        id: pie-cache
+        if: inputs.pie-tarantool && inputs.cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tarantool-pie
+          key: tarantool-pie-${{ steps.pie-release.outputs.release }}-${{ inputs.runner }}-${{ runner.arch }}-${{ hashFiles('ci/build-tarantool-pie.sh') }}
+
+      # On a hit of the cache the script only checks the binary.
+      - name: Build the tarantool as a PIE
+        id: pie
+        if: inputs.pie-tarantool
+        env:
+          RELEASE: ${{ steps.pie-release.outputs.release }}
+        run: |
+          tarantool=$(ci/build-tarantool-pie.sh "$RELEASE" "$RUNNER_TEMP/tarantool-pie")
+          echo "tarantool=$tarantool" >> "$GITHUB_OUTPUT"
+
+      # Right after the build, not at the end of the job: a test that fails
+      # does not cost the next run the build.
+      - name: Save the tarantool built as a PIE
+        if: inputs.pie-tarantool && inputs.cache && steps.pie-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tarantool-pie
+          key: ${{ steps.pie-cache.outputs.cache-primary-key }}
+
       - name: Run integration tests
         env:
           SHARD: ${{ inputs.shard }}
@@ -166,6 +246,8 @@ jobs:
           FULL: ${{ inputs.full }}
           REQUIRE_DEBUG_INFO: ${{ inputs.require-debug-info }}
           GDB_TOOLS_UPSTREAM: ${{ inputs.gdb-tools-upstream }}
+          PIE: ${{ inputs.pie-tarantool }}
+          PIE_TARANTOOL: ${{ steps.pie.outputs.tarantool }}
           EE_CREDENTIALS: ${{ inputs.ee-credentials }}
           TT_CLI_EE_USERNAME: ${{ inputs.ee-credentials && secrets.TT_EE_USERNAME || '' }}
           TT_CLI_EE_PASSWORD: ${{ inputs.ee-credentials && secrets.TT_EE_PASSWORD || '' }}
@@ -182,6 +264,10 @@ jobs:
           fi
           if [ "$GDB_TOOLS_UPSTREAM" = true ]; then
             export TT_TEST_GDB_TOOLS_UPSTREAM=1
+          fi
+          # Unset, the tests of the PIE skip: it is set or the job fails.
+          if [ "$PIE" = true ]; then
+            export TT_TEST_PIE_TARANTOOL="${PIE_TARANTOOL:?names no tarantool built as a PIE}"
           fi
           if [ "$EE_CREDENTIALS" != true ]; then
             unset TT_CLI_EE_USERNAME TT_CLI_EE_PASSWORD
@@ -202,11 +288,48 @@ jobs:
           python3 test/ci.py run --shard "$SHARD" --marker "$MARKER" \
             --tt-cmd "$PWD/tt" --report-dir reports "${extra[@]}"
 
+      # A test of the PIE skips for more than the variable: all of them
+      # without gdb, one of an extension on a release its manifest does not
+      # cover. Each must have passed, but the expected failure of
+      # tarantool-gdb-tools#14, which is strict.
+      - name: Check that the tests ran on the tarantool built as a PIE
+        if: inputs.pie-tarantool
+        run: |
+          python3 - reports/junit.xml <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          XFAILED = {"test_gdb_tools_box_tuple_t[pie]"}
+          cases = []
+          unexpected = []
+          for case in ET.parse(sys.argv[1]).iter("testcase"):
+              name = case.get("name", "")
+              if not name.endswith("[pie]"):
+                  continue
+              cases.append(name)
+              # An expected failure is a skip of type pytest.xfail there.
+              outcomes = [
+                  "xfailed" if child.get("type") == "pytest.xfail" else child.tag
+                  for child in case
+                  if child.tag in ("skipped", "failure", "error")
+              ]
+              messages = [child.get("message", "") for child in case if child.tag == "skipped"]
+              outcome = ", ".join(outcomes) or "passed"
+              print(f"{name}: {outcome}", *messages, sep="\n    ")
+              if outcome != "passed" and not (outcome == "xfailed" and name in XFAILED):
+                  unexpected.append(name)
+          if not cases:
+              sys.exit("no test of the tarantool built as a PIE ran")
+          if unexpected:
+              sys.exit(f"tests of the tarantool built as a PIE did not pass: {', '.join(unexpected)}")
+          PY
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          # The runner tells apart the jobs of one directory on several.
-          name: pytest-${{ inputs.edition }}-${{ inputs.tarantool-version }}-${{ inputs.shard }}-${{ inputs.test-dir || 'all' }}-${{ inputs.tt-artifact }}-${{ inputs.runner }}
+          # The runner tells apart the jobs of one directory on several. The
+          # name of an artifact has no slash, which a test-dir of a file has.
+          name: pytest-${{ inputs.edition }}-${{ inputs.tarantool-version }}-${{ inputs.shard }}-${{ steps.reports.outputs.test-dir }}-${{ inputs.tt-artifact }}-${{ inputs.runner }}
           path: reports/
           retention-days: 7

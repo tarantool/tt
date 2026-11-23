@@ -12,6 +12,10 @@ well when it names a tarantool built as a PIE, as a build of a user is,
 where the official packages are static executables: gdb relocates a PIE, and
 an extension that keeps an address from before breaks on it. Either needs
 its debugging information, which the static deb of Tarantool has.
+ci/build-tarantool-pie.sh builds such a PIE of a release from its source,
+RelWithDebInfo, and prints its path, which the coredump-pie job of Full CI
+sets the variable to, on the newest release the manifest of the extensions
+covers, so that every test of the PIE runs there.
 """
 
 import dataclasses
@@ -156,16 +160,19 @@ def tarantool_under_test(flavor):
     """The tarantool the cores of flavor are of: that of PATH, or the PIE of
     TT_TEST_PIE_TARANTOOL. A test is skipped for one with no debugging
     information gdb finds, which the extensions need, or fails with
-    TT_TEST_REQUIRE_DEBUG_INFO, as in the CI job of the gdb of each runner:
-    a gdb that cannot read the debugging information of a tarantool would
-    skip every test there."""
+    TT_TEST_REQUIRE_DEBUG_INFO, as in the CI jobs of the gdb of each runner
+    and of the PIE: a gdb that cannot read the debugging information of a
+    tarantool would skip every test there."""
     if flavor == "path":
         tarantool = shutil.which("tarantool")
         assert tarantool is not None, "no tarantool on PATH"
     else:
         tarantool = os.getenv(PIE_TARANTOOL_ENV)
         if not tarantool:
-            pytest.skip(f"{PIE_TARANTOOL_ENV} names no tarantool built as a PIE")
+            pytest.skip(
+                f"{PIE_TARANTOOL_ENV} names no tarantool built as a PIE, "
+                "which ci/build-tarantool-pie.sh builds",
+            )
         assert os.access(tarantool, os.X_OK), f"{PIE_TARANTOOL_ENV}={tarantool} is no executable"
         assert is_pie(tarantool), f"{PIE_TARANTOOL_ENV}={tarantool} is not a PIE"
     if not has_debug_info(tarantool):

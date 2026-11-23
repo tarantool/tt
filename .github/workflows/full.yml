@@ -195,10 +195,10 @@ jobs:
   # and 17 of 26.04, and on arm64: the gdb extensions of tarantool-gdb-tools
   # tt vendors on a core of the oldest and the newest Tarantool CI tests
   # (test/integration/coredump/test_gdb_tools.py). it-ce runs them on gdb 15
-  # of ubuntu-24.04, in the instances group. The static deb of Tarantool CE
-  # has the debugging information they need, and a test fails rather than
-  # skips without it. One cell checks the vendored copies against GitHub,
-  # which is the same for all.
+  # of ubuntu-24.04, in the instances group, and coredump-pie there on a PIE
+  # too. The static deb of Tarantool CE has the debugging information they
+  # need, and a test fails rather than skips without it. One cell checks the
+  # vendored copies against GitHub, which is the same for all.
   coredump:
     needs: snapshot
     strategy:
@@ -226,6 +226,35 @@ jobs:
       full: true
       require-debug-info: true
       gdb-tools-upstream: ${{ matrix.gdb-tools-upstream || false }}
+      rocks-mirror: false
+
+  # The tests of the gdb extensions on a core of a tarantool built from
+  # source as a PIE as well, as a user builds one: gdb relocates a PIE as it
+  # reads the core, and an extension that keeps an address it read before
+  # breaks on it, not on the static deb. ci/build-tarantool-pie.sh builds,
+  # RelWithDebInfo, the newest release the manifest of the vendored
+  # extensions covers, not the latest Tarantool, which is the static deb of
+  # PATH here: the job tests the relocation, and every test of the PIE runs
+  # once the latest is past the manifest. The build is cached by the
+  # release, the runner and the script. A missing PIE, one of another type
+  # or without debugging information fails the job, and so does a test of
+  # the PIE that did not pass, but the strict expected failure.
+  coredump-pie:
+    needs: snapshot
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      runner: ubuntu-24.04
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-default-linux-amd64
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
+      edition: ce
+      tarantool-version: latest
+      shard: instances
+      test-dir: coredump/test_gdb_tools.py
+      marker: not slow_ee and not notarantool and not tarantool_master
+      full: true
+      require-debug-info: true
+      pie-tarantool: true
       rocks-mirror: false
 
   macos:
@@ -329,7 +358,7 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci')) }}
     # macos is informational until the platform tests are stable.
-    needs: [snapshot, go-docker, go-arm64, it-ce, arm64, coredump, notarantool]
+    needs: [snapshot, go-docker, go-arm64, it-ce, arm64, coredump, coredump-pie, notarantool]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -355,7 +384,7 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))) }}
     # macos is informational until the platform tests are stable.
-    needs: [full-start, snapshot, go-docker, go-arm64, it-ce, arm64, coredump, it-ee, ee-creds, tls-openssl, notarantool]
+    needs: [full-start, snapshot, go-docker, go-arm64, it-ce, arm64, coredump, coredump-pie, it-ee, ee-creds, tls-openssl, notarantool]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -381,6 +410,6 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
           REQUIRED: >-
             ${{ github.repository == 'tarantool/tt' &&
-            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","coredump","it-ee","ee-creds","tls-openssl","notarantool"]' ||
-            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","coredump","notarantool"]' }}
+            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","coredump","coredump-pie","it-ee","ee-creds","tls-openssl","notarantool"]' ||
+            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","coredump","coredump-pie","notarantool"]' }}
         run: python3 ci/status.py
