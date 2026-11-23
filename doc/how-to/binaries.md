@@ -77,7 +77,8 @@ the project's.
 Community releases are installed from prebuilt binaries where there are
 some - Tarantool on Linux amd64 and arm64 with glibc, from the static deb
 packages of rws.tarantool.org, whose executable keeps its debug information
-for `tt coredump inspect`, tt on Linux amd64 and arm64, tt 3 on macOS arm64
+for `tt coredump inspect` (see [Inspect a crash of Tarantool](coredump.md)),
+tt on Linux amd64 and arm64, tt 3 on macOS arm64
 and tt 2 on macOS amd64, from the releases of tt on GitHub - and built from
 source elsewhere. tt is the exception: the releases of tt on GitHub name
 the platforms they publish, so on another one, macOS amd64 for tt 3 say,
