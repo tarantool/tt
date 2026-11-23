@@ -134,6 +134,10 @@ def test_stop_and_restart_partial_success(tt_cmd, tmp_path):
         assert rc == 0
         started = worker_pid(app_path)
         assert started is not None
+        # The stop names the process the watchdog runs, the PID of the
+        # status.
+        process = json_status(tt_cmd, app_path, "app:worker")["pid"]
+        assert process not in (None, started)
 
         rc, out = utils.run_command_and_get_output(
             [tt_cmd, "instance", "restart", "--yes", *targets],
@@ -141,7 +145,7 @@ def test_stop_and_restart_partial_success(tt_cmd, tmp_path):
         )
         assert rc == 3, out
         assert "app:master: can't get pid of running process" in out
-        assert f"The instance app:worker (PID = {started}) has been terminated." in out
+        assert f"The instance app:worker (PID = {process}) has been terminated." in out
         assert "Starting an instance [app:worker]..." in out
         assert "Starting an instance [app:master]" not in out
         assert "restart failed for 1 of 2 instances: app:master" in out

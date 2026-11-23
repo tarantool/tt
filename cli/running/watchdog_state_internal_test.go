@@ -284,6 +284,34 @@ func TestReadWatchdogState(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoWatchdogState)
 }
 
+// TestInstancePIDs pins how the messages of the commands name an instance:
+// by its process, as its watchdog publishes it; by the watchdog, labelled
+// so, when the process is not known; by both where the user may have to act
+// by hand, as after a stop that failed; and by neither for a watchdog that
+// has not written its pid yet.
+func TestInstancePIDs(t *testing.T) {
+	inst := newStateInstance(t)
+
+	assert.Equal(t, " (watchdog PID = 7)", pidsOf(inst, 7).String())
+	assert.Equal(t, " (watchdog PID = 7)", pidsOf(inst, 7).withWatchdog())
+	assert.Equal(t, " (watchdog PID = 7)", DescribePID(inst, 7))
+
+	publishTestState(t, inst, 7, 10)
+
+	assert.Equal(t, instancePIDs{process: 10, watchdog: 7}, pidsOf(inst, 7))
+	assert.Equal(t, " (PID = 10)", pidsOf(inst, 7).String())
+	assert.Equal(t, " (PID = 10, watchdog PID = 7)", pidsOf(inst, 7).withWatchdog())
+	assert.Equal(t, " (PID = 10)", DescribePID(inst, 7))
+
+	// The state of another watchdog, one that died, says nothing of this
+	// one.
+	assert.Equal(t, " (watchdog PID = 8)", pidsOf(inst, 8).withWatchdog())
+
+	assert.Empty(t, pidsOf(inst, 0).String())
+	assert.Empty(t, pidsOf(inst, 0).withWatchdog())
+	assert.Empty(t, DescribePID(inst, 0))
+}
+
 // TestStaleStateGoesWithTheLeftovers pins that the state a watchdog that
 // died left goes with its other leftovers: when a stale pid file is removed,
 // and after tt instance kill.

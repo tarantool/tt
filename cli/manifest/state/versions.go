@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/pidfile"
+	"github.com/tarantool/tt/v3/internal/watchdogstate"
 )
 
 // Directories of the versions layout. versions/ and the naming of the
@@ -290,8 +291,15 @@ func InstalledApps(root string) ([]App, error) {
 type RunningInstance struct {
 	// Name is the instance name, the name of its run directory.
 	Name string
-	// Pid is the watchdog, the process the pid file names.
+	// Pid is the process the watchdog runs, the PID tt instance status
+	// shows, as the watchdog publishes it next to the pid file
+	// (watchdogstate.ProcessPID); zero when that is not known: the watchdog
+	// publishes no state, as one an older tt started, or no process runs
+	// now, as during the restart delay.
 	Pid int
+	// WatchdogPid is the watchdog, the process the pid file names; zero for
+	// one that is starting and has not written it yet.
+	WatchdogPid int
 	// Dir is the version directory the instance runs from, as its watchdog
 	// recorded it (ttscope.AppDirFileName); empty when there is no record,
 	// as for an instance a tt that kept none started.
@@ -335,7 +343,9 @@ func RunningInstances(root, name string) ([]RunningInstance, error) {
 			continue
 		}
 
-		pid, owned, err := pidfile.Owner(filepath.Join(runDir, entry.Name(), PidFileName))
+		instRunDir := filepath.Join(runDir, entry.Name())
+
+		watchdog, owned, err := pidfile.Owner(filepath.Join(instRunDir, PidFileName))
 		if err != nil {
 			return nil, fmt.Errorf("checking instance %s of %s: %w", entry.Name(), name, err)
 		}
@@ -344,10 +354,11 @@ func RunningInstances(root, name string) ([]RunningInstance, error) {
 			continue
 		}
 
-		dir := readVersionFile(filepath.Join(runDir, entry.Name(), ttscope.AppDirFileName))
+		dir := readVersionFile(filepath.Join(instRunDir, ttscope.AppDirFileName))
 
 		running = append(running, RunningInstance{
-			Name: entry.Name(), Pid: pid, Dir: dir, Version: DirVersion(dir),
+			Name: entry.Name(), Pid: watchdogstate.ProcessPID(instRunDir, watchdog),
+			WatchdogPid: watchdog, Dir: dir, Version: DirVersion(dir),
 		})
 	}
 
@@ -366,9 +377,11 @@ func DirVersion(dir string) string {
 }
 
 // CheckNotRunning refuses to go on while instances of the application name
-// run from the scope rooted at root, naming them. Removing or replacing the
-// files of a version under a running instance pulls its code and its rocks
-// from under it, and it fails at the next require rather than now.
+// run from the scope rooted at root, naming them with the pids of their
+// processes, or of their watchdogs where those are not known
+// (RunningInstance.Pid). Removing or replacing the files of a version under
+// a running instance pulls its code and its rocks from under it, and it
+// fails at the next require rather than now.
 func CheckNotRunning(root, name string) error {
 	running, err := RunningInstances(root, name)
 	if err != nil {
@@ -381,11 +394,25 @@ func CheckNotRunning(root, name string) error {
 
 	described := make([]string, 0, len(running))
 	for _, inst := range running {
-		described = append(described, fmt.Sprintf("%s (pid %d)", inst.Name, inst.Pid))
+		described = append(described, inst.Name+inst.describePid())
 	}
 
 	return fmt.Errorf("%w: %s: %s; stop them first", ErrInstancesRunning, name,
 		strings.Join(described, ", "))
+}
+
+// describePid names the instance by its process, " (pid 123)", or, when that
+// is not known, by its watchdog, labelled so, " (watchdog pid 120)"; it is
+// empty when neither is known.
+func (inst *RunningInstance) describePid() string {
+	switch {
+	case inst.Pid != 0:
+		return fmt.Sprintf(" (pid %d)", inst.Pid)
+	case inst.WatchdogPid != 0:
+		return fmt.Sprintf(" (watchdog pid %d)", inst.WatchdogPid)
+	default:
+		return ""
+	}
 }
 
 // CompareVersions orders two application versions, for listing them and for

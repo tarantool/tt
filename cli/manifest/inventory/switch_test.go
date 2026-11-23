@@ -318,10 +318,10 @@ func TestSwitchReportsRunningInstances(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []inventory.RunningInstance{
 		{
-			Name: "router-1", Pid: os.Getpid(), Version: "2.0.0",
+			Name: "router-1", Pid: 0, WatchdogPid: os.Getpid(), Version: "2.0.0",
 			Dir: state.VersionDir(root, "my-app", "2.0.0"),
 		},
-		{Name: "storage-1", Pid: os.Getpid(), Version: "", Dir: ""},
+		{Name: "storage-1", Pid: 0, WatchdogPid: os.Getpid(), Version: "", Dir: ""},
 	}, result.Running)
 	assert.Equal(t, filepath.Join("..", "versions", "my-app", "my-app_1.0.0"),
 		activeTarget(t, root))

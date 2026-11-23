@@ -66,7 +66,9 @@ Columns:
   box.info.pid and the log lines of tarantool name. It is empty while no
   process runs, as during the delay before a restart, and for a watchdog
   that an older tt started, which does not publish it: a restart of the
-  instance fixes that.
+  instance fixes that. tt instance start, stop, kill and logrotate name an
+  instance by the same PID in their messages, and by its watchdog,
+  labelled so, while it is empty.
 - MODE: The mode of the instance, indicating its read/write status:
 	- RO: The instance is in read-only mode.
 	- RW: The instance is in read-write mode.

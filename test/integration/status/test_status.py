@@ -11,6 +11,7 @@ import pytest
 import tarantool
 
 from utils import (
+    box_info_pid,
     cluster_config_file,
     control_socket,
     extract_status,
@@ -60,20 +61,6 @@ def read_pid(run_dir, name):
     """Return the pid in the pid file name of run_dir."""
     with open(os.path.join(run_dir, name)) as f:
         return int(f.read().strip())
-
-
-def box_info_pid(tt_cmd, cwd, inst):
-    """Return box.info.pid of the Tarantool instance inst, asked over its
-    console."""
-    rc, out = run_command_and_get_output(
-        [tt_cmd, "connect", inst, "-f", "-"],
-        cwd=cwd,
-        input="return box.info.pid\n",
-    )
-    assert rc == 0, out
-    found = re.search(r"^- (\d+)$", out, re.MULTILINE)
-    assert found, out
-    return int(found.group(1))
 
 
 def statuses_of(tt_cmd, cwd, inst):

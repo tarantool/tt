@@ -326,6 +326,9 @@ linters:
             # build tags and linker flags the magefile builds tt with.
             - "github.com/tarantool/tt/v3/internal/buildflags"
             - "github.com/tarantool/tt/v3/internal/pidfile"
+            # cli/manifest/state names a running instance by the process its
+            # watchdog publishes, as tt instance does.
+            - "github.com/tarantool/tt/v3/internal/watchdogstate"
             # cli/manifest/rocks sets the CMake policy version for the rocks
             # it builds, which build and run keep from the user's code.
             - "github.com/tarantool/tt/v3/internal/cmakepolicy"
@@ -375,6 +378,8 @@ linters:
             # cli/manifest/build tests check that a component does not get the
             # CMake policy version of the rocks.
             - "github.com/tarantool/tt/v3/internal/cmakepolicy"
+            # cli/manifest/state tests publish the state of a watchdog.
+            - "github.com/tarantool/tt/v3/internal/watchdogstate"
         # One allow-list per top-level directory, tests included; their file
         # globs do not overlap, so each file is checked against exactly one
         # of them (plus the deny-only rules above). An import from another
@@ -891,6 +896,9 @@ linters:
             # The context of an instance names the systemd unit that manages
             # it, as the mark of the units says.
             - "github.com/tarantool/tt/v3/internal/systemd"
+            # The watchdog publishes its state in the format tt package reads
+            # as well.
+            - "github.com/tarantool/tt/v3/internal/watchdogstate"
             # tt writes the config of TCM, and reads the one of the user.
             - "go.yaml.in/yaml/v3"
         dir-cli-status:
@@ -1051,6 +1059,16 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/pidfile"
+        # The format of the state the watchdog of an instance publishes, which
+        # the watchdog writes and tt instance and tt package read: a leaf on
+        # the standard library.
+        dir-internal-watchdogstate:
+          files:
+            - "**/internal/watchdogstate/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/internal/watchdogstate"
         # The CMake policy version tt builds old code with, Tarantool from
         # source and rocks, but not the user's components: a leaf on the
         # standard library.

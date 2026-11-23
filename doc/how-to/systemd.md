@@ -156,6 +156,44 @@ pid files and shows the unit, in the `UNIT` column and the `unit` field of
 `-o json` and `-o yaml`; `logs`, `logrotate`, `check`, `clean` and `connect`
 work as with any instance.
 
+## The processes of a unit
+
+The main process of a unit, `MainPID`, is the
+`tt instance start --foreground` the unit runs. It runs the watchdog of the
+instance, which holds `tt.pid`, and the watchdog runs the process, the PID
+of `tt instance status`:
+
+```console
+# systemctl show -p MainPID --value myapp@worker.service
+140
+# cat /opt/tarantool/var/run/myapp/worker/tt.pid
+152
+# ps -o pid,ppid,args --forest -u tarantool
+    PID    PPID COMMAND
+    140       1 /opt/tarantool/bin/tt instance start --foreground --scope system myapp:worker
+    152     140  \_ /opt/tarantool/versions/tt/tt_…/tt instance start --watchdog --launch … --foreground myapp:worker
+    163     152      \_ /bin/sh /opt/tarantool/versions/myapp/myapp_1.0.0/worker.sh
+# tt instance status myapp:worker
+ INSTANCE      STATUS   UNIT                  PID  MODE  CONFIG  BOX  UPSTREAM
+ myapp:worker  RUNNING  myapp@worker.service  163        --      --   --
+```
+
+That is on purpose: the unit supervises tt, which stops the instance as its
+record says. The stop signal systemd sends the main process, on
+`systemctl stop` or `systemctl kill --kill-whom=main --signal=SIGTERM`,
+reaches tt, which passes it on to the watchdog, and the watchdog stops the
+process. What `systemctl` says of the main process is about that tt, and so
+is `_PID` of the journal: the output of the instance reaches the journal
+through it, so `journalctl -u myapp@worker.service` finds its lines and
+`journalctl _PID=163` finds none. A monitor watches the process by
+`watchdog.json`, as
+[Which pid file to watch](../reference/layout.md#which-pid-file-to-watch)
+says, not by `MainPID`.
+
+<!-- Verified on 2026-11-23 in a container with systemd, with the myapp of
+test/integration/service; re-check before release. -->
+
+
 ## Upgrade
 
 Install the new version, then restart the units one by one, replicas first:
