@@ -24,6 +24,10 @@ type debugger interface {
 	// Name is the name of the debugger, as the debuggers of an extension
 	// list it.
 	Name() string
+	// Probe tells what the debugger of the host is before inspect runs it:
+	// its version and whether it has Python. A debugger PATH does not find
+	// is errNoDebugger, and one whose probe tells nothing errProbeFailed.
+	Probe(ctx context.Context) (debuggerProbe, error)
 	// Command returns the command that opens the artefacts in dir in the
 	// debugger, with the sources in sourceDir when it is not empty, and
 	// loads the extensions at the paths exts, in their order. work is a

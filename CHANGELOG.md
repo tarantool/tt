@@ -823,6 +823,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   header of the core, as in `<file> is checked on Tarantool <first minor>
   to <last minor>, the core is of <version>: it may not work`. Without the
   flag inspect loads what it did.
+- `tt coredump inspect` probes the gdb of PATH first, before it unpacks
+  the archive and looks the extensions up, with one `gdb -batch -nx` that
+  shows its version and prints it from Python, and warns of what will not
+  work, with a hint line of what to do after each warning: a gdb without
+  Python loads no extension, so that neither the `lj-*` commands of
+  LuaJIT nor the `tt-*` commands of Tarantool exist, only plain gdb, with
+  the extensions of the release and with `--experimental`. With
+  `--experimental` a gdb older than 12.1 is warned of too: the CI of
+  tarantool-gdb-tools checks the extensions on gdb 12.1, 15.1, 17.1 and
+  18.1. A host without gdb in PATH fails at once with an error of tt that
+  says so and what to do, `gdb is not found in PATH: install gdb, or put
+  the directory of the gdb to use first in PATH`, rather than with the
+  exit status of the wrapper, which printed it among the output of gdb. A
+  gdb whose probe tells nothing, or does not answer in 10 s, as one
+  stopped after its version and before its Python answered, is run
+  unchecked.
 
 ### Changed
 
@@ -1510,6 +1526,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   could not read, or the pack was interrupted. It removes both on a
   failure now, with the exit status kept, and an archive of the same
   name packed before stays when the pack fails before tar starts.
+- `tt coredump inspect` loads the libthread_db of the archive, which pack
+  takes next to the thread library of the core, before that of the host:
+  `gdb.sh` sets `libthread-db-search-path` to `$pdir:$sdir`. gdb looks in
+  the directories of the host first by default, `$sdir:$pdir`, and took
+  the libthread_db of the host whenever it matched the core, as on the
+  host that packed it, and the one of the archive was never tried.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read

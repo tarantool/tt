@@ -59,6 +59,14 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 		return fmt.Errorf("failed to inspect: %w", err)
 	}
 
+	// The debugger is probed first: a host without it fails here, before
+	// the archive is unpacked and the extensions are chosen, which may wait
+	// on GitHub.
+	_, err = probeDebugger(ctx, res.log, backend, opts.GDBTools)
+	if err != nil {
+		return err
+	}
+
 	dir := opts.Path
 
 	if !stat.IsDir() {

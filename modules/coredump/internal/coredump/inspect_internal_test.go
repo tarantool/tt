@@ -21,13 +21,22 @@ import (
 	"github.com/tarantool/tt/sdk/output"
 )
 
-// fakeGDB is a gdb that answers the question of gdb.sh about the line of
-// main as a gdb on a tarantool with debugging information does, and
-// otherwise prints its arguments, one per line, after a line "gdb", and
-// the first line of each file it sources after "content: ".
-const fakeGDB = `#!/bin/sh
+// gdbWithPython is how the fake gdb answers the probe of inspect by
+// default, as gdb 17.1 with Python does: the first line of show version,
+// and the line of its Python.
+const gdbWithPython = "echo 'GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1'; echo 'tt-gdb-python: 17.1'"
+
+// fakeGDBScript returns a gdb that answers the probe of inspect with the
+// shell commands probe, and the question of gdb.sh about the line of main
+// as a gdb on a tarantool with debugging information does. Otherwise it
+// prints its arguments, one per line, after a line "gdb", and the first
+// line of each file it sources after "content: ".
+func fakeGDBScript(probe string) string {
+	return `#!/bin/sh
 if [ "$1" = -batch ]; then
 	case "$*" in
+		*"show version"*)
+			` + probe + `;;
 		*"show debug-file-directory"*)
 			echo 'The directory where separate debug symbols are searched for is' \
 				'"/usr/lib/debug".';;
@@ -44,10 +53,20 @@ for arg in "$@"; do
 	esac
 done
 `
+}
 
-// withFakeGDB puts fakeGDB first in PATH for the test. The wrapper needs
-// GNU getopt and grep -P: the test runs on Linux only.
+// withFakeGDB puts the fake gdb of fakeGDBScript, which answers the probe
+// as gdbWithPython, first in PATH for the test. The wrapper needs GNU
+// getopt and grep -P: the test runs on Linux only.
 func withFakeGDB(t *testing.T) {
+	t.Helper()
+
+	withFakeGDBProbe(t, gdbWithPython)
+}
+
+// withFakeGDBProbe is withFakeGDB with a gdb that answers the probe with
+// the shell commands probe.
+func withFakeGDBProbe(t *testing.T, probe string) {
 	t.Helper()
 
 	if runtime.GOOS != "linux" {
@@ -55,7 +74,8 @@ func withFakeGDB(t *testing.T) {
 	}
 
 	bin := t.TempDir()
-	require.NoError(t, execfile.WriteFile(filepath.Join(bin, "gdb"), []byte(fakeGDB), 0o755))
+	require.NoError(t, execfile.WriteFile(filepath.Join(bin, "gdb"),
+		[]byte(fakeGDBScript(probe)), 0o755))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
@@ -215,6 +235,38 @@ func TestInspectDirectory(t *testing.T) {
 		luajitDbgName:    "luajit_dbg.py of the sources",
 		tarantoolGDBName: "tarantool-gdb.py of the sources",
 	}, sourced(out))
+}
+
+// TestInspectThreadDB checks that gdb looks for libthread_db next to the
+// thread library of the core in the artefacts first, $pdir under the
+// sysroot of the artefacts, which the auto-load safe-path lets it load from,
+// and in the directories of the host after, $sdir, and that all of it is
+// set before the core is loaded. gdb loads libthread_db once it loads the
+// core, and a libthread_db of the host that matches the core, as the one of
+// the host that packed it does, was taken before the one of the archive.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectThreadDB(t *testing.T) {
+	withFakeGDB(t)
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+
+	out, _ := runInspect(t, dir, "")
+
+	core := strings.Index(out, "\ncore "+filepath.Join(dir, "coredump")+"\n")
+	require.Positive(t, core, out)
+
+	for _, command := range []string{
+		"set sysroot " + dir,
+		"add-auto-load-safe-path " + dir,
+		"set auto-load libthread-db on",
+		"set libthread-db-search-path $pdir:$sdir",
+	} {
+		index := strings.Index(out, "\n-ex\n"+command+"\n")
+		require.Positive(t, index, command+" in\n"+out)
+		assert.Less(t, index, core, command+" before the core is loaded")
+	}
 }
 
 // TestInspectDebugFile checks that gdb looks for the separate debugging
