@@ -8,6 +8,10 @@ coverage
 dist
 # The reports of ci/pr_notes.py.
 /pr-notes/
+# The logs and reports CI writes in the checkout while the tests run.
+# Unignored, they are content of the checkout, and a test that builds a
+# distribution with the checkout as its local core sees it change.
+/reports/
 
 # The documentation site: generated command reference, the build, and the
 # projects ci/doc_site.py builds the translations from. Zensical ignores
