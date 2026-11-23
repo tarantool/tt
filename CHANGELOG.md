@@ -1003,9 +1003,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt coredump inspect` loads the gdb extensions of the Tarantool of the
   core, whose structures they read and which change from version to
   version: the extension of LuaJIT is `luajit-gdb.py` in Tarantool 3.3 to
-  3.7 and `luajit_dbg.py`, with 15 commands, in 3.8 and later, and
-  `tarantool-gdb.py` follows the structures of its release. With
-  `-s/--sourcedir` they are those of the sources,
+  3.6.3 and in 3.7.0, and `luajit_dbg.py`, with 15 commands, in 3.6.4,
+  3.7.1, 3.8.0 and later, and `tarantool-gdb.py` follows the structures of
+  its release. With `-s/--sourcedir` they are those of the sources,
   `third_party/luajit/src/luajit_dbg.py` or `luajit-gdb.py` and
   `tools/tarantool-gdb.py`. Otherwise they are looked up on GitHub by the
   version of the core, `/version` of the archive: at its commit for a

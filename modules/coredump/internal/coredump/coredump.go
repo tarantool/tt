@@ -33,20 +33,20 @@ const (
 	extensionsDir = "extensions"
 )
 
-// writeExtensions writes the gdb extensions tt embeds into dir and returns
-// their paths, in the order of their names.
+// writeExtensions writes the gdb extensions tt embeds, those of their
+// manifest, into dir and returns their paths, in their load order.
 func writeExtensions(dir string) ([]string, error) {
-	entries, err := extensions.ReadDir(extensionsDir)
+	entries, err := embeddedManifest()
 	if err != nil {
-		return nil, fmt.Errorf("failed to find embedded GDB-extensions: %w", err)
+		return nil, err
 	}
 
 	paths := make([]string, 0, len(entries))
 
 	for _, entry := range entries {
-		path := filepath.Join(dir, entry.Name())
+		path := filepath.Join(dir, entry.File)
 
-		err = copyEmbedded(extensions, extensionsDir+"/"+entry.Name(), path, extensionFileMode)
+		err = copyEmbedded(extensions, extensionsDir+"/"+entry.File, path, extensionFileMode)
 		if err != nil {
 			return nil, err
 		}
