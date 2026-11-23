@@ -20,6 +20,7 @@ from utils import (
     TarantoolTestInstance,
     cluster_config_file,
     control_socket,
+    env_with,
     initial_snap,
     initial_xlog,
     inst_lib_dir,
@@ -661,7 +662,7 @@ def test_play_to_instance_at_advertise_client(tt_cmd):
         "listen": [{"uri": "127.0.0.1:3531"}, {"uri": "127.0.0.1:3532"}],
         "advertise": {"client": "127.0.0.1:3532"},
     }
-    env = iproto_project.env_with(**iproto_project.ENV_CREDENTIALS)
+    env = env_with(iproto_project.ENV_CREDENTIALS)
     with iproto_project.running_iproto_project(tt_cmd, section) as app_dir:
         create_bands_space(tt_cmd, app_dir)
 

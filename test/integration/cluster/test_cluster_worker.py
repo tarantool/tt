@@ -3,6 +3,8 @@ import subprocess
 
 import pytest
 
+from utils import env_with
+
 worker_cfg = """type: nontarantool
 instrumentation:
   url: host1:8080
@@ -493,14 +495,16 @@ def test_cluster_worker_publish_auth(tt_cmd, tmpdir_with_cfg, auth, instance_nam
                 instance.connection_password,
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
             publish_cmd = [tt_cmd, "cluster", "worker", "publish", url, "worker.yaml"]
 
@@ -617,14 +621,16 @@ def test_cluster_worker_publish_auth_priority_flag_over_env(
         instance.enable_auth()
 
     try:
-        env = {
-            "TT_CLI_ETCD_USERNAME"
-            if instance_name == "etcd"
-            else "TT_CLI_USERNAME": "invalid_env_user",
-            "TT_CLI_ETCD_PASSWORD"
-            if instance_name == "etcd"
-            else "TT_CLI_PASSWORD": "invalid_env_pass",
-        }
+        env = env_with(
+            {
+                "TT_CLI_ETCD_USERNAME"
+                if instance_name == "etcd"
+                else "TT_CLI_USERNAME": "invalid_env_user",
+                "TT_CLI_ETCD_PASSWORD"
+                if instance_name == "etcd"
+                else "TT_CLI_PASSWORD": "invalid_env_pass",
+            },
+        )
         url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
         publish_cmd = [
             tt_cmd,
@@ -922,14 +928,16 @@ def test_cluster_worker_show_auth(tt_cmd, tmpdir_with_cfg, auth, instance_name, 
                 instance.connection_password,
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
             show_cmd = [tt_cmd, "cluster", "worker", "show", url]
 
@@ -1021,14 +1029,16 @@ def test_cluster_worker_show_auth_priority_flag_over_env(
         instance.enable_auth()
 
     try:
-        env = {
-            "TT_CLI_ETCD_USERNAME"
-            if instance_name == "etcd"
-            else "TT_CLI_USERNAME": "invalid_env_user",
-            "TT_CLI_ETCD_PASSWORD"
-            if instance_name == "etcd"
-            else "TT_CLI_PASSWORD": "invalid_env_pass",
-        }
+        env = env_with(
+            {
+                "TT_CLI_ETCD_USERNAME"
+                if instance_name == "etcd"
+                else "TT_CLI_USERNAME": "invalid_env_user",
+                "TT_CLI_ETCD_PASSWORD"
+                if instance_name == "etcd"
+                else "TT_CLI_PASSWORD": "invalid_env_pass",
+            },
+        )
         url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
         show_cmd = [
             tt_cmd,
@@ -1383,14 +1393,16 @@ def test_cluster_worker_delete_auth(tt_cmd, tmpdir_with_cfg, auth, instance_name
                 instance.connection_password,
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
             delete_cmd = [tt_cmd, "cluster", "worker", "delete", url]
 
@@ -1504,14 +1516,16 @@ def test_cluster_worker_delete_auth_priority_flag_over_env(
         instance.enable_auth()
 
     try:
-        env = {
-            "TT_CLI_ETCD_USERNAME"
-            if instance_name == "etcd"
-            else "TT_CLI_USERNAME": "invalid_env_user",
-            "TT_CLI_ETCD_PASSWORD"
-            if instance_name == "etcd"
-            else "TT_CLI_PASSWORD": "invalid_env_pass",
-        }
+        env = env_with(
+            {
+                "TT_CLI_ETCD_USERNAME"
+                if instance_name == "etcd"
+                else "TT_CLI_USERNAME": "invalid_env_user",
+                "TT_CLI_ETCD_PASSWORD"
+                if instance_name == "etcd"
+                else "TT_CLI_PASSWORD": "invalid_env_pass",
+            },
+        )
         url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
         delete_cmd = [
             tt_cmd,

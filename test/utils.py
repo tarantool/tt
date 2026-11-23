@@ -50,6 +50,32 @@ initial_xlog = "00000000000000000000.xlog"
 BINARY_PORT_NAME = "tarantool.sock"
 
 
+def env_with(variables=None, /, **more):
+    """Return the environment of the test, os.environ, with variables, a
+    mapping, and more set: the environment to run tt with.
+
+    A test runs tt with the environment of the run and its own changes, not
+    with one built from scratch, which loses what the run set for every tt:
+    GOCOVERDIR, without which a tt built with coverage warns in its output,
+    TMPDIR, PATH."""
+    return {**os.environ, **(variables or {}), **more}
+
+
+def bare_host_env(home, /, **variables):
+    """Return the environment of the test for a tt on a host where nothing
+    was set up for it, with variables set: HOME is home, and the variables
+    that configure tt (TT_*) and the ones that name the directories of the
+    user apart from HOME (XDG_*) are dropped, so that tt finds no Tarantool,
+    headers or configuration by them. The rest of the environment of the
+    run, GOCOVERDIR and TMPDIR among it, stays (see env_with)."""
+    env = {
+        name: value for name, value in os.environ.items() if not name.startswith(("TT_", "XDG_"))
+    }
+    env["HOME"] = str(home)
+    env.update(variables)
+    return env
+
+
 def rocks_mirror_env(env=None):
     """Return env, os.environ by default, with the rock mirror of CI as the
     rock server when TT_TEST_ROCKS_MIRROR names one.

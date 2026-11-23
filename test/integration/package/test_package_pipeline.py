@@ -27,7 +27,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from utils import find_port, wait_event
+from utils import bare_host_env, find_port, wait_event
 
 try:
     import zstandard
@@ -374,7 +374,7 @@ def test_build_fetch_and_pack_need_no_tarantool(tt_cmd, tmp_path):
     """
     project = make_project(tmp_path / "project", dependency=False)
     (project / "VERSION").write_text("1.0.0\n")
-    env = {"PATH": "/nonexistent", "HOME": str(tmp_path / "home")}
+    env = bare_host_env(tmp_path / "home", PATH="/nonexistent")
     registry = ("--registry", str(ROCKS_REPO))
     out = tmp_path / "dist"
     rock = ("--format", "rock", "--out", str(out))
@@ -465,10 +465,10 @@ def test_lua_c_takes_the_headers_beside_the_tarantool(tt_cmd, tmp_path):
 
     sdk = tmp_path / "sdk"
     stub_tarantool(sdk, system)
-    env = {
-        "PATH": f"{sdk}:{os.path.dirname(shutil.which('cc'))}:/usr/bin:/bin",
-        "HOME": str(tmp_path / "home"),
-    }
+    env = bare_host_env(
+        tmp_path / "home",
+        PATH=f"{sdk}:{os.path.dirname(shutil.which('cc'))}:/usr/bin:/bin",
+    )
     registry = ("--registry", str(ROCKS_REPO))
 
     result = run(tt_cmd, project, "package", "build", *registry, env=env)
@@ -842,7 +842,7 @@ def test_pack_hints_name_commands_that_exist(tt_cmd, tmp_path):
     manifest.write_text(
         manifest.read_text().replace("tarantool = '>=3.0.0'", "tarantool = '>=3.0.0[ee]'"),
     )
-    env = {"PATH": "/nonexistent", "HOME": str(tmp_path / "home")}
+    env = bare_host_env(tmp_path / "home", PATH="/nonexistent")
 
     result = run(tt_cmd, project, "package", "pack", "--registry", str(ROCKS_REPO), env=env)
     assert result.returncode == 1

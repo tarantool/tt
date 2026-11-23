@@ -312,8 +312,9 @@ def run_tt(tt_cmd, tree: Tree):
     ) -> subprocess.CompletedProcess:
         """`env` replaces the environment outright rather than adding to it.
 
-        That is what makes it useful here: the only caller uses it to take
-        `tarantool` off `PATH`, and an inherited `PATH` would leave it findable.
+        A caller builds it from the environment of the test, with
+        `utils.env_with` or `utils.bare_host_env`, never from scratch: that
+        loses what the run set for every tt, as GOCOVERDIR.
         """
         return subprocess.run(
             [str(tt_cmd), *args],

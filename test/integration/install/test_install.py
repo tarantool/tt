@@ -15,6 +15,7 @@ from test_install_tarantool import install_tarantool, local_tarantool_build  # n
 from test_install_tt import install_tt, local_tt_build  # noqa: F401
 
 from utils import (
+    env_with,
     get_tarantool_commit,
     is_tarantool_ee,
     is_valid_tarantool_installed,
@@ -431,7 +432,7 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
     install_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
-        env={"PATH": new_path},
+        env=env_with(PATH=new_path),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,

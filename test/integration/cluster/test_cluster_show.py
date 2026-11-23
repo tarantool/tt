@@ -5,7 +5,7 @@ import subprocess
 import pytest
 import yaml
 
-from utils import cluster_config_file, run_command_and_get_output
+from utils import cluster_config_file, env_with, run_command_and_get_output
 
 
 def copy_app(tmpdir, app_name):
@@ -500,14 +500,16 @@ def test_cluster_show_config_cluster(
                 instance.connection_password,
             ]
         elif auth == "env":
-            env = {
-                (
-                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
-                ): instance.connection_username,
-                (
-                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
-                ): instance.connection_password,
-            }
+            env = env_with(
+                {
+                    (
+                        "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                    ): instance.connection_username,
+                    (
+                        "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                    ): instance.connection_password,
+                },
+            )
             url = f"{instance.endpoint}/prefix?timeout=5"
             show_cmd = [tt_cmd, "cluster", "show", url]
         instance_process = subprocess.Popen(

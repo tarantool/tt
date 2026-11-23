@@ -5,7 +5,6 @@ address tells which listener a client came through."""
 
 import contextlib
 import json
-import os
 import shutil
 import socket
 import tempfile
@@ -96,11 +95,6 @@ def iproto_listeners(tt_cmd, app_dir):
     )
     assert rc == 0, out
     return json.loads(yaml.safe_load(out)[0])
-
-
-def env_with(**variables):
-    """The environment of the test with variables set."""
-    return dict(os.environ, **variables)
 
 
 def has_ipv6_loopback():

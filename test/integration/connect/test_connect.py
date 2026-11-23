@@ -21,6 +21,7 @@ from integration.connect import iproto_project
 from utils import (
     BINARY_PORT_NAME,
     control_socket,
+    env_with,
     find_tt_processes,
     inst_run_dir,
     kill_procs,
@@ -592,7 +593,7 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
         assert re.search(r"   ⨯ unable to establish connection", output)
 
         # Connect with a wrong credentials via environment variables.
-        env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+        env = env_with(TT_CLI_USERNAME="test", TT_CLI_PASSWORD="wrong_password")
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, env=env)
         assert not ret
         assert re.search(r"   ⨯ unable to establish connection", output)
@@ -614,12 +615,12 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
         assert ret
 
         # Connect with a valid credentials via environment variables.
-        env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "password"}
+        env = env_with(TT_CLI_USERNAME="test", TT_CLI_PASSWORD="password")
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, env=env)
         assert ret
 
         # Connect with a valid credentials and wrong environment variables.
-        env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+        env = env_with(TT_CLI_USERNAME="test", TT_CLI_PASSWORD="wrong_password")
         opts = {"-u": "test", "-p": "password"}
         ret, output = try_execute_on_instance(
             tt_cmd,
@@ -632,13 +633,13 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
         assert ret
 
         # Connect with a valid credentials via URL and wrong environment variables.
-        env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+        env = env_with(TT_CLI_USERNAME="test", TT_CLI_PASSWORD="wrong_password")
         uri = "test:password@localhost:3013"
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file, env=env)
         assert ret
 
         # Connect with a valid mixes of credentials and environment variables.
-        env = {"TT_CLI_PASSWORD": "password"}
+        env = env_with(TT_CLI_PASSWORD="password")
         opts = {"-u": "test"}
         ret, output = try_execute_on_instance(
             tt_cmd,
@@ -650,7 +651,7 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
         )
         assert ret
 
-        env = {"TT_CLI_USERNAME": "test"}
+        env = env_with(TT_CLI_USERNAME="test")
         opts = {"-p": "password"}
         ret, output = try_execute_on_instance(
             tt_cmd,
@@ -780,7 +781,7 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
         )
 
         # Connect with environment variables.
-        env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+        env = env_with(TT_CLI_USERNAME="test", TT_CLI_PASSWORD="wrong_password")
         ret, output = try_execute_on_instance(
             tt_cmd,
             tmpdir,
@@ -879,7 +880,7 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
         )
 
         # Connect with environment variables.
-        env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+        env = env_with(TT_CLI_USERNAME="test", TT_CLI_PASSWORD="wrong_password")
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file, env=env)
         assert ret
 
@@ -3381,7 +3382,7 @@ def test_connect_binary_at_advertise_client(tt_cmd):
     }
     user = "box.session.user()"
     flags = iproto_project.USER_FLAGS
-    env = iproto_project.env_with(**iproto_project.ENV_CREDENTIALS)
+    env = env_with(iproto_project.ENV_CREDENTIALS)
     with iproto_project.running_iproto_project(tt_cmd, section) as app_dir:
         rc, out = binary_eval(tt_cmd, app_dir, user, *flags, env=env)
         assert rc == 0, out
@@ -3393,7 +3394,7 @@ def test_connect_binary_at_advertise_client(tt_cmd):
         assert "denied for user 'guest'" in out
         assert set(iproto_project.iproto_listeners(tt_cmd, app_dir)) == {"3552"}
 
-        advertised = iproto_project.env_with(TT_IPROTO_ADVERTISE_CLIENT="127.0.0.1:3551")
+        advertised = env_with(TT_IPROTO_ADVERTISE_CLIENT="127.0.0.1:3551")
         rc, out = binary_eval(tt_cmd, app_dir, user, *flags, env=advertised)
         assert rc == 0, out
         assert iproto_project.iproto_listeners(tt_cmd, app_dir)[-1] == "3551"

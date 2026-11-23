@@ -102,7 +102,7 @@ def test_show_available_multiple_modules_env(tt_cmd, tmp_path):
 
     rc, output = run_command_and_get_output(
         tt_cmd,
-        env={"TT_CLI_MODULES_PATH": f"{tmp_path / 'extra_cmd'}:{tmp_path / 'plugins'}"},
+        env=modules_path_env(tmp_path / "extra_cmd", tmp_path / "plugins"),
     )
     assert rc == 0
     assert "EXTERNAL COMMANDS" in output
