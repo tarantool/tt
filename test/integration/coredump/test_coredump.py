@@ -2,11 +2,9 @@ import contextlib
 import ctypes
 import filecmp
 import glob
-import json
 import os
 import platform
 import re
-import resource
 import shutil
 import subprocess
 import sys
@@ -14,104 +12,40 @@ import tarfile
 from pathlib import Path
 
 import pytest
+from coredump_helpers import (
+    CRASH,
+    EXTENSIONS_DIR,
+    checked_minors,
+    elf_type,
+    gdb_env,
+    gdb_tools_extensions,
+    has_debug_info,
+    kernel_core,
+    minor_of,
+    offline_env,
+    release_of,
+    skip_coredump_cond,
+    skip_coredump_reason,
+)
 
 from utils import run_command_and_get_output
 
-# The gdb extensions tt embeds, which pack puts into ext/ of the archive.
-EXTENSIONS_DIR = (
-    Path(__file__).parents[3] / "modules" / "coredump" / "internal" / "coredump" / "extensions"
-)
-
-# spell-checker:ignore getrlimit setrlimit rlimit rlim coredumps coredumpctl apport
 # spell-checker:ignore prctl PTRACER Yama
 
-# Fixture below produces a coredump. The location of the coredumps is
-# configured over /proc/sys/kernel/core_pattern file in a various ways
-# but this fixture recognizes only some of them for now:
-# - direct file pattern
-# - pipe to apport tool (assumes that *.crash files are in /var/crash)
-# - pipe to systemd-coredump (assumes that coredumps are in
-#                             /var/lib/systemd/coredump)
-# For the cases above generated files are removed after tests but in general
-# there is no guarantee. So tests that use this fixture are disabled by default
-# (marked with skipif) in order to avoid coredumps "leaks".
-# One may launch them explicitly using TT_ENABLE_COREDUMP_TESTS environment
-# TT_ENABLE_COREDUMP_TESTS=1 python3 -m pytest test/integration/coredump/.
 
-
-skip_coredump_cond = os.getenv("TT_ENABLE_COREDUMP_TESTS") is None
-skip_coredump_reason = "Should be launched explicitly to control coredump it produces"
-
-
-def generate_coredump(
-    tmp_path_factory,
-    tarantool_bin="tarantool",
-    lua="require('ffi').cast('char *', 0)[0] = 42",
-) -> Path:
-    coredump_dir = tmp_path_factory.mktemp("coredump")
-    with open("/proc/sys/kernel/core_pattern", "r") as f:
-        core_pattern = f.read().strip()
-
-    def coredump_apport(core_source, outdir):
-        process = subprocess.run(["apport-unpack", core_source, outdir])
-        assert process.returncode == 0
-        return outdir / "CoreDump"
-
-    def coredump_systemd(core_source, outdir):
-        core = outdir / core_source.stem
-        process = subprocess.run(["coredumpctl", "dump", f"--output={core}"])
-        assert process.returncode == 0
-        return core
-
-    to_coredump = None
-    if not core_pattern.startswith("|"):
-        core_wildcard = core_pattern.replace("%%", "%")
-        # spell-checker:disable-next-line
-        core_wildcard = re.sub("%[cdeEghiIpPstu]", "*", core_wildcard)
-        # A pattern without %p gets ".PID" appended when core_uses_pid is set
-        # (see core(5)).
-        with open("/proc/sys/kernel/core_uses_pid", "r") as f:
-            if f.read().strip() != "0" and "%p" not in core_pattern:
-                core_wildcard += ".*"
-        if not os.path.isabs(core_wildcard):
-            core_wildcard = str(coredump_dir / core_wildcard)
-    elif re.search(r"apport", core_pattern):
-        core_wildcard = "/var/crash/*.crash"
-        to_coredump = coredump_apport
-    elif re.search(r"systemd-coredump", core_pattern):
-        core_wildcard = "/var/lib/systemd/coredump/*"
-        to_coredump = coredump_systemd
-    else:
-        assert False, "Unexpected core pattern '{}'".format(core_pattern)
-    cores = set(glob.glob(core_wildcard))
-
-    # Setup ulimit -c.
-    rlim_core_soft, rlim_core_hard = resource.getrlimit(resource.RLIMIT_CORE)
-    if rlim_core_soft != resource.RLIM_INFINITY:
-        resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, rlim_core_hard))
-    # Crash tarantool.
-    cmd = [tarantool_bin, "-e", lua]
-    rc, output = run_command_and_get_output(cmd, cwd=coredump_dir)
-    # Restore ulimit -c.
-    resource.setrlimit(resource.RLIMIT_CORE, (rlim_core_soft, rlim_core_hard))
-    assert rc != 0
-    assert re.search(r"Segmentation fault", output)
-
-    # Find the newly generated coredump.
-    new_cores = set(glob.glob(core_wildcard)) - cores
-    assert len(new_cores) == 1
-    core_path = Path(next(iter(new_cores)))
-
-    return core_path if to_coredump is None else to_coredump(core_path, coredump_dir)
+def generate_coredump(tmp_path_factory, tarantool_bin="tarantool", lua=CRASH) -> Path:
+    """The core the kernel dumps of tarantool_bin that crashed running lua,
+    in a directory of its own (see kernel_core), where core_pattern puts it
+    there. The tests of such cores are run explicitly, with
+    TT_ENABLE_COREDUMP_TESTS: a core may be left behind."""
+    core, _ = kernel_core(tmp_path_factory.mktemp("coredump"), [tarantool_bin, "-e", lua])
+    return core
 
 
 @pytest.fixture(scope="session")
 def coredump(tmp_path_factory) -> Path:
     return generate_coredump(tmp_path_factory)
 
-
-# The Lua that crashes a tarantool.
-CRASH = "require('ffi').cast('char *', 0)[0] = 42"
 
 # What gdb says when it cannot trace a process: "warning: ptrace: Operation
 # not permitted" where it runs one in a container without ptrace, and
@@ -999,43 +933,6 @@ def test_coredump_inspect_without_gdb(tt_cmd, tmp_path):
     assert "gdb is not installed" not in output, output
 
 
-def has_debug_info(tarantool):
-    """Whether gdb finds the debugging information of tarantool: the line of
-    its main, as gdb.sh asks for it."""
-    process = subprocess.run(
-        ["gdb", "-batch", "-n", tarantool, "-ex", "info line main"],
-        capture_output=True,
-        text=True,
-    )
-    return re.search(r'Line \d+ of ".*/src/main\.cc"', process.stdout) is not None
-
-
-def gdb_env(env=None):
-    """env, the environment of the tests by default, for a tt that runs gdb
-    with its Python. actions/setup-python points LD_LIBRARY_PATH at the lib
-    of the Python it installs, and gdb, linked against the libpython of the
-    system, loads that one instead: it finds no _struct, which the libpython
-    of Debian has built in, and the extensions fail on import struct."""
-    env = dict(os.environ if env is None else env)
-    env.pop("LD_LIBRARY_PATH", None)
-    return env
-
-
-def offline_env(tmp_path):
-    """The environment of a tt that cannot reach GitHub, where inspect looks
-    up the gdb extensions of the version of a core: every request goes to a
-    proxy that refuses the connection. The cache of the user, which may
-    hold them, is replaced with an empty one. gdb runs with its own Python
-    (gdb_env)."""
-    env = gdb_env()
-    for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
-        env[name] = "http://127.0.0.1:9"
-    for name in ("NO_PROXY", "no_proxy"):
-        env.pop(name, None)
-    env["XDG_CACHE_HOME"] = (tmp_path / "cache").as_posix()
-    return env
-
-
 def inspect(tt_cmd, tmp_path, target, commands, *args, tt_args=()):
     """The exit code and the output, stdout and stderr, of tt coredump
     inspect of target given the gdb commands on its standard input, with no
@@ -1084,17 +981,6 @@ NO_DEBUG_INFO_HINT = (
     r"ID is that of the core, [0-9a-f]+, |pack the core again where the debug file of its "
     r"tarantool is installed, under /usr/lib/debug)"
 )
-
-
-def elf_type(path):
-    """The type of the ELF file at path, e_type: 2 of an executable linked
-    at its addresses, ET_EXEC, as the static builds of Tarantool are, 3 of a
-    shared object or a PIE, ET_DYN; None of a file that is no ELF one."""
-    with open(path, "rb") as f:
-        header = f.read(18)
-    if len(header) < 18 or header[:4] != b"\x7fELF":
-        return None
-    return int.from_bytes(header[16:18], "little" if header[5] == 1 else "big")
 
 
 def static_deb_release(tarantool):
@@ -1154,6 +1040,30 @@ def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
     assert re.search(fallback_warning("luajit_dbg.py"), output), output
     assert re.search(fallback_warning("tarantool-gdb.py"), output), output
     check_extensions(output, has_debug_info(shutil.which("tarantool")))
+
+
+def test_coredump_inspect_renamed_archive(tt_cmd, tmp_path, gcore):
+    """inspect of an archive renamed from the name pack gave it opens the
+    artefacts of the directory it holds, which keeps that name, and the
+    checks before gdb read them, as -V shows. inspect took the directory of
+    the new name, where gdb.sh found no version file and failed, and every
+    check read nothing."""
+    tarantool = shutil.which("tarantool")
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-e", tarantool, "-d", out, gcore]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    renamed = archives[0].rename(tmp_path / "core.tar.gz")
+
+    rc, output = inspect(tt_cmd, tmp_path, renamed.as_posix(), EXTENSION_COMMANDS, tt_args=["-V"])
+    assert rc == 0, output
+    assert "version file is missing" not in output, output
+    assert "cannot tell whether the tarantool has debugging information" not in output, output
+    assert re.search(r"read the stacks of \d+ of the \d+ threads of the core", output), output
+    check_extensions(output, has_debug_info(tarantool))
 
 
 def debug_file_member():
@@ -1512,31 +1422,9 @@ def test_coredump_inspect_sourcedir(tt_cmd, tmp_path, coredump_unpacked):
     check_extensions(output, has_debug_info(shutil.which("tarantool")))
 
 
-# The gdb commands of the universal extensions of tarantool-gdb-tools: lj-bt,
-# the backtrace of C and Lua frames in one that only they have, the fibers and
-# the Lua stack.
-UNIVERSAL_COMMANDS = ["lj-bt", "info tt-fibers", "lj-stack"]
-
-# The manifest of the universal extensions of tarantool-gdb-tools tt embeds,
-# which names the versions of Tarantool and the architectures each of them was
-# checked on.
-GDB_TOOLS_MANIFEST = EXTENSIONS_DIR / "gdb-tools" / "extensions.json"
-
 # The warning of inspect --experimental of an extension the core is out of
 # the range of: what it was checked on, and what the core is of.
 UNCHECKED_WARNING = r"[\w.-]+\.py is checked on [^\n]*?, the core is of [^\n]*?: it may not work"
-
-
-def gdb_tools_extensions():
-    """The entries of the manifest of the extensions of tarantool-gdb-tools tt
-    embeds."""
-    return json.loads(GDB_TOOLS_MANIFEST.read_text())["extensions"]
-
-
-def minor_of(release):
-    """The minor of a release x.y.z, (x, y)."""
-    major, minor, _ = release.split(".")
-    return int(major), int(minor)
 
 
 def join_and(names):
@@ -1550,16 +1438,15 @@ def unchecked_warnings(version_line):
     each extension of the manifest whose range the minor of the version is out
     of, as the manifest means a range, every patch of every minor from that of
     min to that of max, or whose architectures that of the host is none of."""
-    match = re.match(r"Tarantool (?:Enterprise )?((\d+\.\d+\.\d+)(?:-[a-z]+\d*)?)", version_line)
+    match = re.match(r"Tarantool (?:Enterprise )?(\d+\.\d+\.\d+(?:-[a-z]+\d*)?)", version_line)
     assert match, version_line
-    tag, release = match.groups()
+    tag = match.group(1)
     machine = platform.machine()
     warnings = set()
     for entry in gdb_tools_extensions():
         checked, core = [], []
-        first = minor_of(entry["tarantool"]["min"])
-        last = minor_of(entry["tarantool"]["max"])
-        if not first <= minor_of(release) <= last:
+        first, last = checked_minors(entry)
+        if not first <= release_of(version_line)[:2] <= last:
             minors = "{}.{}".format(*first)
             if first != last:
                 minors += " to {}.{}".format(*last)
@@ -1586,17 +1473,18 @@ def archive_version(archive):
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 def test_coredump_inspect_experimental(tt_cmd, tmp_path, coredump_packed):
-    """inspect --experimental loads the extensions of tarantool-gdb-tools tt
-    embeds, lj-bt among them, rather than those of the Tarantool of the core,
-    and asks GitHub nothing: lj-bt puts the Lua frame of the chunk that crashed
-    among the C frames, info tt-fibers lists the fibers and lj-stack the Lua
-    stack. inspect warns of those whose range of their manifest the Tarantool
-    of the core is out of, by its minor, and of no other: none while that of
-    the tests is in all of them."""
+    """inspect --experimental of an archive loads the extensions of
+    tarantool-gdb-tools tt embeds rather than those of the Tarantool of the
+    core, says so, and asks GitHub nothing; lj-stack, which test_gdb_tools.py
+    does not run, shows the Lua stack of the chunk that crashed. inspect
+    warns of the extensions whose range of their manifest the Tarantool of
+    the core is out of, by its minor, and of no other: none while that of
+    the tests is in all of them. What the other commands show of a core is
+    checked by test_gdb_tools.py."""
     if not has_debug_info(shutil.which("tarantool")):
         pytest.skip("the extensions need the debugging information of the tarantool")
 
-    rc, output = inspect(tt_cmd, tmp_path, coredump_packed, UNIVERSAL_COMMANDS, "--experimental")
+    rc, output = inspect(tt_cmd, tmp_path, coredump_packed, ["lj-stack"], "--experimental")
     assert rc == 0, output
     assert re.search(
         r"gdb extensions of tarantool-gdb-tools [0-9a-f]{8}, which tt embeds: luajit_gdb\.py, "
@@ -1607,11 +1495,6 @@ def test_coredump_inspect_experimental(tt_cmd, tmp_path, coredump_packed):
     assert "cannot get the" not in output
     expected = unchecked_warnings(archive_version(coredump_packed))
     assert set(re.findall(UNCHECKED_WARNING, output)) == expected, output
-    # The chunk of tarantool -e that crashed, under the C frames of the FFI
-    # store, between the C frames of the VM entry and lua_pcall.
-    assert re.search(r"lj-bt: L=0x[0-9a-f]+", output), output
-    assert re.search(r"#\d+\.\d+\s+\[lua\] \(command line\):1 in main chunk", output), output
-    assert re.search(r'TtFiber\s+"sched"', output), output
     lua_frame = r'FRAME: \[\w+\] delta=\d+, Lua function .*"=\(command line\)"'
     assert re.search(lua_frame, output), output
     assert "FRAME: dummy L" in output, output
