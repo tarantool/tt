@@ -265,6 +265,7 @@ def test_stale_pid_file_reused_pid(tt_cmd, tmp_path):
         status = json_status(tt_cmd, app_path, master)
         assert status["status"] == "ERROR. The process is dead"
         assert status["pid"] is None
+        assert status["watchdog_pid"] is None
 
         for command in [["stop", "-y"], ["kill", "-y"]]:
             write_pid_file(app_path, "master", stranger.pid)
@@ -303,7 +304,11 @@ def test_stale_pid_file_reused_pid(tt_cmd, tmp_path):
             10,
             lambda: json_status(tt_cmd, app_path, master)["status"] == "RUNNING",
         )
-        assert json_status(tt_cmd, app_path, master)["pid"] != stranger.pid
+        # The watchdog that holds the pid file now is a new one.
+        status = json_status(tt_cmd, app_path, master)
+        assert status["watchdog_pid"] != stranger.pid
+        with open(pid_file) as f:
+            assert status["watchdog_pid"] == int(f.read())
 
         rc, out = utils.run_command_and_get_output(
             [tt_cmd, "instance", "stop", "-y", master],

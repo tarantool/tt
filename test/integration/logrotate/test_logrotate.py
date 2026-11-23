@@ -9,8 +9,10 @@ import utils
 
 
 def check_logrotate(tt, tt_app, target):
-    # Store original state.
+    # Store original state. The logrotate names the watchdog of an instance,
+    # not the process the PID of the status is.
     orig_status = tt_helper.status(tt)
+    orig_watchdogs = tt_helper.watchdog_pids(tt)
 
     target_instances = tt_app.instances_of(target)
 
@@ -40,8 +42,8 @@ def check_logrotate(tt, tt_app, target):
             assert status[inst]["PID"] == orig_status[inst]["PID"]
         if inst in target_instances:
             if was_running:
-                pid = status[inst]["PID"]
-                assert pid == orig_status[inst]["PID"]
+                assert status[inst]["PID"] == orig_status[inst]["PID"]
+                pid = orig_watchdogs[inst]
                 assert f"{inst} (PID = {pid}): logs has been rotated." in p.stdout
                 with open(tt_app.log_path(inst, utils.log_file)) as f:
                     assert "reopened" in f.read()

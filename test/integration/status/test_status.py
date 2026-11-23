@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import tempfile
@@ -22,6 +23,7 @@ from utils import (
     pid_file,
     run_command_and_get_output,
     short_tmp_dir,
+    wait_event,
     wait_file,
 )
 
@@ -52,6 +54,45 @@ field_mappings = {
         "config": "config",
     },
 }
+
+
+def read_pid(run_dir, name):
+    """Return the pid in the pid file name of run_dir."""
+    with open(os.path.join(run_dir, name)) as f:
+        return int(f.read().strip())
+
+
+def box_info_pid(tt_cmd, cwd, inst):
+    """Return box.info.pid of the Tarantool instance inst, asked over its
+    console."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "connect", inst, "-f", "-"],
+        cwd=cwd,
+        input="return box.info.pid\n",
+    )
+    assert rc == 0, out
+    found = re.search(r"^- (\d+)$", out, re.MULTILINE)
+    assert found, out
+    return int(found.group(1))
+
+
+def statuses_of(tt_cmd, cwd, inst):
+    """Return the status of inst as the table, -o json and -o yaml give it."""
+    formats = [
+        ([], extract_status),
+        (["--format=json"], extract_status_from_json),
+        (["--format=yaml"], extract_status_from_yaml),
+    ]
+    result = []
+    for args, extract in formats:
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "status", inst, *args],
+            cwd=cwd,
+            stderr=subprocess.DEVNULL,
+        )
+        assert rc == 0, out
+        result.append(extract(out)[inst])
+    return result
 
 
 def start_application(cmd, workdir, app_name, instances):
@@ -320,7 +361,14 @@ def test_status_external_process(tt_cmd, tmp_path):
         status_info = extract_status_from_json(out)
         assert status_info[f"{app_name}:master"]["status"] == "RUNNING"
         assert status_info[worker]["status"] == "RUNNING"
-        assert isinstance(status_info[worker]["pid"], int)
+        # The PID is the process its watchdog runs, which process.pid names;
+        # the watchdog holds tt.pid.
+        worker_run_dir = inst_run_dir(app_path, app_name, "worker")
+        process = read_pid(worker_run_dir, "process.pid")
+        assert status_info[worker]["pid"] == process
+        assert status_info[worker]["watchdog_pid"] == read_pid(worker_run_dir, pid_file)
+        assert status_info[worker]["watchdog_pid"] != process
+        assert status_info[worker]["restarts"] == 0
         assert status_info[worker]["mode"] == ""
         for column in ["config", "box", "upstream"]:
             assert status_info[worker][column] == "--"
@@ -331,7 +379,8 @@ def test_status_external_process(tt_cmd, tmp_path):
             cwd=app_path,
         )
         assert rc == 0
-        assert re.search(rf"{worker}\s+RUNNING\s+\d+\s+--\s+--\s+--", out)
+        assert re.search(rf"{worker}\s+RUNNING\s+{process}\s+--\s+--\s+--", out)
+        assert f"Process of {worker}: PID {process}, started at " in out
         assert "Alerts" not in out
 
         # The external process runs in its data directory, its record naming
@@ -385,7 +434,9 @@ def test_status_script_instance(tt_cmd, tmp_path):
             time.sleep(0.2)
 
         assert status_info[inst]["status"] == "RUNNING"
-        assert isinstance(status_info[inst]["pid"], int)
+        # The PID is tarantool, the watchdog holds tt.pid.
+        assert status_info[inst]["pid"] == box_info_pid(tt_cmd, app_path, inst)
+        assert status_info[inst]["watchdog_pid"] == read_pid(run_dir, pid_file)
         assert status_info[inst]["mode"] == "RW"
         # The script never uses the config module: CONFIG does not apply.
         assert status_info[inst]["config"] == "--"
@@ -410,6 +461,98 @@ def test_status_script_instance(tt_cmd, tmp_path):
     rc, out = run_command_and_get_output([tt_cmd, "instance", "status", inst], cwd=app_path)
     assert rc == 0
     assert extract_status(out)[inst]["STATUS"] == "NOT RUNNING"
+
+
+def test_status_pid_is_the_process(tt_cmd, tmp_path):
+    # The PID of tt instance status is the process the watchdog runs, the
+    # tarantool box.info.pid names, in the table, JSON and YAML alike; the
+    # watchdog, which holds tt.pid, is watchdog_pid. Killed,
+    # tarantool is started again as the restart policy says: the PID changes,
+    # the watchdog stays, and the count of restarts goes up. In between no
+    # process runs, and the PID is empty.
+    app_name = "single_app"
+    app_path = tmp_path / app_name
+    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    os.makedirs(os.path.dirname(app_path / instances_file))
+    with open(app_path / instances_file, "w") as f:
+        f.write("single_app:\n  script: init.lua\n  restart: on-failure\n")
+    # A script that starts again on the data of the first start, and listens
+    # on no port of its own.
+    with open(app_path / "init.lua", "w") as f:
+        f.write("box.cfg{}\n")
+    inst = f"{app_name}:{app_name}"
+    run_dir = inst_run_dir(app_path, app_name, app_name)
+
+    try:
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "start", inst],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"The instance {inst} is up." in out
+
+        watchdog = read_pid(run_dir, pid_file)
+        pid = box_info_pid(tt_cmd, app_path, inst)
+        assert pid != watchdog
+
+        table, as_json, as_yaml = statuses_of(tt_cmd, app_path, inst)
+        assert table["PID"] == pid
+        for info in [as_json, as_yaml]:
+            assert info["status"] == "RUNNING"
+            assert info["pid"] == pid
+            assert info["watchdog_pid"] == watchdog
+            assert info["restarts"] == 0
+            assert "started_at" in info
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "status", inst, "--details"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"Watchdog of {inst}: PID {watchdog}\n" in out
+        assert f"Process of {inst}: PID {pid}, started at " in out
+        assert f"Restarts of {inst}: 0\n" in out
+
+        os.kill(pid, signal.SIGKILL)
+
+        # The watchdog waits its restart delay with no process. What is
+        # checked of the delay is the status the wait saw there: a status
+        # asked again after the wait may already find the next process on a
+        # slow runner.
+        seen = {}
+
+        def restarting():
+            seen["table"], seen["json"], _ = statuses_of(tt_cmd, app_path, inst)
+            return seen["json"]["pid"] is None and seen["table"]["PID"] is None
+
+        assert wait_event(5, restarting), seen
+        assert seen["table"]["STATUS"] == "RUNNING"
+        assert seen["json"]["watchdog_pid"] == watchdog
+
+        def json_status():
+            return statuses_of(tt_cmd, app_path, inst)[1]
+
+        assert wait_event(30, lambda: json_status()["pid"] not in (None, pid))
+        restarted = json_status()["pid"]
+        table, as_json, as_yaml = statuses_of(tt_cmd, app_path, inst)
+        assert table["PID"] == restarted
+        for info in [as_json, as_yaml]:
+            assert info["pid"] == restarted
+            assert info["watchdog_pid"] == watchdog
+            assert info["restarts"] == 1
+
+        # The restarted tarantool is the one its console answers from.
+        assert wait_event(10, lambda: os.path.exists(os.path.join(run_dir, control_socket)))
+        assert box_info_pid(tt_cmd, app_path, inst) == restarted
+    finally:
+        stop_application(tt_cmd, app_name, app_path)
+
+    # The state of the watchdog goes with it.
+    assert not os.path.exists(os.path.join(run_dir, "watchdog.json"))
+    table, as_json, _ = statuses_of(tt_cmd, app_path, inst)
+    assert table["STATUS"] == "NOT RUNNING"
+    assert as_json["pid"] is None
+    assert as_json["watchdog_pid"] is None
 
 
 def test_status_details_last_exit(tt_cmd, tmp_path):

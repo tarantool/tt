@@ -114,6 +114,9 @@ in; `-o json` gives it as `tcm`:
 
 ```console
 $ tt instance status --details
+Watchdog of myapp:tcm: PID 118136
+Process of myapp:tcm: PID 118148, started at 2026-11-17 10:02:11
+Restarts of myapp:tcm: 0
 TCM myapp:tcm: http://127.0.0.1:8080 (user admin, password in /home/user/myapp/.tarantool/var/lib/myapp/tcm/admin.secret)
   • storage: the embedded etcd of TCM, http://127.0.0.1:45925, with its data in /home/user/myapp/.tarantool/var/lib/myapp/tcm/etcd
   • the application myapp has no cluster config in a config storage, which is the only place TCM reads one from: TCM shows the cluster myapp from the embedded etcd of TCM http://127.0.0.1:45925, prefix "/myapp", empty until a cluster config is published there; keep the cluster config in etcd (config.etcd in config.yaml) and publish it with tt cluster publish myapp for TCM to see and manage the cluster

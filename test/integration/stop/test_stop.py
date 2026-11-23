@@ -62,8 +62,10 @@ def test_stop_no_prompt(tt_cmd, tmp_path):
 
 
 def check_stop(tt, tt_app, target, input, is_confirm, *args):
-    # Store original state.
+    # Store original state. The stop names the watchdog of an instance, not
+    # the process the PID of the status is.
     orig_status = tt_helper.status(tt)
+    orig_watchdogs = tt_helper.watchdog_pids(tt)
 
     # Do stop.
     # The answers go to a terminal: without one, a confirmation is not asked.
@@ -94,7 +96,7 @@ def check_stop(tt, tt_app, target, input, is_confirm, *args):
         if is_confirm and inst in target_instances:
             assert status[inst]["STATUS"] == "NOT RUNNING"
             if was_running:
-                orig_pid = orig_status[inst]["PID"]
+                orig_pid = orig_watchdogs[inst]
                 assert f"The instance {inst} (PID = {orig_pid}) has been terminated." in out
             else:
                 # As tt instance kill and logrotate say it.

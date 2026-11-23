@@ -14,7 +14,10 @@ confirmation_input_params = [
 ]
 
 
-def wait_pid_files_changed(tt_app, instances, orig_status):
+def wait_pid_files_changed(tt_app, instances, orig_watchdogs):
+    """Wait for the pid file of every instance of instances to name another
+    watchdog than orig_watchdogs does (tt_helper.watchdog_pids)."""
+
     def all_pids_changed():
         def read_file(path):
             try:
@@ -26,7 +29,8 @@ def wait_pid_files_changed(tt_app, instances, orig_status):
 
         for inst in instances:
             pid_path = tt_app.run_path(inst, utils.pid_file)
-            orig_pid = str(orig_status[inst]["PID"]) if "PID" in orig_status[inst] else None
+            orig = orig_watchdogs.get(inst)
+            orig_pid = str(orig) if orig is not None else None
             pid = read_file(pid_path)
             if pid is None or pid == orig_pid:
                 return False
@@ -38,8 +42,10 @@ def wait_pid_files_changed(tt_app, instances, orig_status):
 
 
 def check_restart(tt, tt_app, target, input, is_confirm, *args):
-    # Store original state.
+    # Store original state. The stop of the restart names the watchdog of an
+    # instance, not the process the PID of the status is.
     orig_status = tt_helper.status(tt)
+    orig_watchdogs = tt_helper.watchdog_pids(tt)
 
     # Do restart.
     # The answers go to a terminal: without one, a confirmation is not asked.
@@ -64,7 +70,7 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
         # Make sure all involved PIDs are updated. A timeout here must fail
         # loudly: otherwise the checks below race the instance start and report
         # a bare "NOT RUNNING" instead.
-        assert wait_pid_files_changed(tt_app, target_instances, orig_status)
+        assert wait_pid_files_changed(tt_app, target_instances, orig_watchdogs)
     else:
         # Check the discarding message.
         assert discarding_msg in out
@@ -84,8 +90,8 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
             # The restart returns once the instance is up.
             assert f"The instance {inst} is up." in out
             if was_running:
-                orig_pid = orig_status[inst]["PID"]
-                assert status[inst]["PID"] != orig_pid
+                assert status[inst]["PID"] != orig_status[inst]["PID"]
+                orig_pid = orig_watchdogs[inst]
                 assert f"The instance {inst} (PID = {orig_pid}) has been terminated." in out
         else:
             assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]

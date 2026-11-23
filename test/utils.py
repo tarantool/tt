@@ -846,6 +846,12 @@ def find_port(port=8000):
 
 
 def extract_status(status_output):
+    """Parse the table of tt instance status into {instance: {column: value}}.
+
+    PID is the pid of the process the watchdog of a running instance runs, an
+    int, or None when its cell is empty: no process runs, or its watchdog does
+    not publish it. The pid of the watchdog is not in the table: see
+    watchdog_pid of -o json (tt_helper.watchdog_pids)."""
     result = {}
     statuses = status_output.split("\n")
     for i in range(1, len(statuses) - 1):
@@ -857,9 +863,13 @@ def extract_status(status_output):
         info = {}
         if fields[1] == "RUNNING":
             info["STATUS"] = fields[1]
-            info["PID"] = int(fields[2])
+            start = 2
+            info["PID"] = None
+            if len(fields) > 2 and fields[2].isdigit():
+                info["PID"] = int(fields[2])
+                start = 3
             keys = ["MODE", "CONFIG", "BOX", "UPSTREAM"]
-            for i, key in enumerate(keys, start=3):
+            for i, key in enumerate(keys, start=start):
                 if len(fields) > i:
                     info[key] = fields[i]
         else:

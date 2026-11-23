@@ -453,7 +453,7 @@ Flag with argument:
 curl --header "Content-Type: application/json" --request POST \
 --data '{"command_name":"instance", "params":["status", "-o", "yaml", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"test_app:instance001:\n    status: RUNNING\n    pid: 568979\n    mode: RW\n    config: ready\n    box: running\n    upstream: --\n    alerts: []\n\n"}
+{"res":"test_app:instance001:\n    status: RUNNING\n    pid: 568991\n    watchdog_pid: 568979\n    started_at: 2026-11-23T10:15:42.325964868+03:00\n    restarts: 0\n    mode: RW\n    config: ready\n    box: running\n    upstream: --\n    alerts: []\n\n"}
 ```
 
 Flag without argument:
