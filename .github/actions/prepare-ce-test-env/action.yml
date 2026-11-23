@@ -67,8 +67,11 @@ runs:
     - name: Enable network isolation for rocks tests
       if: runner.os == 'Linux'
       run: |
-        # Ubuntu 24.04 restricts the user namespace used by unshare -r -n.
-        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        # Ubuntu 24.04 restricts the user namespace used by unshare -r -n. A
+        # kernel without the restriction has no such setting.
+        if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        fi
         unshare -r -n true
       shell: bash
 
@@ -81,26 +84,22 @@ runs:
         echo "version=$version" >> "$GITHUB_OUTPUT"
       shell: bash
 
-    # download.tarantool.org times out now and then: try once more.
+    # download.tarantool.org times out now and then: try once more. The
+    # cache key of the action has the architecture since v4: CE 3.9 has both
+    # amd64 and arm64 packages in its linux-deb/static repository.
     - name: Install Tarantool on Linux
       id: tarantool
       if: |
         runner.os == 'Linux' && inputs.skip-tarantool-install == 'false' &&
         inputs.tarantool-version != 'master'
       continue-on-error: true
-      uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
-      env:
-        # The action's default cache key omits the architecture. CE 3.9 has
-        # both amd64 and arm64 packages in its linux-deb/static repository.
-        TARANTOOL_CACHE_KEY_SUFFIX: -${{ runner.arch }}
+      uses: tarantool/setup-tarantool@6544c70014ba3d74b469acc744e578e2430a15be # v4.0.1
       with:
         tarantool-version: '${{ steps.version.outputs.version }}'
 
     - name: Install Tarantool on Linux, second attempt
       if: steps.tarantool.outcome == 'failure'
-      uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
-      env:
-        TARANTOOL_CACHE_KEY_SUFFIX: -${{ runner.arch }}
+      uses: tarantool/setup-tarantool@6544c70014ba3d74b469acc744e578e2430a15be # v4.0.1
       with:
         tarantool-version: '${{ steps.version.outputs.version }}'
 

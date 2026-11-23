@@ -168,6 +168,9 @@ jobs:
       shard: ${{ matrix.shard }}
       marker: not slow_ee and not notarantool and not tarantool_master
       full: true
+      # The instances group has the coredump tests, the only ones that read
+      # it: this is their run on the gdb 15 of ubuntu-24.04 (see coredump).
+      require-debug-info: true
 
   arm64:
     needs: snapshot
@@ -187,6 +190,43 @@ jobs:
       tarantool-version: latest
       shard: ${{ matrix.shard }}
       marker: not slow and not slow_ee and not notarantool and not tarantool_master
+
+  # The coredump tests on the gdb of the other Ubuntu runners, 12 of 22.04
+  # and 17 of 26.04, and on arm64: the gdb extensions of tarantool-gdb-tools
+  # tt vendors on a core of the oldest and the newest Tarantool CI tests
+  # (test/integration/coredump/test_gdb_tools.py). it-ce runs them on gdb 15
+  # of ubuntu-24.04, in the instances group. The static deb of Tarantool CE
+  # has the debugging information they need, and a test fails rather than
+  # skips without it. One cell checks the vendored copies against GitHub,
+  # which is the same for all.
+  coredump:
+    needs: snapshot
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04, ubuntu-26.04, ubuntu-24.04-arm]
+        tarantool-version: [min, latest]
+        include:
+          - runner: ubuntu-26.04
+            tarantool-version: latest
+            gdb-tools-upstream: true
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      runner: ${{ matrix.runner }}
+      tt-source: snapshot
+      tt-artifact: ${{ endsWith(matrix.runner, '-arm') && 'tt-snapshot-default-linux-arm64' || 'tt-snapshot-default-linux-amd64' }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
+      edition: ce
+      tarantool-version: ${{ matrix.tarantool-version }}
+      # The shard sets up nothing more: test-dir selects the tests, which
+      # fetch no rock.
+      shard: instances
+      test-dir: coredump
+      marker: not slow_ee and not notarantool and not tarantool_master
+      full: true
+      require-debug-info: true
+      gdb-tools-upstream: ${{ matrix.gdb-tools-upstream || false }}
+      rocks-mirror: false
 
   macos:
     needs: snapshot
@@ -289,7 +329,7 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci')) }}
     # macos is informational until the platform tests are stable.
-    needs: [snapshot, go-docker, go-arm64, it-ce, arm64, notarantool]
+    needs: [snapshot, go-docker, go-arm64, it-ce, arm64, coredump, notarantool]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -315,7 +355,7 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))) }}
     # macos is informational until the platform tests are stable.
-    needs: [full-start, snapshot, go-docker, go-arm64, it-ce, arm64, it-ee, ee-creds, tls-openssl, notarantool]
+    needs: [full-start, snapshot, go-docker, go-arm64, it-ce, arm64, coredump, it-ee, ee-creds, tls-openssl, notarantool]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -341,6 +381,6 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
           REQUIRED: >-
             ${{ github.repository == 'tarantool/tt' &&
-            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","it-ee","ee-creds","tls-openssl","notarantool"]' ||
-            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","notarantool"]' }}
+            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","coredump","it-ee","ee-creds","tls-openssl","notarantool"]' ||
+            '["full-start","snapshot","go-docker","go-arm64","it-ce","arm64","coredump","notarantool"]' }}
         run: python3 ci/status.py
