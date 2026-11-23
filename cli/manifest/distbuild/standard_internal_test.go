@@ -206,7 +206,7 @@ func TestResolveStandardOfVersionedCore(t *testing.T) {
 	set, err := res.resolveStandard(t.Context(), parse(t, ""), versioned)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"aeon", "emmylua", "wasm"}, set.names())
-	assert.Contains(t, gocmd.calls, "mod download -json "+coreModule+"@"+corePseudo)
+	assert.Contains(t, gocmd.recorded(), "mod download -json "+coreModule+"@"+corePseudo)
 
 	old := core{Module: coreModule, Version: "v3.0.0-alpha.2"}
 

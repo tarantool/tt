@@ -6,7 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +19,10 @@ import (
 )
 
 // fakeGo answers go list -m -json and go mod edit -json from tables.
+//
+// It is safe for concurrent use, as the go command is: the parallel
+// subtests of a test may resolve with one resolver. The tables are only
+// read once a test has filled them.
 type fakeGo struct {
 	// modules maps "module@query" to what go list reports.
 	modules map[string]moduleInfo
@@ -25,12 +31,15 @@ type fakeGo struct {
 	// downloads maps "module@version" to the directory go mod download
 	// reports.
 	downloads map[string]string
-	// calls records the commands run.
+
+	// mu guards calls.
+	mu sync.Mutex
+	// calls records the commands run; recorded returns them.
 	calls []string
 }
 
 func (f *fakeGo) Output(_ context.Context, _ string, _ []string, args ...string) ([]byte, error) {
-	f.calls = append(f.calls, strings.Join(args, " "))
+	f.record(args)
 
 	switch {
 	case len(args) == 4 && args[0] == "list":
@@ -61,6 +70,22 @@ func (f *fakeGo) Output(_ context.Context, _ string, _ []string, args ...string)
 
 func (f *fakeGo) Run(context.Context, string, []string, ...string) error {
 	return nil
+}
+
+// record adds a command to the ones run.
+func (f *fakeGo) record(args []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls = append(f.calls, strings.Join(args, " "))
+}
+
+// recorded returns the commands run so far, in their order.
+func (f *fakeGo) recorded() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.calls)
 }
 
 const (
@@ -222,7 +247,7 @@ func TestResolvePinned(t *testing.T) {
 	assert.Equal(t, []string{
 		"list -m -json " + coreModule + "@" + corePseudo,
 		"mod edit -json /cache/core.mod",
-	}, gocmd.calls)
+	}, gocmd.recorded())
 }
 
 func TestResolveLocalCore(t *testing.T) {
