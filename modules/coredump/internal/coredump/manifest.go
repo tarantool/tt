@@ -67,7 +67,8 @@ type manifestEntry struct {
 }
 
 // versionRange is a range of the versions of Tarantool, x.y.z, both ends
-// included.
+// included. inspect tells a core in it or out of it by the minors of the
+// ends, which CI runs on their last patches (see minorRange).
 type versionRange struct {
 	// Min is the first version of the range.
 	Min string `json:"min"`

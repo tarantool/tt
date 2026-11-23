@@ -1,5 +1,7 @@
 import glob
+import json
 import os
+import platform
 import re
 import resource
 import shutil
@@ -529,3 +531,139 @@ def test_coredump_inspect_sourcedir(tt_cmd, tmp_path, coredump_unpacked):
     assert "on GitHub" not in output
     assert "cannot get the" not in output
     check_extensions(output, has_debug_info(shutil.which("tarantool")))
+
+
+# The gdb commands of the universal extensions of tarantool-gdb-tools: lj-bt,
+# the backtrace of C and Lua frames in one that only they have, the fibers and
+# the Lua stack.
+UNIVERSAL_COMMANDS = ["lj-bt", "info tt-fibers", "lj-stack"]
+
+# The manifest of the universal extensions of tarantool-gdb-tools tt embeds,
+# which names the versions of Tarantool and the architectures each of them was
+# checked on.
+GDB_TOOLS_MANIFEST = EXTENSIONS_DIR / "gdb-tools" / "extensions.json"
+
+# The warning of inspect --experimental of an extension the core is out of
+# the range of: what it was checked on, and what the core is of.
+UNCHECKED_WARNING = r"[\w.-]+\.py is checked on [^\n]*?, the core is of [^\n]*?: it may not work"
+
+
+def gdb_tools_extensions():
+    """The entries of the manifest of the extensions of tarantool-gdb-tools tt
+    embeds."""
+    return json.loads(GDB_TOOLS_MANIFEST.read_text())["extensions"]
+
+
+def minor_of(release):
+    """The minor of a release x.y.z, (x, y)."""
+    major, minor, _ = release.split(".")
+    return int(major), int(minor)
+
+
+def join_and(names):
+    """names as a sentence lists them, as the warnings of inspect do."""
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def unchecked_warnings(version_line):
+    """The warnings of inspect --experimental of a core of this host of the
+    Tarantool of version_line, the first line of its version file: one for
+    each extension of the manifest whose range the minor of the version is out
+    of, as the manifest means a range, every patch of every minor from that of
+    min to that of max, or whose architectures that of the host is none of."""
+    match = re.match(r"Tarantool (?:Enterprise )?((\d+\.\d+\.\d+)(?:-[a-z]+\d*)?)", version_line)
+    assert match, version_line
+    tag, release = match.groups()
+    machine = platform.machine()
+    warnings = set()
+    for entry in gdb_tools_extensions():
+        checked, core = [], []
+        first = minor_of(entry["tarantool"]["min"])
+        last = minor_of(entry["tarantool"]["max"])
+        if not first <= minor_of(release) <= last:
+            minors = "{}.{}".format(*first)
+            if first != last:
+                minors += " to {}.{}".format(*last)
+            checked.append("Tarantool " + minors)
+            core.append(tag)
+        if machine not in entry["arch"]:
+            checked.append(join_and(entry["arch"]))
+            core.append(machine)
+        if checked:
+            warnings.add(
+                f"{entry['file']} is checked on {' on '.join(checked)}, "
+                f"the core is of {' on '.join(core)}: it may not work",
+            )
+    return warnings
+
+
+def archive_version(archive):
+    """The first line of the version file of an archive of tt coredump pack,
+    the version of the Tarantool of the core."""
+    name = os.path.basename(archive).split(".")[0]
+    with tarfile.open(archive) as tar:
+        return tar.extractfile(f"{name}/version").read().decode().splitlines()[0]
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_inspect_experimental(tt_cmd, tmp_path, coredump_packed):
+    """inspect --experimental loads the extensions of tarantool-gdb-tools tt
+    embeds, lj-bt among them, rather than those of the Tarantool of the core,
+    and asks GitHub nothing: lj-bt puts the Lua frame of the chunk that crashed
+    among the C frames, info tt-fibers lists the fibers and lj-stack the Lua
+    stack. inspect warns of those whose range of their manifest the Tarantool
+    of the core is out of, by its minor, and of no other: none while that of
+    the tests is in all of them."""
+    if not has_debug_info(shutil.which("tarantool")):
+        pytest.skip("the extensions need the debugging information of the tarantool")
+
+    rc, output = inspect(tt_cmd, tmp_path, coredump_packed, UNIVERSAL_COMMANDS, "--experimental")
+    assert rc == 0, output
+    assert re.search(
+        r"gdb extensions of tarantool-gdb-tools [0-9a-f]{8}, which tt embeds: luajit_gdb\.py, "
+        r"tarantool_gdb\.py, luajit_backtrace_gdb\.py, gcore_pages_gdb\.py",
+        output,
+    ), output
+    assert "on GitHub" not in output
+    assert "cannot get the" not in output
+    expected = unchecked_warnings(archive_version(coredump_packed))
+    assert set(re.findall(UNCHECKED_WARNING, output)) == expected, output
+    # The chunk of tarantool -e that crashed, under the C frames of the FFI
+    # store, between the C frames of the VM entry and lua_pcall.
+    assert re.search(r"lj-bt: L=0x[0-9a-f]+", output), output
+    assert re.search(r"#\d+\.\d+\s+\[lua\] \(command line\):1 in main chunk", output), output
+    assert re.search(r'TtFiber\s+"sched"', output), output
+    lua_frame = r'FRAME: \[\w+\] delta=\d+, Lua function .*"=\(command line\)"'
+    assert re.search(lua_frame, output), output
+    assert "FRAME: dummy L" in output, output
+    assert "Undefined command" not in output
+    assert "Python Exception" not in output
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_inspect_experimental_unchecked(tt_cmd, tmp_path, coredump_unpacked):
+    """inspect --experimental warns of each extension whose range the minor of
+    the Tarantool of the core is out of, loading it all the same, and of no
+    other. The artefacts are those of the core, linked to, but for a version
+    file of the minor before the first one of the range that begins last:
+    that range leaves it out, and one that begins before it has it."""
+    first = max(minor_of(entry["tarantool"]["min"]) for entry in gdb_tools_extensions())
+    major, minor = first
+    version_line = (
+        f"Tarantool {major}.{minor - 1}.0-0-g0123456"
+        if minor > 0
+        else f"Tarantool {major - 1}.0.0-0-g0123456"
+    )
+    expected = unchecked_warnings(version_line)
+    assert expected
+
+    artefacts = tmp_path / "artefacts"
+    artefacts.mkdir()
+    for path in Path(coredump_unpacked).iterdir():
+        if path.name != "version":
+            (artefacts / path.name).symlink_to(path)
+    (artefacts / "version").write_text(version_line + "\n")
+
+    rc, output = inspect(tt_cmd, tmp_path, artefacts.as_posix(), [], "--experimental")
+    assert rc == 0, output
+    assert set(re.findall(UNCHECKED_WARNING, output)) == expected, output

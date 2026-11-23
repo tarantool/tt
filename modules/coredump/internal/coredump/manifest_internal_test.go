@@ -18,34 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// vendorFile is where tt records where the copies of the extensions it
-// embeds come from: data of tt, no part of the schema of the manifest.
-const vendorFile = "vendor.json"
-
-// vendorRecord is the content of vendorFile.
-type vendorRecord struct {
-	// Files are the copies, one entry each.
-	Files []vendoredFile `json:"files"`
-}
-
-// vendoredFile is where a copy comes from.
-type vendoredFile struct {
-	// File is the name of the copy in the directory of the extensions.
-	File string `json:"file"`
-	// Repo is the GitHub repository of the file, owner/name.
-	Repo string `json:"repo"`
-	// Path is the path of the file in the repository.
-	Path string `json:"path"`
-	// Ref is the ref the file was taken at, a tag or a commit.
-	Ref string `json:"ref"`
-	// Commit is the full commit of the ref.
-	Commit string `json:"commit"`
-	// SHA256 is the checksum of the copy, in hex.
-	SHA256 string `json:"sha256"`
-	// Note says, if anything, what the ref is of.
-	Note string `json:"note"`
-}
-
 // readVendorRecord returns the vendorFile of the copies of the upstream
 // extensions tt embeds (see readVendorRecordOf).
 func readVendorRecord(t *testing.T) vendorRecord {
@@ -232,6 +204,17 @@ const (
 // extensions that come from LuaJIT and Tarantool.
 var gdbToolsFiles = []string{"LICENSE", "NOTICE"}
 
+// gdbToolsContent returns the copy of tt of the extension name of
+// tarantool-gdb-tools.
+func gdbToolsContent(t *testing.T, name string) string {
+	t.Helper()
+
+	data, err := fs.ReadFile(gdbToolsSet.files, gdbToolsSet.dir+"/"+name)
+	require.NoError(t, err)
+
+	return string(data)
+}
+
 // TestGDBToolsVendored checks that vendor.json of the extensions of
 // tarantool-gdb-tools names every other file of their directory, and only
 // those, the extensions, their manifest and the license files, each the
@@ -240,8 +223,9 @@ var gdbToolsFiles = []string{"LICENSE", "NOTICE"}
 //
 // To pin another commit of tarantool-gdb-tools, run this from the root of
 // tt: it replaces the files of the directory with those of the commit,
-// writes vendor.json of them and stages it all, the files gone too, for
-// git commit:
+// writes vendor.json of them, regenerates the help of tt, which names the
+// commit (GDBToolsCommit reads it from vendor.json), and stages it all, the
+// files gone too, for git commit:
 //
 //	clone=<a clone of buyemune-sys/tarantool-gdb-tools> rev=<a commit of it>
 //	commit=$(git -C "$clone" rev-parse --verify "$rev^{commit}")
@@ -256,7 +240,8 @@ var gdbToolsFiles = []string{"LICENSE", "NOTICE"}
 //		jq -nR --arg commit "$commit" '{files: [inputs | split("  ") | {
 //			file: .[1], repo: "buyemune-sys/tarantool-gdb-tools", path: .[1],
 //			ref: $commit, commit: $commit, sha256: .[0]}]}' > "$dir/vendor.json"
-//	git add -A "$dir"
+//	go test ./core -run TestHelpGolden -update
+//	git add -A "$dir" core/testdata/help.golden
 //
 // Then cd modules/coredump && go test ./... checks the copy. A commit that
 // adds, removes or renames an extension changes what inspect loads: the
@@ -313,7 +298,10 @@ func TestGDBToolsVendored(t *testing.T) {
 // the architectures it was checked on, in the terms inspect compares a
 // core with, and the commands and the parameters the file registers: every
 // command is a name the file has, and the parameters are those its
-// gdb.Parameter subclasses name.
+// gdb.Parameter subclasses name. The ends of the range of the versions are
+// releases inspect reads, the first not after the last: inspect checks no
+// core against a range it cannot read, and would warn of every core of one
+// that is upside down.
 func TestGDBToolsManifest(t *testing.T) {
 	t.Parallel()
 
@@ -338,8 +326,16 @@ func TestGDBToolsManifest(t *testing.T) {
 	for _, entry := range entries {
 		assert.NotEmpty(t, entry.Debuggers, entry.File)
 		assert.Subset(t, []string{debuggerGDB, debuggerLLDB}, entry.Debuggers, entry.File)
-		assert.NotEmpty(t, entry.Tarantool.Min, entry.File)
-		assert.NotEmpty(t, entry.Tarantool.Max, entry.File)
+
+		_, ok := entry.Tarantool.minors()
+		require.True(t, ok, "%s: %q to %q are not releases x.y.z", entry.File,
+			entry.Tarantool.Min, entry.Tarantool.Max)
+
+		first, _ := parseRelease(entry.Tarantool.Min)
+		last, _ := parseRelease(entry.Tarantool.Max)
+		assert.LessOrEqual(t, first.compare(last), 0, "%s: %s is after %s", entry.File,
+			entry.Tarantool.Min, entry.Tarantool.Max)
+
 		assert.NotEmpty(t, entry.Arch, entry.File)
 		assert.Subset(t, []string{"x86_64", "aarch64"}, entry.Arch, entry.File)
 		require.NotEmpty(t, entry.Commands, entry.File)

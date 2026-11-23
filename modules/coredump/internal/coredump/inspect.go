@@ -14,38 +14,52 @@ import (
 	"github.com/tarantool/tt/sdk/output"
 )
 
-// Inspect opens the core dump of archiveOrDir, an archive tt coredump pack
-// made or the directory it unpacks into, in gdb, with the sources in
-// sourceDir when it is not empty. It logs to log where the gdb extensions
-// come from and what may not work.
+// InspectOptions are what Inspect opens and the extensions it loads.
+type InspectOptions struct {
+	// Path is an archive tt coredump pack made, or the directory it
+	// unpacks into.
+	Path string
+	// SourceDir is the directory of the sources of the Tarantool of the
+	// core, which gdb maps the paths of the build to; empty is sources/ of
+	// the artefacts. Unless GDBTools is set, its extensions are loaded.
+	SourceDir string
+	// GDBTools loads the universal extensions of tarantool-gdb-tools tt
+	// embeds (see gdbToolsSet) instead of those of the Tarantool of the
+	// core: one version of each for the versions of Tarantool their
+	// manifest names, and lj-bt and gcore-pages, which no release has.
+	GDBTools bool
+}
+
+// Inspect opens the core dump of opts.Path in gdb. It logs to log where the
+// gdb extensions come from and what may not work.
 //
 // gdb runs through the gdb.sh tt embeds (see gdbDebugger), which sources
 // the gdb extensions tt selects explicitly once the core is loaded: those
-// that match the Tarantool of the core (see resolver.resolve).
+// that match the Tarantool of the core (see resolver.resolve), or the
+// universal ones of tarantool-gdb-tools with opts.GDBTools.
 func Inspect(ctx context.Context, streams output.Streams, log *slog.Logger,
-	archiveOrDir, sourceDir string,
+	opts InspectOptions,
 ) error {
-	return inspect(ctx, streams, newResolver(log), archiveOrDir, sourceDir)
+	return inspect(ctx, streams, newResolver(log), opts)
 }
 
 // inspect is Inspect with the extensions found by res, in gdb.
-func inspect(ctx context.Context, streams output.Streams, res *resolver,
-	archiveOrDir, sourceDir string,
+func inspect(ctx context.Context, streams output.Streams, res *resolver, opts InspectOptions,
 ) error {
-	return inspectWith(ctx, streams, res, gdbDebugger{}, archiveOrDir, sourceDir)
+	return inspectWith(ctx, streams, res, gdbDebugger{}, opts)
 }
 
 // inspectWith is inspect with the debugger backend: it is handed the
 // extensions that load in it, in their load order (see forDebugger).
 func inspectWith(ctx context.Context, streams output.Streams, res *resolver, backend debugger,
-	archiveOrDir, sourceDir string,
+	opts InspectOptions,
 ) error {
-	stat, err := os.Stat(archiveOrDir)
+	stat, err := os.Stat(opts.Path)
 	if err != nil {
 		return fmt.Errorf("failed to inspect: %w", err)
 	}
 
-	dir := archiveOrDir
+	dir := opts.Path
 
 	if !stat.IsDir() {
 		// It seems archive was specified, so try to unpack into
@@ -59,13 +73,13 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 			_ = os.RemoveAll(tmpDir)
 		}() // Clean up on function return.
 
-		err = extractTarGz(archiveOrDir, tmpDir)
+		err = extractTarGz(opts.Path, tmpDir)
 		if err != nil {
 			return fmt.Errorf("failed to unpack: %w", err)
 		}
 
 		// Directory name is archive basename w/o extensions.
-		dir = filepath.Join(tmpDir, strings.Split(filepath.Base(archiveOrDir), ".")[0])
+		dir = filepath.Join(tmpDir, strings.Split(filepath.Base(opts.Path), ".")[0])
 	}
 
 	// The files of the debugger and the extensions tt loads live in a
@@ -79,7 +93,7 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 		_ = os.RemoveAll(work)
 	}()
 
-	exts, err := selectExtensions(ctx, res, dir, sourceDir)
+	exts, err := chooseExtensions(ctx, res, dir, opts)
 	if err != nil {
 		return err
 	}
@@ -90,6 +104,14 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 	}
 
 	warnSkipped(res.log, backend.Name(), skipped)
+
+	// The extensions of the Tarantool of the core are of that version;
+	// the universal ones are checked on a range of them, which the core
+	// may be out of.
+	if opts.GDBTools {
+		logGDBTools(res.log, backend.Name(), exts)
+		warnUnchecked(res.log, readCoreTarget(res.log, dir), exts)
+	}
 
 	paths := make([]string, 0, len(exts))
 
@@ -104,7 +126,7 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 		paths = append(paths, path)
 	}
 
-	cmd, err := backend.Command(ctx, work, dir, sourceDir, paths)
+	cmd, err := backend.Command(ctx, work, dir, opts.SourceDir, paths)
 	if err != nil {
 		return err
 	}
@@ -112,6 +134,42 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 	warnDebugInfo(res.log, dir)
 
 	return runDebugger(cmd, streams)
+}
+
+// chooseExtensions returns the extensions for the core of the artefacts in
+// dir: with opts.GDBTools the universal ones of tarantool-gdb-tools, the
+// same for every core, for which neither the sources nor GitHub are looked
+// at, else those of the Tarantool of the core (see selectExtensions).
+func chooseExtensions(ctx context.Context, res *resolver, dir string, opts InspectOptions,
+) ([]extension, error) {
+	if opts.GDBTools {
+		return gdbToolsSet.all()
+	}
+
+	return selectExtensions(ctx, res, dir, opts.SourceDir)
+}
+
+// logGDBTools logs which of the universal extensions of tarantool-gdb-tools
+// the debugger name loads and the commit tt has them of, as the resolver
+// logs where each extension of the Tarantool of a core comes from.
+func logGDBTools(log *slog.Logger, name string, exts []extension) {
+	if len(exts) == 0 {
+		return
+	}
+
+	log.Info(fmt.Sprintf("%s extensions of tarantool-gdb-tools %s, which tt embeds: %s", name,
+		GDBToolsCommit(), strings.Join(extensionNames(exts), ", ")))
+}
+
+// extensionNames returns the names of exts, in order.
+func extensionNames(exts []extension) []string {
+	names := make([]string, 0, len(exts))
+
+	for _, ext := range exts {
+		names = append(names, ext.Name)
+	}
+
+	return names
 }
 
 // warnDebugInfo warns, before gdb starts, when gdb will find no debugging

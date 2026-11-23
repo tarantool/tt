@@ -2,11 +2,17 @@ package coredump
 
 import (
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/modules/coredump/internal/coredump"
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/sdktest"
 )
@@ -73,6 +79,61 @@ var errBroken = errors.New("broken TT_USE_SYSTEM_TARANTOOL")
 // Tarantool fails with errBroken.
 func (failingServices) Tarantool() (sdk.Tarantool, error) {
 	return nil, errBroken
+}
+
+// TestInspectExperimentalFlag checks that the flag of the experimental
+// extensions is off by default and that its help says they are
+// experimental and names the commit of tarantool-gdb-tools tt embeds.
+func TestInspectExperimentalFlag(t *testing.T) {
+	t.Parallel()
+
+	services := sdktest.New(t)
+	services.Start()
+
+	flag := newInspectCmd(services).Flags().Lookup(experimentalFlag)
+	require.NotNil(t, flag)
+	assert.Equal(t, "false", flag.DefValue)
+	assert.Contains(t, flag.Usage, "Load the experimental gdb extensions of "+
+		"tarantool-gdb-tools (vendored by tt at "+coredump.GDBToolsCommit()+")")
+}
+
+// TestInspectExperimentalGDBTools checks that the flag reaches inspect: with
+// it inspect hands the debugger the extensions of tarantool-gdb-tools,
+// which it logs before the debugger runs. PATH has no program, not even
+// the sh that runs gdb.sh, so that the debugger fails to start whether gdb
+// is installed or not; and should the flag not reach inspect, it looks the
+// extensions of the release of the core up neither on GitHub, the proxy
+// refuses the connection, nor in the cache of the user. The test sets the
+// environment of the process and runs alone.
+func TestInspectExperimentalGDBTools(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "version"),
+		[]byte("Tarantool 3.9.0-0-g8b9a0f59a95b\n"), 0o644))
+
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
+		t.Setenv(name, "http://127.0.0.1:9")
+	}
+
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+
+	got := sdktest.Run(t, New, "coredump", "inspect", "--"+experimentalFlag, dir)
+	require.ErrorIs(t, got.Err, exec.ErrNotFound)
+
+	prefix := "gdb extensions of tarantool-gdb-tools " + coredump.GDBToolsCommit() +
+		", which tt embeds: "
+	messages := make([]string, 0, len(got.Records))
+
+	for _, record := range got.Records {
+		messages = append(messages, record.Message)
+	}
+
+	assert.True(t, slices.ContainsFunc(messages, func(message string) bool {
+		return strings.HasPrefix(message, prefix)
+	}), "no %q in %q", prefix, messages)
 }
 
 func TestPackTarantoolError(t *testing.T) {

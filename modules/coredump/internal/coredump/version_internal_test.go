@@ -121,3 +121,85 @@ func TestReadVersion(t *testing.T) {
 	_, err = readVersion(filepath.Join(t.TempDir(), "version"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
+
+// TestParseRelease checks that a release is read by its numbers, compared
+// by them, 3.10.0 after 3.9.0, and that what is not x.y.z is not read.
+func TestParseRelease(t *testing.T) {
+	t.Parallel()
+
+	got, ok := parseRelease("3.10.2")
+	require.True(t, ok)
+	assert.Equal(t, release{3, 10, 2}, got)
+
+	older, ok := parseRelease("3.9.0")
+	require.True(t, ok)
+	assert.Positive(t, got.compare(older))
+	assert.Negative(t, older.compare(got))
+	assert.Zero(t, got.compare(got))
+	assert.Equal(t, release{3, 10, 0}, got.minor())
+
+	for _, text := range []string{
+		"", "3.9", "3.9.0.1", "3.9.0-rc1", "v3.9.0", " 3.9.0", "3.9.x",
+		"3.9.99999999999999999999",
+	} {
+		_, ok := parseRelease(text)
+		assert.False(t, ok, text)
+	}
+}
+
+// mustMinors returns checked by the minors of its ends.
+func mustMinors(t *testing.T, checked versionRange) minorRange {
+	t.Helper()
+
+	minors, ok := checked.minors()
+	require.True(t, ok, checked)
+
+	return minors
+}
+
+// TestRangeExcludes checks that a release is out of a range of versions by
+// its minor alone, as the manifest of tarantool-gdb-tools means the range:
+// every patch of every minor from the one of the first end to the one of
+// the last, those included, is in it, 3.9.1 in 3.0.2..3.9.0 and 3.3.0 in
+// 3.3.5..3.9.0. What is no release, of the range or the one checked,
+// excludes nothing: a range an end of which is none has no minors.
+func TestRangeExcludes(t *testing.T) {
+	t.Parallel()
+
+	checked := mustMinors(t, versionRange{Min: "3.3.5", Max: "3.9.0"})
+
+	for version, want := range map[string]bool{
+		"3.2.9": true, "3.3.0": false, "3.3.4": false, "3.3.5": false, "3.6.0": false,
+		"3.9.0": false, "3.9.1": false, "3.9.12": false, "3.10.0": true, "2.11.8": true,
+		"4.3.0": true, "": false, "3.9": false,
+	} {
+		assert.Equal(t, want, checked.excludes(version), version)
+	}
+
+	wide := mustMinors(t, versionRange{Min: "3.0.2", Max: "3.9.0"})
+	assert.False(t, wide.excludes("3.9.1"))
+	assert.False(t, wide.excludes("3.0.0"))
+	assert.True(t, wide.excludes("2.11.8"))
+
+	for _, bad := range []versionRange{
+		{Min: "3.3.5", Max: ""}, {Min: "", Max: "3.9.0"}, {Min: "", Max: ""},
+		{Min: "3.3", Max: "3.9.0"}, {Min: "3.3.5", Max: "3.9.0-rc1"},
+	} {
+		_, ok := bad.minors()
+		assert.False(t, ok, bad)
+	}
+}
+
+// TestMinorRangeString checks that a range is named by its minors, one
+// alone when both ends are of it.
+func TestMinorRangeString(t *testing.T) {
+	t.Parallel()
+
+	for checked, want := range map[versionRange]string{
+		{Min: "3.3.5", Max: "3.9.0"}:  "3.3 to 3.9",
+		{Min: "3.9.0", Max: "3.9.2"}:  "3.9",
+		{Min: "3.10.1", Max: "4.0.0"}: "3.10 to 4.0",
+	} {
+		assert.Equal(t, want, mustMinors(t, checked).String(), checked)
+	}
+}

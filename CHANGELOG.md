@@ -802,6 +802,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   archive: the `lj-*` commands of LuaJIT and the pretty-printers of
   Tarantool, which look its types up, will not work, and plain backtraces
   will. They failed with no word of why.
+- `tt coredump inspect --experimental` loads the universal gdb extensions
+  of tarantool-gdb-tools (`github.com/buyemune-sys/tarantool-gdb-tools`,
+  BSD 2-Clause), which are experimental and which tt embeds at the commit
+  the help of the flag names, instead of those of the Tarantool of the
+  core: `luajit_gdb.py` and `tarantool_gdb.py`, one version of the
+  extensions of LuaJIT and of Tarantool for the versions their manifest
+  names, with the 15 `lj-*` commands of `luajit_dbg.py` and `lj-gctop`;
+  `luajit_backtrace_gdb.py`, whose `lj-bt` prints the C and the Lua frames
+  in the order of the calls and makes a plain `bt` do so, loaded after
+  `luajit_gdb.py`, whose helpers it takes; and `gcore_pages_gdb.py`, whose
+  `gcore-pages` is a `gcore` that keeps the stacks of the threads with
+  glibc 2.42 and later and gdb before 18.1. They load in the order of the
+  manifest of the repository, `extensions.json`, which tt embeds with
+  them. GitHub is not asked then, and `-s/--sourcedir` only maps the paths
+  of the build to the sources. The manifest says the versions of Tarantool
+  and the architectures each extension was checked on, the last patch of
+  every minor of a range: inspect warns, once for an extension and loading
+  it all the same, of a core of a minor out of its range, by `/version` of
+  the archive, or of an architecture it was not checked on, by the ELF
+  header of the core, as in `<file> is checked on Tarantool <first minor>
+  to <last minor>, the core is of <version>: it may not work`. Without the
+  flag inspect loads what it did.
 
 ### Changed
 
