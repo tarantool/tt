@@ -17,6 +17,12 @@ import (
 // the owner CORE (see include/uapi/linux/elf.h of Linux). gcore of gdb
 // writes them too.
 const (
+	// ntPrstatus is the status of a thread, struct elf_prstatus: one note
+	// a thread, with its pid and its registers.
+	ntPrstatus = 1
+	// ntPrpsinfo is the information of the process, struct elf_prpsinfo,
+	// with its pid.
+	ntPrpsinfo = 3
 	// ntAuxv is the auxiliary vector of the process.
 	ntAuxv = 6
 	// ntFile lists the files mapped into the memory of the process.
@@ -193,6 +199,11 @@ type coreDump struct {
 	fileNoteErr error
 	// auxv is the auxiliary vector, by the type of an entry.
 	auxv map[uint64]uint64
+	// threads are the descriptors of the NT_PRSTATUS notes, one a thread,
+	// in their order.
+	threads [][]byte
+	// process is the descriptor of the NT_PRPSINFO note, nil without one.
+	process []byte
 }
 
 // openCore opens the core dump at path. A file that is no ELF core dump is
@@ -208,7 +219,7 @@ func openCore(path string) (*coreDump, error) {
 
 	core := &coreDump{
 		file: file, loads: nil, files: nil, mappings: nil, fileNoteErr: nil,
-		auxv: map[uint64]uint64{},
+		auxv: map[uint64]uint64{}, threads: nil, process: nil,
 	}
 
 	err = core.load()
@@ -277,8 +288,8 @@ func compareAddresses(a, b uint64) int {
 }
 
 // loadNotes reads the notes of the files mapped and of the auxiliary vector
-// among notes. A malformed NT_FILE note is left out, and fileNoteErr says
-// why.
+// among notes, and keeps those of the threads and of the process. A
+// malformed NT_FILE note is left out, and fileNoteErr says why.
 func (c *coreDump) loadNotes(notes []elfNote) {
 	for _, note := range notes {
 		if note.name != coreOwner {
@@ -286,6 +297,10 @@ func (c *coreDump) loadNotes(notes []elfNote) {
 		}
 
 		switch note.typ {
+		case ntPrstatus:
+			c.threads = append(c.threads, note.desc)
+		case ntPrpsinfo:
+			c.process = note.desc
 		case ntFile:
 			mappings, err := c.parseFileNote(note.desc)
 			if err != nil {

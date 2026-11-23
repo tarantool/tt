@@ -9,6 +9,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -121,12 +122,16 @@ func packArgs(opts PackOptions) ([]string, error) {
 	return args, nil
 }
 
-// Pack packs a core dump into a tar.gz archive.
-func Pack(streams output.Streams, opts PackOptions) error {
+// Pack packs a core dump into a tar.gz archive. It logs to log what of the
+// core will not work in gdb, while another core may still be taken.
+func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) error {
 	artefacts, err := probeArtefacts(streams.Err, opts, defaultDebugDirs)
 	if err != nil {
 		return err
 	}
+
+	warnPackDebugInfo(log, artefacts, defaultDebugDirs)
+	warnThreadStacks(log, artefacts.stacks)
 
 	opts.Executable = artefacts.executable
 

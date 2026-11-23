@@ -2,6 +2,7 @@ package coredump
 
 import (
 	"context"
+	"debug/elf"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -62,7 +63,7 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 	// The debugger is probed first: a host without it fails here, before
 	// the archive is unpacked and the extensions are chosen, which may wait
 	// on GitHub.
-	_, err = probeDebugger(ctx, res.log, backend, opts.GDBTools)
+	probe, err := probeDebugger(ctx, res.log, backend, opts.GDBTools)
 	if err != nil {
 		return err
 	}
@@ -139,7 +140,14 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 		return err
 	}
 
-	warnDebugInfo(res.log, dir)
+	warnDebugInfo(res.log, dir, opts.Path)
+
+	stacks := readThreadStacks(filepath.Join(dir, "coredump"))
+	warnThreadStacks(res.log, stacks)
+
+	if backend.Name() == debuggerGDB {
+		warnThreadLocalLua(res.log, readThreadDBFacts(dir, probe.Version, stacks), opts.GDBTools)
+	}
 
 	return runDebugger(cmd, streams)
 }
@@ -181,19 +189,67 @@ func extensionNames(exts []extension) []string {
 }
 
 // warnDebugInfo warns, before gdb starts, when gdb will find no debugging
-// information for the tarantool of the artefacts in dir: the extensions
-// look the types of LuaJIT and Tarantool up and fail without them.
-func warnDebugInfo(log *slog.Logger, dir string) {
+// information for the tarantool of the artefacts in dir, unpacked from the
+// archive at path or the directory path itself: the extensions look the
+// types of LuaJIT and Tarantool up and fail without them. The hint says
+// where the information is (see debugInfoHint).
+func warnDebugInfo(log *slog.Logger, dir, path string) {
 	err := checkDebugInfo(dir)
 
 	switch {
 	case errors.Is(err, errNoDebugInfo):
-		log.Warn(fmt.Sprintf("the tarantool of the core has %s: the lj-* commands of LuaJIT "+
-			"and the pretty-printers of Tarantool will not work, plain backtraces will; a core "+
-			"packed where the debug file of its tarantool is installed has it", err))
+		warnWithHint(log, fmt.Sprintf("the tarantool of the core has %s: the lj-* commands of "+
+			"LuaJIT and the pretty-printers of Tarantool will not work, plain backtraces will",
+			err), debugInfoHint(dir, path))
 	case err != nil:
 		log.Debug("cannot tell whether the tarantool has debugging information: " + err.Error())
 	}
+}
+
+// debugInfoHint returns what warnDebugInfo hints at of the artefacts in dir,
+// of path. The tarantool of the static deb has the debugging information
+// of a static build of Community (see staticDebRelease): gdb.sh finds it
+// as the tarantool of the artefacts, or as the debug file of its build ID
+// under usr/lib/debug of the artefacts, the one the warning names, and
+// inspect is run again on them. symbol-file at the prompt of gdb would not
+// do: the extensions are loaded by then, and fail without the types. An
+// archive is unpacked first, where tt coredump unpack puts it, by its name
+// without the extensions; inspect unpacks it into a directory it removes.
+// Of another tarantool the debug file a host the core is packed on may
+// have is all there is.
+func debugInfoHint(dir, path string) string {
+	generic := "pack the core again where the debug file of its tarantool is installed, " +
+		"under " + hostDebugDir
+
+	line, err := readVersion(filepath.Join(dir, "version"))
+	if err != nil {
+		return generic
+	}
+
+	file, err := elf.Open(filepath.Join(dir, "tarantool"))
+	if err != nil {
+		return generic
+	}
+
+	defer func() { _ = file.Close() }()
+
+	build := buildID(file)
+
+	release, ok := staticDebRelease(line, file.Type, build)
+	if !ok {
+		return generic
+	}
+
+	target, unpack := path, ""
+
+	if dir != path {
+		target = strings.Split(filepath.Base(path), ".")[0]
+		unpack = "unpack the archive with `tt coredump unpack " + path + "`, "
+	}
+
+	return staticDebHint(release, build, fmt.Sprintf("%scopy it over %s, or to the debug file "+
+		"named above under %s, and run `tt coredump inspect %s`", unpack,
+		filepath.Join(target, "tarantool"), target, target))
 }
 
 // selectExtensions returns the gdb extensions for the core of the

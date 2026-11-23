@@ -43,7 +43,11 @@ skip_coredump_cond = os.getenv("TT_ENABLE_COREDUMP_TESTS") is None
 skip_coredump_reason = "Should be launched explicitly to control coredump it produces"
 
 
-def generate_coredump(tmp_path_factory, tarantool_bin="tarantool") -> Path:
+def generate_coredump(
+    tmp_path_factory,
+    tarantool_bin="tarantool",
+    lua="require('ffi').cast('char *', 0)[0] = 42",
+) -> Path:
     coredump_dir = tmp_path_factory.mktemp("coredump")
     with open("/proc/sys/kernel/core_pattern", "r") as f:
         core_pattern = f.read().strip()
@@ -86,7 +90,7 @@ def generate_coredump(tmp_path_factory, tarantool_bin="tarantool") -> Path:
     if rlim_core_soft != resource.RLIM_INFINITY:
         resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, rlim_core_hard))
     # Crash tarantool.
-    cmd = [tarantool_bin, "-e", "require('ffi').cast('char *', 0)[0] = 42"]
+    cmd = [tarantool_bin, "-e", lua]
     rc, output = run_command_and_get_output(cmd, cwd=coredump_dir)
     # Restore ulimit -c.
     resource.setrlimit(resource.RLIMIT_CORE, (rlim_core_soft, rlim_core_hard))
@@ -154,6 +158,22 @@ def gcore_of_crash(tmp_path_factory, name, lua, commands=()) -> Path:
 @pytest.fixture(scope="session")
 def gcore(tmp_path_factory) -> Path:
     return gcore_of_crash(tmp_path_factory, "gcore", CRASH)
+
+
+# The Lua that crashes a tarantool once a request of the file system has
+# started a thread of the pool of coio: the core has a thread besides the
+# main one, on a stack pthread_create made. tarantool -e alone has none.
+CRASH_WITH_THREAD = "require('fio').stat('/') " + CRASH
+
+
+@pytest.fixture(scope="session")
+def gcore_with_thread(tmp_path_factory) -> Path:
+    return gcore_of_crash(tmp_path_factory, "gcore_with_thread", CRASH_WITH_THREAD)
+
+
+@pytest.fixture(scope="session")
+def coredump_with_thread(tmp_path_factory) -> Path:
+    return generate_coredump(tmp_path_factory, lua=CRASH_WITH_THREAD)
 
 
 # The name of the copy of libm a tarantool loads and deletes before it
@@ -437,6 +457,7 @@ def test_coredump_pack(coredump, coredump_pack):
     rc, output = coredump_pack
     assert rc == 0, output
     assert re.search(r"Core was successfully packed.", output)
+    assert "nothing but zeros" not in output, output
     archives = list(coredump.parent.glob("*.tar.gz"))
     assert len(archives) == 1
     check_archive_members(archives[0])
@@ -1015,12 +1036,13 @@ def offline_env(tmp_path):
     return env
 
 
-def inspect(tt_cmd, tmp_path, target, commands, *args):
+def inspect(tt_cmd, tmp_path, target, commands, *args, tt_args=()):
     """The exit code and the output, stdout and stderr, of tt coredump
     inspect of target given the gdb commands on its standard input, with no
-    GitHub (offline_env)."""
+    GitHub (offline_env). tt_args are the global options of tt, which go
+    before the command."""
     process = subprocess.run(
-        [tt_cmd, "coredump", "inspect", target, *args],
+        [tt_cmd, *tt_args, "coredump", "inspect", target, *args],
         cwd=tmp_path,
         input="".join(command + "\n" for command in [*commands, "q"]),
         capture_output=True,
@@ -1052,14 +1074,68 @@ NO_DEBUG_INFO_WARNING = (
     r"LuaJIT and the pretty-printers of Tarantool will not work, plain backtraces will"
 )
 
+# The hint after the warning of a tarantool gdb finds no debugging
+# information for: the tarantool of the static deb of the release of the
+# core, of a static build of Tarantool Community, or the debug file of the
+# host the core is packed on.
+NO_DEBUG_INFO_HINT = (
+    r"hint: (?:the tarantool of the static deb of Tarantool \d+\.\d+\.\d+, which `tt binary "
+    r"install tarantool \d+\.\d+\.\d+` installs, has the debugging information: if its build "
+    r"ID is that of the core, [0-9a-f]+, |pack the core again where the debug file of its "
+    r"tarantool is installed, under /usr/lib/debug)"
+)
+
+
+def elf_type(path):
+    """The type of the ELF file at path, e_type: 2 of an executable linked
+    at its addresses, ET_EXEC, as the static builds of Tarantool are, 3 of a
+    shared object or a PIE, ET_DYN; None of a file that is no ELF one."""
+    with open(path, "rb") as f:
+        header = f.read(18)
+    if len(header) < 18 or header[:4] != b"\x7fELF":
+        return None
+    return int.from_bytes(header[16:18], "little" if header[5] == 1 else "big")
+
+
+def static_deb_release(tarantool):
+    """The release of the static deb tt names in the hint of a core of
+    tarantool without debugging information, or None where it names none: of
+    what may be a static build of Tarantool Community, an executable of type
+    ET_EXEC of a release of series 3 at its tag, with nothing after the
+    commit."""
+    shown = subprocess.run([tarantool, "--version"], capture_output=True, text=True).stdout
+    line = shown.splitlines()[0] if shown else ""
+    match = re.fullmatch(r"Tarantool (3\.\d+\.\d+)-0-g[0-9a-f]{7,40}", line)
+    return match.group(1) if match and elf_type(tarantool) == 2 else None
+
+
+def static_deb_hint(release, action):
+    """The pattern of the hint of the tarantool of the static deb of release,
+    with its action, what to do with it."""
+    return (
+        rf"hint: the tarantool of the static deb of Tarantool {re.escape(release)}, which `tt "
+        rf"binary install tarantool {re.escape(release)}` installs, has the debugging "
+        rf"information: if its build ID is that of the core, [0-9a-f]+, {re.escape(action)}"
+    )
+
+
+def inspect_action(artefacts):
+    """What the hint of inspect of the artefacts in the directory artefacts
+    says to do with the tarantool of the static deb."""
+    return (
+        f"copy it over {artefacts}/tarantool, or to the debug file named above under "
+        f"{artefacts}, and run `tt coredump inspect {artefacts}`"
+    )
+
 
 def check_extensions(output, debug_info):
     """Check that the gdb extensions answered EXTENSION_COMMANDS when the
     tarantool has debugging information, and that inspect warned of none
-    otherwise. A backtrace works either way."""
+    otherwise, with a hint. A backtrace works either way."""
     assert re.search(r"#0 ", output), output
     if not debug_info:
         assert re.search(NO_DEBUG_INFO_WARNING, output), output
+        assert re.search(NO_DEBUG_INFO_HINT, output), output
         return
 
     assert not re.search(NO_DEBUG_INFO_WARNING, output), output
@@ -1096,7 +1172,8 @@ def debug_file_member():
 
 def pack_stripped(tt_cmd, tmp_path, coredump, tarantool):
     """The archive of pack of coredump with tarantool stripped of its
-    debugging information by objcopy, in tmp_path/out."""
+    debugging information by objcopy, in tmp_path/out, and the output of
+    pack."""
     stripped = tmp_path / "bin" / "tarantool"
     stripped.parent.mkdir()
     subprocess.run(["objcopy", "--strip-debug", tarantool, stripped], check=True)
@@ -1109,7 +1186,22 @@ def pack_stripped(tt_cmd, tmp_path, coredump, tarantool):
 
     archives = list(out.glob("*.tar.gz"))
     assert len(archives) == 1
-    return archives[0]
+    return archives[0], output
+
+
+# The warning of pack of a tarantool with no debugging information, of its
+# own or of a debug file of its build ID on the host, and the hint of pack of
+# any tarantool but a static build of Community.
+PACK_NO_DEBUG_INFO_WARNING = (
+    r"the tarantool \S+ has no debugging information, and no debug file of its build ID "
+    r"[0-9a-f]+ is under /usr/lib/debug: the archive will have none, and the lj-\* commands of "
+    r"LuaJIT and the pretty-printers of Tarantool will not work on the core, plain backtraces "
+    r"will"
+)
+PACK_NO_DEBUG_INFO_HINT = (
+    "hint: install the debug file of the tarantool, of the debuginfo or dbgsym package of its "
+    "package, and pack the core again"
+)
 
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
@@ -1126,8 +1218,9 @@ def test_coredump_pack_debug_file(tt_cmd, tmp_path, coredump):
     if not os.path.isfile("/" + member):
         pytest.skip(f"the host has no debug file of the tarantool of PATH, /{member}")
 
-    archive = pack_stripped(tt_cmd, tmp_path, coredump, tarantool)
+    archive, packed = pack_stripped(tt_cmd, tmp_path, coredump, tarantool)
     assert member in check_archive_members(archive)
+    assert "has no debugging information" not in packed, packed
 
     rc, output = inspect(tt_cmd, tmp_path, archive, EXTENSION_COMMANDS)
     assert rc == 0, output
@@ -1139,22 +1232,62 @@ def test_coredump_inspect_debug_file(tt_cmd, tmp_path, coredump):
     """inspect of a core of a tarantool without debugging information points
     gdb to the debug file of its build ID in usr/lib/debug of the archive,
     where pack puts it, and warns before gdb starts when the archive has
-    none. The tarantool and its debug file are those of the tarantool of
-    PATH, split by objcopy, and the test puts the debug file into the
-    unpacked archive."""
-    tarantool, member = debug_file_member()
-    archive = pack_stripped(tt_cmd, tmp_path, coredump, tarantool)
+    none, with a hint. The tarantool and its debug file are those of the
+    tarantool of PATH, split by objcopy, and the test puts the debug file
+    into the unpacked archive.
 
-    # An archive without the debug file, packed where the host has none.
+    Of a static build of Community the hints of pack and inspect name the
+    tarantool of the static deb, which the tarantool of PATH is in CI, and
+    the test does what the hint of inspect says: it unpacks the archive and
+    copies the tarantool over the stripped one, then puts it back and copies
+    the debug file to the path the warning names."""
+    tarantool, member = debug_file_member()
+    archive, packed = pack_stripped(tt_cmd, tmp_path, coredump, tarantool)
+    release = static_deb_release(tarantool)
+    name = archive.name.split(".")[0]
+
+    # An archive without the debug file, packed where the host has none:
+    # pack warns of it, while the debug file may still be installed.
     if member not in check_archive_members(archive):
+        assert re.search(PACK_NO_DEBUG_INFO_WARNING, packed), packed
+        if release is None:
+            assert PACK_NO_DEBUG_INFO_HINT in packed, packed
+        else:
+            action = "pack the core with it, `tt coredump pack -e <its path>`"
+            assert re.search(static_deb_hint(release, action), packed), packed
         rc, output = inspect(tt_cmd, tmp_path, archive, EXTENSION_COMMANDS)
         assert rc == 0, output
         check_extensions(output, False)
+        if release is not None:
+            action = (
+                f"unpack the archive with `tt coredump unpack {archive}`, copy it over "
+                f"{name}/tarantool, or to the debug file named above under {name}, and run "
+                f"`tt coredump inspect {name}`"
+            )
+            assert re.search(static_deb_hint(release, action), output), output
 
     cmd = [tt_cmd, "coredump", "unpack", archive]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0, output
-    unpacked = tmp_path / archive.name.split(".")[0]
+    unpacked = tmp_path / name
+    stripped = unpacked / "tarantool"
+
+    if release is not None:
+        rc, output = inspect(tt_cmd, tmp_path, unpacked, EXTENSION_COMMANDS)
+        assert rc == 0, output
+        check_extensions(output, False)
+        assert re.search(static_deb_hint(release, inspect_action(unpacked)), output), output
+
+        # The tarantool with the debugging information over the stripped
+        # one, as the hint says.
+        saved = tmp_path / "stripped"
+        shutil.copy(stripped, saved)
+        shutil.copy(tarantool, stripped)
+        rc, output = inspect(tt_cmd, tmp_path, unpacked, EXTENSION_COMMANDS)
+        assert rc == 0, output
+        check_extensions(output, True)
+        shutil.copy(saved, stripped)
+
     debug_file = unpacked / member
     debug_file.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["objcopy", "--only-keep-debug", tarantool, debug_file], check=True)
@@ -1190,6 +1323,154 @@ def test_coredump_inspect_thread_db(tt_cmd, tmp_path, coredump_unpacked):
     loaded = THREAD_DB_LOADED.search(output)
     assert loaded, output
     assert Path(loaded.group(1)).resolve() in [path.resolve() for path in packed], output
+    # The libthread_db of the archive is of the glibc of this host, and the
+    # kernel writes every stack: gdb reads tarantool_L of a core of 3.7
+    # through it, and inspect warns of nothing. A warning of tarantool_L,
+    # that gdb will or may not read it, names it, as nothing gdb prints for
+    # info threads does.
+    assert "tarantool_L" not in output, output
+
+
+# The gdb script that prints the pid of the process of a core, and for each
+# thread its LWP and whether the 1 KiB above its stack pointer is zeros:
+# True, False, or None when gdb cannot read it.
+STACKS_SCRIPT = """\
+import gdb
+
+inferior = gdb.selected_inferior()
+gdb.write("tt-test-pid %d\\n" % inferior.pid)
+for thread in inferior.threads():
+    thread.switch()
+    sp = int(gdb.parse_and_eval("$sp"))
+    try:
+        zeros = not any(bytes(inferior.read_memory(sp, 1024)))
+    except gdb.MemoryError:
+        zeros = None
+    gdb.write("tt-test-thread %d %s\\n" % (thread.ptid[1], zeros))
+"""
+
+
+def gdb_thread_stacks(tmp_path, core):
+    """The number of the threads of core but the main one, as gdb reads the
+    core with the tarantool of PATH, and of those of them that have nothing
+    but zeros in the 1 KiB above their stack pointers, as tt checks them."""
+    script = tmp_path / "stacks.py"
+    script.write_text(STACKS_SCRIPT)
+    process = subprocess.run(
+        ["gdb", "-batch", "-nx", "-x", script, shutil.which("tarantool"), core],
+        capture_output=True,
+        text=True,
+        env=gdb_env(),
+    )
+    pid = re.search(r"^tt-test-pid (\d+)$", process.stdout, re.MULTILINE)
+    assert pid, process.stdout + process.stderr
+    threads = re.findall(r"^tt-test-thread (\d+) (\w+)$", process.stdout, re.MULTILINE)
+    others = [zeros for lwp, zeros in threads if lwp != pid.group(1)]
+    return len(others), others.count("True")
+
+
+def gcore_zeroing_host():
+    """What tells whether gcore of the gdb of PATH writes the stacks of the
+    threads but the main one as zeros on this host, as a line to print: a gdb
+    older than 18.1 does on glibc 2.42 or later, which guards them with
+    MADV_GUARD_INSTALL, and Linux 6.13 or later, which has it, unless its
+    distribution backports the fix, c1da013915 of gdb."""
+    try:
+        glibc = os.confstr("CS_GNU_LIBC_VERSION") or "no glibc"
+    except (ValueError, OSError):
+        glibc = "no glibc"
+    shown = subprocess.run(
+        ["gdb", "--version"],
+        capture_output=True,
+        text=True,
+        env=gdb_env(),
+    ).stdout
+    gdb = shown.splitlines()[0] if shown else "no gdb version"
+    return f"{gdb}, {glibc}, Linux {platform.release()}"
+
+
+def check_stacks_warning(output, others, zeroed):
+    """Check that tt warned of the zeroed of the others threads of a core
+    besides the main one whose stacks are zeros, and hinted at what to do, and
+    of none without them."""
+    if not zeroed:
+        assert "nothing but zeros" not in output, output
+        return
+    threads = "threads of the core besides the main one"
+    if zeroed == others == 1:
+        subject = "the thread of the core besides the main one has"
+    elif zeroed == others:
+        subject = f"all {others} {threads} have"
+    else:
+        subject = f"{zeroed} of the {others} {threads} {'has' if zeroed == 1 else 'have'}"
+    backtraces = (
+        "the backtrace of that thread will be empty"
+        if zeroed == 1
+        else "the backtraces of those threads will be empty"
+    )
+    assert (
+        f"{subject} nothing but zeros in the 1024 bytes above the stack pointer: {backtraces}, "
+        "and libthread_db may fail on the core" in output
+    ), output
+    assert (
+        "hint: gcore of gdb older than 18.1 writes such stacks on glibc 2.42 or later with Linux "
+        "6.13 or later; take the core the kernel writes, or write it with gcore-pages of "
+        "tarantool-gdb-tools" in output
+    ), output
+
+
+def pack_and_inspect(tt_cmd, tmp_path, core):
+    """The outputs of tt coredump pack of core with the tarantool of PATH and
+    of tt coredump inspect of the archive, each checked to succeed, both with
+    -V, which shows what they say at the debug level."""
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "-V", "coredump", "pack", "-e", shutil.which("tarantool"), "-d", out, core]
+    rc, packed = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, packed
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    rc, inspected = inspect(tt_cmd, tmp_path, archives[0].as_posix(), ["bt 1"], tt_args=["-V"])
+    assert rc == 0, inspected
+    return packed, inspected
+
+
+def test_coredump_zeroed_stacks(tt_cmd, tmp_path, gcore_with_thread):
+    """pack and inspect of a gcore of a tarantool with a thread besides the
+    main one warn of the threads whose stacks the core has as zeros, the ones
+    gdb finds zeros at their stack pointers in the core, and of no other.
+    gcore of a gdb older than 18.1 writes them so on glibc 2.42 or later with
+    Linux 6.13 or later, which the test prints along with what it found: a
+    distribution may backport the fix, and the check is that tt and gdb
+    agree."""
+    others, zeroed = gdb_thread_stacks(tmp_path, gcore_with_thread)
+    assert others > 0, "the tarantool started no thread besides the main one"
+    print(f"gcore of {gcore_zeroing_host()}: {zeroed} of {others} stacks are zeros")
+
+    packed, inspected = pack_and_inspect(tt_cmd, tmp_path, gcore_with_thread)
+    check_stacks_warning(packed, others, zeroed)
+    check_stacks_warning(inspected, others, zeroed)
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_kernel_stacks(tt_cmd, tmp_path, coredump_with_thread):
+    """pack and inspect of the core the kernel writes of a tarantool with a
+    thread besides the main one read the stack of every thread and warn of
+    none: the kernel writes every stack, whatever guards it. What they read
+    is said at the debug level, which -V shows."""
+    others, zeroed = gdb_thread_stacks(tmp_path, coredump_with_thread)
+    assert others > 0, "the tarantool started no thread besides the main one"
+    assert zeroed == 0
+
+    packed, inspected = pack_and_inspect(tt_cmd, tmp_path, coredump_with_thread)
+    read = (
+        f"read the stacks of {others} of the {others} threads of the core besides the main one, "
+        "0 of them zeros"
+    )
+    for output in (packed, inspected):
+        assert read in output, output
+        assert "cannot tell whether the stacks" not in output, output
+        check_stacks_warning(output, others, 0)
 
 
 # The lines each extension of the fake sources starts with, which gdb prints
