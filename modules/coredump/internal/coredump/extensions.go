@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +21,8 @@ import (
 
 // The gdb extensions inspect loads, by the names of their files. The one of
 // LuaJIT is luajit_dbg.py since LuaJIT 5db8c217 "dbg: generalize
-// extension", in Tarantool 3.8 and later, and luajit-gdb.py before.
+// extension", in Tarantool 3.8.0 and later and, backported, in 3.6.4 and
+// 3.7.1, and luajit-gdb.py before: in 3.6.3, 3.7.0 and older.
 const (
 	luajitDbgName    = "luajit_dbg.py"
 	luajitGDBName    = "luajit-gdb.py"
@@ -76,12 +78,37 @@ var commitPattern = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 // submodule.
 var fullCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
-// extension is a gdb extension inspect loads.
+// extension is an extension of a debugger inspect loads, and the debuggers
+// it loads in: inspect hands a debugger only those that load in it (see
+// forDebugger).
 type extension struct {
 	// Name is the name of its file.
 	Name string
 	// Data is its content.
 	Data []byte
+	// Debuggers are the debuggers it loads in, by their names.
+	Debuggers []string
+	// After are the names of the extensions that are loaded before it.
+	After []string
+}
+
+// upstreamDebuggers are the debuggers the upstream extensions load in, by
+// the names of their files: what inspect knows of one it fetches from
+// GitHub or takes from the sources, which no manifest describes.
+// luajit_dbg.py has an adapter for gdb and one for lldb; the older
+// luajit-gdb.py and tarantool-gdb.py import gdb. None of them is loaded
+// after another: they come in the order resolve returns them, the one of
+// LuaJIT first.
+var upstreamDebuggers = map[string][]string{
+	luajitDbgName:    {debuggerGDB, debuggerLLDB},
+	luajitGDBName:    {debuggerGDB},
+	tarantoolGDBName: {debuggerGDB},
+}
+
+// upstreamExtension returns the upstream extension name of content data,
+// with the debuggers it loads in.
+func upstreamExtension(name string, data []byte) *extension {
+	return &extension{Name: name, Data: data, Debuggers: upstreamDebuggers[name], After: nil}
 }
 
 // resolver finds the gdb extensions that match the Tarantool of a core: of
@@ -207,7 +234,7 @@ func (r *resolver) fromSources(sourceDir, sub string, names ...string) *extensio
 		if err == nil {
 			r.log.Info(fmt.Sprintf("gdb extension %s: %s", name, path))
 
-			return &extension{Name: name, Data: data}
+			return upstreamExtension(name, data)
 		}
 
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -226,9 +253,22 @@ func (r *resolver) fromSources(sourceDir, sub string, names ...string) *extensio
 // what tt's copy is of and what may not match.
 func (r *resolver) embedded(name, version string, reason error, copyOf, match, what string,
 ) (*extension, error) {
-	data, err := extensions.ReadFile(extensionsDir + "/" + name)
+	entries, err := embeddedManifest()
 	if err != nil {
-		return nil, fmt.Errorf("failed to find embedded GDB-extension %s: %w", name, err)
+		return nil, err
+	}
+
+	index := slices.IndexFunc(entries, func(entry manifestEntry) bool {
+		return entry.File == name
+	})
+	if index < 0 {
+		return nil, fmt.Errorf("failed to find embedded GDB-extension %s in %s: %w", name,
+			manifestFile, fs.ErrNotExist)
+	}
+
+	ext, err := readEmbedded(entries[index])
+	if err != nil {
+		return nil, err
 	}
 
 	if version == "" {
@@ -239,7 +279,39 @@ func (r *resolver) embedded(name, version string, reason error, copyOf, match, w
 		"not match %s: %s may fail or show wrong data", name, version, reason, copyOf, match,
 		what))
 
-	return &extension{Name: name, Data: data}, nil
+	return ext, nil
+}
+
+// readEmbedded returns the copy of tt of the extension of entry, an entry
+// of the embedded manifest, with what the manifest says of it.
+func readEmbedded(entry manifestEntry) (*extension, error) {
+	data, err := extensions.ReadFile(extensionsDir + "/" + entry.File)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read embedded GDB-extension %s: %w", entry.File, err)
+	}
+
+	return &extension{
+		Name: entry.File, Data: data, Debuggers: entry.Debuggers, After: entry.After,
+	}, nil
+}
+
+// embeddedManifest returns the entries of the manifest of the extensions tt
+// embeds, in their load order: the files of the directory that are
+// extensions, which the manifest itself and the record of where they come
+// from, vendor.json, are not.
+func embeddedManifest() ([]manifestEntry, error) {
+	data, err := extensions.ReadFile(extensionsDir + "/" + manifestFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find the manifest of the embedded GDB-extensions: %w",
+			err)
+	}
+
+	entries, err := parseManifest(data)
+	if err != nil {
+		return nil, fmt.Errorf("embedded %s: %w", manifestFile, err)
+	}
+
+	return entries, nil
 }
 
 // tarantoolOf returns tools/tarantool-gdb.py of tarantool/tarantool at the
@@ -271,7 +343,7 @@ func (r *resolver) tarantoolOf(ctx context.Context, version tarantoolVersion,
 		r.log.Info(fmt.Sprintf("gdb extension %s: tools/%s of tarantool/tarantool %s",
 			tarantoolGDBName, tarantoolGDBName, ref))
 
-		return &extension{Name: tarantoolGDBName, Data: data}, nil
+		return upstreamExtension(tarantoolGDBName, data), nil
 	}
 
 	return nil, fmt.Errorf("%w tools/%s at %s", errNoFile, tarantoolGDBName,
@@ -318,7 +390,7 @@ func (r *resolver) luajitAt(ctx context.Context, version, commit string) (*exten
 	for _, name := range names {
 		data, ok := r.readCache(r.cachePath(commit, "luajit", commit, name))
 		if ok {
-			return &extension{Name: name, Data: data}, nil
+			return upstreamExtension(name, data), nil
 		}
 	}
 
@@ -334,7 +406,7 @@ func (r *resolver) luajitAt(ctx context.Context, version, commit string) (*exten
 
 		r.writeCache(r.cachePath(commit, "luajit", commit, name), data)
 
-		return &extension{Name: name, Data: data}, nil
+		return upstreamExtension(name, data), nil
 	}
 
 	return nil, fmt.Errorf("no src/%s or src/%s: %w", luajitDbgName, luajitGDBName, errNotFound)

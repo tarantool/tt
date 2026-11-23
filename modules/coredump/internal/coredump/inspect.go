@@ -7,9 +7,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/exec"
-	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/output"
@@ -20,18 +19,25 @@ import (
 // sourceDir when it is not empty. It logs to log where the gdb extensions
 // come from and what may not work.
 //
-// gdb runs through the gdb.sh tt embeds, never the one of the archive: an
-// archive packed by an older tt carries the wrapper of that tt. The wrapper
-// sources the gdb extensions tt selects explicitly once the core is loaded:
-// those that match the Tarantool of the core (see resolver.resolve).
+// gdb runs through the gdb.sh tt embeds (see gdbDebugger), which sources
+// the gdb extensions tt selects explicitly once the core is loaded: those
+// that match the Tarantool of the core (see resolver.resolve).
 func Inspect(ctx context.Context, streams output.Streams, log *slog.Logger,
 	archiveOrDir, sourceDir string,
 ) error {
 	return inspect(ctx, streams, newResolver(log), archiveOrDir, sourceDir)
 }
 
-// inspect is Inspect with the extensions found by res.
+// inspect is Inspect with the extensions found by res, in gdb.
 func inspect(ctx context.Context, streams output.Streams, res *resolver,
+	archiveOrDir, sourceDir string,
+) error {
+	return inspectWith(ctx, streams, res, gdbDebugger{}, archiveOrDir, sourceDir)
+}
+
+// inspectWith is inspect with the debugger backend: it is handed the
+// extensions that load in it, in their load order (see forDebugger).
+func inspectWith(ctx context.Context, streams output.Streams, res *resolver, backend debugger,
 	archiveOrDir, sourceDir string,
 ) error {
 	stat, err := os.Stat(archiveOrDir)
@@ -62,8 +68,8 @@ func inspect(ctx context.Context, streams output.Streams, res *resolver,
 		dir = filepath.Join(tmpDir, strings.Split(filepath.Base(archiveOrDir), ".")[0])
 	}
 
-	// The wrapper and the extensions tt loads live in a directory of their
-	// own: the one of the artefacts may be the user's.
+	// The files of the debugger and the extensions tt loads live in a
+	// directory of their own: the one of the artefacts may be the user's.
 	work, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
 		return fmt.Errorf("cannot create a temporary directory for inspecting: %w", err)
@@ -73,17 +79,17 @@ func inspect(ctx context.Context, streams output.Streams, res *resolver,
 		_ = os.RemoveAll(work)
 	}()
 
-	script := filepath.Join(work, filepath.Base(inspectEmbedPath))
-
-	err = copyEmbedded(coreScripts, inspectEmbedPath, script, scriptFileMode)
-	if err != nil {
-		return fmt.Errorf("failed to write the inspect script: %w", err)
-	}
-
 	exts, err := selectExtensions(ctx, res, dir, sourceDir)
 	if err != nil {
 		return err
 	}
+
+	exts, skipped, err := forDebugger(exts, backend.Name())
+	if err != nil {
+		return err
+	}
+
+	warnSkipped(res.log, backend.Name(), skipped)
 
 	paths := make([]string, 0, len(exts))
 
@@ -98,36 +104,14 @@ func inspect(ctx context.Context, streams output.Streams, res *resolver,
 		paths = append(paths, path)
 	}
 
-	args, err := inspectArgs(script, dir, sourceDir, paths)
+	cmd, err := backend.Command(ctx, work, dir, sourceDir, paths)
 	if err != nil {
 		return err
 	}
 
 	warnDebugInfo(res.log, dir)
 
-	// The wrapper is run by sh, so that a temporary directory mounted
-	// noexec runs it too; gdb reads the standard input of tt.
-	cmd := exec.CommandContext(ctx, "sh", args...)
-
-	cmd.Stdin = streams.In
-	cmd.Stdout = streams.Out
-	cmd.Stderr = streams.Err
-
-	// Ctrl-C at the prompt of gdb interrupts the command gdb runs: the
-	// terminal sends SIGINT to tt as well, which must outlive gdb rather
-	// than die of it and leave gdb reading a terminal the shell has taken
-	// back. A signal caught rather than ignored is reset for the child.
-	interrupts := make(chan os.Signal, 1)
-	signal.Notify(interrupts, os.Interrupt)
-
-	defer signal.Stop(interrupts)
-
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("inspect script execution failed: %w", err)
-	}
-
-	return nil
+	return runDebugger(cmd, streams)
 }
 
 // warnDebugInfo warns, before gdb starts, when gdb will find no debugging
@@ -165,51 +149,101 @@ func selectExtensions(ctx context.Context, res *resolver, dir, sourceDir string,
 }
 
 // embeddedExtensions returns the copies of the gdb extensions tt embeds,
-// in the order of their names.
+// those of their manifest, in their load order.
 func embeddedExtensions() ([]extension, error) {
-	entries, err := extensions.ReadDir(extensionsDir)
+	entries, err := embeddedManifest()
 	if err != nil {
-		return nil, fmt.Errorf("failed to find embedded GDB-extensions: %w", err)
+		return nil, err
 	}
 
 	exts := make([]extension, 0, len(entries))
 
 	for _, entry := range entries {
-		data, err := extensions.ReadFile(extensionsDir + "/" + entry.Name())
+		ext, err := readEmbedded(entry)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read embedded GDB-extension: %w", err)
+			return nil, err
 		}
 
-		exts = append(exts, extension{Name: entry.Name(), Data: data})
+		exts = append(exts, *ext)
 	}
 
 	return exts, nil
 }
 
-// inspectArgs returns the arguments of sh that run the gdb wrapper script
-// on the artefacts in dir, with the sources in sourceDir when it is not
-// empty and the extensions exts. The directories are made absolute: gdb
-// runs in the working directory of tt.
-func inspectArgs(script, dir, sourceDir string, exts []string) ([]string, error) {
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return nil, fmt.Errorf("cannot resolve %q: %w", dir, err)
-	}
+// skippedExtension is an extension forDebugger leaves out although it
+// loads in the debugger: it needs one its After names, which is not loaded
+// there.
+type skippedExtension struct {
+	// Name is the name of the extension.
+	Name string
+	// Missing is the name of the extension it needs that is not loaded.
+	Missing string
+}
 
-	args := []string{script, "-d", abs}
-
-	if sourceDir != "" {
-		abs, err = filepath.Abs(sourceDir)
-		if err != nil {
-			return nil, fmt.Errorf("cannot resolve %q: %w", sourceDir, err)
-		}
-
-		args = append(args, "-s", abs)
-	}
+// forDebugger returns the extensions of exts that load in the debugger
+// name, in their load order: each after those of them its After names, and
+// otherwise in the order of exts. An extension needs those its After
+// names, as lj-bt needs the extension of LuaJIT: one whose such is not
+// loaded, since it does not load in the debugger or is none of exts, is
+// left out too, and returned among the skipped.
+func forDebugger(exts []extension, name string) ([]extension, []skippedExtension, error) {
+	selected := make([]extension, 0, len(exts))
 
 	for _, ext := range exts {
-		args = append(args, "-x", ext)
+		if slices.Contains(ext.Debuggers, name) {
+			selected = append(selected, ext)
+		}
 	}
 
-	return args, nil
+	var skipped []skippedExtension
+
+	// Leaving one out may leave out those that need it: the extensions are
+	// looked through again until none is left out.
+	for {
+		loaded := make(map[string]bool, len(selected))
+
+		for _, ext := range selected {
+			loaded[ext.Name] = true
+		}
+
+		kept := make([]extension, 0, len(selected))
+
+		for _, ext := range selected {
+			missing := slices.IndexFunc(ext.After, func(after string) bool {
+				return !loaded[after]
+			})
+			if missing >= 0 {
+				skipped = append(skipped,
+					skippedExtension{Name: ext.Name, Missing: ext.After[missing]})
+
+				continue
+			}
+
+			kept = append(kept, ext)
+		}
+
+		if len(kept) == len(selected) {
+			break
+		}
+
+		selected = kept
+	}
+
+	ordered, err := loadOrder(selected,
+		func(ext extension) string { return ext.Name },
+		func(ext extension) []string { return ext.After })
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot order the extensions for %s: %w", name, err)
+	}
+
+	return ordered, skipped, nil
+}
+
+// warnSkipped warns of the extensions forDebugger left out for the
+// debugger name.
+func warnSkipped(log *slog.Logger, name string, skipped []skippedExtension) {
+	for _, skip := range skipped {
+		log.Warn(fmt.Sprintf("the extension %s is not loaded in %s: it needs %s, which is not "+
+			"loaded there", skip.Name, name, skip.Missing))
+	}
 }

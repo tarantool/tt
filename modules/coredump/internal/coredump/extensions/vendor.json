@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "file": "luajit_dbg.py",
+      "repo": "tarantool/luajit",
+      "path": "src/luajit_dbg.py",
+      "ref": "8af934d93cf26fb1e9b08b28a8b51833d55fc8e8",
+      "commit": "8af934d93cf26fb1e9b08b28a8b51833d55fc8e8",
+      "sha256": "b907358951b273c9180778a29f8f151708f2c2ca07d6e110102aa6f3df881876",
+      "note": "third_party/luajit of tarantool/tarantool 3.9.0"
+    },
+    {
+      "file": "tarantool-gdb.py",
+      "repo": "tarantool/tarantool",
+      "path": "tools/tarantool-gdb.py",
+      "ref": "3.9.0",
+      "commit": "8b9a0f59a95bb6c4a491e716966d9df9d5a4f6bc",
+      "sha256": "8d97a4920d4777e72723bdb51ce7790642e98394d00dc16428e5aefdcb3d1656"
+    }
+  ]
+}

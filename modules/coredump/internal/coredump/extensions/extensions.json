@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "extensions": [
+    {
+      "file": "luajit_dbg.py",
+      "debuggers": ["gdb", "lldb"],
+      "after": [],
+      "tarantool": {"min": "3.9.0", "max": "3.9.0"},
+      "arch": ["x86_64", "aarch64"],
+      "commands": [
+        "lj-arch",
+        "lj-bc",
+        "lj-ctype",
+        "lj-func",
+        "lj-gc",
+        "lj-gco",
+        "lj-ir",
+        "lj-jslots",
+        "lj-proto",
+        "lj-stack",
+        "lj-state",
+        "lj-str",
+        "lj-tab",
+        "lj-trace",
+        "lj-tv"
+      ]
+    },
+    {
+      "file": "tarantool-gdb.py",
+      "debuggers": ["gdb"],
+      "after": [],
+      "tarantool": {"min": "3.9.0", "max": "3.9.0"},
+      "arch": ["x86_64", "aarch64"],
+      "commands": [
+        "tt-mp",
+        "tt-tuple",
+        "tt-list",
+        "tt-list-walk",
+        "info tt-fibers",
+        "tt-fiber"
+      ],
+      "parameters": ["print tt-list-entry"]
+    }
+  ]
+}
