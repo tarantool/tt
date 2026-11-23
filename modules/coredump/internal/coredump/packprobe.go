@@ -23,6 +23,10 @@ const tarantoolSignature = "tarantool_version"
 // looks into by default.
 const hostDebugDir = "/usr/lib/debug"
 
+// defaultDebugDirs are the debug directories of the host pack looks the
+// debug file of the tarantool up in, the first first.
+var defaultDebugDirs = []string{hostDebugDir}
+
 // threadDBName is the name of libthread_db, the library gdb loads to read
 // the threads of a process.
 const threadDBName = "libthread_db.so.1"
@@ -87,9 +91,11 @@ var (
 type packArtefacts struct {
 	// executable is the tarantool that dumped the core.
 	executable string
-	// files are the files of the host to pack under their paths, in the
-	// order they are packed: the separate debugging information of the
-	// tarantool, the shared libraries of the process and libthread_db.
+	// files are the files of the host to pack, in the order they are
+	// packed, as the -f of the pack script takes them: the separate
+	// debugging information of the tarantool, NAME=PATH with NAME its
+	// member under usr/lib/debug, then the shared libraries of the process
+	// and libthread_db, by their paths, which are their members.
 	files []string
 }
 
@@ -110,7 +116,9 @@ func (a packArtefacts) scriptArgs() []string {
 // executable of Tarantool, and that it is the one that dumped the core.
 // The tarantool is the one of opts, or the tarantool of PATH. The notices
 // of what is not found go to notices.
-func probeArtefacts(notices io.Writer, opts PackOptions) (packArtefacts, error) {
+func probeArtefacts(notices io.Writer, opts PackOptions, debugDirs []string) (
+	packArtefacts, error,
+) {
 	none := packArtefacts{executable: "", files: nil}
 
 	executable, err := findTarantool(opts.Executable)
@@ -154,9 +162,13 @@ func probeArtefacts(notices io.Writer, opts PackOptions) (packArtefacts, error) 
 
 	var files []string
 
-	debugFile := findDebugFile(hostDebugDir, buildID(binary))
+	// The debug file goes to usr/lib/debug of the archive, where gdb.sh
+	// points gdb to, whatever debug directory of the host has it.
+	id := buildID(binary)
+
+	debugFile := findDebugFile(debugDirs, id)
 	if debugFile != "" {
-		files = append(files, debugFile)
+		files = append(files, debugFilePath(debugFileDir, id)+"="+debugFile)
 	}
 
 	libs := sharedLibraries(notices, core, loadedObjects(notices, core, binary), executable)
@@ -528,19 +540,21 @@ func systemLibraryDirs(machine elf.Machine) []string {
 }
 
 // findDebugFile returns the separate debugging information of the build ID
-// id under the debug directory dir, .build-id/<xx>/<rest>.debug, or ""
-// when there is none.
-func findDebugFile(dir, id string) string {
-	if len(id) < 3 { //nolint:mnd // The directory is named by two digits, the file by the rest.
+// build, .build-id/<xx>/<rest>.debug, under the first of the debug
+// directories dirs that has it, or "" when none has.
+func findDebugFile(dirs []string, build string) string {
+	if len(build) < 3 { //nolint:mnd // The directory is named by two digits, the file by the rest.
 		return ""
 	}
 
-	path := debugFilePath(dir, id)
-	if !isRegularFile(path) {
-		return ""
+	for _, dir := range dirs {
+		path := debugFilePath(dir, build)
+		if isRegularFile(path) {
+			return path
+		}
 	}
 
-	return path
+	return ""
 }
 
 // isRegularFile reports whether path is a regular file, or a symbolic link

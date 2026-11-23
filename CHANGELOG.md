@@ -849,19 +849,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   policy of the instance says, so an instance is stopped with
   `tt instance stop`.
 - `tt coredump pack` needs neither gdb nor `file`: a host with only lldb,
-  or with no debugger, packs a core, and the archive is the one gdb made,
-  member for member. The pack script refused a host without gdb, which it
-  asked for the shared libraries of the core, for libthread_db and for
-  the debug directories. tt reads the core itself: the link map of the
-  dynamic loader in the memory of the core, which gdb's `info shared`
-  lists, gives the libraries under the names gdb looks them up by in the
-  archive, `/lib64/ld-linux-x86-64.so.2` rather than the real path the
-  kernel records; the ELF shared objects of the `NT_FILE` note of the core
-  that the link map does not have follow, by their paths, but for files
-  deleted since they were mapped, devices and memfds. libthread_db is the
-  one gdb loads by its default search path: next to the libc or
-  libpthread of the core that defines `pthread_create`, else in the
-  library directories of the system. The debug file of the tarantool is
+  or with no debugger, packs a core. The pack script refused a host
+  without gdb, which it asked for the shared libraries of the core, for
+  libthread_db and for the debug directories. tt reads the core itself,
+  and the archive keeps the layout of the one gdb made and the names gdb
+  looks its files up by: the version, the core, the tarantool, `gdb.sh`
+  and `ext/` at its root, the shared libraries in the order and under the
+  names of the link map of the dynamic loader in the memory of the core,
+  which gdb's `info shared` lists, `/lib64/ld-linux-x86-64.so.2` rather
+  than the real path the kernel records, and libthread_db and the debug
+  file of the tarantool under their paths. What it packs may differ from
+  what gdb gave. The ELF shared objects of the `NT_FILE` note of the core
+  that the link map does not have, those of another namespace of
+  dlmopen(3), or all of them when the link map cannot be read, follow by
+  their paths, but for files deleted since they were mapped, devices and
+  memfds. libthread_db is the one gdb loads by its default search path,
+  next to the libc or libpthread of the core that defines
+  `pthread_create`, else in the library directories of the system, and
+  it is packed from those whenever the core has no thread library to
+  find it next to, as a core of a static tarantool has none, whether gdb
+  would load it for the core or not. The debug file of the tarantool is
   looked for under `/usr/lib/debug` alone: a debug directory a gdbinit
   sets no longer counts.
 - Breaking: the version descriptor `tt package build` generates into the
@@ -1473,6 +1480,36 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   file at its path is not the one the process loaded", as after a link to
   the library is re-pointed to a new version, which was packed in its
   place.
+- `tt coredump pack -p PID` works as the `kernel.core_pattern` pipe its
+  help describes, `kernel.core_pattern = |/usr/bin/tt coredump pack -d
+  /var/core -p %p -t %t`. tt fed the pack script to bash on its standard
+  input, and the script, which takes its standard input for the core of
+  the process while `/proc/PID` has it, read the rest of its own text for
+  the core: the core was never read, `<comm>-core.<PID>.<TIME>` held a
+  piece of the script, no archive was made, and pack said "Core was
+  successfully packed.". A COREDUMP given with `-p` was lost the same
+  way, and pack required one, which a pipe does not give. With `--pid`
+  COREDUMP may be omitted now, or be `-`, and tt reads the core from its
+  standard input: while `/proc/PID` has the process, the core is stored
+  as `<dir>/<comm>-core.<PID>.<TIME>`, its zeros left holes, as Linux
+  leaves them in a core it writes to a file, with the time of `--time`
+  or now, and packed with `/proc/PID/exe`, unless `-e` names a tarantool,
+  into the archive named by the PID. The core of a process whose comm is
+  not `tarantool` is stored and not packed, and pack exits with 0, as the
+  script does. A COREDUMP file is packed as it is, and the PID names the
+  archive; the script runs from a file and reads no standard input.
+- The pack script of `tt coredump`, run on its own as the
+  `kernel.core_pattern` pipe, stores the core of a process whose comm is
+  not `tarantool` on a host without tarantool in PATH: it looked
+  tarantool up before it read the process, failed with exit status 1,
+  and lost the core.
+- `tt coredump pack` that fails leaves nothing in the directory of the
+  archive. The pack script left its temporary directory, `tmp.*`, there
+  when a step failed after it had made it, as when `tarantool --version`
+  failed, and the partial archive too when tar failed, as on a file it
+  could not read, or the pack was interrupted. It removes both on a
+  failure now, with the exit status kept, and an archive of the same
+  name packed before stays when the pack fails before tar starts.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read

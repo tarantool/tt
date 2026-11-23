@@ -1,3 +1,6 @@
+import contextlib
+import ctypes
+import filecmp
 import glob
 import json
 import os
@@ -20,6 +23,7 @@ EXTENSIONS_DIR = (
 )
 
 # spell-checker:ignore getrlimit setrlimit rlimit rlim coredumps coredumpctl apport
+# spell-checker:ignore prctl PTRACER Yama
 
 # Fixture below produces a coredump. The location of the coredumps is
 # configured over /proc/sys/kernel/core_pattern file in a various ways
@@ -710,6 +714,121 @@ def test_coredump_pack_replaced_libraries(tt_cmd, tmp_path, gcore_replaced_libra
     assert link.as_posix().lstrip("/") not in members
 
 
+# prctl(2) of Yama: PR_SET_PTRACER with PR_SET_PTRACER_ANY lets any process
+# of the user trace the caller.
+PR_SET_PTRACER = 0x59616D61
+PR_SET_PTRACER_ANY = ctypes.c_ulong(-1)
+
+
+def allow_tracing():
+    """Let gdb attach to this process, a child of the test that gdb is not
+    the parent of, past the ptrace_scope of Yama. A kernel without Yama
+    refuses the call, and needs none."""
+    ctypes.CDLL(None).prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0)
+
+
+@contextlib.contextmanager
+def running(cmd, cwd):
+    """The process of cmd, running in cwd with its standard output piped,
+    which gdb may attach to; it is killed on the exit."""
+    process = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, preexec_fn=allow_tracing)
+    try:
+        yield process
+    finally:
+        process.kill()
+        process.wait()
+
+
+def gcore_of_running(process, core):
+    """Make core, a core of the running process, with gcore of gdb, which
+    leaves it running."""
+    cmd = ["gdb", "-batch", "-n", "-p", str(process.pid), "-ex", f"gcore {core}", "-ex", "detach"]
+    check_gcore(core, subprocess.run(cmd, capture_output=True, text=True, env=gdb_env()))
+
+
+# The Lua of a tarantool that says it is up and sleeps.
+SLEEP = 'io.stdout:write("ready\\n") io.stdout:flush() require("fiber").sleep(100)'
+
+
+@pytest.mark.parametrize("arg", [[], ["-"]], ids=["omitted", "stdin"])
+def test_coredump_pack_pipe(tt_cmd, tmp_path, arg):
+    """tt coredump pack -p PID is a kernel.core_pattern pipe: with COREDUMP
+    omitted or -, it reads the core from its standard input, stores it as
+    <dir>/tarantool-core.PID.TIME and packs it, with the /proc/PID/exe of the
+    process, into an archive named by the PID. The core is a gcore of a
+    running tarantool. tt fed the pack script to bash on its standard input,
+    and the script read the rest of its own text for the core, and pack
+    required COREDUMP."""
+    if sys.platform != "linux" or shutil.which("gdb") is None:
+        pytest.skip("needs gdb on Linux to make a core of a running tarantool")
+    tarantool = shutil.which("tarantool")
+    assert tarantool is not None, "no tarantool on PATH"
+    core = tmp_path / "gcore"
+    out = tmp_path / "out"
+    out.mkdir()
+    unpacked = tmp_path / "unpacked"
+    unpacked.mkdir()
+
+    with running([tarantool, "-e", SLEEP], tmp_path) as process:
+        assert process.stdout.readline() == b"ready\n"
+        gcore_of_running(process, core)
+        exe = Path(f"/proc/{process.pid}/exe")
+
+        cmd = [tt_cmd, "coredump", "pack", "-p", str(process.pid), "-d", out, *arg]
+        with core.open("rb") as stdin:
+            pack = subprocess.run(cmd, cwd=tmp_path, stdin=stdin, capture_output=True, text=True)
+        output = pack.stdout + pack.stderr
+        assert pack.returncode == 0, output
+        assert "Core was successfully packed." in output
+
+        # The archive, named by the PID, and the core, stored as the pack
+        # script stores it.
+        archives = list(out.glob("*.tar.gz"))
+        assert len(archives) == 1, list(out.iterdir())
+        assert archives[0].name.startswith(f"tarantool-core-{process.pid}-"), archives[0]
+        stored = list(out.glob(f"tarantool-core.{process.pid}.*"))
+        assert len(stored) == 1, list(out.iterdir())
+        assert set(out.iterdir()) == {archives[0], stored[0]}
+        assert filecmp.cmp(stored[0], core, shallow=False)
+
+        # The core of the archive is the one of the standard input, and the
+        # tarantool the executable of the process.
+        check_archive_members(archives[0])
+        members = ["--wildcards", "*/coredump", "*/tarantool"]
+        subprocess.run(["tar", "xzf", archives[0], *members], cwd=unpacked, check=True)
+        (member_dir,) = unpacked.iterdir()
+        assert filecmp.cmp(member_dir / "coredump", core, shallow=False)
+        assert filecmp.cmp(member_dir / "tarantool", exe, shallow=False)
+
+
+def test_coredump_pack_pipe_not_tarantool(tt_cmd, tmp_path):
+    """tt coredump pack -p PID of a process whose comm is not tarantool, as
+    the kernel.core_pattern pipe gets the core of every process of the host,
+    stores the core of the standard input as <dir>/<comm>-core.PID.TIME,
+    packs nothing and exits with 0, as the pack script does."""
+    if not Path("/proc/self/comm").is_file():
+        pytest.skip("needs procfs")
+    out = tmp_path / "out"
+    out.mkdir()
+    # The core is not read: any bytes do, with zeros of the pages the
+    # process never touched.
+    core = b"\x7fELF the core of sleep\n" + bytes(1 << 20) + b"the end\n"
+
+    with running(["sleep", "100"], tmp_path) as process:
+        comm = Path(f"/proc/{process.pid}/comm").read_text().strip()
+        cmd = [tt_cmd, "coredump", "pack", "-p", str(process.pid), "-d", out, "-t", "1763869440"]
+        pack = subprocess.run(cmd, cwd=tmp_path, input=core, capture_output=True)
+    output = (pack.stdout + pack.stderr).decode()
+    assert pack.returncode == 0, output
+    assert comm != "tarantool"
+
+    stored = out / f"{comm}-core.{process.pid}.1763869440"
+    assert set(out.iterdir()) == {stored}, "the core alone, no archive"
+    assert stored.read_bytes() == core
+    assert f"its core is stored and not packed: {stored}" in output, output
+    assert "Core was successfully packed." not in output
+
+
 def check_archive_members(archive):
     """Check the members of an archive of tt coredump pack: all of them under
     the directory named after the archive, the version, the core, the
@@ -926,23 +1045,23 @@ def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
     check_extensions(output, has_debug_info(shutil.which("tarantool")))
 
 
-@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
-def test_coredump_pack_debug_file(tt_cmd, tmp_path, coredump):
-    """pack of a core of a tarantool without debugging information takes the
-    debug file of its build ID from /usr/lib/debug, where a debuginfo
-    package installs it, into usr/lib/debug of the archive, and inspect
-    points gdb to it there; with none, inspect warns before gdb starts. The
-    tarantool and its debug file are those of the tarantool of PATH, split
-    by objcopy. A test cannot write to /usr/lib/debug: pack takes the debug
-    file of the host if it has one, and the test puts the file into the
-    unpacked archive, where pack puts it."""
+def debug_file_member():
+    """The tarantool of PATH and the member of its debug file in an archive
+    of pack, usr/lib/debug/.build-id/<xx>/<rest>.debug, by its build ID.
+    The test is skipped without objcopy, to split the tarantool into a
+    stripped one and its debug file, and with a tarantool without
+    debugging information of its own."""
     tarantool = shutil.which("tarantool")
     described = subprocess.run(["file", "-L", tarantool], capture_output=True, text=True)
     if shutil.which("objcopy") is None or "with debug_info" not in described.stdout:
         pytest.skip("needs objcopy and a tarantool with debugging information of its own")
     build_id = re.search(r"BuildID\[[^]]*\]=([0-9a-f]+)", described.stdout).group(1)
-    member = f"usr/lib/debug/.build-id/{build_id[:2]}/{build_id[2:]}.debug"
+    return tarantool, f"usr/lib/debug/.build-id/{build_id[:2]}/{build_id[2:]}.debug"
 
+
+def pack_stripped(tt_cmd, tmp_path, coredump, tarantool):
+    """The archive of pack of coredump with tarantool stripped of its
+    debugging information by objcopy, in tmp_path/out."""
     stripped = tmp_path / "bin" / "tarantool"
     stripped.parent.mkdir()
     subprocess.run(["objcopy", "--strip-debug", tarantool, stripped], check=True)
@@ -955,17 +1074,52 @@ def test_coredump_pack_debug_file(tt_cmd, tmp_path, coredump):
 
     archives = list(out.glob("*.tar.gz"))
     assert len(archives) == 1
-    collected = os.path.isfile("/" + member)
-    assert (member in check_archive_members(archives[0])) == collected
+    return archives[0]
 
-    rc, output = inspect(tt_cmd, tmp_path, archives[0], EXTENSION_COMMANDS)
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_pack_debug_file(tt_cmd, tmp_path, coredump):
+    """pack of a core of a tarantool without debugging information takes the
+    debug file of its build ID from /usr/lib/debug, where a debuginfo
+    package installs it, into usr/lib/debug of the archive, and inspect
+    points gdb to it there. The tarantool is the one of PATH stripped by
+    objcopy, and the debug file is one the host has for it: a test cannot
+    write to /usr/lib/debug, and is skipped on a host without the file.
+    The unit tests of the probe pack the debug file of a temporary debug
+    directory."""
+    tarantool, member = debug_file_member()
+    if not os.path.isfile("/" + member):
+        pytest.skip(f"the host has no debug file of the tarantool of PATH, /{member}")
+
+    archive = pack_stripped(tt_cmd, tmp_path, coredump, tarantool)
+    assert member in check_archive_members(archive)
+
+    rc, output = inspect(tt_cmd, tmp_path, archive, EXTENSION_COMMANDS)
     assert rc == 0, output
-    check_extensions(output, collected)
+    check_extensions(output, True)
 
-    cmd = [tt_cmd, "coredump", "unpack", archives[0]]
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_inspect_debug_file(tt_cmd, tmp_path, coredump):
+    """inspect of a core of a tarantool without debugging information points
+    gdb to the debug file of its build ID in usr/lib/debug of the archive,
+    where pack puts it, and warns before gdb starts when the archive has
+    none. The tarantool and its debug file are those of the tarantool of
+    PATH, split by objcopy, and the test puts the debug file into the
+    unpacked archive."""
+    tarantool, member = debug_file_member()
+    archive = pack_stripped(tt_cmd, tmp_path, coredump, tarantool)
+
+    # An archive without the debug file, packed where the host has none.
+    if member not in check_archive_members(archive):
+        rc, output = inspect(tt_cmd, tmp_path, archive, EXTENSION_COMMANDS)
+        assert rc == 0, output
+        check_extensions(output, False)
+
+    cmd = [tt_cmd, "coredump", "unpack", archive]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0, output
-    unpacked = tmp_path / archives[0].name.split(".")[0]
+    unpacked = tmp_path / archive.name.split(".")[0]
     debug_file = unpacked / member
     debug_file.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["objcopy", "--only-keep-debug", tarantool, debug_file], check=True)

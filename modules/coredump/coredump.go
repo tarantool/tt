@@ -45,11 +45,27 @@ func newPackCmd(services sdk.Services) *cobra.Command {
 	pack := &packCmd{services: services, executable: "", directory: "", time: "", pid: 0}
 
 	cmd := &cobra.Command{
-		Use:   "pack COREDUMP",
+		Use:   "pack [COREDUMP]",
 		Short: "pack tarantool coredump into tar.gz archive",
-		Args:  cobra.ExactArgs(1),
+		Long: "Pack COREDUMP, a core dump of Tarantool, into a tar.gz archive with the " +
+			"tarantool that dumped it, the shared libraries it had loaded and the gdb " +
+			"extensions, for `tt coredump inspect`.\n\n" +
+			"With --pid, tt is the pipe of kernel.core_pattern, as in /etc/sysctl.conf:\n\n" +
+			"  kernel.core_pattern = |/usr/bin/tt coredump pack -d /var/core -p %p -t %t\n\n" +
+			"COREDUMP is omitted then, or -, and tt reads the core from its standard input. " +
+			"While /proc/PID has the process, the core is stored as DIR/COMM-core.PID.TIME, " +
+			"COMM of /proc/PID/comm, and packed with /proc/PID/exe, unless --executable " +
+			"names a tarantool; the core of a process whose comm is not tarantool is " +
+			"stored and not packed. A COREDUMP file is packed as it is, and the PID " +
+			"names the archive.",
+		Args: pack.args,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return pack.run(args[0])
+			core := ""
+			if len(args) > 0 {
+				core = args[0]
+			}
+
+			return pack.run(core)
 		},
 	}
 
@@ -63,21 +79,73 @@ func newPackCmd(services sdk.Services) *cobra.Command {
 	cmd.Flags().UintVarP(&pack.pid, "pid", "p", 0,
 		"PID of the dumped process, as seen in the PID namespace in which "+
 			"the given process resides (see %p in core(5) for more info). This flag "+
-			"is to be used when tt is used as kernel.core_pattern pipeline script")
+			"is to be used when tt is used as kernel.core_pattern pipeline script: "+
+			"without COREDUMP, or with -, the core is read from the standard input")
 
 	return cmd
 }
 
-// run packs the core at corePath.
-func (p *packCmd) run(corePath string) error {
-	executable, err := p.tarantool()
+// errStdinWithoutPID reports the core of the standard input given without
+// --pid, the PID of the process of the core.
+var errStdinWithoutPID = errors.New("the core on the standard input needs --pid")
+
+// args checks the arguments of pack: COREDUMP, which --pid makes optional,
+// for the core on the standard input, as a kernel.core_pattern pipe gives
+// it, as COREDUMP - does.
+func (p *packCmd) args(cmd *cobra.Command, args []string) error {
+	if p.pid != 0 {
+		return cobra.MaximumNArgs(1)(cmd, args)
+	}
+
+	err := cobra.ExactArgs(1)(cmd, args)
 	if err != nil {
 		return err
 	}
 
-	err = coredump.Pack(p.services.Streams().IO(), coredump.PackOptions{
-		Core: corePath, Executable: executable, Dir: p.directory, PID: p.pid, Time: p.time,
-	})
+	if args[0] == coredump.StdinCore {
+		return fmt.Errorf("COREDUMP %s: %w", args[0], errStdinWithoutPID)
+	}
+
+	return nil
+}
+
+// run packs the core at corePath, or the core on the standard input with
+// corePath empty or "-".
+func (p *packCmd) run(corePath string) error {
+	streams := p.services.Streams().IO()
+	opts := coredump.PackOptions{
+		Core: corePath, Executable: p.executable, Dir: p.directory, PID: p.pid, Time: p.time,
+	}
+
+	if p.pid != 0 {
+		var (
+			tarantool bool
+			err       error
+		)
+
+		opts, tarantool, err = coredump.ReceiveCore(streams.In, opts)
+		if err != nil {
+			return err
+		}
+
+		if !tarantool {
+			p.services.Log().Info(fmt.Sprintf("The process %d is not a tarantool, by its "+
+				"comm: its core is stored and not packed: %s", p.pid, opts.Core))
+
+			return nil
+		}
+	}
+
+	if opts.Executable == "" {
+		executable, err := p.tarantool()
+		if err != nil {
+			return err
+		}
+
+		opts.Executable = executable
+	}
+
+	err := coredump.Pack(streams, opts)
 	if err != nil {
 		return err
 	}
