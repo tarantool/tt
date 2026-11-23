@@ -300,10 +300,15 @@ The Lua code of the application is not in it. `lj-bt` names the Lua frames
 by their file and line, `init.lua:20`: get the code of the application of
 the version that crashed from the customer to read them.
 
-The archive of the crash above is 44 MB and unpacks into 1.3 GB, most of it
-the core: a core is as large as the memory the process had mapped, and
-unpacked it takes that room on the disk, the pages the process never
-touched too, which the archive compresses away.
+The archive of the crash above is 44 MB and unpacks into files of 1.3 GB,
+which take 133 MB of the disk. A core is as large as the memory the
+process had mapped, 1.2 GB here, but the pages the process never touched
+are holes of the file, which take no room: pack keeps them in the archive,
+and unpack and inspect keep them on the disk, so the core takes 19 MB
+there. Most of the rest is the tarantool with its debugging information,
+110 MB. `ls -l` shows the size of the core, `du` the room it takes. A copy
+that fills the holes, onto a file system without them or by a tool that
+writes them out, takes the whole 1.2 GB.
 
 Handle the archive as the data of the customer: the core holds what the
 process had in memory, the Lua values among it, as the strings and the
@@ -335,7 +340,9 @@ You need:
   [Warnings](#warnings-before-gdb-starts)). Ubuntu 26.04 has gdb 17.1;
   Ubuntu 24.04 has 15.1;
 - tt 3 for Linux;
-- room for the archive unpacked in `TMPDIR`, `/tmp` by default.
+- room for the archive unpacked in `TMPDIR`, `/tmp` by default: 133 MB for
+  the archive of 44 MB above (see
+  [What the archive holds](#what-the-archive-holds)).
 
 Or Docker, with the image below, which has all of it.
 
@@ -356,8 +363,7 @@ $ cp "$(command -v tt)" .
 FROM ubuntu:26.04
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gdb \
- && rm -rf /var/lib/apt/lists/* \
- && echo 'set pagination off' >> /etc/gdb/gdbinit
+ && rm -rf /var/lib/apt/lists/*
 COPY tt /usr/local/bin/tt
 USER ubuntu
 WORKDIR /work
@@ -369,10 +375,16 @@ $ docker build -t tt-coredump .
 ```
 
 gdb runs as the user `ubuntu` of the image, not root, and asks for no
-network: the extensions come from tt. Pagination is off, so that gdb does
-not stop its long start with `--Type <RET> for more`. The gdb of Ubuntu
-reads the cores of its own architecture alone: build the image on a host of
-the architecture of the core.
+network: the extensions come from tt. The gdb of Ubuntu reads the cores of
+its own architecture alone: build the image on a host of the architecture
+of the core.
+
+The image keeps the pagination of gdb. tt turns it off while gdb loads the
+core and the extensions, whose lines run past a screen, and back on at the
+prompt: a long output, as that of `thread apply all bt`, stops at `--Type
+<RET> for more` as in any gdb. With `set pagination off` in a gdbinit,
+`/etc/gdb/gdbinit` of the image or the `~/.gdbinit` of a host, there is no
+pager at all: tt leaves it off.
 
 Run it in the directory of the archive, which it sees as `/work`:
 
@@ -391,14 +403,12 @@ is the same as the image. What it prints before the prompt of gdb:
 ```text
    • gdb extensions of tarantool-gdb-tools dba4b9be, which tt embeds: luajit_gdb.py, tarantool_gdb.py, luajit_backtrace_gdb.py, gcore_pages_gdb.py module=coredump
 ================================================================================
-
-Do not forget to properly setup the environment:
-* git clone https://github.com/tarantool/tarantool.git /tmp/tt-coredump-4045708535/tarantool-core-33-202611232227-db1/sources
-* cd !$
-* git checkout 8b9a0f59a95b
-* git submodule update --recursive --init
-* cd -
-
+gdb shows no lines of the C code of Tarantool without its sources. Clone them
+once, at the commit of the core:
+  git clone https://github.com/tarantool/tarantool.git tarantool-8b9a0f59a95b
+  git -C tarantool-8b9a0f59a95b checkout 8b9a0f59a95b
+  git -C tarantool-8b9a0f59a95b submodule update --init --recursive
+and give them with -s tarantool-8b9a0f59a95b.
 ================================================================================
 GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1
 ...
@@ -420,9 +430,10 @@ lj-bt command initialized
 
 - The first line names the extensions `--experimental` loads.
 - The block of `git clone` is how to get the sources of the Tarantool of
-  the core, at its commit. The directory it names is removed at the exit:
-  clone them elsewhere, once, and give them with `-s`, as below. gdb shows
-  the backtraces without them; with them it shows the lines of the C code.
+  the core, at its commit, into `tarantool-<commit>` of the working
+  directory, once for the cores of that commit, and to give them with
+  `-s`, as below. gdb shows the backtraces without them; with them it shows
+  the lines of the C code. With `-s` the block is not printed.
 - The warnings `Can't open file ... during file-backed mapping note
   processing` are about files of the customer's host the archive does not
   need: they do no harm.
@@ -444,17 +455,24 @@ $ docker run --rm -it -v "$PWD:/work" tt-coredump tarantool-core-33-202611232227
 ```
 
 `-s` gives gdb the sources of the Tarantool of the core, a checkout of its
-tag with its submodules, so that it shows the lines of the C code; in the
-image, mounted:
+commit with its submodules, so that it shows the lines of the C code. The
+image has no git: run the commands of the block on the host, in the
+directory of the archive, which the image sees as its working directory:
 
 ```console
-$ docker run --rm -it -v "$PWD:/work" -v ~/src/tarantool:/src:ro tt-coredump -s /src tarantool-core-33-202611232227-db1.tar.gz
+$ git clone https://github.com/tarantool/tarantool.git tarantool-8b9a0f59a95b
+$ git -C tarantool-8b9a0f59a95b checkout 8b9a0f59a95b
+$ git -C tarantool-8b9a0f59a95b submodule update --init --recursive
+$ docker run --rm -it -v "$PWD:/work" tt-coredump -s tarantool-8b9a0f59a95b tarantool-core-33-202611232227-db1.tar.gz
 ...
 (gdb) frame function crash_signal_cb
 #3  0x000000000063da59 in crash_signal_cb (signo=11, siginfo=<optimized out>,
     context=<optimized out>) at /tarantool/src/lib/core/crash.c:204
 204		abort();
 ```
+
+A checkout outside the directory of the archive is mounted into the image
+as well: `-v ~/src/tarantool:/src:ro` and `-s /src`.
 
 Without `--experimental`, `tt coredump inspect` loads the extensions of the
 release of the core instead: those of the sources of `-s`, else those it
@@ -648,14 +666,18 @@ lj-` lists the other `lj-*` commands, `lj-tv`, `lj-str`, `lj-tab`,
   frame of its own instead of folding it into its C frame
   ([tarantool-gdb-tools#35](https://github.com/buyemune-sys/tarantool-gdb-tools/issues/35)).
 - On a support host whose gdb finds the debugging information of the glibc
-  of the core, as one of the same glibc build with `libc6-dbg`, the frames
-  of the crash handler inside glibc are inlined frames, and `tt-fiber`
+  of the core, as one of the same glibc build with `libc6-dbg`, `tt-fiber`
   of `--experimental` does not switch `bt` and `lj-bt` to another fiber on
-  the core of a crash. The image has no such information; `tt coredump
-  inspect` without `--experimental` switches there.
+  the core of a crash
+  ([tarantool-gdb-tools#36](https://github.com/buyemune-sys/tarantool-gdb-tools/issues/36)).
+  The image has no such information; `tt coredump inspect` without
+  `--experimental` switches there.
 
-<!-- Verified on 2026-11-24 with tt of bigbes/gh-no-coredump (0e94b4d3) and
-Tarantool 3.9.0 of the static deb: the customer side in debian:stable-slim,
-its gcore part as root in the image above, the support side in the image
-above and, for gdb 15.1, in one of ubuntu:24.04. The tt-fiber limit was
-seen on an Ubuntu 26.04 host with libc6-dbg. -->
+<!-- Verified on 2026-11-24 with tt 3 and Tarantool 3.9.0 of the static
+deb: the customer side in debian:stable-slim, its gcore part as root in the
+image above, the support side in the image above, with gdb 17.1, and, for
+gdb 15.1, in one of ubuntu:24.04. The sizes of the archive unpacked, the
+start of gdb without the pager in the image on a terminal of 24 rows, the
+block of git clone and the -s of its checkout were checked again on a core
+of the same crash. The tt-fiber limit was seen on an Ubuntu 26.04 host with
+libc6-dbg. -->
