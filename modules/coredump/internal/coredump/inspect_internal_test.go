@@ -28,10 +28,11 @@ import (
 const gdbWithPython = "echo 'GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1'; echo 'tt-gdb-python: 17.1'"
 
 // fakeGDBScript returns a gdb that answers the probe of inspect with the
-// shell commands probe, and the question of gdb.sh about the line of main
-// as a gdb on a tarantool with debugging information does. Otherwise it
-// prints its arguments, one per line, after a line "gdb", and the first
-// line of each file it sources after "content: ".
+// shell commands probe, the question of gdb.sh about $_gdb_setting as gdb 9
+// and later does, or as an older one with TT_TEST_GDB_OLD set, and the one
+// about the line of main as a gdb on a tarantool with debugging information
+// does. Otherwise it prints its arguments, one per line, after a line "gdb",
+// and the first line of each file it sources after "content: ".
 func fakeGDBScript(probe string) string {
 	return `#!/bin/sh
 if [ "$1" = -batch ]; then
@@ -41,6 +42,12 @@ if [ "$1" = -batch ]; then
 		*"show debug-file-directory"*)
 			echo 'The directory where separate debug symbols are searched for is' \
 				'"/usr/lib/debug".';;
+		*'$_gdb_setting'*)
+			if [ -n "${TT_TEST_GDB_OLD:-}" ]; then
+				echo "You can't do that without a process to debug." >&2
+				exit 1
+			fi
+			echo '$1 = 1';;
 		*)
 			echo 'Line 747 of "/build/tarantool/src/main.cc" starts at address 0x1 <main>.';;
 	esac
@@ -246,6 +253,124 @@ func TestInspectDirectory(t *testing.T) {
 		luajitDbgName:    "luajit_dbg.py of the sources",
 		tarantoolGDBName: "tarantool-gdb.py of the sources",
 	}, sourced(out))
+}
+
+// The commands of gdb.sh that turn the pagination off for the start of gdb,
+// once its init files are read, and back to what they set at the prompt.
+const (
+	paginationOff = "-iex\nset $tt_pagination = $_gdb_setting(\"pagination\")\n" +
+		"-iex\nset pagination off\n"
+	paginationBack = "-ex\neval \"set pagination %d\", $tt_pagination\n"
+)
+
+// TestInspectPagination checks that gdb.sh turns the pagination of gdb off
+// for its start, once the init files are read, which -iex runs after
+// wherever it is on the command line, and back to what they set with the
+// last command of the start, after the extensions are loaded: gdb paged its
+// start on a terminal and stopped at "--Type <RET> for more" before its
+// prompt, where q quit the loading. A gdb older than 9, which has no
+// $_gdb_setting to tell what the init files set, is left as it was.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectPagination(t *testing.T) {
+	withFakeGDB(t)
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+
+	out, _ := runInspect(t, dir, "")
+	assert.Contains(t, out, "\n"+paginationOff)
+	assert.True(t, strings.HasSuffix(out, "\n"+paginationBack), out)
+	assert.Less(t, strings.LastIndex(out, "\nsource "), strings.LastIndex(out, paginationBack),
+		"the pagination is back after the extensions are loaded")
+
+	t.Setenv("TT_TEST_GDB_OLD", "1")
+
+	out, _ = runInspect(t, dir, "")
+	assert.Contains(t, out, "gdb\n-iex\necho\n")
+	assert.NotContains(t, out, "pagination")
+}
+
+// sourcesHint returns what gdb.sh says of the sources of the Tarantool of
+// the core at revision, its commit or its release, when it has none.
+func sourcesHint(revision string) string {
+	checkout := "tarantool-" + revision
+	line := strings.Repeat("=", 80) + "\n"
+
+	return line +
+		"gdb shows no lines of the C code of Tarantool without its sources. Clone them\n" +
+		"once, at the commit of the core:\n" +
+		"  git clone https://github.com/tarantool/tarantool.git " + checkout + "\n" +
+		"  git -C " + checkout + " checkout " + revision + "\n" +
+		"  git -C " + checkout + " submodule update --init --recursive\n" +
+		"and give them with -s " + checkout + ".\n" +
+		line
+}
+
+// TestInspectSourcesHint checks that gdb.sh, when it has no sources of the
+// Tarantool of the core, says how to check them out into a directory that
+// outlives the artefacts and to give them with -s, and says nothing with
+// -s, or sources/ in the artefacts. It said to clone them into sources/ of
+// the artefacts, of an archive a temporary directory inspect removes at the
+// exit, and said it with -s of a directory that was not there too.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectSourcesHint(t *testing.T) {
+	withFakeGDB(t)
+
+	archive := writeArtefactsArchive(t, t.TempDir())
+
+	out, _ := runInspect(t, archive, "")
+	assert.True(t, strings.HasPrefix(out, sourcesHint("8b9a0f59a95b")+"gdb\n"), out)
+
+	hint, _, _ := strings.Cut(out, "gdb\n")
+	assert.NotContains(t, hint, "tt-coredump-", "the hint names no temporary directory")
+	assert.NotContains(t, hint, os.TempDir(), "the hint names no temporary directory")
+
+	sources := writeSources(t, map[string]string{
+		"third_party/luajit/src/luajit_dbg.py": "luajit_dbg.py of the sources",
+		"tools/tarantool-gdb.py":               "tarantool-gdb.py of the sources",
+	})
+
+	out, _ = runInspect(t, archive, sources)
+	assert.True(t, strings.HasPrefix(out, "gdb\n"), out)
+
+	out, _ = runInspect(t, archive, filepath.Join(t.TempDir(), "missing"))
+	assert.True(t, strings.HasPrefix(out, "gdb\n"), out)
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "sources"), 0o755))
+
+	out, _ = runInspect(t, dir, "")
+	assert.True(t, strings.HasPrefix(out, "gdb\n"), out)
+}
+
+// TestWrapperSourcesHintRelease checks that the hint of the sources of a
+// version without a commit, of a build out of git, checks out its release,
+// a tag of Tarantool, and that a version of no release gets no hint, whose
+// checkout would be of no commit.
+//
+//nolint:paralleltest // Sets PATH.
+func TestWrapperSourcesHintRelease(t *testing.T) {
+	withFakeGDB(t)
+
+	for version, hint := range map[string]string{
+		"Tarantool 3.9.0\nTarget: Linux-x86_64-RelWithDebInfo\n": sourcesHint("3.9.0"),
+		"Tarantool Enterprise 3.4.1\n":                           sourcesHint("3.4.1"),
+		"tarantool, built by hand\n":                             "",
+	} {
+		dir := t.TempDir()
+		writeArtefacts(t, dir)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "version"), []byte(version), 0o644))
+		require.NoError(t, copyEmbedded(coreScripts, inspectEmbedPath,
+			filepath.Join(dir, "gdb.sh"), scriptFileMode))
+
+		out, err := exec.CommandContext(context.Background(), "sh",
+			filepath.Join(dir, "gdb.sh")).CombinedOutput()
+		require.NoError(t, err, string(out))
+		assert.True(t, strings.HasPrefix(string(out), hint+"gdb\n"), version+string(out))
+	}
 }
 
 // TestInspectThreadDB checks that gdb looks for libthread_db next to the

@@ -1,14 +1,19 @@
 import contextlib
 import ctypes
+import fcntl
 import filecmp
 import glob
 import os
 import platform
 import re
+import select
 import shutil
+import struct
 import subprocess
 import sys
 import tarfile
+import termios
+import time
 from pathlib import Path
 
 import pytest
@@ -876,12 +881,95 @@ def test_coredump_unpack_no_such_file(tt_cmd, tmp_path):
     assert re.search(r"failed to unpack", output)
 
 
+def disk_size(path):
+    """The bytes the file at path takes on the disk."""
+    return os.stat(path).st_blocks * 512
+
+
+# The blocks unpack writes a file in, sparseBlock of files.go: a block of
+# zeros is skipped, a hole of the file, and any other one written.
+SPARSE_BLOCK = 4 << 10
+
+
+def data_blocks(path, block):
+    """The blocks of block bytes of the file at path that are not zeros, and
+    the runs of them in a row. The file is read a MB and more at a time, and
+    a chunk of zeros is skipped at once, the holes of a core of more than a
+    GB too: the blocks of a chunk are compared one by one only where the
+    chunk has data."""
+    zeros = bytes(block)
+    zero_chunk = bytes(256 * block)
+    data = runs = 0
+    previous = False
+    with open(path, "rb") as f:
+        while chunk := f.read(len(zero_chunk)):
+            if chunk == zero_chunk[: len(chunk)]:
+                previous = False
+                continue
+            for start in range(0, len(chunk), block):
+                piece = chunk[start : start + block]
+                current = piece != zeros[: len(piece)]
+                data += current
+                runs += current and not previous
+                previous = current
+    return data, runs
+
+
+def keeps_holes(directory):
+    """Whether the file system of directory keeps holes: a file of 16 MiB of
+    one byte at its end takes far less of the disk there."""
+    probe = directory / "holes"
+    with probe.open("wb") as f:
+        f.seek((16 << 20) - 1)
+        f.write(b"\1")
+    kept = disk_size(probe) < 1 << 20
+    probe.unlink()
+    return kept
+
+
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
-def test_coredump_unpack(tt_cmd, tmp_path, coredump_packed):
+def test_coredump_unpack(tt_cmd, tmp_path, coredump, coredump_packed):
+    """unpack extracts the core with its holes, and inspect of what it
+    unpacked opens the core. A core has the pages of its mappings the
+    process never touched as zeros, which pack archives as holes, and unpack
+    wrote them out as zeros: a core of a bare tarantool took its size on the
+    disk, more than a GB, of tens of MB of data.
+
+    unpack skips every block of zeros of SPARSE_BLOCK, so the core takes on
+    the disk its blocks with data, counted in the blocks of the file system
+    where those are bigger, as it allocates a block with any data whole, and
+    the blocks the file system maps them with. It maps a run of blocks in a
+    row with an extent, or a few, and ext4 keeps 340 extents in a block of 4
+    KiB: a block for each run is room enough. The core must have more zeros
+    than that room, or the check would pass with the zeros written. How many
+    it has depends on the tarantool: a core of 3.9 on x86-64 is mostly
+    holes, one of 3.3, 8 MB of data of 18 MB, is not, and the check was that
+    the core took less than a quarter of its size, which the core of 3.3
+    failed with every hole kept. A file system that keeps no holes fails the
+    test on Linux, whose file systems keep them, ext4, XFS, Btrfs and tmpfs,
+    so that the check is not dropped there unseen, and skips it elsewhere."""
+    if not keeps_holes(tmp_path):
+        message = f"the file system of {tmp_path} keeps no holes"
+        if sys.platform == "linux":
+            pytest.fail(f"{message}, where those of Linux keep them: the check runs on Linux")
+        pytest.skip(message)
     cmd = [tt_cmd, "coredump", "unpack", coredump_packed]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Archive was successfully unpacked", output)
+
+    core = tmp_path / os.path.basename(coredump_packed).split(".")[0] / "coredump"
+    size = core.stat().st_size
+    assert size == coredump.stat().st_size
+    block = max(SPARSE_BLOCK, os.statvfs(core).f_frsize)
+    data, runs = data_blocks(core, block)
+    room = runs * block
+    assert size - data * block > room, (size, data * block, room)
+    assert disk_size(core) <= data * block + room, (disk_size(core), data * block, room)
+
+    rc, output = inspect(tt_cmd, tmp_path, core.parent.as_posix(), EXTENSION_COMMANDS)
+    assert rc == 0, output
+    check_extensions(output, has_debug_info(shutil.which("tarantool")))
 
 
 def test_coredump_inspect_no_arg(tt_cmd, tmp_path):
@@ -1031,14 +1119,31 @@ def check_extensions(output, debug_info):
     assert "has no attribute 'printing'" not in output
 
 
+# What gdb.sh says of the sources of the Tarantool of a core it has none of:
+# the commands that check them out at the commit of the core into
+# tarantool-<commit>, a directory of the working directory, and the -s that
+# gives it. It said to clone them into sources/ of the artefacts, of an
+# archive a temporary directory inspect removes.
+SOURCES_HINT = re.compile(
+    r"gdb shows no lines of the C code of Tarantool without its sources\. Clone them\s+"
+    r"once, at the commit of the core:\s+"
+    r"git clone https://github\.com/tarantool/tarantool\.git (tarantool-[0-9a-f.]+)\s+"
+    r"git -C \1 checkout [0-9a-f.]+\s+"
+    r"git -C \1 submodule update --init --recursive\s+"
+    r"and give them with -s \1\.",
+)
+
+
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
     """With no sources and no GitHub inspect loads the extensions of tt, and
-    warns that they may not match the core."""
+    warns that they may not match the core. gdb.sh says how to get the
+    sources."""
     rc, output = inspect(tt_cmd, tmp_path, coredump_packed, EXTENSION_COMMANDS)
     assert rc == 0, output
     assert re.search(fallback_warning("luajit_dbg.py"), output), output
     assert re.search(fallback_warning("tarantool-gdb.py"), output), output
+    assert SOURCES_HINT.search(output), output
     check_extensions(output, has_debug_info(shutil.which("tarantool")))
 
 
@@ -1064,6 +1169,110 @@ def test_coredump_inspect_renamed_archive(tt_cmd, tmp_path, gcore):
     assert "cannot tell whether the tarantool has debugging information" not in output, output
     assert re.search(r"read the stacks of \d+ of the \d+ threads of the core", output), output
     check_extensions(output, has_debug_info(tarantool))
+
+
+# What gdb prints when its output runs past a screen of the terminal, and
+# waits for the answer.
+PAGER_PROMPT = b"--Type <RET> for more, q to quit, c to continue without paging--"
+
+
+def on_terminal(cmd, cwd, env, commands, rows=20, cols=80, timeout=120):
+    """The output of cmd, a tt that runs gdb, on a terminal of rows and cols,
+    a pty, and the pagers of gdb there, each True when it came after the
+    first prompt of gdb. gdb is given the commands, one at each of its
+    prompts, then quit. A pager is answered c, to go on, before the prompt,
+    and q at a command."""
+    master, slave = os.openpty()
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+
+    def controlling_terminal():
+        os.setsid()
+        fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+
+    process = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        preexec_fn=controlling_terminal,
+    )
+    os.close(slave)
+
+    pending = [*commands, "quit"]
+    output, answered, prompted, pagers = b"", 0, False, []
+    deadline = time.monotonic() + timeout
+    try:
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([master], [], [], 0.5)
+            if ready:
+                try:
+                    data = os.read(master, 65536)
+                except OSError:  # EIO: the other end is closed.
+                    break
+                if not data:
+                    break
+                output += data
+            unanswered = output[answered:]
+            if PAGER_PROMPT in unanswered:
+                pagers.append(prompted)
+                answered = len(output)
+                os.write(master, b"q\n" if prompted else b"c\n")
+            elif unanswered.endswith(b"(gdb) "):
+                prompted, answered = True, len(output)
+                if pending:
+                    os.write(master, pending.pop(0).encode() + b"\n")
+            elif not ready and process.poll() is not None:
+                break
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        os.close(master)
+    text = output.decode(errors="replace")
+    print(text)
+    return text, pagers
+
+
+def terminal_env(tmp_path):
+    """The environment of tt coredump inspect on a terminal, as offline_env:
+    gdb takes the size of the terminal from the pty, and styles nothing on a
+    dumb one, so that its prompt is plain."""
+    env = offline_env(tmp_path)
+    env["TERM"] = "dumb"
+    for name in ("LINES", "COLUMNS", "EMACS", "INSIDE_EMACS"):
+        env.pop(name, None)
+    return env
+
+
+def test_coredump_inspect_pagination(tt_cmd, tmp_path, gcore):
+    """gdb does not page its start on a terminal and pages the commands at its
+    prompt, as it does by default: the loading of the core and the lines the
+    extensions print ran past a screen, and gdb stopped at its pager before
+    its first prompt, where q quit the loading. The pagination off in the
+    gdbinit of the user stays off."""
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-e", shutil.which("tarantool"), "-d", out, gcore]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    inspect_cmd = [tt_cmd, "coredump", "inspect", archives[0]]
+
+    env = terminal_env(tmp_path / "default")
+    output, pagers = on_terminal(inspect_cmd, tmp_path, env, ["show pagination", "help all"])
+    assert "(gdb) " in output, output
+    assert False not in pagers, "gdb paged its start"
+    assert "State of pagination is on." in output, output
+    assert True in pagers, "gdb did not page help all"
+
+    env = terminal_env(tmp_path / "user")
+    (Path(env["HOME"]) / ".gdbinit").write_text("set pagination off\n")
+    output, pagers = on_terminal(inspect_cmd, tmp_path, env, ["show pagination", "help all"])
+    assert "State of pagination is off." in output, output
+    assert not pagers, "gdb paged with the pagination off"
 
 
 def debug_file_member():
@@ -1393,7 +1602,8 @@ SOURCES_MARK = "import gdb as tt_test_gdb\ntt_test_gdb.write('tt-test: {} of the
 def test_coredump_inspect_sourcedir(tt_cmd, tmp_path, coredump_unpacked):
     """inspect -s loads the extensions of the sources: luajit_dbg.py of the
     LuaJIT submodule and tools/tarantool-gdb.py, here the copies of tt with
-    a mark, and asks GitHub nothing."""
+    a mark, and asks GitHub nothing. gdb.sh says nothing of how to get the
+    sources."""
     sources = tmp_path / "tarantool"
     luajit = sources / "third_party" / "luajit" / "src"
     tools = sources / "tools"
@@ -1419,6 +1629,7 @@ def test_coredump_inspect_sourcedir(tt_cmd, tmp_path, coredump_unpacked):
     assert "luajit-gdb.py is loaded" not in output
     assert "on GitHub" not in output
     assert "cannot get the" not in output
+    assert "git clone" not in output, output
     check_extensions(output, has_debug_info(shutil.which("tarantool")))
 
 
