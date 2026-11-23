@@ -34,11 +34,10 @@ var coreScripts embed.FS
 var extensions embed.FS
 
 const (
-	packEmbedPath       = "scripts/tarabrt.sh" // spell-checker:disable-line
-	inspectEmbedPath    = "scripts/gdb.sh"
-	scriptFileMode      = 0o755
-	extensionFileMode   = 0o644
-	commandArgsCapacity = 2
+	packEmbedPath     = "scripts/tarabrt.sh" // spell-checker:disable-line
+	inspectEmbedPath  = "scripts/gdb.sh"
+	scriptFileMode    = 0o755
+	extensionFileMode = 0o644
 	// extensionsDir is the directory of the gdb extensions in extensions.
 	extensionsDir = "extensions"
 	// gdbToolsDir is the directory of the extensions of tarantool-gdb-tools
@@ -72,7 +71,8 @@ func writeExtensions(dir string) ([]string, error) {
 
 // PackOptions are what Pack packs and where.
 type PackOptions struct {
-	// Core is the core dump.
+	// Core is the core dump. Empty or StdinCore with a PID is the core on
+	// the standard input, which ReceiveCore stores to a file for Pack.
 	Core string
 	// Executable is the Tarantool that dumped it; empty is the tarantool of
 	// PATH.
@@ -123,7 +123,7 @@ func packArgs(opts PackOptions) ([]string, error) {
 
 // Pack packs a core dump into a tar.gz archive.
 func Pack(streams output.Streams, opts PackOptions) error {
-	artefacts, err := probeArtefacts(streams.Err, opts)
+	artefacts, err := probeArtefacts(streams.Err, opts, defaultDebugDirs)
 	if err != nil {
 		return err
 	}
@@ -166,18 +166,24 @@ func Pack(streams output.Streams, opts PackOptions) error {
 		scriptArgs = append(scriptArgs, "-x", ext)
 	}
 
-	script, err := coreScripts.Open(packEmbedPath)
+	return runPackScript(streams, tmpDir, scriptArgs)
+}
+
+// runPackScript writes the pack script into dir and runs it with args. bash
+// runs the file, and the standard input of the script is none: the script
+// takes it for the core of a kernel.core_pattern pipe when it is given no
+// core, and with the script fed to `bash -s` it read the rest of its own
+// text for the core.
+func runPackScript(streams output.Streams, dir string, args []string) error {
+	script := filepath.Join(dir, filepath.Base(packEmbedPath))
+
+	err := copyEmbedded(coreScripts, packEmbedPath, script, scriptFileMode)
 	if err != nil {
-		return fmt.Errorf("failed to open pack script: %w", err)
+		return fmt.Errorf("failed to write the pack script: %w", err)
 	}
 
-	cmdArgs := make([]string, 0, commandArgsCapacity+len(scriptArgs))
+	cmd := exec.CommandContext(context.Background(), "bash", append([]string{script}, args...)...)
 
-	cmdArgs = append(cmdArgs, "-s", "--")
-
-	cmd := exec.CommandContext(context.Background(), "bash", append(cmdArgs, scriptArgs...)...)
-
-	cmd.Stdin = script
 	cmd.Stdout = streams.Out
 	cmd.Stderr = streams.Err
 

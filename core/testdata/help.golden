@@ -2842,10 +2842,22 @@ FLAGS
   -s, --sourcedir string   Source directory
 
 === tt coredump pack --help
-pack tarantool coredump into tar.gz archive
+Pack COREDUMP, a core dump of Tarantool, into a tar.gz archive with the
+tarantool that dumped it, the shared libraries it had loaded and the gdb
+extensions, for `tt coredump inspect`.
+
+With --pid, tt is the pipe of kernel.core_pattern, as in /etc/sysctl.conf:
+
+  kernel.core_pattern = |/usr/bin/tt coredump pack -d /var/core -p %p -t %t
+
+COREDUMP is omitted then, or -, and tt reads the core from its standard input.
+While /proc/PID has the process, the core is stored as DIR/COMM-core.PID.TIME,
+COMM of /proc/PID/comm, and packed with /proc/PID/exe, unless --executable names
+a tarantool; the core of a process whose comm is not tarantool is stored and not
+packed. A COREDUMP file is packed as it is, and the PID names the archive.
 
 USAGE
-  tt coredump pack COREDUMP [flags]
+  tt coredump pack [COREDUMP] [flags]
 
 FLAGS
   -d, --dir string          Directory the resulting archive is created in
@@ -2855,7 +2867,8 @@ FLAGS
                             namespace in which the given process resides (see %p
                             in core(5) for more info). This flag is to be used
                             when tt is used as kernel.core_pattern pipeline
-                            script
+                            script: without COREDUMP, or with -, the core is
+                            read from the standard input
   -t, --time string         Time of dump, expressed as seconds since the Epoch
                             (1970-01-01 00:00 UTC)
 

@@ -2,6 +2,7 @@ package coredump
 
 import (
 	"debug/elf"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -238,7 +239,7 @@ func TestProbeArtefactsOfLoader(t *testing.T) {
 	artefacts, err := probeArtefacts(&notices, PackOptions{
 		Core: core.write(t, filepath.Join(root, "core")), Executable: tarantool, Dir: "", PID: 0,
 		Time: "",
-	})
+	}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{libc, threadDB}, artefacts.files)
 	assert.Empty(t, notices.String())
@@ -254,7 +255,7 @@ func TestProbeArtefactsChecks(t *testing.T) {
 
 	artefacts, err := probeArtefacts(io.Discard, PackOptions{
 		Core: core, Executable: tarantool, Dir: "", PID: 0, Time: "",
-	})
+	}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, tarantool, artefacts.executable)
 
@@ -303,7 +304,7 @@ func TestProbeArtefactsChecks(t *testing.T) {
 	for _, testCase := range cases {
 		_, err := probeArtefacts(io.Discard, PackOptions{
 			Core: testCase.core, Executable: testCase.executable, Dir: "", PID: 0, Time: "",
-		})
+		}, nil)
 		require.ErrorIs(t, err, testCase.err, testCase.name)
 		assert.Contains(t, err.Error(), testCase.msg, testCase.name)
 	}
@@ -609,16 +610,166 @@ func TestFindDebugFile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	other := t.TempDir()
 	path := filepath.Join(dir, ".build-id", testBuildID[:2], testBuildID[2:]+".debug")
 
-	assert.Empty(t, findDebugFile(dir, testBuildID))
+	assert.Empty(t, findDebugFile([]string{dir}, testBuildID))
 
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte("debug"), 0o644))
 
-	assert.Equal(t, path, findDebugFile(dir, testBuildID))
-	assert.Empty(t, findDebugFile(dir, ""))
-	assert.Empty(t, findDebugFile(dir, "78"))
+	assert.Equal(t, path, findDebugFile([]string{dir}, testBuildID))
+	assert.Empty(t, findDebugFile([]string{dir}, ""))
+	assert.Empty(t, findDebugFile([]string{dir}, "78"))
+	assert.Empty(t, findDebugFile(nil, testBuildID))
+
+	// The first directory that has it.
+	assert.Equal(t, path, findDebugFile([]string{other, dir}, testBuildID))
+
+	otherPath := filepath.Join(other, ".build-id", testBuildID[:2], testBuildID[2:]+".debug")
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(otherPath), 0o755))
+	require.NoError(t, os.WriteFile(otherPath, []byte("debug"), 0o644))
+	assert.Equal(t, otherPath, findDebugFile([]string{other, dir}, testBuildID))
+}
+
+// compileTarantool compiles a tarantool with cc into dir, an executable
+// that defines tarantool_version with a GNU build ID, as a linker writes
+// it, and returns its path.
+func compileTarantool(t *testing.T, dir string) string {
+	t.Helper()
+
+	_, err := exec.LookPath("cc")
+	if runtime.GOOS != "linux" || err != nil {
+		t.Skip("needs cc on Linux to build an ELF executable")
+	}
+
+	source := filepath.Join(dir, "tarantool.c")
+	tarantool := filepath.Join(dir, "tarantool")
+
+	require.NoError(t, os.WriteFile(source, []byte("void tarantool_version(void) {}\n"+
+		"int main(void) { tarantool_version(); return 0; }\n"), 0o644))
+
+	out, err := exec.CommandContext(t.Context(), "cc", "-Wl,--build-id=sha1", "-o", tarantool,
+		source).CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	return tarantool
+}
+
+// noteBuildIDOf returns the build ID of the ELF file at path in hex, read
+// from its .note.gnu.build-id by the layout of a GNU note: the sizes of
+// the name and of the descriptor, the type, "GNU\0", and the descriptor.
+func noteBuildIDOf(t *testing.T, path string) string {
+	t.Helper()
+
+	file, err := elf.Open(path)
+	require.NoError(t, err)
+
+	defer func() { _ = file.Close() }()
+
+	section := file.Section(".note.gnu.build-id")
+	require.NotNil(t, section, "no build ID in %s", path)
+
+	data, err := section.Data()
+	require.NoError(t, err)
+	require.Greater(t, len(data), 16)
+
+	size := file.ByteOrder.Uint32(data[4:8])
+
+	return hex.EncodeToString(data[16 : 16+size])
+}
+
+// binaryCore returns a test core of the executable at path mapped at base:
+// its first page, as Linux dumps it, and the mapping of the page.
+func binaryCore(t *testing.T, path string, base uint64) testCore {
+	t.Helper()
+
+	image, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Greater(t, len(image), testPage)
+
+	file, err := elf.Open(path)
+	require.NoError(t, err)
+
+	defer func() { _ = file.Close() }()
+
+	// The program headers follow the ELF header of a linker.
+	const programHeaders = 64
+
+	return testCore{
+		segments: []testSegment{{vaddr: base, data: image[:testPage]}},
+		mappings: []fileMapping{{start: base, end: base + testPage, offset: 0, path: path}},
+		auxv:     [][2]uint64{{atPhdr, base + programHeaders}},
+		notes:    nil,
+	}
+}
+
+// TestProbeArtefactsDebugFile checks that pack packs the debug file of the
+// tarantool, found by its build ID in a debug directory of the probe, as
+// usr/lib/debug/.build-id/<xx>/<rest>.debug of the archive, where gdb.sh
+// points gdb to: the first -f, NAME=PATH. The tarantool is one cc built,
+// with the build ID of its linker, and a test one; the debug directories
+// are temporary ones, a host one being /usr/lib/debug, which a test cannot
+// write to.
+func TestProbeArtefactsDebugFile(t *testing.T) {
+	t.Parallel()
+
+	build := t.TempDir()
+	exe := testExecutable(t, testExecBase, 0x123, testBuildID)
+
+	// The tarantools by name: the path, the core and the build ID of each.
+	tarantools := map[string]func(t *testing.T) (string, testCore, string){
+		"test": func(t *testing.T) (string, testCore, string) {
+			t.Helper()
+
+			tarantool := exe.write(t, filepath.Join(build, "test", "tarantool"))
+
+			return tarantool, testExecutableCore(t, exe, testExecBase, tarantool), testBuildID
+		},
+		"cc": func(t *testing.T) (string, testCore, string) {
+			t.Helper()
+
+			tarantool := compileTarantool(t, build)
+
+			return tarantool, binaryCore(t, tarantool, 0x555555554000),
+				noteBuildIDOf(t, tarantool)
+		},
+	}
+
+	for name, tarantool := range tarantools {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			path, core, id := tarantool(t)
+			root := t.TempDir()
+			empty := filepath.Join(root, "empty")
+			debugDir := filepath.Join(root, "debug")
+			debugFile := filepath.Join(debugDir, ".build-id", id[:2], id[2:]+".debug")
+			member := "usr/lib/debug/.build-id/" + id[:2] + "/" + id[2:] + ".debug"
+
+			require.NoError(t, os.MkdirAll(empty, 0o755))
+			require.NoError(t, os.MkdirAll(filepath.Dir(debugFile), 0o755))
+			require.NoError(t, os.WriteFile(debugFile, []byte("the debug file"), 0o644))
+
+			opts := PackOptions{
+				Core: core.write(t, filepath.Join(root, "core")), Executable: path, Dir: "", PID: 0,
+				Time: "",
+			}
+
+			// The first debug directory that has the file.
+			artefacts, err := probeArtefacts(io.Discard, opts, []string{empty, debugDir})
+			require.NoError(t, err)
+			require.NotEmpty(t, artefacts.files)
+			assert.Equal(t, member+"="+debugFile, artefacts.files[0])
+			assert.Equal(t, []string{"-f", member + "=" + debugFile}, artefacts.scriptArgs()[:2])
+
+			// None without it.
+			artefacts, err = probeArtefacts(io.Discard, opts, []string{empty})
+			require.NoError(t, err)
+			assert.NotContains(t, strings.Join(artefacts.files, "\n"), ".debug")
+		})
+	}
 }
 
 func TestProbeArtefactsFiles(t *testing.T) {
@@ -654,7 +805,7 @@ func TestProbeArtefactsFiles(t *testing.T) {
 
 	var notices strings.Builder
 
-	artefacts, err := probeArtefacts(&notices, opts)
+	artefacts, err := probeArtefacts(&notices, opts, nil)
 	require.NoError(t, err)
 	assert.Equal(t, packArtefacts{executable: tarantool, files: []string{libm, libc, threadDB}},
 		artefacts)
@@ -666,7 +817,7 @@ func TestProbeArtefactsFiles(t *testing.T) {
 	core.segments = core.segments[:1]
 	opts.Core = core.write(t, filepath.Join(root, "partial"))
 
-	artefacts, err = probeArtefacts(&notices, opts)
+	artefacts, err = probeArtefacts(&notices, opts, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{libm, libc, threadDB}, artefacts.files)
 	assert.Contains(t, notices.String(), "Cannot read the link map of the dynamic loader in the "+
@@ -690,7 +841,7 @@ func TestProbeArtefactsFiles(t *testing.T) {
 	opts.Core = pieCore.write(t, filepath.Join(root, "pie", "core"))
 	opts.Executable = pieTarantool
 
-	artefacts, err = probeArtefacts(io.Discard, opts)
+	artefacts, err = probeArtefacts(io.Discard, opts, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{libm, libc, threadDB}, artefacts.files)
 
@@ -706,7 +857,7 @@ func TestProbeArtefactsFiles(t *testing.T) {
 
 	notices.Reset()
 
-	artefacts, err = probeArtefacts(&notices, opts)
+	artefacts, err = probeArtefacts(&notices, opts, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{libm, libc, threadDB}, artefacts.files)
 	assert.Equal(t, "Cannot read the files the core maps from its NT_FILE note: malformed note: "+

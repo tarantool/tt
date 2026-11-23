@@ -13,21 +13,25 @@ a single archive with unified format:
   - /coredump       - the core dump file produced by the executable
   - /etc/os-release - the plain text file with OS identification data
   - the files of the host given with -f, under their paths: all shared
-    libraries loaded (even via dlopen(3)) at the crash moment, libthread_db
-    and /usr/lib/debug/.build-id/XX/YYYY.debug, the separate debugging
-    information of the executable, when the host has it
+    libraries loaded (even via dlopen(3)) at the crash moment and
+    libthread_db
+  - /usr/lib/debug/.build-id/XX/YYYY.debug - the separate debugging
+    information of the executable, when the host has it, given with -f
+    from any debug directory of the host
 
 tt finds those files in the core dump and passes them with -f: the script
 asks no debugger.
 
 SYNOPSIS
 
-  $0 [-h] [-c core] [-d dir] [-e executable] [-f file]... [-p procID]
-     [-t datetime]
+  $0 [-h] [-c core] [-d dir] [-e executable] [-f [name=]file]...
+     [-p procID] [-t datetime]
 
 Supported options are:
   -c COREDUMP                   Use file COREDUMP as a core dump to examine.
-                                See core(5) for more info.
+                                See core(5) for more info. Without it, the
+                                core dump of the process PID is read from
+                                the standard input (see -p).
 
   -d DIRECTORY                  Create the resulting archive with the artefacts
                                 within DIRECTORY.
@@ -38,18 +42,24 @@ Supported options are:
                                 If PID is specified, the one from /proc/PID/exe
                                 is chosen (see proc(5) for more info).
 
-  -f FILE                       Include FILE, a file of the host the core
+  -f [NAME=]FILE                Include FILE, a file of the host the core
                                 dump needs, into the archive under its
-                                path. This option may appear multiple times.
+                                path, or as NAME, a relative path within
+                                the archive. This option may appear
+                                multiple times.
 
-  -g GDBWRAPPER                Include GDB-wrapper script GDBWRAPPER into the
+  -g GDBWRAPPER                 Include GDB-wrapper script GDBWRAPPER into the
                                 archive.
 
   -p PID                        PID of the dumped process, as seen in the PID
                                 namespace in which the given process resides
                                 (see %p in core(5) for more info). This flag
                                 have to be set when ${TOOL} is used as
-                                kernel.core_pattern pipeline script.
+                                kernel.core_pattern pipeline script: without
+                                -c, the core dump is read from the standard
+                                input into DIRECTORY/COMM-core.PID.DATETIME,
+                                with COMM of /proc/PID/comm, and the
+                                executable is /proc/PID/exe.
 
   -t DATETIME                   Time of dump, expressed as seconds since the
                                 epoch, 1970-01-01 00:00:00 +0000 (UTC).
@@ -104,16 +114,6 @@ while true; do
 	esac
 done
 
-if [ -z "${BINARY}" ]; then
-	if ! which tarantool; then
-		[ -t 1 ] && cat <<NOEXEC
-There is no Tarantool executable found in PATH. Either make sure
-it is there or specify it explicitly with the '-e' option.
-NOEXEC
-	fi
-	BINARY=$(which tarantool)
-fi
-
 # Do not proceed if there are some CLI arguments left. Everything
 # should be parsed before this line.
 if [ $# -ne 0 ]; then
@@ -133,7 +133,9 @@ abspath() {
 }
 
 COREDIR=$(abspath "${COREDIR}")
-BINARY=$(abspath "${BINARY}")
+if [ -n "${BINARY}" ]; then
+	BINARY=$(abspath "${BINARY}")
+fi
 if [ -n "${COREFILE}" ]; then
 	COREFILE=$(abspath "${COREFILE}")
 fi
@@ -147,7 +149,10 @@ fi
 # this process. If the process exe (or strictly saying its comm)
 # is not 'tarantool' then the coredump is simply saved to the
 # COREDIR; otherwise the dumped core is packed to the tarball.
-if [ -n "${PID}" ] && [ -d /proc/"${PID}" ]; then
+# A core given with -c is packed as it is: the standard input is
+# not the core then, and tt, which stores the core of a pipe
+# itself, passes it so.
+if [ -z "${COREFILE}" ] && [ -n "${PID}" ] && [ -d /proc/"${PID}" ]; then
 	BINARY=$(readlink /proc/"${PID}"/exe)
 	CMDNAME=$(sed -z 's/\s$//' /proc/"${PID}"/comm)
 	COREFILE=${COREDIR}/${CMDNAME}-core.${PID}.${TIME}
@@ -163,6 +168,19 @@ The file with core dump: ${COREFILE}
 ALIENCOREDUMP
 		exit 0;
 	fi
+fi
+
+# The tarantool of PATH is looked up when neither -e nor the process
+# of a pipe gives one, so that a pipe stores the core of another
+# process on a host without tarantool in PATH.
+if [ -z "${BINARY}" ]; then
+	if ! which tarantool; then
+		[ -t 1 ] && cat <<NOEXEC
+There is no Tarantool executable found in PATH. Either make sure
+it is there or specify it explicitly with the '-e' option.
+NOEXEC
+	fi
+	BINARY=$(which tarantool)
 fi
 
 if [ -z "${COREFILE}" ]; then
@@ -184,7 +202,28 @@ fi
 HOSTNAME=$(hostname 2>/dev/null || echo hostname)
 
 # Proceed with collecting and packing artefacts.
+PARTIAL=
 TMPDIR=$(mktemp -d -p "${COREDIR}")
+
+# A pack that fails, or is interrupted, leaves nothing behind in COREDIR:
+# neither TMPDIR nor the archive tar was writing, which PARTIAL names
+# meanwhile. An archive of the name packed before stays when the pack
+# fails before tar starts. One that succeeds removes TMPDIR at the end.
+cleanup() {
+	STATUS=$?
+	if [ "${STATUS}" -ne 0 ]; then
+		rm -rf "${TMPDIR}"
+		if [ -n "${PARTIAL}" ]; then
+			rm -f "${PARTIAL}"
+		fi
+	fi
+	exit "${STATUS}"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 TARLIST=${TMPDIR}/tarlist
 OSRELEASE=/etc/os-release
 ARCHIVENAME=tarantool-core-${PID:-N}-$(date +%Y%m%d%H%M -d @"${TIME}")-${HOSTNAME%%.*}
@@ -222,16 +261,20 @@ stage tarantool "${BINARY}"
 stage coredump "${COREFILE}"
 
 # The files of the host the core needs keep their paths, under the root
-# of the archive: the separate debugging information of the binary, which
-# a debuginfo package installs under /usr/lib/debug, where gdb.sh points
-# gdb to in the archive, the shared libraries the process had loaded, and
-# libthread_db. They are given one per line.
+# of the archive: the shared libraries the process had loaded, and
+# libthread_db. NAME=FILE puts FILE into the archive as NAME, as the
+# separate debugging information of the binary, which goes to
+# usr/lib/debug, where gdb.sh points gdb to in the archive, from any
+# debug directory of the host. They are given one per line.
 set -f
 OLDIFS=${IFS}
 IFS='
 '
 for FILE in ${FILES}; do
-	stage "${FILE#/}" "${FILE}"
+	case "${FILE}" in
+		/*) stage "${FILE#/}" "${FILE}";;
+		*)  stage "${FILE%%=*}" "$(abspath "${FILE#*=}")";;
+	esac
 done
 IFS=${OLDIFS}
 set +f
@@ -265,8 +308,10 @@ done
 # in its extended header, which GNU tar, bsdtar and the archive/tar of Go
 # read; tt coredump unpack refuses the old GNU sparse entries of the gnu
 # format.
+PARTIAL=${ARCHIVE}
 tar -czhf "${ARCHIVE}" -C "${TMPDIR}" -T "${TARLIST}" \
 	--format=posix --sparse
+PARTIAL=
 
 [ -t 1 ] && cat <<FINALIZE
 The resulting archive is located here: ${ARCHIVE}
