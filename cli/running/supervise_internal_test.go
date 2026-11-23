@@ -66,6 +66,9 @@ func TestWatchdogNotRestartable(t *testing.T) {
 // TestWatchdogIntegrityHardStop pins that a failed integrity check stops the
 // instance for good, although its record says restart: always, and
 // that the watchdog removes the sockets tarantool leaves when it is killed.
+// The state of the watchdog has every check, the failed one too, until the
+// watchdog ends and removes it; the record of the last exit keeps the
+// failure.
 func TestWatchdogIntegrityHardStop(t *testing.T) {
 	repo := &tamperedRepository{}
 	cmdCtx := &cmdcontext.CmdCtx{}
@@ -73,18 +76,55 @@ func TestWatchdogIntegrityHardStop(t *testing.T) {
 	cmdCtx.Cli.IntegrityCheckPeriod = 1
 	cmdCtx.Integrity = integrity.IntegrityCtx{Repository: repo}
 
-	test := newWatchdogTest(t, instances.RestartAlways, cmdCtx)
+	var (
+		exits *exitRecorder
+		// failed is the state the watchdog published as it killed tarantool
+		// for the failed check.
+		failed *WatchdogState
+	)
+
+	record := func(opts *supervisor.Options) {
+		onEvent := opts.OnEvent
+
+		opts.OnEvent = func(event supervisor.Event) {
+			onEvent(event)
+			exits.onEvent(event)
+
+			killed, ok := event.(supervisor.Killed)
+			if ok && killed.Reason == supervisor.KillCheckFailed {
+				failed, _ = ReadWatchdogState(exits.inst, os.Getpid())
+			}
+		}
+	}
+
+	test := newWatchdogTest(t, instances.RestartAlways, cmdCtx, record)
+
+	exits = newExitRecorder(&test.inst)
+
 	done := test.run()
 
 	// The files change once tarantool runs with its sockets open. A check
 	// failing sooner kills a tarantool that has not started yet, as the
 	// first one does on a slow machine, where the start outlasts the
 	// period.
-	test.waitStarted(1)
+	first := test.waitStarted(1)
 	waitSockets(t, &test.inst)
+
+	require.Eventually(t, func() bool {
+		state, err := ReadWatchdogState(&test.inst, os.Getpid())
+
+		return err == nil && state.IntegrityCheck != nil
+	}, 20*time.Second, 10*time.Millisecond, "no integrity check was published")
+
+	passed, err := ReadWatchdogState(&test.inst, os.Getpid())
+	require.NoError(t, err)
+	assert.True(t, passed.IntegrityCheck.OK)
+	require.NotNil(t, passed.Process)
+	assert.Equal(t, first, passed.Process.PID)
+
 	repo.tamper()
 
-	err := waitDone(t, done)
+	err = waitDone(t, done)
 	require.ErrorIs(t, err, errTampered)
 
 	var runErr *supervisor.Error
@@ -96,6 +136,66 @@ func TestWatchdogIntegrityHardStop(t *testing.T) {
 	assert.Contains(t, test.log.String(), "is not restarted")
 	assert.NoFileExists(t, test.inst.PIDFile)
 	assertNoSockets(t, &test.inst)
+
+	require.NotNil(t, failed, "the failed check was not published")
+	require.NotNil(t, failed.IntegrityCheck)
+	assert.False(t, failed.IntegrityCheck.OK)
+	assert.Equal(t, errTampered.Error(), failed.IntegrityCheck.Error)
+	assert.NoFileExists(t, filepath.Join(test.inst.RunDir, watchdogStateFileName))
+
+	exits.end(err)
+
+	last, ok := ReadLastExit(&test.inst)
+	require.True(t, ok)
+	assert.Contains(t, last.Describe(), "its watchdog ended: the periodic check: "+
+		errTampered.Error())
+}
+
+// TestWatchdogPublishesItsState pins the state the watchdog publishes in the
+// run directory for tt instance status: itself, the tarantool it runs, which
+// changes when tarantool is started again after a crash, and the count of
+// those restarts. It is gone once the watchdog stops.
+func TestWatchdogPublishesItsState(t *testing.T) {
+	test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
+	done := test.run()
+
+	// stateRuns waits for the state to name the process pid, and returns it.
+	stateRuns := func(pid int) *WatchdogState {
+		t.Helper()
+
+		var state *WatchdogState
+
+		require.Eventually(t, func() bool {
+			var err error
+
+			state, err = ReadWatchdogState(&test.inst, os.Getpid())
+
+			return err == nil && state.Process != nil && state.Process.PID == pid
+		}, 20*time.Second, 10*time.Millisecond, "the state does not name the process %d", pid)
+
+		return state
+	}
+
+	first := test.waitStarted(1)
+	state := stateRuns(first)
+
+	assert.Equal(t, os.Getpid(), state.Watchdog.PID)
+	assert.False(t, state.Watchdog.StartedAt.IsZero())
+	assert.False(t, state.Process.StartedAt.Before(state.Watchdog.StartedAt))
+	assert.Zero(t, state.Restarts)
+	assert.Nil(t, state.IntegrityCheck, "no checks without them")
+
+	require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
+
+	second := test.waitStarted(2)
+
+	state = stateRuns(second)
+	assert.NotEqual(t, first, second)
+	assert.Equal(t, 1, state.Restarts)
+
+	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
+	require.NoError(t, waitDone(t, done))
+	assert.NoFileExists(t, filepath.Join(test.inst.RunDir, watchdogStateFileName))
 }
 
 // TestWatchdogRestartsItsLaunch pins that the watchdog starts the instance

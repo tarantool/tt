@@ -218,12 +218,14 @@ func removeSockets(run *InstanceCtx) {
 // removeLeftovers removes what a watchdog that died without cleaning up left
 // besides its pid file, while the caller holds the lock of that file, so
 // that no newer watchdog owns any of it (pidfile.RemoveFor): the sockets of
-// a Tarantool instance, and the pid file of the process of an external
+// a Tarantool instance, the state the watchdog published
+// (watchdogStateFileName), and the pid file of the process of an external
 // process. That file stays while it names a live process that leads its
 // group, the process running without its watchdog (Orphan), which
 // tt instance stop and kill stop.
 func removeLeftovers(run *InstanceCtx) {
 	removeSockets(run)
+	removeWatchdogState(run)
 
 	if run.ProcessPIDFile == "" {
 		return
@@ -622,6 +624,7 @@ func Kill(run InstanceCtx) error {
 	killProcess(&run, killCleanupTimeout)
 	cleanupAfterKill(&run, pid, killCleanupTimeout, func(run *InstanceCtx) {
 		removeSockets(run)
+		removeWatchdogState(run)
 		recordKilled(run)
 	})
 
