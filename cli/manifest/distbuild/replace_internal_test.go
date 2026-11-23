@@ -120,7 +120,7 @@ func TestResolveReplacesPinned(t *testing.T) {
 	assert.Equal(t, "v2.0.5", got[2].TargetVersion)
 
 	// The locked version is not queried again.
-	for _, call := range gocmd.calls {
+	for _, call := range gocmd.recorded() {
 		assert.NotContains(t, call, "go-storage")
 	}
 }
