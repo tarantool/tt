@@ -61,7 +61,12 @@ Columns:
 - UNIT: The systemd unit that manages the instance, for an instance that
   tt service systemd install put under a unit. The column is shown only when
   a unit manages some of the instances.
-- PID: The watchdog process PID.
+- PID: The PID of the process the watchdog of the instance runs: tarantool,
+  or the program of an external process or of TCM, the PID top, gdb, perf,
+  box.info.pid and the log lines of tarantool name. It is empty while no
+  process runs, as during the delay before a restart, and for a watchdog
+  that an older tt started, which does not publish it: a restart of the
+  instance fixes that.
 - MODE: The mode of the instance, indicating its read/write status:
 	- RO: The instance is in read-only mode.
 	- RW: The instance is in read-write mode.
@@ -70,13 +75,22 @@ Columns:
 - BOX: The box info status.
 - UPSTREAM: The replication upstream status.
 
+STATUS is the state of the watchdog, which holds tt.pid in the run directory
+of the instance; -o json and -o yaml give its PID as watchdog_pid. Stop an
+instance with tt instance stop, not with a kill of its PID: the watchdog
+takes a process that a signal ends for one that exited, and starts it again
+as the restart policy of the instance says.
+
 MODE, CONFIG, BOX and UPSTREAM are what a running Tarantool instance tells
 over its console socket; an external process shows the state of its process
 alone. --details prints the alerts of the instances, and the tarantool each
-Tarantool instance starts on and where it comes from. For an instance that
-does not run it prints how its last process ended and when, as its watchdog
-recorded it, and the last lines of its tt.log unless it was stopped cleanly;
--o json and -o yaml give that record as last_exit.
+Tarantool instance starts on and where it comes from. For a running instance
+it prints the PID of its watchdog, when its process started, how many times
+the watchdog started it again and the last periodic integrity check; -o json
+and -o yaml give them as started_at, restarts and last_integrity_check. For
+an instance that does not run it prints how its last process ended and when,
+as its watchdog recorded it, and the last lines of its tt.log unless it was
+stopped cleanly; -o json and -o yaml give that record as last_exit.
 
 The status reads the cluster config as far as it can. When "*" stands for
 a topology in a config storage that is out of reach, it stands for the

@@ -4,6 +4,7 @@ import shutil
 import signal
 import subprocess
 
+import psutil
 import pytest
 import tt_helper
 
@@ -11,7 +12,8 @@ import utils
 
 
 def check_start(tt, tt_app, target):
-    # Store original state.
+    # Store original state. The start names the watchdog of an instance that
+    # runs already, not the process the PID of the status is.
     orig_status = tt_helper.status(tt)
 
     # Do start.
@@ -23,13 +25,14 @@ def check_start(tt, tt_app, target):
 
     # Check the instances.
     status = tt_helper.status(tt)
+    watchdogs = tt_helper.watchdog_pids(tt)
     for inst in tt_app.instances:
         was_running = inst in tt_app.running_instances
         if inst in target_instances:
             assert status[inst]["STATUS"] == "RUNNING"
             pid = status[inst]["PID"]
             msg_done = f"Starting an instance [{inst}]"
-            msg_warn = f"The instance {inst} (PID = {pid}) is already running."
+            msg_warn = f"The instance {inst} (PID = {watchdogs[inst]}) is already running."
             if was_running:
                 assert pid == orig_status[inst]["PID"]
                 assert msg_done not in out
@@ -526,8 +529,11 @@ def test_start_foreground_stop_one(tt_cmd, tmp_path):
         status = status_of(tt_cmd, app_path)
         assert status["fg:a"]["STATUS"] == "RUNNING"
         assert status["fg:b"]["STATUS"] == "RUNNING"
-        pids = {status["fg:a"]["PID"], status["fg:b"]["PID"], process.pid}
+        watchdogs = tt_helper.watchdog_pids(tt_helper.Tt(tt_cmd, app_path))
+        pids = {watchdogs["fg:a"], watchdogs["fg:b"], process.pid}
         assert len(pids) == 3, "a watchdog of its own for every instance"
+        # The PID of the status is the process, which the watchdog runs.
+        assert psutil.Process(status["fg:a"]["PID"]).ppid() == watchdogs["fg:a"]
 
         rc, out = utils.run_command_and_get_output(
             [tt_cmd, "instance", "stop", "-y", "fg:a"],

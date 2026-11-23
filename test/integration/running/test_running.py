@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -374,6 +375,19 @@ def test_running_multi_inst_app_error_cases(tt_cmd):
         assert "use app:<INSTANCE> or app:*" in start_output
 
 
+def watchdog_pid_of(tt_cmd, cwd, target):
+    """Return the pid of the watchdog of the instance target, watchdog_pid of
+    tt instance status -o json: the PID of the table is the process the
+    watchdog runs."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "instance", "status", target, "-o", "json"],
+        cwd=cwd,
+        stderr=subprocess.DEVNULL,
+    )
+    assert rc == 0, out
+    return json.loads(out)[target]["watchdog_pid"]
+
+
 def wait_tarantool(watchdog_pid, run_dir, exclude=None, timeout=10):
     """Wait for the tarantool the watchdog watchdog_pid runs as the instance,
     other than the process exclude, and return it.
@@ -423,20 +437,23 @@ def test_running_reread_pair(tt_cmd, tmp_path):
         assert status_rc == 0
         status_out = extract_status(status_out)
         assert status_out[target]["STATUS"] == "RUNNING"
-        pid = status_out[target]["PID"]
+        watchdog = watchdog_pid_of(tt_cmd, app_dir, target)
 
-        # The instance exits; restart: always starts it again.
-        tarantool = wait_tarantool(pid, run_dir)
+        # The instance exits; restart: always starts it again. The PID of the
+        # status is tarantool, which the watchdog runs.
+        tarantool = wait_tarantool(watchdog, run_dir)
         assert tarantool is not None
+        assert status_out[target]["PID"] == tarantool.pid
         tarantool.terminate()
-        restarted = wait_tarantool(pid, run_dir, exclude=tarantool, timeout=20)
+        restarted = wait_tarantool(watchdog, run_dir, exclude=tarantool, timeout=20)
         assert restarted is not None
 
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_dir)
         assert status_rc == 0
         status_out = extract_status(status_out)
         assert status_out[target]["STATUS"] == "RUNNING"
-        assert status_out[target]["PID"] == pid
+        assert status_out[target]["PID"] == restarted.pid
+        assert watchdog_pid_of(tt_cmd, app_dir, target) == watchdog
 
         # The record changes: the watchdog runs what the start resolved, so
         # the next exit is restarted all the same.
@@ -444,7 +461,7 @@ def test_running_reread_pair(tt_cmd, tmp_path):
             file.write('test_app:\n  restart: "no"\n')
 
         restarted.terminate()
-        again = wait_tarantool(pid, run_dir, exclude=restarted, timeout=20)
+        again = wait_tarantool(watchdog, run_dir, exclude=restarted, timeout=20)
         assert again is not None, "the edited restart policy reached the watchdog"
 
         # An explicit restart takes the edit: the next exit is not restarted.
@@ -453,10 +470,7 @@ def test_running_reread_pair(tt_cmd, tmp_path):
             cwd=app_dir,
         )
         assert rc == 0, out
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_dir)
-        assert status_rc == 0
-        pid = extract_status(status_out)[target]["PID"]
-        tarantool = wait_tarantool(pid, run_dir)
+        tarantool = wait_tarantool(watchdog_pid_of(tt_cmd, app_dir, target), run_dir)
         assert tarantool is not None
         tarantool.terminate()
         assert wait_instance_stop(os.path.join(run_dir, pid_file), timeout_sec=20)
@@ -821,8 +835,9 @@ def test_start_foreground(tt_cmd, tmp_path):
         status = extract_status(out)
         pids = {instance_process.pid}
         for inst in instances:
-            assert status[f"multi_inst_app:{inst}"]["STATUS"] == "RUNNING"
-            pids.add(status[f"multi_inst_app:{inst}"]["PID"])
+            target = f"multi_inst_app:{inst}"
+            assert status[target]["STATUS"] == "RUNNING"
+            pids.add(watchdog_pid_of(tt_cmd, tmp_path, target))
         assert len(pids) == len(instances) + 1, "a watchdog of its own for every instance"
 
         os.killpg(instance_process.pid, signal.SIGINT)

@@ -19,8 +19,10 @@ confirmation_input_params = [
 
 
 def check_kill(tt, tt_app, target, input, is_confirm, *args):
-    # Store original state.
+    # Store original state. The kill names the watchdog of an instance, not
+    # the process the PID of the status is.
     orig_status = tt_helper.status(tt)
+    orig_watchdogs = tt_helper.watchdog_pids(tt)
 
     # Do kill. An instance that does not run has nothing to kill, which is no
     # failure.
@@ -50,10 +52,12 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
         if is_confirm and inst in target_instances:
             assert status[inst]["STATUS"] == "NOT RUNNING"
             if was_running:
-                orig_pid = orig_status[inst]["PID"]
+                orig_pid = orig_watchdogs[inst]
                 assert f"The instance {inst} (PID = {orig_pid}) has been killed." in out
                 assert not os.path.exists(tt_app.run_path(inst, utils.control_socket))
                 assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
+                # The state the killed watchdog published goes with it.
+                assert not os.path.exists(tt_app.run_path(inst, "watchdog.json"))
             else:
                 assert f"The instance {inst} is not running." in out
         else:

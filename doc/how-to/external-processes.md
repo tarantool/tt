@@ -107,7 +107,8 @@ no shared library, and the build checks that it got one; the programs of
   it runs.
 - Its output goes to `tt.log`. Its watchdog keeps `tt.pid` and the pid of
   the process, `process.pid`, in the run directory.
-- `tt instance status` shows whether the process runs, and nothing more.
+- `tt instance status` shows whether the process runs and its PID, the one
+  `process.pid` names, and nothing more.
 - `tt instance logrotate` reopens `tt.log` and sends the process
   `logrotate_signal`, if the record has one. On Linux and macOS a process
   that does not catch, ignore or block that signal does not get it, since it

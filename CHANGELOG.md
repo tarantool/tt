@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- The watchdog of an instance publishes its live state in `watchdog.json`
+  in the run directory of the instance, `<root>/var/run/<app>/<instance>/`,
+  while it holds `tt.pid`: its PID and when it started, the PID of the
+  process it runs and when that started, `null` while none runs, how many
+  times the restart policy had it start the process again, and the last
+  periodic integrity check, when it ran and whether it passed or with what
+  error. The file has a `version`, 1, and is written whole, through a file
+  renamed into place, when the watchdog takes `tt.pid`, at every start and
+  exit of the process and after every check; the watchdog removes it before
+  it gives up `tt.pid`, and the one a watchdog that died left goes with its
+  other leftovers. A file whose watchdog does not hold `tt.pid` counts for
+  nothing. `tt instance status --details` prints, for a running instance,
+  the PID of its watchdog, the PID of its process and when it started, or
+  that none runs now, the count of restarts and the last integrity check,
+  in red when it failed; `-o json` and `-o yaml` give them as `started_at`,
+  `restarts` and `last_integrity_check`, left out when they are not known.
+  It is the same for a Tarantool instance, an external process, TCM and an
+  instance a systemd unit manages.
 - The SDK connects a module to an instance and runs Lua on it, where only
   the core could: `Services.Connect(ctx, target, opts)` returns a
   `sdk.Conn` as `tt connect` reaches the target without `--binary`, an
@@ -780,6 +798,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Breaking: the PID `tt instance status` shows, in the `PID` column and as
+  `pid` of `-o json` and `-o yaml`, is the PID of the process the watchdog
+  of the instance runs - tarantool, the program of an external process or
+  TCM - the one top, gdb, perf, `box.info.pid`, the log lines of tarantool
+  and its core files name, where it was the PID of the watchdog. The
+  watchdog, which holds `tt.pid`, is the new `watchdog_pid`. The PID is
+  empty, `null` in JSON and YAML, while no process runs, as during the
+  delay before a restart, and for an instance whose watchdog an older tt
+  started, which publishes no state: `--details` says so, and a restart of
+  the instance fixes it. `tt instance start`, `stop`, `kill` and
+  `logrotate` still name the watchdog in their messages. A script that
+  signalled the PID to reach the watchdog signals `watchdog_pid` now; a
+  signal that ends the process is an exit of its own for the watchdog,
+  which starts it again as the restart policy of the instance says, so an
+  instance is stopped with `tt instance stop`.
 - Breaking: the version descriptor `tt package build` generates into the
   package is `_version.lua`, `require('<name>._version')`, where it was
   `version.lua`, `require('<name>.version')`; the rocks of the build are

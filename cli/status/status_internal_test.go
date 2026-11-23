@@ -345,8 +345,43 @@ func (printer *recordingPrinter) Print(instances map[string]*instanceStatus) err
 	return nil
 }
 
+// testProcessPID is the pid of the process the watchdog of a running
+// instance of a test runs, as its state says (runningInstance). Nothing asks
+// whether it runs.
+const testProcessPID = 424242
+
+// watchdogStartedAt is when the watchdog of a running instance of a test
+// started, a second before its process, as the state of the watchdog says,
+// in a time zone of its own: the details show the time as it was recorded.
+var watchdogStartedAt = time.Date(2026, 11, 23, 10, 0, 0, 0, time.FixedZone("", 3*60*60))
+
+// publishState writes state as the state the watchdog of inst publishes in
+// its run directory.
+func publishState(t *testing.T, inst *running.InstanceCtx, state *running.WatchdogState) {
+	t.Helper()
+
+	data, err := json.Marshal(state)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(inst.RunDir, "watchdog.json"), data, 0o600))
+}
+
+// watchdogState is the state the test process publishes as the watchdog of
+// an instance that runs testProcessPID, which it has restarted restarts times.
+func watchdogState(restarts int) *running.WatchdogState {
+	return &running.WatchdogState{
+		Version:  1,
+		Watchdog: running.StateProcess{PID: os.Getpid(), StartedAt: watchdogStartedAt},
+		Process: &running.StateProcess{
+			PID: testProcessPID, StartedAt: watchdogStartedAt.Add(time.Second),
+		},
+		Restarts:       restarts,
+		IntegrityCheck: nil,
+	}
+}
+
 // runningInstance returns the context of the instance inst of myapp of kind,
-// whose pid file the test process holds, so that it counts as running, and
+// whose pid file the test process holds, so that it counts as running, whose
+// watchdog, the test process, publishes that it runs testProcessPID, and
 // whose console socket does not exist.
 func runningInstance(t *testing.T, inst string, kind instances.Kind) running.InstanceCtx {
 	t.Helper()
@@ -363,11 +398,14 @@ func runningInstance(t *testing.T, inst string, kind instances.Kind) running.Ins
 		InstName: inst,
 		Kind:     kind,
 		PIDFile:  pidFile,
+		RunDir:   dir,
 	}
 
 	if kind != instances.KindExternal {
 		ctx.ConsoleSocket = filepath.Join(dir, "tarantool.control")
 	}
+
+	publishState(t, &ctx, watchdogState(0))
 
 	return ctx
 }
@@ -395,12 +433,256 @@ func TestStatusExternal(t *testing.T) {
 	require.NotNil(t, worker)
 	assert.Equal(t, process_utils.ProcStateRunning.Status, worker.Status)
 	require.NotNil(t, worker.PID)
-	assert.Equal(t, os.Getpid(), *worker.PID)
+	assert.Equal(t, testProcessPID, *worker.PID, "the process, not its watchdog")
+	require.NotNil(t, worker.WatchdogPID)
+	assert.Equal(t, os.Getpid(), *worker.WatchdogPID)
 	assert.Empty(t, worker.Alerts)
 	assert.Empty(t, worker.Mode)
 	assert.Equal(t, defaultModuleStatus, worker.Config)
 	assert.Equal(t, defaultModuleStatus, worker.Box)
 	assert.Equal(t, defaultModuleStatus, worker.Upstream)
+}
+
+// TestStatusProcess pins that the PID of a running instance is the pid of the
+// process its watchdog runs, as the watchdog publishes it, in the table, in
+// JSON and in YAML alike, with the pid of the watchdog, when the process
+// started, the count of its restarts and the last integrity check apart, and
+// that the details show them all.
+func TestStatusProcess(t *testing.T) {
+	inst := runningInstance(t, "storage-1", instances.KindCluster)
+	state := watchdogState(2)
+
+	state.IntegrityCheck = &running.IntegrityCheck{
+		At: watchdogStartedAt.Add(time.Minute), OK: true, Error: "",
+	}
+	publishState(t, &inst, state)
+
+	ctx := running.RunningCtx{Instances: []running.InstanceCtx{inst}}
+	printer := &recordingPrinter{}
+
+	require.NoError(t, Status(ctx, printer, DefaultInstanceTimeout))
+
+	storage := printer.printed["myapp:storage-1"]
+	require.NotNil(t, storage)
+	require.NotNil(t, storage.PID)
+	assert.Equal(t, testProcessPID, *storage.PID)
+	require.NotNil(t, storage.WatchdogPID)
+	assert.Equal(t, os.Getpid(), *storage.WatchdogPID)
+	require.NotNil(t, storage.StartedAt)
+	assert.True(t, watchdogStartedAt.Add(time.Second).Equal(*storage.StartedAt))
+	require.NotNil(t, storage.Restarts)
+	assert.Equal(t, 2, *storage.Restarts)
+	require.NotNil(t, storage.LastIntegrityCheck)
+	assert.True(t, storage.LastIntegrityCheck.OK)
+	assert.True(t, state.IntegrityCheck.At.Equal(storage.LastIntegrityCheck.At))
+
+	table := captureStdout(t, func() error {
+		return Status(ctx, NewTablePrinter(), DefaultInstanceTimeout)
+	})
+	assert.Regexp(t, `(?m)^\s*myapp:storage-1\s+RUNNING\s+`+strconv.Itoa(testProcessPID)+`\s`,
+		table)
+	assert.NotContains(t, table, strconv.Itoa(os.Getpid()))
+
+	out := captureStdout(t, func() error {
+		return Status(ctx, NewJSONPrinter(), DefaultInstanceTimeout)
+	})
+
+	var decoded map[string]map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(out), &decoded))
+
+	fields := decoded["myapp:storage-1"]
+	assert.InDelta(t, testProcessPID, fields["pid"], 0)
+	assert.InDelta(t, os.Getpid(), fields["watchdog_pid"], 0)
+	assert.Equal(t, watchdogStartedAt.Add(time.Second).Format(time.RFC3339Nano),
+		fields["started_at"])
+	assert.InDelta(t, 2, fields["restarts"], 0)
+	assert.Equal(t, map[string]any{
+		"at": watchdogStartedAt.Add(time.Minute).Format(time.RFC3339Nano), "ok": true,
+	}, fields["last_integrity_check"])
+
+	out = captureStdout(t, func() error {
+		return Status(ctx, NewYAMLPrinter(), DefaultInstanceTimeout)
+	})
+	assert.Contains(t, out, "\n    pid: "+strconv.Itoa(testProcessPID)+"\n")
+	assert.Contains(t, out, "\n    watchdog_pid: "+strconv.Itoa(os.Getpid())+"\n")
+	assert.Contains(t, out, "\n    restarts: 2\n")
+	assert.Contains(t, out, "\n    last_integrity_check:\n        at: ")
+
+	table = captureStdout(t, func() error {
+		return Status(ctx, NewTablePrinter(WithDetails(true)), DefaultInstanceTimeout)
+	})
+	assert.Contains(t, table, fmt.Sprintf("Watchdog of myapp:storage-1: PID %d\n", os.Getpid()))
+	assert.Contains(t, table, fmt.Sprintf("Process of myapp:storage-1: PID %d, started at "+
+		"2026-11-23 10:00:01\n", testProcessPID))
+	assert.Contains(t, table, "Restarts of myapp:storage-1: 2\n")
+	assert.Contains(t, table,
+		"Last integrity check of myapp:storage-1: passed, at 2026-11-23 10:01:00\n")
+
+	// A failed check, which kills the process and ends the watchdog, shows
+	// as long as the watchdog has not ended yet.
+	state.Process = nil
+	state.IntegrityCheck = &running.IntegrityCheck{
+		At: watchdogStartedAt.Add(time.Minute), OK: false, Error: "app.lua changed",
+	}
+	publishState(t, &inst, state)
+
+	table = captureStdout(t, func() error {
+		return Status(ctx, NewTablePrinter(WithDetails(true)), DefaultInstanceTimeout)
+	})
+	assert.Contains(t, table, "Process of myapp:storage-1: none runs now")
+	assert.Contains(t, table, "Last integrity check of myapp:storage-1: failed, "+
+		"at 2026-11-23 10:01:00: app.lua changed\n")
+	assert.Regexp(t, `(?m)^\s*myapp:storage-1\s+RUNNING\s+--\s`, table,
+		"the PID of no process is empty, the columns after it stay")
+
+	out = captureStdout(t, func() error {
+		return Status(ctx, NewJSONPrinter(), DefaultInstanceTimeout)
+	})
+	require.NoError(t, json.Unmarshal([]byte(out), &decoded))
+
+	fields = decoded["myapp:storage-1"]
+	assert.Contains(t, fields, "pid")
+	assert.Nil(t, fields["pid"])
+	assert.InDelta(t, os.Getpid(), fields["watchdog_pid"], 0)
+	assert.NotContains(t, fields, "started_at")
+	assert.InDelta(t, 2, fields["restarts"], 0)
+}
+
+// TestStatusUnknownProcess pins that the PID of a running instance is not
+// known when its watchdog publishes no state that names it: a watchdog that
+// has only just taken the pid file has published none yet, a watchdog an
+// older tt started publishes none, one that died left the state there, or the
+// state is of another format. The pid of the watchdog is known all the same,
+// and the details say why the PID is not, and how to fix it: a missing state
+// is not blamed on an older tt alone, since a watchdog that is starting looks
+// the same for a moment.
+func TestStatusUnknownProcess(t *testing.T) {
+	stale := watchdogState(0)
+
+	stale.Watchdog.PID = os.Getpid() + 1
+
+	staleData, err := json.Marshal(stale)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		name string
+		// state is the state file, none when it is nil.
+		state []byte
+		unit  string
+		note  string
+	}{
+		{
+			name:  "no state",
+			state: nil,
+			unit:  "",
+			note: "the PID of its process is not known, as the watchdog has published no " +
+				"state: it has only just started, or an older tt started it, and then " +
+				"tt instance restart myapp:storage-1 fixes that",
+		},
+		{
+			name:  "the state of a dead watchdog",
+			state: staleData,
+			unit:  "",
+			note:  "as the watchdog has published no state",
+		},
+		{
+			name:  "a unit",
+			state: nil,
+			unit:  "myapp@storage-1.service",
+			note:  "systemctl restart myapp@storage-1.service fixes that",
+		},
+		{
+			name:  "another format",
+			state: []byte(`{"version":2}`),
+			unit:  "",
+			note: "the state of the watchdog is of another format: version 2, not 1, " +
+				"so the PID of its process is not known: " +
+				"tt instance restart myapp:storage-1 fixes that",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			inst := runningInstance(t, "storage-1", instances.KindCluster)
+
+			inst.Unit = test.unit
+
+			stateFile := filepath.Join(inst.RunDir, "watchdog.json")
+
+			require.NoError(t, os.Remove(stateFile))
+
+			if test.state != nil {
+				require.NoError(t, os.WriteFile(stateFile, test.state, 0o600))
+			}
+
+			ctx := running.RunningCtx{Instances: []running.InstanceCtx{inst}}
+			printer := &recordingPrinter{}
+
+			require.NoError(t, Status(ctx, printer, DefaultInstanceTimeout))
+
+			storage := printer.printed["myapp:storage-1"]
+			require.NotNil(t, storage)
+			assert.Equal(t, process_utils.ProcStateRunning.Status, storage.Status)
+			assert.Nil(t, storage.PID)
+			require.NotNil(t, storage.WatchdogPID)
+			assert.Equal(t, os.Getpid(), *storage.WatchdogPID)
+			assert.Nil(t, storage.StartedAt)
+			assert.Nil(t, storage.Restarts)
+
+			out := captureStdout(t, func() error {
+				return Status(ctx, NewJSONPrinter(), DefaultInstanceTimeout)
+			})
+
+			var decoded map[string]map[string]any
+
+			require.NoError(t, json.Unmarshal([]byte(out), &decoded))
+			assert.Contains(t, decoded["myapp:storage-1"], "pid")
+			assert.Nil(t, decoded["myapp:storage-1"]["pid"])
+			assert.InDelta(t, os.Getpid(), decoded["myapp:storage-1"]["watchdog_pid"], 0)
+			assert.NotContains(t, decoded["myapp:storage-1"], "restarts")
+
+			table := captureStdout(t, func() error {
+				return Status(ctx, NewTablePrinter(WithDetails(true)), DefaultInstanceTimeout)
+			})
+			assert.Contains(t, table,
+				fmt.Sprintf("Watchdog of myapp:storage-1: PID %d\n", os.Getpid()))
+			assert.Contains(t, table, test.note)
+			assert.NotContains(t, table, "Process of myapp:storage-1")
+		})
+	}
+}
+
+// TestStatusNotRunningHasNoPIDs pins that an instance that does not run has
+// neither PID: both are null in JSON, and the details show no watchdog.
+func TestStatusNotRunningHasNoPIDs(t *testing.T) {
+	dir := t.TempDir()
+	inst := running.InstanceCtx{
+		AppName: "myapp", InstName: "worker-1", Kind: instances.KindExternal,
+		PIDFile: filepath.Join(dir, "tt.pid"), RunDir: dir,
+	}
+
+	// The state a watchdog that died left does not make it run.
+	publishState(t, &inst, watchdogState(0))
+
+	ctx := running.RunningCtx{Instances: []running.InstanceCtx{inst}}
+
+	out := captureStdout(t, func() error {
+		return Status(ctx, NewJSONPrinter(), DefaultInstanceTimeout)
+	})
+
+	var decoded map[string]map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(out), &decoded))
+	assert.Equal(t, "NOT RUNNING", decoded["myapp:worker-1"]["status"])
+	assert.Contains(t, decoded["myapp:worker-1"], "watchdog_pid")
+	assert.Nil(t, decoded["myapp:worker-1"]["watchdog_pid"])
+	assert.Nil(t, decoded["myapp:worker-1"]["pid"])
+	assert.NotContains(t, decoded["myapp:worker-1"], "restarts")
+
+	table := captureStdout(t, func() error {
+		return Status(ctx, NewTablePrinter(WithDetails(true)), DefaultInstanceTimeout)
+	})
+	assert.NotContains(t, table, "Watchdog of")
+	assert.NotContains(t, table, "Process of")
 }
 
 // TestStatusOrphan pins that an external process whose watchdog is gone
@@ -438,6 +720,7 @@ func TestStatusOrphan(t *testing.T) {
 	require.NotNil(t, worker)
 	assert.Equal(t, process_utils.ProcStateStopped.Status, worker.Status)
 	assert.Nil(t, worker.PID)
+	assert.Nil(t, worker.WatchdogPID)
 	require.Len(t, worker.Alerts, 1)
 	assert.Equal(t, severityError, worker.Alerts[0].Severity)
 	assert.Contains(t, worker.Alerts[0].Message, strconv.Itoa(process.Process.Pid))
@@ -483,7 +766,7 @@ func TestStatusNotInConfig(t *testing.T) {
 	table := captureStdout(t, func() error {
 		return Status(both, NewTablePrinter(), DefaultInstanceTimeout)
 	})
-	assert.Regexp(t, `(?m)^\s*myapp:storage-2\s+RUNNING\s+`+strconv.Itoa(os.Getpid())+`\s`,
+	assert.Regexp(t, `(?m)^\s*myapp:storage-2\s+RUNNING\s+`+strconv.Itoa(testProcessPID)+`\s`,
 		table, "the columns stay as they are")
 	assert.Contains(t, table, "\nNot in the config: myapp:storage-2.\n")
 	assert.Contains(t, table, "tt instance stop stops them")
@@ -558,7 +841,7 @@ func TestStatusUnits(t *testing.T) {
 	require.GreaterOrEqual(t, len(lines), 3, table)
 	assert.Regexp(t, `^\s*INSTANCE\s+STATUS\s+UNIT\s+PID\s+MODE\s`, lines[0])
 	assert.Regexp(t, `^\s*myapp:worker-1\s+RUNNING\s+myapp@worker-1\.service\s+`+
-		strconv.Itoa(os.Getpid())+`\s`, lines[1])
+		strconv.Itoa(testProcessPID)+`\s`, lines[1])
 	assert.Regexp(t, `^\s*myapp:worker-2\s+NOT RUNNING\s*$`, lines[2])
 
 	table = captureStdout(t, func() error {

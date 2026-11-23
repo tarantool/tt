@@ -94,8 +94,26 @@ type instanceAlert struct {
 // instanceStatus is the status of an instance. Unit is the systemd unit that
 // manages the instance, left out when none does.
 type instanceStatus struct {
-	Status             string                     `json:"status"         yaml:"status"`
-	PID                *int                       `json:"pid"            yaml:"pid"`
+	Status string `json:"status" yaml:"status"`
+	// PID is the pid of the process the watchdog of a running instance runs,
+	// tarantool or the program of an external process, as the watchdog
+	// publishes it (running.ReadWatchdogState): nil while none runs, and
+	// when the watchdog publishes no state that tt reads.
+	PID *int `json:"pid" yaml:"pid"`
+	// WatchdogPID is the pid of the watchdog of a running instance, which
+	// holds its pid file, nil for one that does not run.
+	WatchdogPID *int `json:"watchdog_pid" yaml:"watchdog_pid"`
+	// StartedAt is when the process started, Restarts how many times the
+	// watchdog has started it again since it started itself, and
+	// LastIntegrityCheck the last periodic integrity check, all of them left
+	// out when they are not known.
+	StartedAt *time.Time `json:"started_at,omitempty" yaml:"started_at,omitempty"`
+	Restarts  *int       `json:"restarts,omitempty"   yaml:"restarts,omitempty"`
+	//nolint:lll // A struct tag is one string literal and cannot be wrapped.
+	LastIntegrityCheck *running.IntegrityCheck `json:"last_integrity_check,omitempty" yaml:"last_integrity_check,omitempty"`
+	// watchdogState is why the state of the watchdog of a running instance
+	// is not known, for the details, nil when it is.
+	watchdogState      error                      `json:"-"              yaml:"-"`
 	Unit               string                     `json:"unit,omitempty" yaml:"unit,omitempty"`
 	Mode               string                     `json:"mode"           yaml:"mode"`
 	Config             string                     `json:"config"         yaml:"config"`
@@ -144,6 +162,11 @@ func newInstanceStatus() instanceStatus {
 	return instanceStatus{
 		Status:             "",
 		PID:                nil,
+		WatchdogPID:        nil,
+		StartedAt:          nil,
+		Restarts:           nil,
+		LastIntegrityCheck: nil,
+		watchdogState:      nil,
 		Unit:               "",
 		Version:            "",
 		RestartPending:     false,
@@ -161,6 +184,38 @@ func newInstanceStatus() instanceStatus {
 		LastExit:           nil,
 		log:                "",
 		NotInConfig:        false,
+	}
+}
+
+// setProcess sets the watchdog of the running instance run, the owner of its
+// pid file, in instStatus, and what the watchdog publishes of the process it
+// runs (running.ReadWatchdogState): its pid, when it started, the count of
+// its restarts and the last integrity check. A state the watchdog does not
+// publish, as a watchdog an older tt started does not, leaves them unknown,
+// and why goes to the details.
+func setProcess(instStatus *instanceStatus, run *running.InstanceCtx) {
+	watchdog := instStatus.procStatus.PID
+
+	instStatus.WatchdogPID = &watchdog
+
+	state, err := running.ReadWatchdogState(run, watchdog)
+	if err != nil {
+		instStatus.watchdogState = err
+
+		return
+	}
+
+	restarts := state.Restarts
+
+	instStatus.Restarts = &restarts
+	instStatus.LastIntegrityCheck = state.IntegrityCheck
+
+	if state.Process != nil {
+		pid := state.Process.PID
+		startedAt := state.Process.StartedAt
+
+		instStatus.PID = &pid
+		instStatus.StartedAt = &startedAt
 	}
 }
 
@@ -412,8 +467,7 @@ func processStatusForInstance(instance running.InstanceCtx,
 	instStatus.Unit = instance.Unit
 
 	if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
-		instStatus.PID = &instStatus.procStatus.PID
-
+		setProcess(&instStatus, &instance)
 		setVersion(&instStatus, &instance)
 	} else {
 		setLastExit(&instStatus, &instance)
@@ -494,7 +548,9 @@ func collectStatuses(instances []running.InstanceCtx,
 // The state is the state of the watchdog, as for a Tarantool instance: an
 // external process whose watchdog is gone while its process runs on
 // (running.Orphan) is not running, since nothing supervises it, and gets an
-// alert that names the process and how to stop it.
+// alert that names the process and how to stop it. The PID of a running
+// instance is the pid of the process its watchdog runs, as the watchdog
+// publishes it, and the pid of the watchdog goes apart (setProcess).
 //
 // An instance that a systemd unit manages is read from the same pid file as
 // any, that of the watchdog its unit runs, and shows its unit.

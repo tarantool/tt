@@ -43,7 +43,9 @@ def assert_runs_from(scope, inst, version, tarantool, template=None):
     assert wait(10, lambda: marker in scope.log(inst)), scope.log(inst)
 
     status = scope.status(*(["--template", template] if template else []))
-    assert scope.pid(inst) == status[f"myapp:{inst}"]["pid"]
+    # The watchdog holds tt.pid; the PID of the status is tarantool.
+    assert scope.pid(inst) == status[f"myapp:{inst}"]["watchdog_pid"]
+    assert scope.pid(inst, "tarantool.pid") == status[f"myapp:{inst}"]["pid"]
     assert (scope.var("run", inst) / "tarantool.control").is_socket()
     assert list(scope.var("lib", inst).glob("*.snap")), "the data goes under the root"
 

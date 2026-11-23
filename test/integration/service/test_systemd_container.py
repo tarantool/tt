@@ -183,12 +183,19 @@ def test_systemd_units_in_container(host):
     assert host.unit("myapp@worker", "ActiveState") == "active"
 
     # The unit runs tt in the foreground and the watchdog of the instance as
-    # tarantool, the watchdog keeps the pid file.
+    # tarantool, the watchdog keeps the pid file. The PID of the status is
+    # the process the watchdog runs, which process.pid names, MainPID of the
+    # unit neither.
     main_pid = host.unit("myapp@worker", "MainPID")
-    rc, out = host.sh(f"ps -o user= -p {main_pid}; cat {ROOT}/var/run/myapp/worker/tt.pid")
+    run_dir = f"{ROOT}/var/run/myapp/worker"
+    rc, out = host.sh(
+        f"ps -o user= -p {main_pid}; cat {run_dir}/tt.pid; echo; cat {run_dir}/process.pid",
+    )
     assert rc == 0, out
     assert out.split()[0] == "tarantool"
-    assert int(out.split()[1]) == status["myapp:worker"]["pid"]
+    assert int(out.split()[1]) == status["myapp:worker"]["watchdog_pid"]
+    assert int(out.split()[2]) == status["myapp:worker"]["pid"]
+    assert status["myapp:worker"]["pid"] != status["myapp:worker"]["watchdog_pid"]
 
     rc, out = host.tt("instance", "stop", "--yes", "myapp:worker")
     assert rc == 1, out

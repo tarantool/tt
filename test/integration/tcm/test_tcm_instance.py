@@ -176,7 +176,13 @@ def test_tcm_lifecycle(tt_cmd, project, env):
 
         rc, out = tt(tt_cmd, project, env, "instance", "status", "-o", "json")
         assert rc == 0, out
-        access = json.loads(out)[f"{APP}:tcm"]["tcm"]
+        # The PID of the status is TCM, which process.pid names; its
+        # watchdog holds tt.pid.
+        status = json.loads(out)[f"{APP}:tcm"]
+        assert status["pid"] == record["pid"]
+        assert status["pid"] == int((run_dir(project) / "process.pid").read_text())
+        assert status["watchdog_pid"] == int((run_dir(project) / utils.pid_file).read_text())
+        access = status["tcm"]
         assert access["url"] == url
         assert access["user"] == "admin"
         assert access["password_file"] == str(secret)

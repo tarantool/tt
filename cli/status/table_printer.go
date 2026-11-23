@@ -1,11 +1,13 @@
 package status
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -127,13 +129,20 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 			row = append(row, instData.Unit)
 		}
 
-		if instData.PID == nil {
+		if instData.WatchdogPID == nil {
 			writer.AppendRow(row)
 
 			continue
 		}
 
-		row = append(row, *instData.PID)
+		// The PID of a running instance whose process is not known is
+		// empty, as the PID of one that does not run.
+		if instData.PID != nil {
+			row = append(row, *instData.PID)
+		} else {
+			row = append(row, "")
+		}
+
 		row = append(row, instData.Mode)
 		row = append(row, instData.Config)
 		row = append(row, instData.Box)
@@ -220,7 +229,7 @@ func notInConfig(instances map[string]*instanceStatus) []string {
 func endedUnstopped(instances map[string]*instanceStatus) bool {
 	for _, instStatus := range instances {
 		last := instStatus.LastExit
-		if instStatus.PID == nil && last != nil && !last.Clean() {
+		if instStatus.WatchdogPID == nil && last != nil && !last.Clean() {
 			return true
 		}
 	}
@@ -246,7 +255,8 @@ func (t TablePrinter) withDetails() bool {
 	return t.details
 }
 
-// printDetails prints the details of the instances, by name: the version of
+// printDetails prints the details of the instances, by name: the watchdog
+// and the process of every running instance (printProcess), the version of
 // the application of the user or system scope every running instance runs,
 // with a restart pending when another one is active, the tarantool every
 // Tarantool instance starts on, with the warnings of the choice, and then the
@@ -257,6 +267,10 @@ func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 
 	for _, name := range names {
 		instStatus := instances[name]
+		if printProcess(name, instStatus) {
+			printed = true
+		}
+
 		if instStatus.Version != "" {
 			_, _ = fmt.Fprintf(os.Stdout, "Version of %s: %s\n", name, describeVersion(instStatus))
 			printed = true
@@ -302,7 +316,7 @@ const detailsLogLines = 5
 // unless it was stopped cleanly, the last lines of its tt.log, where the
 // instance and its watchdog said why. It reports whether it printed anything.
 func printLastExit(name string, instStatus *instanceStatus) bool {
-	if instStatus.PID != nil {
+	if instStatus.WatchdogPID != nil {
 		return false
 	}
 
@@ -333,6 +347,80 @@ func printLastExit(name string, instStatus *instanceStatus) bool {
 	}
 
 	return true
+}
+
+// printProcess prints the watchdog of the running instance name and what it
+// publishes of the process it runs: the pid of the process and when it
+// started, or that none runs now, how many times the watchdog has started it
+// again, and the last integrity check, in red when it failed. A watchdog
+// that publishes no state tt reads gets a note in yellow that says so and
+// how to restart the instance, which has its new watchdog publish one. It
+// reports whether it printed anything: nothing for an instance that does not
+// run.
+func printProcess(name string, instStatus *instanceStatus) bool {
+	if instStatus.WatchdogPID == nil {
+		return false
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "Watchdog of %s: PID %d\n", name, *instStatus.WatchdogPID)
+
+	if instStatus.watchdogState != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "  • %s\n",
+			printYellow(describeUnknownState(name, instStatus)))
+
+		return true
+	}
+
+	if instStatus.PID != nil && instStatus.StartedAt != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Process of %s: PID %d, started at %s\n", name,
+			*instStatus.PID, instStatus.StartedAt.Format(time.DateTime))
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "Process of %s: none runs now: its watchdog has yet "+
+			"to start it, or to start it again\n", name)
+	}
+
+	if instStatus.Restarts != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Restarts of %s: %d\n", name, *instStatus.Restarts)
+	}
+
+	check := instStatus.LastIntegrityCheck
+	if check != nil {
+		described := check.Describe()
+		if !check.OK {
+			described = printRed(described)
+		}
+
+		_, _ = fmt.Fprintf(os.Stdout, "Last integrity check of %s: %s\n", name, described)
+	}
+
+	return true
+}
+
+// describeUnknownState tells why the process of the running instance name is
+// not known, and how to restart the instance, through the unit that manages
+// it, if one does: its new watchdog publishes its state. A watchdog with no
+// state is one that an older tt started, or one that has only just taken the
+// pid file and has yet to publish its first state, which a status that runs
+// with tt instance start --no-wait finds: the note names both.
+func describeUnknownState(name string, instStatus *instanceStatus) string {
+	restart := "tt instance restart " + name
+	if instStatus.Unit != "" {
+		restart = "systemctl restart " + instStatus.Unit
+	}
+
+	err := instStatus.watchdogState
+
+	switch {
+	case errors.Is(err, running.ErrNoWatchdogState):
+		return fmt.Sprintf("the PID of its process is not known, as the watchdog has published "+
+			"no state: it has only just started, or an older tt started it, and then %s "+
+			"fixes that", restart)
+	case errors.Is(err, running.ErrWatchdogStateVersion):
+		return fmt.Sprintf("%v, so the PID of its process is not known: %s fixes that", err,
+			restart)
+	default:
+		return fmt.Sprintf("%v, so the PID of its process is not known", err)
+	}
 }
 
 // printTCM prints how TCM, the instance name, is reached, and what it works

@@ -316,6 +316,36 @@ Last exit of demo:instance001: it exited with code 1, at 2026-11-17 00:39:27
  demo:instance001  NOT RUNNING
 ```
 
+The `PID` of `tt instance status` is the process the watchdog runs:
+`tarantool`, the program of an external process or TCM, the PID `top`,
+`gdb`, `perf`, `box.info.pid` and the log lines of Tarantool name. The
+watchdog publishes it in `watchdog.json` in the run directory while it
+runs, with when the process started, how many times the `restart` policy
+had it start the process again, and the last periodic integrity check.
+`tt instance status --details` prints them with the PID of the watchdog,
+which holds `tt.pid`, and `-o json` and `-o yaml` give them as
+`watchdog_pid`, `started_at`, `restarts` and `last_integrity_check`. Here
+the instance was killed and started again:
+
+```console
+$ tt instance status --details
+Watchdog of demo:instance001: PID 1781207
+Process of demo:instance001: PID 1781681, started at 2026-11-23 07:53:21
+Restarts of demo:instance001: 1
+…
+ INSTANCE          STATUS   PID      MODE  CONFIG  BOX      UPSTREAM
+ demo:instance001  RUNNING  1781681  RW    --      running  --
+```
+
+While no process runs, as in the 5 seconds before a restart, the `PID` is
+empty, `null` in JSON and YAML, and `--details` says that none runs now. So
+it is for an instance whose watchdog an older tt started, which publishes no
+state, until the instance is restarted. Stop an instance with
+`tt instance stop`, not with a `kill` of its PID: the watchdog takes a
+process a signal ended for one that exited, and starts it again as its
+`restart` says. `tt instance stop`, `kill` and `logrotate` name the
+watchdog in what they print.
+
 ## Where the files go
 
 An instance of the application `<app>` keeps its files under the root of
@@ -325,7 +355,7 @@ the scope of the application:
 | --- | --- |
 | `<root>/var/lib/<app>/<instance>/` | data: `*.snap`, `*.xlog`, vinyl; the working directory of an external process |
 | `<root>/var/log/<app>/<instance>/` | `tt.log`: the output of the instance and of its watchdog |
-| `<root>/var/run/<app>/<instance>/` | `tt.pid` of the watchdog, `tarantool.pid`, the console socket `tarantool.control`; `process.pid` of an external process |
+| `<root>/var/run/<app>/<instance>/` | `tt.pid` of the watchdog, `watchdog.json`, the state it publishes, `tarantool.pid`, the console socket `tarantool.control`; `process.pid` of an external process |
 
 In a project `<root>` is `.tarantool/`. A Tarantool instance runs in the
 application directory: the project, or the installed version. tt gives it
