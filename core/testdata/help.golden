@@ -2844,7 +2844,17 @@ FLAGS
 === tt coredump pack --help
 Pack COREDUMP, a core dump of Tarantool, into a tar.gz archive with the
 tarantool that dumped it, the shared libraries it had loaded and the gdb
-extensions, for `tt coredump inspect`.
+extensions, for `tt coredump inspect`. The archive is
+tarantool-core-PID-TIME-HOST.tar.gz in --dir, the working directory by default,
+with the PID of --pid, or of the process of the core, and the time of --time, or
+now; pack says its path.
+
+The tarantool is the one --executable names, and the core is refused when that
+one did not dump it. Without --executable, it is the executable the core names,
+when the file is still there and dumped the core, and otherwise the first that
+dumped it, by its build ID, of the tarantool of PATH, the one tt runs here and
+those tt binary installed into the project, user and system scopes; pack says
+which it takes.
 
 With --pid, tt is the pipe of kernel.core_pattern, as in /etc/sysctl.conf:
 
@@ -2854,14 +2864,16 @@ COREDUMP is omitted then, or -, and tt reads the core from its standard input.
 While /proc/PID has the process, the core is stored as DIR/COMM-core.PID.TIME,
 COMM of /proc/PID/comm, and packed with /proc/PID/exe, unless --executable names
 a tarantool; the core of a process whose comm is not tarantool is stored and not
-packed. A COREDUMP file is packed as it is, and the PID names the archive.
+packed. A COREDUMP file is packed as it is, with the tarantool found as without
+--pid, and the PID names the archive.
 
 USAGE
   tt coredump pack [COREDUMP] [flags]
 
 FLAGS
   -d, --dir string          Directory the resulting archive is created in
-  -e, --executable string   Tarantool executable path
+  -e, --executable string   Tarantool executable that dumped the core, instead
+                            of the one pack finds for it
   -h, --help                help for pack
   -p, --pid uint            PID of the dumped process, as seen in the PID
                             namespace in which the given process resides (see %p

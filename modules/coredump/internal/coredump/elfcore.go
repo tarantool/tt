@@ -540,6 +540,21 @@ func (c *coreDump) executableImage() (elfImage, error) {
 	return c.imageAt(mapping.start)
 }
 
+// pid returns the PID of the process of the core, pr_pid of its NT_PRPSINFO
+// note, which Linux and gcore of gdb write: the PID of the process in its
+// PID namespace, as %p of core(5) gives it to a kernel.core_pattern pipe. A
+// core without the note, or of a 32-bit process, of another layout of it,
+// has none, 0 and false.
+func (c *coreDump) pid() (uint, bool) {
+	if c.file.Class != elf.ELFCLASS64 || len(c.process) < prpsinfoPID+pidSize {
+		return 0, false
+	}
+
+	pid := c.file.ByteOrder.Uint32(c.process[prpsinfoPID:])
+
+	return uint(pid), pid != 0
+}
+
 // executable returns the mapping of the executable of the process: the
 // file mapped where its program headers are, AT_PHDR.
 func (c *coreDump) executable() (fileMapping, bool) {

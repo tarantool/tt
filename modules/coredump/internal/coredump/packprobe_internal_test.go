@@ -3,8 +3,11 @@ package coredump
 import (
 	"debug/elf"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -313,24 +316,447 @@ func TestProbeArtefactsChecks(t *testing.T) {
 	}
 }
 
+// tarantoolDirs are the directories of a test of the tarantool pack finds
+// for a core: of the executable the core names, of the tarantool of PATH,
+// which PATH is set to, and of other tarantools.
+type tarantoolDirs struct {
+	named, path, other string
+}
+
+// newTarantoolDirs makes the directories of a test of the tarantool pack
+// finds, and sets PATH to the one of the tarantool of PATH.
+func newTarantoolDirs(t *testing.T) tarantoolDirs {
+	t.Helper()
+
+	root := t.TempDir()
+	dirs := tarantoolDirs{
+		named: filepath.Join(root, "project", "bin"), path: filepath.Join(root, "path"),
+		other: filepath.Join(root, "other"),
+	}
+
+	for _, dir := range []string{dirs.named, dirs.path, dirs.other} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+	}
+
+	t.Setenv("PATH", dirs.path)
+
+	return dirs
+}
+
+// probeFound probes core with no tarantool given to pack, and with the
+// candidates tarantools, nil for none; it returns the artefacts and the
+// number of the calls of the candidates.
+func probeFound(t *testing.T, core string, tarantools []Candidate) (packArtefacts, int, error) {
+	t.Helper()
+
+	calls := 0
+	opts := PackOptions{Core: core, Executable: "", Tarantools: nil, Dir: "", PID: 0, Time: ""}
+
+	if tarantools != nil {
+		opts.Tarantools = func() []Candidate {
+			calls++
+
+			return tarantools
+		}
+	}
+
+	artefacts, err := probeArtefacts(io.Discard, opts, nil)
+
+	return artefacts, calls, err
+}
+
+// TestProbeArtefactsNamedTarantool checks that pack, given no tarantool,
+// packs a core with the executable the core names, at the path it records,
+// while PATH has another tarantool: the one of bin/ of a project, or of tt
+// binary install, that an instance ran. It took the tarantool of PATH and
+// refused the core. The other tarantools of tt are not looked up then.
+//
 //nolint:paralleltest // Changes PATH.
-func TestFindTarantool(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("PATH", dir)
+func TestProbeArtefactsNamedTarantool(t *testing.T) {
+	dirs := newTarantoolDirs(t)
+	exe := testExecutable(t, testExecBase, 0x123, testBuildID)
+	tarantool := exe.write(t, filepath.Join(dirs.named, "tarantool"))
 
-	_, err := findTarantool("")
+	testExecutable(t, testExecBase, 0x123, otherBuildID).write(t,
+		filepath.Join(dirs.path, "tarantool"))
+
+	for _, recorded := range []string{tarantool, tarantool + deletedSuffix} {
+		// A file of the build ID at the path of one deleted since it ran is
+		// the same build, as of a package reinstalled.
+		core := testExecutableCore(t, exe, testExecBase, recorded).write(t,
+			filepath.Join(t.TempDir(), "core"))
+
+		artefacts, calls, err := probeFound(t, core, []Candidate{})
+		require.NoError(t, err, recorded)
+		assert.Equal(t, tarantool, artefacts.executable, recorded)
+		assert.Zero(t, calls, recorded)
+		require.NotNil(t, artefacts.choice, recorded)
+		assert.Equal(t, Candidate{Path: tarantool, Origin: namedOrigin, Err: nil},
+			artefacts.choice.taken, recorded)
+		assert.Equal(t, "it has the build ID of the core, "+testBuildID, artefacts.choice.how,
+			recorded)
+		assert.Empty(t, artefacts.choice.refused, recorded)
+	}
+}
+
+// TestProbeArtefactsPathTarantool checks that pack, given no tarantool,
+// packs a core whose executable the core names is gone, or is another
+// build now, with the tarantool of PATH of the build ID of the core.
+//
+//nolint:paralleltest // Changes PATH.
+func TestProbeArtefactsPathTarantool(t *testing.T) {
+	dirs := newTarantoolDirs(t)
+	exe := testExecutable(t, testExecBase, 0x123, testBuildID)
+	onPath := exe.write(t, filepath.Join(dirs.path, "tarantool"))
+	named := filepath.Join(dirs.named, "tarantool")
+	core := testExecutableCore(t, exe, testExecBase, named).write(t,
+		filepath.Join(t.TempDir(), "core"))
+
+	cases := []struct {
+		name    string
+		prepare func(t *testing.T)
+		refusal refusal
+	}{
+		{
+			name:    "gone",
+			prepare: func(*testing.T) {},
+			refusal: refusal{
+				candidate: Candidate{Path: named, Origin: namedOrigin, Err: nil},
+				reason:    "missing", other: false,
+			},
+		},
+		{
+			name: "another build",
+			prepare: func(t *testing.T) {
+				t.Helper()
+				testExecutable(t, testExecBase, 0x123, otherBuildID).write(t, named)
+			},
+			refusal: refusal{
+				candidate: Candidate{Path: named, Origin: namedOrigin, Err: nil},
+				reason: "the executable of the core has build ID " + testBuildID +
+					", the binary " + otherBuildID,
+				other: true,
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		testCase.prepare(t)
+
+		artefacts, calls, err := probeFound(t, core, []Candidate{})
+		require.NoError(t, err, testCase.name)
+		assert.Equal(t, onPath, artefacts.executable, testCase.name)
+		assert.Zero(t, calls, testCase.name)
+		require.NotNil(t, artefacts.choice, testCase.name)
+		assert.Equal(t, Candidate{Path: onPath, Origin: pathOrigin, Err: nil},
+			artefacts.choice.taken, testCase.name)
+		assert.Equal(t, "it has the build ID of the core, "+testBuildID, artefacts.choice.how,
+			testCase.name)
+		assert.Equal(t, []refusal{testCase.refusal}, artefacts.choice.refused, testCase.name)
+	}
+}
+
+// TestProbeArtefactsOtherTarantool checks that pack, given no tarantool,
+// packs a core that neither the executable the core names nor the
+// tarantool of PATH dumped with the first of the other tarantools of tt
+// that did, and passes over a file it has tried by another path, as a link
+// to the tarantool of PATH.
+//
+//nolint:paralleltest // Changes PATH.
+func TestProbeArtefactsOtherTarantool(t *testing.T) {
+	dirs := newTarantoolDirs(t)
+	exe := testExecutable(t, testExecBase, 0x123, testBuildID)
+	onPath := testExecutable(t, testExecBase, 0x123, otherBuildID).write(t,
+		filepath.Join(dirs.path, "tarantool"))
+	named := filepath.Join(dirs.named, "tarantool")
+	core := testExecutableCore(t, exe, testExecBase, named).write(t,
+		filepath.Join(t.TempDir(), "core"))
+
+	link := filepath.Join(dirs.other, "link")
+	require.NoError(t, os.Symlink(onPath, link))
+
+	installed := exe.write(t, filepath.Join(dirs.other, "versions", "tarantool"))
+	errScope := errors.New("TT_USER_ROOT must be an absolute path")
+	tarantools := []Candidate{
+		{Path: "", Origin: "the tarantools of the user scope", Err: errScope},
+		{Path: link, Origin: "the active tarantool of the project scope", Err: nil},
+		{Path: installed, Origin: "a tarantool tt binary installed into the user scope", Err: nil},
+		{Path: filepath.Join(dirs.other, "later"), Origin: "not tried", Err: nil},
+	}
+
+	artefacts, calls, err := probeFound(t, core, tarantools)
+	require.NoError(t, err)
+	assert.Equal(t, installed, artefacts.executable)
+	assert.Equal(t, 1, calls)
+	require.NotNil(t, artefacts.choice)
+	assert.Equal(t, tarantools[2], artefacts.choice.taken)
+	assert.Equal(t, []string{
+		named + ", the executable the core names: missing",
+		onPath + ", the tarantool of PATH: the executable of the core has build ID " +
+			testBuildID + ", the binary " + otherBuildID,
+		"the tarantools of the user scope: TT_USER_ROOT must be an absolute path",
+	}, refusalLines(artefacts.choice.refused))
+}
+
+// refusalLines returns the refusals as pack lists them.
+func refusalLines(refusals []refusal) []string {
+	lines := make([]string, 0, len(refusals))
+	for _, refused := range refusals {
+		lines = append(lines, refused.String())
+	}
+
+	return lines
+}
+
+// TestProbeArtefactsNoTarantool checks the error of pack given no
+// tarantool for a core none of those it tries dumped: it lists each, with
+// why it is not the one, says to give the tarantool with -e, and names the
+// path the core records. A Tarantool executable among them of another
+// build makes it errCoreMismatch, and none errNoTarantool; a core that
+// names no executable, on a host with no tarantool, has the error pack
+// had of no tarantool in PATH.
+//
+//nolint:paralleltest // Changes PATH.
+func TestProbeArtefactsNoTarantool(t *testing.T) {
+	dirs := newTarantoolDirs(t)
+	exe := testExecutable(t, testExecBase, 0x123, testBuildID)
+	named := filepath.Join(dirs.named, "tarantool")
+	core := testExecutableCore(t, exe, testExecBase, named+deletedSuffix).write(t,
+		filepath.Join(t.TempDir(), "core"))
+	notTarantool := testObject{
+		typ: elf.ET_EXEC, base: testExecBase, entry: 0, notes: nil, dynamic: 0,
+		table: elf.SHT_DYNSYM, symbols: []testSymbol{{name: "main", section: ".text"}},
+	}.write(t, filepath.Join(dirs.other, "true"))
+	script := filepath.Join(dirs.other, "script")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755))
+
+	tarantools := []Candidate{
+		{Path: notTarantool, Origin: "the active tarantool of the user scope", Err: nil},
+		{Path: script, Origin: "the tarantool tt runs here", Err: nil},
+	}
+	tail := "\nspecify the tarantool that dumped the core with -e <path>; the core records it " +
+		"as " + named + deletedSuffix
+
+	_, _, err := probeFound(t, core, tarantools)
 	require.ErrorIs(t, err, errNoTarantool)
+	require.EqualError(t, err, "there is no Tarantool executable found in PATH: none of the "+
+		"tarantools tried dumped '"+core+"':\n"+
+		"  "+named+", the executable the core names: missing\n"+
+		"  "+notTarantool+", the active tarantool of the user scope: not a Tarantool binary\n"+
+		"  "+script+", the tarantool tt runs here: not an ELF file"+tail)
 
-	path, err := findTarantool("bin/tarantool")
+	onPath := testExecutable(t, testExecBase, 0x123, otherBuildID).write(t,
+		filepath.Join(dirs.path, "tarantool"))
+
+	_, _, err = probeFound(t, core, tarantools)
+	require.ErrorIs(t, err, errCoreMismatch)
+	require.EqualError(t, err, "core dump file is produced by the different Tarantool "+
+		"executable: none of the tarantools tried dumped '"+core+"':\n"+
+		"  "+named+", the executable the core names: missing\n"+
+		"  "+onPath+", the tarantool of PATH: the executable of the core has build ID "+
+		testBuildID+", the binary "+otherBuildID+"\n"+
+		"  "+notTarantool+", the active tarantool of the user scope: not a Tarantool binary\n"+
+		"  "+script+", the tarantool tt runs here: not an ELF file"+tail)
+
+	// A core that names no executable: no file is mapped at AT_PHDR.
+	unnamed := testExecutableCore(t, exe, testExecBase, named)
+
+	unnamed.mappings = nil
+
+	require.NoError(t, os.Remove(onPath))
+
+	_, _, err = probeFound(t, unnamed.write(t, filepath.Join(t.TempDir(), "core")), nil)
+	require.ErrorIs(t, err, errNoTarantool)
+	assert.EqualError(t, err, "there is no Tarantool executable found in PATH: either make "+
+		"sure it is there or specify it explicitly with the -e option")
+}
+
+// TestProbeArtefactsGivenTarantool checks that a tarantool given to pack, as
+// -e gives it, is the only one tried: a core it did not dump is refused
+// with the error of it, though the executable the core names and the
+// tarantool of PATH dumped it.
+//
+//nolint:paralleltest // Changes PATH.
+func TestProbeArtefactsGivenTarantool(t *testing.T) {
+	dirs := newTarantoolDirs(t)
+	exe := testExecutable(t, testExecBase, 0x123, testBuildID)
+	named := exe.write(t, filepath.Join(dirs.named, "tarantool"))
+
+	exe.write(t, filepath.Join(dirs.path, "tarantool"))
+
+	given := testExecutable(t, testExecBase, 0x123, otherBuildID).write(t,
+		filepath.Join(dirs.other, "tarantool"))
+	core := testExecutableCore(t, exe, testExecBase, named).write(t,
+		filepath.Join(t.TempDir(), "core"))
+	calls := 0
+
+	_, err := probeArtefacts(io.Discard, PackOptions{
+		Core: core, Executable: given, Dir: "", PID: 0, Time: "",
+		Tarantools: func() []Candidate {
+			calls++
+
+			return []Candidate{{Path: named, Origin: "the tarantool tt runs here", Err: nil}}
+		},
+	}, nil)
+	require.ErrorIs(t, err, errCoreMismatch)
+	require.EqualError(t, err, "core dump file is produced by the different Tarantool "+
+		"executable: looks like '"+core+"' is not generated by `"+given+"': the executable "+
+		"of the core has build ID "+testBuildID+", the binary "+otherBuildID+"; check that "+
+		"the given COREDUMP is produced by the specified BINARY")
+	assert.Zero(t, calls)
+}
+
+// TestProbeArtefactsUncheckedTarantool checks that pack, given no
+// tarantool, takes the first Tarantool executable for a core that holds
+// no image of its executable to check it by, and says it was not checked.
+//
+//nolint:paralleltest // Changes PATH.
+func TestProbeArtefactsUncheckedTarantool(t *testing.T) {
+	dirs := newTarantoolDirs(t)
+	exe := testExecutable(t, testExecBase, 0x123, testBuildID)
+	onPath := testExecutable(t, testExecBase, 0x456, otherBuildID).write(t,
+		filepath.Join(dirs.path, "tarantool"))
+	core := testExecutableCore(t, exe, testExecBase, filepath.Join(dirs.named, "tarantool"))
+
+	core.segments = nil
+
+	artefacts, _, err := probeFound(t, core.write(t, filepath.Join(t.TempDir(), "core")), nil)
 	require.NoError(t, err)
-	assert.Equal(t, "bin/tarantool", path)
+	assert.Equal(t, onPath, artefacts.executable)
+	require.NotNil(t, artefacts.choice)
+	assert.Empty(t, artefacts.choice.how)
+}
 
-	tarantool := filepath.Join(dir, "tarantool")
-	require.NoError(t, os.WriteFile(tarantool, []byte("#!/bin/sh\n"), 0o755))
+// TestLogTarantoolChoice checks what pack logs of the tarantool it found for
+// a core it was given none for.
+func TestLogTarantoolChoice(t *testing.T) {
+	t.Parallel()
 
-	path, err = findTarantool("")
-	require.NoError(t, err)
-	assert.Equal(t, tarantool, path)
+	named := Candidate{Path: "/p/bin/tarantool", Origin: namedOrigin, Err: nil}
+	onPath := Candidate{Path: "/usr/bin/tarantool", Origin: pathOrigin, Err: nil}
+	user := Candidate{
+		Path: "/u/bin/tarantool", Origin: "the active tarantool of the user scope", Err: nil,
+	}
+	how := "it has the build ID of the core, " + testBuildID
+	mismatch := "the executable of the core has build ID " + testBuildID + ", the binary " +
+		otherBuildID
+
+	type line struct {
+		level   slog.Level
+		message string
+	}
+
+	cases := []struct {
+		name   string
+		choice *tarantoolChoice
+		want   []line
+	}{
+		{name: "given", choice: nil, want: []line{}},
+		{
+			name:   "named",
+			choice: &tarantoolChoice{taken: named, how: how, refused: nil},
+			want:   []line{{slog.LevelInfo, "packing with /p/bin/tarantool, " + namedOrigin}},
+		},
+		{
+			name: "other",
+			choice: &tarantoolChoice{taken: user, how: how, refused: []refusal{
+				{candidate: named, reason: "missing", other: false},
+				{candidate: onPath, reason: mismatch, other: true},
+			}},
+			want: []line{
+				{slog.LevelInfo, "not packing with /p/bin/tarantool, " + namedOrigin + ": missing"},
+				{slog.LevelDebug, "not packing with /usr/bin/tarantool, " + pathOrigin + ": " +
+					mismatch},
+				{slog.LevelInfo, "packing with /u/bin/tarantool, the active tarantool of the " +
+					"user scope: " + how},
+			},
+		},
+		{
+			name: "unchecked",
+			choice: &tarantoolChoice{taken: onPath, how: "", refused: []refusal{
+				{candidate: named, reason: "missing", other: false},
+			}},
+			want: []line{
+				{slog.LevelInfo, "not packing with /p/bin/tarantool, " + namedOrigin + ": missing"},
+				{slog.LevelWarn, "packing with /usr/bin/tarantool, " + pathOrigin + ", which may " +
+					"not be the tarantool that dumped the core: the core holds no page of its " +
+					"executable to check it against"},
+				{slog.LevelWarn, "hint: pack the core with the tarantool that dumped it, " +
+					"-e <path>"},
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		log, recorder := logtest.New(t)
+
+		logTarantoolChoice(log, testCase.choice)
+
+		records := recorder.Records()
+		got := make([]line, 0, len(records))
+
+		for _, record := range records {
+			got = append(got, line{record.Level, record.Message})
+		}
+
+		assert.Equal(t, testCase.want, got, testCase.name)
+	}
+}
+
+// TestScopeTarantools checks the tarantools pack tries of a scope root: the
+// active one, then those of the versions of Tarantool Community and
+// Enterprise tt binary installed; not those of an application, and not a
+// version without its executable.
+func TestScopeTarantools(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(parts ...string) string {
+		path := filepath.Join(append([]string{root}, parts...)...)
+
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte("tarantool"), 0o755))
+
+		return path
+	}
+
+	assert.Empty(t, ScopeTarantools("user", root))
+
+	community := write("versions", "tarantool", "tarantool_3.9.0", "tarantool")
+	older := write("versions", "tarantool", "tarantool_3.8.2", "tarantool")
+	enterprise := write("versions", "tarantool-ee", "tarantool-ee_3.5.1", "tarantool")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "versions", "tarantool", "tarantool_3.7.0"),
+		0o755))
+	write("versions", "app", "app_1.0.0", "tarantool")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0o755))
+	require.NoError(t, os.Symlink(community, filepath.Join(root, "bin", "tarantool")))
+
+	installed := "a tarantool tt binary installed into the user scope"
+
+	assert.Equal(t, []Candidate{
+		{
+			Path:   filepath.Join(root, "bin", "tarantool"),
+			Origin: "the active tarantool of the user scope", Err: nil,
+		},
+		{Path: older, Origin: installed, Err: nil},
+		{Path: community, Origin: installed, Err: nil},
+		{Path: enterprise, Origin: installed, Err: nil},
+	}, ScopeTarantools("user", root))
+
+	if os.Geteuid() == 0 {
+		return
+	}
+
+	versions := filepath.Join(root, "versions", "tarantool-ee")
+	require.NoError(t, os.Chmod(versions, 0))
+	t.Cleanup(func() { _ = os.Chmod(versions, 0o755) })
+
+	got := ScopeTarantools("user", root)
+	require.Len(t, got, 4)
+	assert.Equal(t, installed, got[3].Origin)
+	assert.Empty(t, got[3].Path)
+	require.ErrorIs(t, got[3].Err, fs.ErrPermission)
 }
 
 // writeLibrary writes a test shared object to path that defines symbols in

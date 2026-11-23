@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/sdk/output"
 )
 
@@ -259,6 +260,82 @@ func TestPackScriptFailure(t *testing.T) {
 		content, err := os.ReadFile(archives[0])
 		require.NoError(t, err)
 		assert.Equal(t, packed, content, testCase.name)
+	}
+}
+
+// TestPackScriptReport runs the pack script with -r, as Pack runs it: the
+// script writes the path of the archive into the file of -r, with a
+// standard output that is no terminal, where it tells the path to a
+// terminal alone. The archive is named by the PID of -p, with the core of
+// -c, and N without one.
+func TestPackScriptReport(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	core := filepath.Join(dir, "core")
+
+	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o600))
+
+	tarantool := fakeTarantool(t, dir)
+
+	for _, pid := range []string{"N", "4242"} {
+		out := t.TempDir()
+		report := filepath.Join(t.TempDir(), "archive")
+		args := []string{"-c", core, "-e", tarantool, "-d", out, "-t", "1763869440", "-r", report}
+
+		if pid != "N" {
+			args = append(args, "-p", pid)
+		}
+
+		output, err := runScript(t, "not the core", args...)
+		require.NoError(t, err, output)
+		assert.NotContains(t, output, "The resulting archive is located here", pid)
+
+		archives, err := filepath.Glob(filepath.Join(out, "*.tar.gz"))
+		require.NoError(t, err)
+		require.Len(t, archives, 1, pid)
+		assert.True(t, strings.HasPrefix(filepath.Base(archives[0]), "tarantool-core-"+pid+"-"),
+			archives[0])
+
+		content, err := os.ReadFile(report)
+		require.NoError(t, err, pid)
+		assert.Equal(t, archives[0]+"\n", string(content), pid)
+	}
+}
+
+// TestPackArchive runs Pack on a core of a tarantool cc built, of the
+// process 4242: it returns the path of the archive, which it named by the
+// PID of the core without one given, where it named it N, and by the one
+// given otherwise, as the pipe gives it.
+func TestPackArchive(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	tarantool := compileTarantool(t, dir)
+	core := binaryCore(t, tarantool, 0x555555554000)
+
+	core.notes = prpsinfoNote(4242)
+
+	opts := PackOptions{
+		Core: core.write(t, filepath.Join(dir, "core")), Executable: tarantool, Tarantools: nil,
+		Dir: "", PID: 0, Time: "1763869440",
+	}
+
+	for pid, name := range map[uint]string{0: "4242", 7: "7"} {
+		opts.Dir, opts.PID = t.TempDir(), pid
+
+		log, _ := logtest.New(t)
+
+		archive, err := Pack(output.Streams{In: nil, Out: io.Discard, Err: io.Discard}, log, opts)
+		require.NoError(t, err, pid)
+
+		archives, err := filepath.Glob(filepath.Join(opts.Dir, "*.tar.gz"))
+		require.NoError(t, err)
+		assert.Equal(t, []string{archive}, archives, pid)
+		assert.True(t, strings.HasPrefix(filepath.Base(archive), "tarantool-core-"+name+"-"),
+			archive)
 	}
 }
 

@@ -15,56 +15,69 @@ import (
 	"github.com/tarantool/tt/modules/coredump/internal/coredump"
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/execfile"
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/sdk/sdktest"
 )
 
-// TestPackTarantool checks the executable pack packs a core with: the one
-// --executable names, else the Tarantool tt runs, else none, for the pack
-// script to look up in PATH.
-func TestPackTarantool(t *testing.T) {
-	t.Parallel()
+// writeTarantool writes a file at path, as tt binary installs a tarantool
+// there, and returns path.
+func writeTarantool(t *testing.T, path string) string {
+	t.Helper()
 
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("tarantool"), 0o755))
+
+	return path
+}
+
+// TestPackTarantools checks the tarantools tt knows of, which pack tries
+// for a core it is given no tarantool for when neither the executable the
+// core names nor the tarantool of PATH dumped it: the Tarantool tt runs,
+// when there is one, then those tt binary installed into the project, user
+// and system scopes. pack took the Tarantool tt runs alone, and refused a
+// core of another one.
+//
+//nolint:paralleltest // Sets the roots of the user and the system scopes.
+func TestPackTarantools(t *testing.T) {
 	version := sdk.TarantoolVersion{Major: 3, Minor: 9, Patch: 0}
+	project, user, system := t.TempDir(), t.TempDir(), t.TempDir()
+
+	t.Setenv(scope.UserRootEnv, user)
+	t.Setenv(scope.SystemRootEnv, system)
+
+	active := writeTarantool(t, filepath.Join(project, ".tarantool", "bin", "tarantool"))
+	installed := writeTarantool(t, filepath.Join(user, "versions", "tarantool",
+		"tarantool_3.8.2", "tarantool"))
+	ee := writeTarantool(t, filepath.Join(system, "versions", "tarantool-ee",
+		"tarantool-ee_3.5.1", "tarantool"))
+	scopes := []coredump.Candidate{
+		{Path: active, Origin: "the active tarantool of the project scope", Err: nil},
+		{Path: installed, Origin: "a tarantool tt binary installed into the user scope", Err: nil},
+		{Path: ee, Origin: "a tarantool tt binary installed into the system scope", Err: nil},
+	}
 
 	cases := []struct {
-		name       string
-		executable string
-		opts       []sdktest.Option
-		want       string
+		name string
+		opts []sdktest.Option
+		want []coredump.Candidate
 	}{
 		{
-			name:       "flag",
-			executable: "/opt/tarantool",
-			opts:       []sdktest.Option{sdktest.WithTarantool("/usr/bin/tarantool", version)},
-			want:       "/opt/tarantool",
+			name: "runs",
+			opts: []sdktest.Option{sdktest.WithTarantool("/opt/tarantool", version)},
+			want: append([]coredump.Candidate{
+				{Path: "/opt/tarantool", Origin: runsOrigin, Err: nil},
+			}, scopes...),
 		},
-		{
-			name:       "services",
-			executable: "",
-			opts: []sdktest.Option{
-				sdktest.WithTarantool("/app/.tarantool/bin/tarantool", version),
-			},
-			want: "/app/.tarantool/bin/tarantool",
-		},
-		{name: "none", executable: "", opts: nil, want: ""},
+		{name: "none", opts: nil, want: scopes},
 	}
 
 	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
+		services := sdktest.New(t, append(testCase.opts, sdktest.WithProject(project))...)
+		services.Start()
 
-			services := sdktest.New(t, testCase.opts...)
-			services.Start()
+		pack := &packCmd{services: services, executable: "", directory: "", time: "", pid: 0}
 
-			pack := &packCmd{
-				services: services, executable: testCase.executable, directory: "", time: "",
-				pid: 0,
-			}
-
-			got, err := pack.tarantool()
-			require.NoError(t, err)
-			assert.Equal(t, testCase.want, got)
-		})
+		assert.Equal(t, testCase.want, pack.tarantools(), testCase.name)
 	}
 }
 
@@ -144,8 +157,15 @@ func TestInspectExperimentalGDBTools(t *testing.T) {
 	}), "no %q in %q", prefix, messages)
 }
 
-func TestPackTarantoolError(t *testing.T) {
-	t.Parallel()
+// TestPackTarantoolsError checks that a tarantool tt cannot find is a
+// candidate with the error, which pack lists when none of the others
+// dumped the core, and does not stop the search: the Tarantool tt runs, and
+// the tarantools of a scope whose root is wrong.
+//
+//nolint:paralleltest // Sets the roots of the user and the system scopes.
+func TestPackTarantoolsError(t *testing.T) {
+	t.Setenv(scope.UserRootEnv, "relative")
+	t.Setenv(scope.SystemRootEnv, t.TempDir())
 
 	services := sdktest.New(t)
 	services.Start()
@@ -155,7 +175,13 @@ func TestPackTarantoolError(t *testing.T) {
 		pid: 0,
 	}
 
-	_, err := pack.tarantool()
-	require.ErrorIs(t, err, errBroken)
-	assert.ErrorContains(t, err, "cannot find the tarantool executable")
+	got := pack.tarantools()
+	require.Len(t, got, 2)
+	assert.Equal(t, runsOrigin, got[0].Origin)
+	assert.Empty(t, got[0].Path)
+	require.ErrorIs(t, got[0].Err, errBroken)
+	require.ErrorContains(t, got[0].Err, "cannot find the tarantool executable")
+	assert.Equal(t, "the tarantools of the user scope", got[1].Origin)
+	assert.Empty(t, got[1].Path)
+	require.ErrorIs(t, got[1].Err, scope.ErrRelativeRoot)
 }

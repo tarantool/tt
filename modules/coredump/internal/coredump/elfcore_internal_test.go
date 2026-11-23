@@ -663,6 +663,39 @@ func TestCoreReadBinary(t *testing.T) {
 	require.ErrorIs(t, err, errNotInCore)
 }
 
+// TestCorePID checks the PID of the process of a core, which names the
+// archive of pack: pr_pid of its NT_PRPSINFO note, and none of a core
+// without the note, with a short one or one of no PID, or of a 32-bit
+// process, whose note has another layout.
+func TestCorePID(t *testing.T) {
+	t.Parallel()
+
+	core := testCore{segments: nil, mappings: nil, auxv: nil, notes: prpsinfoNote(4242)}.open(t)
+
+	pid, ok := core.pid()
+	assert.True(t, ok)
+	assert.Equal(t, uint(4242), pid)
+
+	// The layout of a 32-bit process is not read.
+	core.file.Class = elf.ELFCLASS32
+
+	pid, ok = core.pid()
+	assert.False(t, ok)
+	assert.Zero(t, pid)
+
+	cases := map[string][]byte{
+		"no note": nil,
+		"short":   note("CORE", ntPrpsinfo, make([]byte, testPrpsinfoPID+2)),
+		"no pid":  prpsinfoNote(0),
+	}
+
+	for name, notes := range cases {
+		pid, ok := testCore{segments: nil, mappings: nil, auxv: nil, notes: notes}.open(t).pid()
+		assert.False(t, ok, name)
+		assert.Zero(t, pid, name)
+	}
+}
+
 func TestExecutableImage(t *testing.T) {
 	t.Parallel()
 

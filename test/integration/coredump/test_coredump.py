@@ -393,12 +393,16 @@ def test_coredump_pack_no_such_file(tt_cmd, tmp_path):
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 def test_coredump_pack(coredump, coredump_pack):
+    """pack of a kernel core says where the archive is with no terminal on
+    its standard output, as from a script, where the pack script tells it to
+    a terminal alone and pack said nothing of it."""
     rc, output = coredump_pack
     assert rc == 0, output
-    assert re.search(r"Core was successfully packed.", output)
     assert "nothing but zeros" not in output, output
     archives = list(coredump.parent.glob("*.tar.gz"))
     assert len(archives) == 1
+    assert f"Core was successfully packed: {archives[0]}" in output, output
+    assert "The resulting archive is located here" not in output, output
     check_archive_members(archives[0])
 
 
@@ -441,27 +445,34 @@ def test_coredump_pack_executable_project(tt_cmd, tmp_path, coredump_alt, alt_ta
     check_tarantool_in_archive(tmp_path, alt_tarantool)
 
 
+def write_other_build(tarantool, other, note):
+    """Write a copy of tarantool to other with the last byte of its build ID
+    changed, through note, a file for the section: a tarantool of the layout
+    of tarantool, and of another build. The test skips without objcopy, or
+    when tarantool has no build ID."""
+    if shutil.which("objcopy") is None:
+        pytest.skip("needs objcopy")
+    only = ["objcopy", "-O", "binary", "--only-section=.note.gnu.build-id"]
+    subprocess.run([*only, tarantool, note], check=True)
+    data = bytearray(note.read_bytes())
+    if not data:
+        pytest.skip(f"{tarantool} has no build ID")
+    data[-1] ^= 0xFF
+    note.write_bytes(data)
+    other.parent.mkdir(parents=True, exist_ok=True)
+    update = ["objcopy", f"--update-section=.note.gnu.build-id={note}"]
+    subprocess.run([*update, tarantool, other], check=True)
+
+
 def test_coredump_pack_other_tarantool(tt_cmd, tmp_path, gcore):
     """pack refuses a core with a tarantool of another build ID than the
     executable of the core: here a copy of the one that dumped it with the
     last byte of its build ID changed. The copy has the layout of the
     original, and gdb, which only warns of it, found the shared libraries of
     the core with it: the check of pack was that gdb found some."""
-    if shutil.which("objcopy") is None:
-        pytest.skip("needs objcopy")
-    tarantool = shutil.which("tarantool")
     note = tmp_path / "build-id"
-    only = ["objcopy", "-O", "binary", "--only-section=.note.gnu.build-id"]
-    subprocess.run([*only, tarantool, note], check=True)
-    data = bytearray(note.read_bytes())
-    if not data:
-        pytest.skip("the tarantool of PATH has no build ID")
-    data[-1] ^= 0xFF
-    note.write_bytes(data)
     other = tmp_path / "bin" / "tarantool"
-    other.parent.mkdir()
-    update = ["objcopy", f"--update-section=.note.gnu.build-id={note}"]
-    subprocess.run([*update, tarantool, other], check=True)
+    write_other_build(shutil.which("tarantool"), other, note)
 
     cmd = [tt_cmd, "coredump", "pack", "-e", other, gcore]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
@@ -492,6 +503,18 @@ PACK_TOOLS = (
 )
 
 
+def link_pack_tools(bin_dir):
+    """Make bin_dir a directory of links to the programs of the pack script
+    alone, PACK_TOOLS, for the PATH of a tt that is to find neither gdb nor
+    a tarantool there. The test skips without one of them."""
+    bin_dir.mkdir()
+    for tool in PACK_TOOLS:
+        path = shutil.which(tool)
+        if path is None:
+            pytest.skip(f"no {tool} on PATH")
+        os.symlink(path, bin_dir / tool)
+
+
 def test_coredump_pack_without_gdb(tt_cmd, tmp_path, gcore):
     """pack needs no debugger, so that a host with lldb or with none packs a
     core: with a PATH of the programs of the pack script alone, without gdb
@@ -499,12 +522,7 @@ def test_coredump_pack_without_gdb(tt_cmd, tmp_path, gcore):
     with gdb, shows its backtrace. pack refused a host without gdb, which it
     asked for the shared libraries of the core."""
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    for tool in PACK_TOOLS:
-        path = shutil.which(tool)
-        if path is None:
-            pytest.skip(f"no {tool} on PATH")
-        os.symlink(path, bin_dir / tool)
+    link_pack_tools(bin_dir)
     env = gdb_env()
     env["PATH"] = bin_dir.as_posix()
 
@@ -523,6 +541,101 @@ def test_coredump_pack_without_gdb(tt_cmd, tmp_path, gcore):
     rc, output = inspect(tt_cmd, tmp_path, archives[0], ["bt 1"])
     assert rc == 0, output
     assert re.search(r"#0 ", output), output
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+@pytest.mark.parametrize("on_path", ["none", "other build"])
+def test_coredump_pack_named_tarantool(tt_cmd, tmp_path, coredump_alt, alt_tarantool, on_path):
+    """pack given no -e packs a core with the executable the core names: a
+    tarantool that is not in PATH, as that of bin/ of a project or of tt
+    binary install which an instance ran. PATH has the programs of the pack
+    script and no tarantool, or a tarantool of another build, a copy of the
+    one that dumped the core with its build ID changed: pack took the
+    tarantool of PATH alone, and found none, or refused the core. The
+    archive has the tarantool, and inspect shows the backtrace of the core."""
+    bin_dir = tmp_path / "bin"
+    link_pack_tools(bin_dir)
+    if on_path == "other build":
+        write_other_build(alt_tarantool, bin_dir / "tarantool", tmp_path / "build-id")
+    env = dict(os.environ, PATH=bin_dir.as_posix())
+
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-d", out, coredump_alt]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
+    assert rc == 0, output
+    assert f"packing with {alt_tarantool}, the executable the core names" in output, output
+    assert "not packing with" not in output, output
+    check_tarantool_in_archive(out, alt_tarantool)
+
+    if on_path == "none" and shutil.which("gdb") is not None:
+        rc, output = inspect(tt_cmd, tmp_path, next(out.glob("*.tar.gz")), ["bt 1"])
+        assert rc == 0, output
+        assert re.search(r"#0 ", output), output
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_pack_path_tarantool(tt_cmd, tmp_path):
+    """pack given no -e packs a core whose executable the core names is gone
+    with the tarantool of PATH of the build ID of the core, and says why:
+    the core is of a copy of that tarantool, removed since it dumped the
+    core. With a PATH of a tarantool of another build instead, pack fails,
+    and lists the tarantools it tried, with why each is not the one, and
+    the path the core records, for -e."""
+    tarantool = shutil.which("tarantool")
+    assert tarantool is not None, "no tarantool on PATH"
+    copy = tmp_path / "gone" / "tarantool"
+    copy.parent.mkdir()
+    shutil.copy(tarantool, copy)
+    work = tmp_path / "work"
+    work.mkdir()
+    core, _ = kernel_core(work, [copy.as_posix(), "-e", CRASH])
+    copy.unlink()
+
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-d", out, core]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    assert f"not packing with {copy}, the executable the core names: missing" in output, output
+    assert re.search(
+        rf"packing with {re.escape(tarantool)}, the tarantool of PATH: it has the build ID of the "
+        r"core, [0-9a-f]+",
+        output,
+    ), output
+    check_tarantool_in_archive(out, tarantool)
+
+    # The scopes tt binary installs into, which pack tries after PATH, are
+    # empty ones: those of the host may have the tarantool of the core.
+    bin_dir = tmp_path / "bin"
+    link_pack_tools(bin_dir)
+    other = bin_dir / "tarantool"
+    write_other_build(tarantool, other, tmp_path / "build-id")
+    env = dict(os.environ, PATH=bin_dir.as_posix())
+    for name in ("TT_USER_ROOT", "TT_SYSTEM_ROOT"):
+        root = tmp_path / name.lower()
+        root.mkdir()
+        env[name] = root.as_posix()
+    failed = tmp_path / "failed"
+    failed.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-d", failed, core]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
+    assert rc != 0, output
+    assert (
+        "core dump file is produced by the different Tarantool executable: none of the "
+        f"tarantools tried dumped '{core}':" in output
+    ), output
+    assert f"{copy}, the executable the core names: missing" in output, output
+    assert re.search(
+        rf"{re.escape(str(other))}, the tarantool of PATH: the executable of the core has build "
+        r"ID [0-9a-f]+, the binary [0-9a-f]+",
+        output,
+    ), output
+    assert (
+        f"specify the tarantool that dumped the core with -e <path>; the core records it as {copy}"
+        in output
+    ), output
+    assert not list(failed.iterdir())
 
 
 def gdb_shared_libraries(tarantool, core):
@@ -739,12 +852,12 @@ def test_coredump_pack_pipe(tt_cmd, tmp_path, arg):
             pack = subprocess.run(cmd, cwd=tmp_path, stdin=stdin, capture_output=True, text=True)
         output = pack.stdout + pack.stderr
         assert pack.returncode == 0, output
-        assert "Core was successfully packed." in output
 
         # The archive, named by the PID, and the core, stored as the pack
         # script stores it.
         archives = list(out.glob("*.tar.gz"))
         assert len(archives) == 1, list(out.iterdir())
+        assert f"Core was successfully packed: {archives[0]}" in output, output
         assert archives[0].name.startswith(f"tarantool-core-{process.pid}-"), archives[0]
         stored = list(out.glob(f"tarantool-core.{process.pid}.*"))
         assert len(stored) == 1, list(out.iterdir())
@@ -759,6 +872,34 @@ def test_coredump_pack_pipe(tt_cmd, tmp_path, arg):
         (member_dir,) = unpacked.iterdir()
         assert filecmp.cmp(member_dir / "coredump", core, shallow=False)
         assert filecmp.cmp(member_dir / "tarantool", exe, shallow=False)
+
+
+def test_coredump_pack_archive_name(tt_cmd, tmp_path):
+    """pack of a core given as a file, without -p, names the archive by the
+    PID of the process of the core, which its NT_PRPSINFO note has, where it
+    named it tarantool-core-N-...; -p names it as before. The core is a
+    gcore of a running tarantool."""
+    if sys.platform != "linux" or shutil.which("gdb") is None:
+        pytest.skip("needs gdb on Linux to make a core of a running tarantool")
+    tarantool = shutil.which("tarantool")
+    assert tarantool is not None, "no tarantool on PATH"
+    core = tmp_path / "gcore"
+
+    with running([tarantool, "-e", SLEEP], tmp_path) as process:
+        assert process.stdout.readline() == b"ready\n"
+        gcore_of_running(process, core)
+        pid = process.pid
+
+    for arg, name in (([], pid), (["-p", "42"], 42)):
+        out = tmp_path / f"out-{name}"
+        out.mkdir()
+        cmd = [tt_cmd, "coredump", "pack", "-d", out, *arg, core]
+        rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+        assert rc == 0, output
+        archives = list(out.glob("*.tar.gz"))
+        assert len(archives) == 1, list(out.iterdir())
+        assert archives[0].name.startswith(f"tarantool-core-{name}-"), archives[0]
+        assert f"Core was successfully packed: {archives[0]}" in output, output
 
 
 def test_coredump_pack_pipe_not_tarantool(tt_cmd, tmp_path):
@@ -786,7 +927,7 @@ def test_coredump_pack_pipe_not_tarantool(tt_cmd, tmp_path):
     assert set(out.iterdir()) == {stored}, "the core alone, no archive"
     assert stored.read_bytes() == core
     assert f"its core is stored and not packed: {stored}" in output, output
-    assert "Core was successfully packed." not in output
+    assert "Core was successfully packed" not in output
 
 
 def check_archive_members(archive):
