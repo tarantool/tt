@@ -42,8 +42,9 @@ def wait_pid_files_changed(tt_app, instances, orig_watchdogs):
 
 
 def check_restart(tt, tt_app, target, input, is_confirm, *args):
-    # Store original state. The stop of the restart names the watchdog of an
-    # instance, not the process the PID of the status is.
+    # Store original state. The stop of the restart names an instance by its
+    # process, the PID of the status; the new watchdog is waited for by the
+    # pid file, which names the watchdog.
     orig_status = tt_helper.status(tt)
     orig_watchdogs = tt_helper.watchdog_pids(tt)
 
@@ -90,8 +91,9 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
             # The restart returns once the instance is up.
             assert f"The instance {inst} is up." in out
             if was_running:
-                assert status[inst]["PID"] != orig_status[inst]["PID"]
-                orig_pid = orig_watchdogs[inst]
+                orig_pid = orig_status[inst]["PID"]
+                assert orig_pid is not None
+                assert status[inst]["PID"] != orig_pid
                 assert f"The instance {inst} (PID = {orig_pid}) has been terminated." in out
         else:
             assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]

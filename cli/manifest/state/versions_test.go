@@ -1,17 +1,21 @@
 package state_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest/state"
+	"github.com/tarantool/tt/v3/internal/watchdogstate"
 )
 
 // installVersion lays an installed version of an application the way install
@@ -252,19 +256,79 @@ func TestRunningInstances(t *testing.T) {
 
 	running, err = state.RunningInstances(root, "my-app")
 	require.NoError(t, err)
-	assert.Equal(t, []state.RunningInstance{{Name: "router-1", Pid: os.Getpid()}}, running)
+	assert.Equal(t, []state.RunningInstance{{Name: "router-1", WatchdogPid: os.Getpid()}}, running)
 
 	other, err := state.RunningInstances(root, "other")
 	require.NoError(t, err)
 	assert.Empty(t, other)
 
+	// The watchdog publishes no state: it is named, labelled so.
 	err = state.CheckNotRunning(root, "my-app")
 	require.ErrorIs(t, err, state.ErrInstancesRunning)
-	assert.Contains(t, err.Error(), "router-1 (pid "+strconv.Itoa(os.Getpid())+")")
+	assert.Contains(t, err.Error(), "router-1 (watchdog pid "+strconv.Itoa(os.Getpid())+")")
 	assert.NotContains(t, err.Error(), "storage-1")
 	assert.NotContains(t, err.Error(), "storage-3")
 
 	require.NoError(t, state.CheckNotRunning(root, "other"))
+}
+
+// publishState writes into runDir the state a watchdog of the pid watchdog
+// publishes, with the process of the pid process running, or none for 0.
+func publishState(t *testing.T, runDir string, watchdog, process int) {
+	t.Helper()
+
+	published := watchdogstate.State{
+		Version:        watchdogstate.Version,
+		Watchdog:       watchdogstate.Process{PID: watchdog, StartedAt: time.Now()},
+		Process:        nil,
+		Restarts:       0,
+		IntegrityCheck: nil,
+	}
+	if process != 0 {
+		published.Process = &watchdogstate.Process{PID: process, StartedAt: time.Now()}
+	}
+
+	data, err := json.Marshal(&published)
+	require.NoError(t, err)
+	writeFile(t, watchdogstate.Path(runDir), data)
+}
+
+// TestCheckNotRunningNamesTheProcess pins that tt package names a running
+// instance by the pid of the process its watchdog runs, the PID of
+// tt instance status, as the watchdog publishes it; by the pid of the
+// watchdog, labelled so, while no process runs, and for a state that names
+// another watchdog, the leftover of one that died.
+func TestCheckNotRunningNamesTheProcess(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	runDir := filepath.Join(root, "var", "run", "my-app")
+	watchdog := os.Getpid()
+	process := watchdog + 1000
+
+	for _, inst := range []string{"router-1", "storage-1", "storage-2"} {
+		holdPidFile(t, filepath.Join(runDir, inst, "tt.pid"), watchdog)
+	}
+
+	publishState(t, filepath.Join(runDir, "router-1"), watchdog, process)
+	// The restart delay: the watchdog runs no process.
+	publishState(t, filepath.Join(runDir, "storage-1"), watchdog, 0)
+	// The state of a watchdog that died before this one.
+	publishState(t, filepath.Join(runDir, "storage-2"), watchdog+1, process+1)
+
+	running, err := state.RunningInstances(root, "my-app")
+	require.NoError(t, err)
+	assert.Equal(t, []state.RunningInstance{
+		{Name: "router-1", Pid: process, WatchdogPid: watchdog, Dir: "", Version: ""},
+		{Name: "storage-1", Pid: 0, WatchdogPid: watchdog, Dir: "", Version: ""},
+		{Name: "storage-2", Pid: 0, WatchdogPid: watchdog, Dir: "", Version: ""},
+	}, running)
+
+	err = state.CheckNotRunning(root, "my-app")
+	require.ErrorIs(t, err, state.ErrInstancesRunning)
+	assert.Equal(t, fmt.Sprintf("%s: my-app: router-1 (pid %d), storage-1 (watchdog pid %d), "+
+		"storage-2 (watchdog pid %d); stop them first", state.ErrInstancesRunning, process,
+		watchdog, watchdog), err.Error())
 }
 
 // TestRunningInstancesVersion reads the version a running instance runs from
@@ -284,8 +348,8 @@ func TestRunningInstancesVersion(t *testing.T) {
 	running, err := state.RunningInstances(root, "my-app")
 	require.NoError(t, err)
 	assert.Equal(t, []state.RunningInstance{
-		{Name: "router-1", Pid: os.Getpid(), Dir: dir, Version: "1.0.0"},
-		{Name: "router-2", Pid: os.Getpid(), Dir: "", Version: ""},
+		{Name: "router-1", Pid: 0, WatchdogPid: os.Getpid(), Dir: dir, Version: "1.0.0"},
+		{Name: "router-2", Pid: 0, WatchdogPid: os.Getpid(), Dir: "", Version: ""},
 	}, running)
 
 	assert.Empty(t, state.DirVersion(""))

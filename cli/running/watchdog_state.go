@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/tarantool/tt/v3/internal/supervisor"
+	"github.com/tarantool/tt/v3/internal/watchdogstate"
 )
 
 // The watchdog of an instance publishes its live state in
@@ -20,15 +20,17 @@ import (
 // times the restart policy had it start the process again, and the last
 // periodic integrity check. tt instance status shows the pid of that process,
 // the one top, gdb, perf, box.info.pid and the log lines of tarantool name,
-// rather than the pid of the watchdog, which the pid file holds.
+// rather than the pid of the watchdog, which the pid file holds, and so do
+// the messages of the commands that signal the instance (pidsOf). The format
+// is the one of the watchdogstate package, which tt package reads as well.
 
 const (
 	// watchdogStateFileName is the file in the run directory of an instance
 	// that holds the state its watchdog publishes, while the watchdog runs.
-	watchdogStateFileName = "watchdog.json"
+	watchdogStateFileName = watchdogstate.FileName
 	// watchdogStateVersion is the version of the format of a WatchdogState:
 	// a reader takes a state of another for one it cannot read.
-	watchdogStateVersion = 1
+	watchdogStateVersion = watchdogstate.Version
 )
 
 var (
@@ -36,62 +38,28 @@ var (
 	// no state file, or the one there names another watchdog, which died
 	// without removing it. A watchdog that a tt older than the state file
 	// started publishes none.
-	ErrNoWatchdogState = errors.New("the watchdog does not publish its state")
+	ErrNoWatchdogState = watchdogstate.ErrNoState
 	// ErrWatchdogStateVersion is wrapped by the error for a state file of
 	// another version of the format than watchdogStateVersion.
-	ErrWatchdogStateVersion = errors.New("the state of the watchdog is of another format")
+	ErrWatchdogStateVersion = watchdogstate.ErrVersion
 )
 
 // WatchdogState is the live state of the watchdog of an instance, as the
 // watchdog publishes it in the run directory of the instance.
-type WatchdogState struct {
-	// Version is watchdogStateVersion.
-	Version int `json:"version"`
-	// Watchdog is the watchdog that publishes the state, which holds the pid
-	// file of the instance: a state that names another is a leftover.
-	Watchdog StateProcess `json:"watchdog"`
-	// Process is the process the watchdog runs, nil while none runs: before
-	// the first start, during the restart delay and after the last exit.
-	Process *StateProcess `json:"process"`
-	// Restarts is how many times the watchdog started the process again, as
-	// the restart policy of the instance says, since the watchdog started:
-	// zero after the first start.
-	Restarts int `json:"restarts"`
-	// IntegrityCheck is the last periodic integrity check of the instance,
-	// nil before the first one and without the checks.
-	IntegrityCheck *IntegrityCheck `json:"integrity_check,omitempty"`
-}
+type WatchdogState = watchdogstate.State
 
 // StateProcess is a process of a WatchdogState: its pid and when it started.
-type StateProcess struct {
-	PID       int       `json:"pid"`
-	StartedAt time.Time `json:"started_at"`
-}
+type StateProcess = watchdogstate.Process
 
 // IntegrityCheck is a periodic integrity check of an instance: when it ran,
 // and whether it passed, with the error it failed with otherwise. A failed
 // check kills the process and ends the watchdog, whose last exit record
 // (LastExit) keeps the error.
-type IntegrityCheck struct {
-	At    time.Time `json:"at"              yaml:"at"`
-	OK    bool      `json:"ok"              yaml:"ok"`
-	Error string    `json:"error,omitempty" yaml:"error,omitempty"`
-}
-
-// Describe tells how the check went, and when, in the time zone of the
-// watchdog that ran it, as LastExit.Describe does.
-func (check *IntegrityCheck) Describe() string {
-	at := check.At.Format(time.DateTime)
-	if check.OK {
-		return "passed, at " + at
-	}
-
-	return fmt.Sprintf("failed, at %s: %s", at, check.Error)
-}
+type IntegrityCheck = watchdogstate.IntegrityCheck
 
 // watchdogStateFile is the path of the state the watchdog of inst publishes.
 func watchdogStateFile(inst *InstanceCtx) string {
-	return filepath.Join(inst.RunDir, watchdogStateFileName)
+	return watchdogstate.Path(inst.RunDir)
 }
 
 // ReadWatchdogState returns the state the watchdog of inst publishes, the
@@ -99,49 +67,68 @@ func watchdogStateFile(inst *InstanceCtx) string {
 // file that names another watchdog is the leftover of one that died without
 // removing it, and counts as none, as a missing file does: the error is
 // ErrNoWatchdogState then. A state of another version of the format is an
-// error that wraps ErrWatchdogStateVersion.
+// error that wraps ErrWatchdogStateVersion (watchdogstate.Read).
 func ReadWatchdogState(inst *InstanceCtx, watchdog int) (*WatchdogState, error) {
-	if inst.RunDir == "" || watchdog == 0 {
-		return nil, ErrNoWatchdogState
+	return watchdogstate.Read(inst.RunDir, watchdog)
+}
+
+// instancePIDs are the pids the messages of the commands name an instance
+// by: the process its watchdog runs, the PID tt instance status shows, and
+// the watchdog, which holds the pid file of the instance.
+type instancePIDs struct {
+	// process is the process, as the watchdog publishes it; zero when that
+	// is not known: the watchdog publishes no state, as one an older tt
+	// started or one that is just starting, or no process runs now, as
+	// during the restart delay.
+	process int
+	// watchdog is the watchdog, zero for one that holds the pid file and has
+	// not written its pid yet.
+	watchdog int
+}
+
+// pidsOf returns the pids of inst, whose watchdog is watchdog. A command that
+// signals the watchdog reads them before the signal: the watchdog removes its
+// state as it ends.
+func pidsOf(inst *InstanceCtx, watchdog int) instancePIDs {
+	return instancePIDs{
+		process:  watchdogstate.ProcessPID(inst.RunDir, watchdog),
+		watchdog: watchdog,
 	}
+}
 
-	data, err := os.ReadFile(watchdogStateFile(inst))
-
+// String names the instance by its process, " (PID = 123)", or, when that is
+// not known, by its watchdog, labelled so, " (watchdog PID = 120)"; it is
+// empty when neither is known.
+func (pids instancePIDs) String() string {
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil, ErrNoWatchdogState
-	case err != nil:
-		return nil, fmt.Errorf("reading the state of the watchdog: %w", err)
+	case pids.process != 0:
+		return fmt.Sprintf(" (PID = %d)", pids.process)
+	case pids.watchdog != 0:
+		return fmt.Sprintf(" (watchdog PID = %d)", pids.watchdog)
+	default:
+		return ""
+	}
+}
+
+// withWatchdog names the instance by its process and its watchdog both,
+// " (PID = 123, watchdog PID = 120)", for a message the user may have to act
+// on by hand, such as a stop that failed; by the watchdog alone when the
+// process is not known, as String does.
+func (pids instancePIDs) withWatchdog() string {
+	if pids.process == 0 || pids.watchdog == 0 {
+		return pids.String()
 	}
 
-	// The version comes first: the rest of a state of another version may
-	// not decode at all.
-	var head struct {
-		Version int `json:"version"`
-	}
+	return fmt.Sprintf(" (PID = %d, watchdog PID = %d)", pids.process, pids.watchdog)
+}
 
-	err = json.Unmarshal(data, &head)
-	if err != nil {
-		return nil, fmt.Errorf("decoding the state of the watchdog: %w", err)
-	}
-
-	if head.Version != watchdogStateVersion {
-		return nil, fmt.Errorf("%w: version %d, not %d", ErrWatchdogStateVersion, head.Version,
-			watchdogStateVersion)
-	}
-
-	var state WatchdogState
-
-	err = json.Unmarshal(data, &state)
-	if err != nil {
-		return nil, fmt.Errorf("decoding the state of the watchdog: %w", err)
-	}
-
-	if state.Watchdog.PID != watchdog {
-		return nil, ErrNoWatchdogState
-	}
-
-	return &state, nil
+// DescribePID returns what a message names inst by, whose watchdog, the
+// owner of its pid file, is watchdog: " (PID = 123)", the process the
+// watchdog runs, the PID tt instance status shows; " (watchdog PID = 120)"
+// when the process is not known; empty when the watchdog is not known
+// either (instancePIDs.String).
+func DescribePID(inst *InstanceCtx, watchdog int) string {
+	return pidsOf(inst, watchdog).String()
 }
 
 // removeWatchdogState removes the state file of inst that a watchdog which

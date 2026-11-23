@@ -432,7 +432,7 @@ func stopAll(runs []InstanceCtx, say bool) []error {
 	type instanceProcess struct {
 		index int
 		name  string
-		pid   int
+		pids  instancePIDs
 		wait  time.Duration
 	}
 
@@ -457,19 +457,19 @@ func stopAll(runs []InstanceCtx, say bool) []error {
 
 		name := GetAppInstanceName(run)
 
-		pid, stale, err := interruptWatchdog(&run)
+		pids, stale, err := interruptWatchdog(&run)
 
 		switch {
 		case err != nil:
 			stopErrors[index] = fmt.Errorf("failed to stop instance %s: %w", name, err)
-		case pid == 0 && say && !stale:
+		case pids.watchdog == 0 && say && !stale:
 			// A stale pid file removed is told of as such.
 			LogNotRunning(name)
-		case pid == 0:
+		case pids.watchdog == 0:
 			log.Debugf("The instance %s is already stopped", name)
 		default:
 			processes = append(processes, instanceProcess{
-				index: index, name: name, pid: pid, wait: stopWait(&run),
+				index: index, name: name, pids: pids, wait: stopWait(&run),
 			})
 		}
 	}
@@ -482,47 +482,53 @@ func stopAll(runs []InstanceCtx, say bool) []error {
 	}
 
 	for _, proc := range processes {
-		err := process_utils.WaitProcessTermination(proc.pid, proc.wait)
+		err := process_utils.WaitProcessTermination(proc.pids.watchdog, proc.wait)
 		if err != nil {
-			stopErrors[proc.index] = fmt.Errorf("failed to stop instance %s (PID = %d): %w",
-				proc.name, proc.pid, err)
+			// The user may have to finish the stop by hand: both are named.
+			stopErrors[proc.index] = fmt.Errorf("failed to stop instance %s%s: %w",
+				proc.name, proc.pids.withWatchdog(), err)
 
 			continue
 		}
 
-		log.Infof("The instance %s (PID = %v) has been terminated.", proc.name, proc.pid)
+		log.Infof("The instance %s%s has been terminated.", proc.name, proc.pids)
 	}
 
 	return stopErrors
 }
 
 // interruptWatchdog sends SIGINT to the watchdog of run, the process that
-// holds its pid file, and returns its pid; zero when no watchdog holds the
+// holds its pid file, and returns its pid with the pid of the process it
+// runs, read before the signal (pidsOf); none when no watchdog holds the
 // file. A file nobody holds is removed (removeStale): the pid in it names a
 // watchdog that is gone, or an unrelated process by now, and gets no signal;
 // stale tells that it was removed, which removeStale says.
-func interruptWatchdog(run *InstanceCtx) (int, bool, error) {
+func interruptWatchdog(run *InstanceCtx) (instancePIDs, bool, error) {
+	var none instancePIDs
+
 	pid, owned, err := pidfile.Owner(run.PIDFile)
 	if err != nil {
-		return 0, false, fmt.Errorf("can't get pid of running process: %w", err)
+		return none, false, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
 	switch {
 	case !owned:
 		removed, err := removeStale(run, pid)
 
-		return 0, removed, err
+		return none, removed, err
 	case pid == 0:
 		// A watchdog holds the file and has not written its pid yet.
-		return 0, false, errWatchdogStarting
+		return none, false, errWatchdogStarting
 	}
+
+	pids := pidsOf(run, pid)
 
 	err = process_utils.Interrupt(pid)
 	if err != nil {
-		return 0, false, err
+		return none, false, err
 	}
 
-	return pid, false, nil
+	return pids, false, nil
 }
 
 // removeStale removes the pid file of run that nobody holds, while it still
@@ -616,6 +622,9 @@ func Kill(run InstanceCtx) error {
 		return fmt.Errorf("failed to kill the processes: %w", errWatchdogStarting)
 	}
 
+	// The state goes with the watchdog.
+	pids := pidsOf(&run, pid)
+
 	err = process_utils.KillProcessGroup(pid)
 	if err != nil {
 		return fmt.Errorf("failed to kill the processes: %w", err)
@@ -628,7 +637,7 @@ func Kill(run InstanceCtx) error {
 		recordKilled(run)
 	})
 
-	log.Infof("The instance %s (PID = %v) has been killed.", fullInstanceName, pid)
+	log.Infof("The instance %s%s has been killed.", fullInstanceName, pids)
 
 	return nil
 }
@@ -704,6 +713,10 @@ func Quit(run InstanceCtx) error {
 		return fmt.Errorf("cannot quit with a dump: %w", errWatchdogStarting)
 	}
 
+	// The watchdog passes SIGQUIT on to tarantool, whose core file names it,
+	// and removes its state as it ends.
+	pids := pidsOf(&run, pid)
+
 	err = process_utils.QuitProcess(pid)
 	if err != nil {
 		return fmt.Errorf("failed to quit the process: %w", err)
@@ -718,7 +731,7 @@ func Quit(run InstanceCtx) error {
 	}
 
 	fullInstanceName := GetAppInstanceName(run)
-	log.Infof("The instance %s (PID = %v) has been terminated with dump.", fullInstanceName, pid)
+	log.Infof("The instance %s%s has been terminated with dump.", fullInstanceName, pids)
 
 	return nil
 }
@@ -768,13 +781,15 @@ func Logrotate(run *InstanceCtx) error {
 		return fmt.Errorf("can't rotate logs: %w", errWatchdogStarting)
 	}
 
+	pids := pidsOf(run, pid)
+
 	err = syscall.Kill(pid, syscall.SIGHUP)
 	if err != nil {
 		return fmt.Errorf(`can't rotate logs: "%w"`, err)
 	}
 
 	// Rotates logs [instance name pid].
-	log.Infof("%s (PID = %v): logs has been rotated.", fullInstanceName, pid)
+	log.Infof("%s%s: logs has been rotated.", fullInstanceName, pids)
 
 	return nil
 }
@@ -1037,7 +1052,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	}
 
 	if running {
-		log.Infof("The instance %s (PID = %d) is already running.", appName, pid)
+		log.Infof("The instance %s%s is already running.", appName, DescribePID(&instance, pid))
 
 		return &StartedWatchdog{Instance: instance, exited: nil, report: ""}, nil
 	}

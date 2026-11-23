@@ -19,10 +19,9 @@ confirmation_input_params = [
 
 
 def check_kill(tt, tt_app, target, input, is_confirm, *args):
-    # Store original state. The kill names the watchdog of an instance, not
-    # the process the PID of the status is.
+    # Store original state. The kill names an instance by its process, the
+    # PID of the status, which the watchdog publishes.
     orig_status = tt_helper.status(tt)
-    orig_watchdogs = tt_helper.watchdog_pids(tt)
 
     # Do kill. An instance that does not run has nothing to kill, which is no
     # failure.
@@ -52,7 +51,8 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
         if is_confirm and inst in target_instances:
             assert status[inst]["STATUS"] == "NOT RUNNING"
             if was_running:
-                orig_pid = orig_watchdogs[inst]
+                orig_pid = orig_status[inst]["PID"]
+                assert orig_pid is not None
                 assert f"The instance {inst} (PID = {orig_pid}) has been killed." in out
                 assert not os.path.exists(tt_app.run_path(inst, utils.control_socket))
                 assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
@@ -254,6 +254,46 @@ def test_kill_cluster_no_config(tt, tt_app, target):
         check_kill(tt, tt_app, target, None, True, "-y")
     finally:
         tt_helper.restore_config(tt_app)
+
+
+################################################################
+# Dump
+
+
+def test_kill_dump_names_tarantool(tt_cmd, tmp_path):
+    # tt instance kill --dump sends SIGQUIT to the watchdog, which passes it
+    # on to tarantool: the core file and coredumpctl name tarantool, and so
+    # does the message, by the PID of the status, box.info.pid.
+    app_path = tmp_path / "app"
+    os.makedirs(app_path / os.path.dirname(utils.instances_file))
+    (app_path / utils.instances_file).write_text("app:\n  script: init.lua\n")
+    (app_path / "init.lua").write_text("box.cfg{}\n")
+    inst = "app:app"
+    try:
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", inst],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"The instance {inst} is up." in out
+
+        status = tt_helper.json_status(tt_helper.Tt(tt_cmd, app_path), inst)[inst]
+        pid = status["pid"]
+        watchdog = status["watchdog_pid"]
+        assert pid == utils.box_info_pid(tt_cmd, app_path, inst)
+        assert pid != watchdog
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "kill", "--dump", "-y", inst],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"The instance {inst} (PID = {pid}) has been terminated with dump." in out
+
+        # The watchdog ends with tarantool, as on a stop.
+        assert utils.wait_event(30, lambda: not process_alive(watchdog))
+    finally:
+        utils.run_command_and_get_output([tt_cmd, "instance", "kill", "-y", inst], cwd=app_path)
 
 
 ################################################################

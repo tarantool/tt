@@ -890,6 +890,20 @@ def extract_status_from_yaml(status_yaml_output):
     return yaml.safe_load(status_yaml_output)
 
 
+def box_info_pid(tt_cmd, cwd, inst):
+    """Return box.info.pid of the Tarantool instance inst, asked over its
+    console."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "connect", inst, "-f", "-"],
+        cwd=cwd,
+        input="return box.info.pid\n",
+    )
+    assert rc == 0, out
+    found = re.search(r"^- (\d+)$", out, re.MULTILINE)
+    assert found, out
+    return int(found.group(1))
+
+
 def is_valid_tarantool_installed(bin_path, inc_path, expected_bin=None, expected_inc=None):
     tarantool_binary_symlink = os.path.join(bin_path, "tarantool")
     tarantool_include_symlink = os.path.join(inc_path, "tarantool")

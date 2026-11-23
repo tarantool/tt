@@ -254,15 +254,22 @@ def status(tt, *args):
     return utils.extract_status(p.stdout)
 
 
+def json_status(tt, *args):
+    """Return the status of every instance, by instance, as
+    tt instance status -o json gives it: pid is the process the watchdog
+    runs, the one the messages of tt instance start, stop, kill and logrotate
+    name, and watchdog_pid the watchdog."""
+    p = tt.run("instance", "status", "-o", "json", *args, stderr=subprocess.PIPE)
+    assert p.returncode == 0, p.stdout + p.stderr
+    return json.loads(p.stdout)
+
+
 def watchdog_pids(tt, *args):
     """Return the pid of the watchdog of every instance, by instance, as
     watchdog_pid of tt instance status -o json gives it: None for an instance
     that does not run. The PID of the table is the pid of the process the
-    watchdog runs; tt instance start, stop, kill and logrotate name the
-    watchdog."""
-    p = tt.run("instance", "status", "-o", "json", *args, stderr=subprocess.PIPE)
-    assert p.returncode == 0, p.stdout + p.stderr
-    return {inst: info["watchdog_pid"] for inst, info in json.loads(p.stdout).items()}
+    watchdog runs."""
+    return {inst: info["watchdog_pid"] for inst, info in json_status(tt, *args).items()}
 
 
 def pid_files(tt_app, instances):

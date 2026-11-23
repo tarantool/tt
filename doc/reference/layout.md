@@ -38,15 +38,18 @@ the system scope.
 
 | File | |
 | --- | --- |
-| `run/.../tt.pid` | the pid of the watchdog of the instance |
+| `run/.../tt.pid` | the pid of the watchdog of the instance, the `tt` that runs its process |
 | `run/.../launch.json` | what the watchdog runs, as `tt instance start` resolved it, while the watchdog runs |
 | `run/.../watchdog.json` | the state of the watchdog, while it runs: its pid, the pid of the process it runs and when that started, the count of restarts and the last integrity check, for `tt instance status` |
 | `run/.../last_exit.json` | how the last process of the instance ended and when, left by its watchdog for `tt instance status --details` |
-| `run/.../tarantool.pid` | the pid file Tarantool writes |
+| `run/.../tarantool.pid` | the pid file Tarantool writes, once `box.cfg` runs, unless the cluster config moves it with `process.pid_file` |
 | `run/.../tarantool.control` | the console socket `tt connect <app>:<instance>` uses |
 | `run/.../tarantool.sock` | the binary port, unless the cluster config or the script listens elsewhere |
 | `run/.../process.pid` | the pid of an external process, and of TCM |
 | `log/.../tt.log` | everything the instance writes and the messages of its watchdog |
+
+A monitor watches the process, not `tt.pid`: see
+[Which pid file to watch](#which-pid-file-to-watch).
 
 TCM, the record with `kind: tcm` (see [Run TCM](../how-to/tcm.md)), has a
 few files of its own:
@@ -86,6 +89,40 @@ the `wasm` rock of a local build for this machine:
     ├── wasi-sdk/wasi-sdk_34/             # not linked: see tarawasm.local.json below
     └── wit-bindgen/wit-bindgen_0.62.0/
 ```
+
+## Which pid file to watch
+
+The PID tt shows and prints for an instance is the pid of its process -
+tarantool, the program of an external process or TCM - the one `top`,
+`gdb`, `perf` and `box.info.pid` name. `tt.pid` is not that process: it
+names the watchdog, which runs the process and starts it again as the
+`restart` policy says, and lives on while it does. A monitor that watches a
+pid file - monit, process-exporter, the `proc.*` items of Zabbix - measures
+the watchdog when it is pointed at `tt.pid`. Point it at the process:
+
+- `watchdog.json` names the process of any kind of instance, as
+  `.process.pid`, `null` while none runs, as during the delay before a
+  restart. It is there only while the watchdog runs:
+
+  ```console
+  $ jq .process.pid .tarantool/var/run/demo/demo/watchdog.json
+  3598530
+  $ kill -9 3598530
+  $ jq .process.pid .tarantool/var/run/demo/demo/watchdog.json
+  null
+  ```
+
+- `tarantool.pid` is the pid file of Tarantool itself, which an instance of
+  the cluster config writes once `box.cfg` runs. A config that sets
+  `process.pid_file` moves it there, and the run directory has none then;
+  nor does it for an instance that runs its script.
+- `process.pid` names an external process and TCM.
+
+`tt instance status` shows the same PID, and the messages of
+`tt instance start`, `stop`, `kill` and `logrotate` name an instance by it,
+or by its watchdog, `(watchdog PID = 3598516)`, while the process is not
+known. Under systemd the main process of the unit is neither: see
+[Run instances under systemd](../how-to/systemd.md#the-processes-of-a-unit).
 
 ## A project
 

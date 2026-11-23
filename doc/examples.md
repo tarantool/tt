@@ -442,7 +442,7 @@ directory.
 curl --header "Content-Type: application/json" --request POST \
 --data '{"command_name":"instance", "params":["start", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"   • Starting an instance [test_app:instance001]...\n"}
+{"res":"   • Starting an instance [test_app:instance001]...\n   • The instance test_app:instance001 is up.\n"}
 ```
 
 Below is an example of running a command with flags.
@@ -453,7 +453,7 @@ Flag with argument:
 curl --header "Content-Type: application/json" --request POST \
 --data '{"command_name":"instance", "params":["status", "-o", "yaml", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"test_app:instance001:\n    status: RUNNING\n    pid: 568991\n    watchdog_pid: 568979\n    started_at: 2026-11-23T10:15:42.325964868+03:00\n    restarts: 0\n    mode: RW\n    config: ready\n    box: running\n    upstream: --\n    alerts: []\n\n"}
+{"res":"test_app:instance001:\n    status: RUNNING\n    pid: 3612745\n    watchdog_pid: 3612730\n    started_at: 2026-11-23T14:41:15.923692176+08:00\n    restarts: 0\n    mode: RW\n    config: ready\n    box: running\n    upstream: --\n    alerts: []\n\n"}
 ```
 
 Flag without argument:
@@ -462,7 +462,7 @@ Flag without argument:
 curl --header "Content-Type: application/json" --request POST \
 --data '{"command_name":"instance", "params":["stop", "--yes", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"   • The instance test_app:instance001 (PID = 568979) has been terminated.\n"}
+{"res":"   • The instance test_app:instance001 (PID = 3612745) has been terminated.\n"}
 ```
 
 The daemon runs the command without a terminal, so a command that asks for a

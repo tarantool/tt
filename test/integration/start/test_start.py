@@ -12,8 +12,8 @@ import utils
 
 
 def check_start(tt, tt_app, target):
-    # Store original state. The start names the watchdog of an instance that
-    # runs already, not the process the PID of the status is.
+    # Store original state. The start names an instance that runs already by
+    # its process, the PID of the status, which the watchdog publishes.
     orig_status = tt_helper.status(tt)
 
     # Do start.
@@ -25,15 +25,15 @@ def check_start(tt, tt_app, target):
 
     # Check the instances.
     status = tt_helper.status(tt)
-    watchdogs = tt_helper.watchdog_pids(tt)
     for inst in tt_app.instances:
         was_running = inst in tt_app.running_instances
         if inst in target_instances:
             assert status[inst]["STATUS"] == "RUNNING"
             pid = status[inst]["PID"]
             msg_done = f"Starting an instance [{inst}]"
-            msg_warn = f"The instance {inst} (PID = {watchdogs[inst]}) is already running."
+            msg_warn = f"The instance {inst} (PID = {pid}) is already running."
             if was_running:
+                assert pid is not None
                 assert pid == orig_status[inst]["PID"]
                 assert msg_done not in out
                 assert msg_warn in out
@@ -595,7 +595,9 @@ def test_start_foreground_stop_timeout(tt_cmd, tmp_path):
 
 def test_start_foreground_already_running(tt_cmd, tmp_path):
     # An instance that runs already is an error before anything starts: a
-    # supervisor that runs tt must learn that it does not run it.
+    # supervisor that runs tt must learn that it does not run it. The error
+    # names the instance by its process, the PID of the status, as the start
+    # in the background does.
     app_path = tmp_path / "app"
     shutil.copytree(os.path.join(os.path.dirname(__file__), "external_app"), app_path)
 
@@ -608,11 +610,22 @@ def test_start_foreground_already_running(tt_cmd, tmp_path):
         assert rc == 0
         run_dir = utils.inst_run_dir(app_path, "app", "worker")
         assert utils.wait_files(5, [os.path.join(run_dir, utils.pid_file)])
+        status = tt_helper.json_status(tt_helper.Tt(tt_cmd, app_path), worker)[worker]
+        pid = status["pid"]
+        assert pid is not None
+        assert pid != status["watchdog_pid"]
 
         p = start_foreground(tt_cmd, app_path, worker)
         assert p.returncode == 1
-        assert "instance app:worker is already running" in p.stderr
+        assert f"instance app:worker is already running (PID = {pid})" in p.stderr
         assert "tt instance stop app:worker" in p.stderr
         assert p.stdout == ""
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", worker],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"The instance app:worker (PID = {pid}) is already running." in out
     finally:
         utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)

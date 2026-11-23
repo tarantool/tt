@@ -807,12 +807,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   empty, `null` in JSON and YAML, while no process runs, as during the
   delay before a restart, and for an instance whose watchdog an older tt
   started, which publishes no state: `--details` says so, and a restart of
-  the instance fixes it. `tt instance start`, `stop`, `kill` and
-  `logrotate` still name the watchdog in their messages. A script that
-  signalled the PID to reach the watchdog signals `watchdog_pid` now; a
-  signal that ends the process is an exit of its own for the watchdog,
-  which starts it again as the restart policy of the instance says, so an
-  instance is stopped with `tt instance stop`.
+  the instance fixes it. The messages of `tt instance start`, `stop`,
+  `restart`, `kill`, `kill --dump` and `logrotate` name an instance by the
+  same PID, `(PID = 123)`, read from the state of the watchdog before the
+  signal - the one the core file of `kill --dump` names - and by the
+  watchdog, labelled so, `(watchdog PID = 120)`, while the process is not
+  known; a stop that fails names both. So does `tt package` where it
+  refuses to touch a version running instances use, `kv-a (pid 123)`, and
+  `(watchdog pid 120)` likewise. A script that took the PID out of those
+  messages takes the process now, and one that signalled the PID to reach
+  the watchdog signals `watchdog_pid`; a signal that ends the process is an
+  exit of its own for the watchdog, which starts it again as the restart
+  policy of the instance says, so an instance is stopped with
+  `tt instance stop`.
 - Breaking: the version descriptor `tt package build` generates into the
   package is `_version.lua`, `require('<name>._version')`, where it was
   `version.lua`, `require('<name>.version')`; the rocks of the build are

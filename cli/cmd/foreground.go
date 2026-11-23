@@ -73,13 +73,15 @@ type foregroundEnd struct {
 // error before anything starts: a supervisor that runs tt must learn that
 // it does not run what it asked for.
 func startInstancesForeground(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
-	for i := range instances {
-		state := running.Status(&instances[i])
-		if state.Code == process_utils.ProcessRunningCode {
-			name := running.GetAppInstanceName(instances[i])
+	for index := range instances {
+		inst := &instances[index]
 
-			return fmt.Errorf("instance %s is %w (PID = %d); stop it with tt instance stop %s",
-				name, errAlreadyRunning, state.PID, name)
+		state := running.Status(inst)
+		if state.Code == process_utils.ProcessRunningCode {
+			name := running.GetAppInstanceName(*inst)
+
+			return fmt.Errorf("instance %s is %w%s; stop it with tt instance stop %s",
+				name, errAlreadyRunning, running.DescribePID(inst, state.PID), name)
 		}
 	}
 

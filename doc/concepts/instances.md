@@ -343,8 +343,28 @@ it is for an instance whose watchdog an older tt started, which publishes no
 state, until the instance is restarted. Stop an instance with
 `tt instance stop`, not with a `kill` of its PID: the watchdog takes a
 process a signal ended for one that exited, and starts it again as its
-`restart` says. `tt instance stop`, `kill` and `logrotate` name the
-watchdog in what they print.
+`restart` says.
+
+The messages of `tt instance start`, `stop`, `kill` and `logrotate` name an
+instance by the same PID, read before the signal; while it is not known,
+they name the watchdog, labelled so. A stop that fails names both, for the
+one who finishes it by hand:
+
+```console
+$ tt instance status demo:demo
+ INSTANCE   STATUS   PID      MODE  CONFIG  BOX      UPSTREAM
+ demo:demo  RUNNING  3608128  RW    --      running  --
+$ tt instance stop -y demo:demo
+   • The instance demo:demo (PID = 3608128) has been terminated.
+$ tt instance start demo:demo
+…
+$ kill -9 3608223                      # the PID the status shows now
+$ tt instance stop -y demo:demo        # in the delay before the restart
+   • The instance demo:demo (watchdog PID = 3608209) has been terminated.
+```
+
+Which pid file a monitor watches is in
+[Which pid file to watch](../reference/layout.md#which-pid-file-to-watch).
 
 ## Where the files go
 
