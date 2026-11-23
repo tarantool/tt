@@ -355,6 +355,7 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer
 	src := newInstanceSource(cmdCtx, launch, &watchdogLog{
 		logger:      logger,
 		checkPeriod: time.Duration(cmdCtx.Cli.IntegrityCheckPeriod) * time.Second,
+		process:     processName(inst, &launch.Spec),
 	})
 
 	var source supervisor.Source = src

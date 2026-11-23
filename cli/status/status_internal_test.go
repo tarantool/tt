@@ -992,7 +992,8 @@ func TestStatusDetailsLastExit(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "tt.log")
 	require.NoError(t, os.WriteFile(logFile,
-		[]byte("a\nb\nc\nd\nF> can't initialize storage\nWatchdog (WARN): \"exit status 1\".\n"),
+		[]byte("a\nb\nc\nd\nF> can't initialize storage\n"+
+			"Watchdog (WARN): tarantool, PID 1, has ended: it exited with code 1.\n"),
 		0o644))
 
 	exitedAt := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)

@@ -23,11 +23,32 @@ type watchdogLog struct {
 	logger ttlog.Logger
 	// checkPeriod is the period of the integrity checks, 0 without them.
 	checkPeriod time.Duration
+	// process is what the log calls the process the watchdog runs
+	// (processName).
+	process string
 }
 
+// processName is what the log of the watchdog of inst calls the process it
+// runs from spec: tarantool, TCM, or the program of an external process.
+func processName(inst *InstanceCtx, spec *LaunchSpec) string {
+	switch {
+	case IsTCM(inst):
+		return "TCM"
+	case IsExternal(inst):
+		return "the program " + spec.Path
+	default:
+		return "tarantool"
+	}
+}
+
+// onEvent logs event. Every start and every exit of the process names it by
+// its pid, the PID tt instance status shows, and an exit says how it went,
+// as the record of the last exit does (describeExit).
 func (wl *watchdogLog) onEvent(event supervisor.Event) {
 	switch event := event.(type) {
 	case supervisor.Started:
+		wl.logger.Printf("(INFO): started %s, PID %d.", wl.process, event.Pid)
+
 		if wl.checkPeriod != 0 {
 			wl.logger.Printf("(INFO): starting periodic integrity checks each %s.",
 				wl.checkPeriod)
@@ -39,9 +60,16 @@ func (wl *watchdogLog) onEvent(event supervisor.Event) {
 			wl.logger.Printf("(WARN): %s: %v.", event.Signal, event.Err)
 		}
 	case supervisor.Exit:
+		// One line tells the exit, a warning for a process that failed:
+		// describeExit says all the error of the exit says, in the words
+		// of last_exit.json rather than of Go.
+		level := "INFO"
 		if event.Err != nil {
-			wl.logger.Printf(`(WARN): "%v".`, event.Err)
+			level = "WARN"
 		}
+
+		wl.logger.Printf("(%s): %s, PID %d, has ended: %s.", level, wl.process, event.Pid,
+			describeExit(event))
 	case supervisor.Killed:
 		wl.logger.Printf("(WARN): the instance was killed: %s.", event.Reason)
 	case supervisor.Restarting:
@@ -279,12 +307,13 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 				src.exited(event.Pid)
 			}
 
+			// Logged first: a process the state names is in tt.log already.
+			src.log.onEvent(event)
+
 			err := src.state.onEvent(event)
 			if err != nil {
 				src.log.logger.Printf("(WARN): %v.", err)
 			}
-
-			src.log.onEvent(event)
 		},
 		Start: nil,
 	}

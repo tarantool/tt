@@ -114,6 +114,7 @@ func newWatchdogTest(t *testing.T, restart instances.RestartPolicy, cmdCtx *cmdc
 	test.src = newInstanceSource(cmdCtx, &launch, &watchdogLog{
 		logger:      ttlog.NewCustomLogger(test.log, "Watchdog ", 0),
 		checkPeriod: time.Duration(cmdCtx.Cli.IntegrityCheckPeriod) * time.Second,
+		process:     processName(&test.inst, &launch.Spec),
 	})
 
 	opts := watchdogOptions(cmdCtx, test.src)
