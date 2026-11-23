@@ -18,12 +18,17 @@ import (
 // testBuildID is the build ID of the test ELF files.
 const testBuildID = "781dc56a9fb4e0f2e457995160fea91d4cd3fa72"
 
-// testSection is a section of a test ELF file.
+// testSection is a section of a test ELF file. link, info and entsize are
+// those of its header: link is the index of another section, the first
+// section of the file being 1, as the string table of a symbol table.
 type testSection struct {
-	name  string
-	typ   elf.SectionType
-	data  []byte
-	align uint64
+	name    string
+	typ     elf.SectionType
+	data    []byte
+	align   uint64
+	link    uint32
+	info    uint32
+	entsize uint64
 }
 
 // note returns an ELF note of name, typ and desc, padded to 4 bytes.
@@ -94,7 +99,8 @@ func writeELF(t *testing.T, path string, sections []testSection, notes []byte) {
 
 		headers = append(headers, elf.Section64{
 			Name: uint32(len(strtab)), Type: uint32(section.typ), Off: offset, Size: size,
-			Addralign: section.align,
+			Addralign: section.align, Link: section.link, Info: section.info,
+			Entsize: section.entsize,
 		})
 		strtab = append(strtab, []byte(section.name+"\x00")...)
 
@@ -295,15 +301,37 @@ func TestWarnDebugInfo(t *testing.T) {
 
 	dir := t.TempDir()
 	writeELF(t, filepath.Join(dir, "tarantool"), []testSection{text, buildIDSection(t)}, nil)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "version"),
+		[]byte("Tarantool 3.9.0-0-g8b9a0f59a95b\n"), 0o644))
 
+	warning := "the tarantool of the core has no debugging information: no .debug_info in the " +
+		"tarantool, and no usr/lib/debug/.build-id/78/" + testBuildID[2:] + ".debug of its " +
+		"build ID in the archive: the lj-* commands of LuaJIT and the pretty-printers of " +
+		"Tarantool will not work, plain backtraces will"
+	deb := "hint: the tarantool of the static deb of Tarantool 3.9.0, which `tt binary install " +
+		"tarantool 3.9.0` installs, has the debugging information: if its build ID is that of " +
+		"the core, " + testBuildID + ", "
+
+	// A directory of artefacts, inspected as it is.
 	log, recorder := logtest.New(t)
-	warnDebugInfo(log, dir)
+	warnDebugInfo(log, dir, dir)
 	assert.Equal(t, []string{
-		"the tarantool of the core has no debugging information: no .debug_info in the " +
-			"tarantool, and no usr/lib/debug/.build-id/78/" + testBuildID[2:] + ".debug of its " +
-			"build ID in the archive: the lj-* commands of LuaJIT and the pretty-printers of " +
-			"Tarantool will not work, plain backtraces will; a core packed where the debug " +
-			"file of its tarantool is installed has it",
+		warning,
+		deb + "copy it over " + filepath.Join(dir, "tarantool") + ", or to the debug file named " +
+			"above under " + dir + ", and run `tt coredump inspect " + dir + "`",
+	}, warnings(recorder))
+
+	// The artefacts of an archive, which inspect unpacks where it removes
+	// them, and tt coredump unpack puts in the working directory.
+	log, recorder = logtest.New(t)
+	warnDebugInfo(log, dir, "cores/tarantool-core-N-202611240035-host.tar.gz")
+	assert.Equal(t, []string{
+		warning,
+		deb + "unpack the archive with `tt coredump unpack " +
+			"cores/tarantool-core-N-202611240035-host.tar.gz`, copy it over " +
+			"tarantool-core-N-202611240035-host/tarantool, or to the debug file named above " +
+			"under tarantool-core-N-202611240035-host, and run `tt coredump inspect " +
+			"tarantool-core-N-202611240035-host`",
 	}, warnings(recorder))
 
 	// A tarantool with debugging information, and one that is no ELF file,
@@ -311,12 +339,77 @@ func TestWarnDebugInfo(t *testing.T) {
 	writeELF(t, filepath.Join(dir, "tarantool"), []testSection{text, debugInfo}, nil)
 
 	log, recorder = logtest.New(t)
-	warnDebugInfo(log, dir)
+	warnDebugInfo(log, dir, dir)
 	assert.Empty(t, warnings(recorder))
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "tarantool"), []byte("text"), 0o755))
 
 	log, recorder = logtest.New(t)
-	warnDebugInfo(log, dir)
+	warnDebugInfo(log, dir, dir)
 	assert.Empty(t, warnings(recorder))
+}
+
+// setType sets the type of the ELF header of the file at path, which
+// writeELF writes as ET_EXEC.
+func setType(t *testing.T, path string, typ elf.Type) {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	binary.LittleEndian.PutUint16(data[16:], uint16(typ))
+	require.NoError(t, os.WriteFile(path, data, 0o755))
+}
+
+// TestDebugInfoHint checks that the hint of a tarantool without debugging
+// information names the tarantool of the static deb only of a core of what
+// may be a static build of Community of series 3: an executable of type
+// ET_EXEC with a build ID, of a release at its tag, with nothing after the
+// commit. Of any other the hint is to pack the core where its debug file is.
+func TestDebugInfoHint(t *testing.T) {
+	t.Parallel()
+
+	const generic = "pack the core again where the debug file of its tarantool is installed, " +
+		"under /usr/lib/debug"
+
+	run := func(version string, typ elf.Type, build bool) string {
+		dir := t.TempDir()
+		sections := []testSection{text}
+
+		if build {
+			sections = append(sections, buildIDSection(t))
+		}
+
+		writeELF(t, filepath.Join(dir, "tarantool"), sections, nil)
+		setType(t, filepath.Join(dir, "tarantool"), typ)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "version"), []byte(version+"\n"),
+			0o644))
+
+		return debugInfoHint(dir, dir)
+	}
+
+	static := "Tarantool 3.9.0-0-g8b9a0f59a95b"
+	assert.Contains(t, run(static, elf.ET_EXEC, true), "the tarantool of the static deb of "+
+		"Tarantool 3.9.0, which `tt binary install tarantool 3.9.0` installs, has the debugging "+
+		"information: if its build ID is that of the core, "+testBuildID+", copy it over ")
+
+	for name, version := range map[string]string{
+		"enterprise":       "Tarantool Enterprise 3.9.0-0-g8b9a0f59a95b-r123",
+		"pre-release":      "Tarantool 3.0.0-rc1-0-g1234567",
+		"past the tag":     "Tarantool 3.9.0-12-g1234567",
+		"dirty":            "Tarantool 3.9.0-0-g8b9a0f59a95b-dirty",
+		"series 2":         "Tarantool 2.11.8-0-g1234567",
+		"no version":       "no version",
+		"version of a dev": "Tarantool 3.10.0-entrypoint-17-g1234567",
+	} {
+		assert.Equal(t, generic, run(version, elf.ET_EXEC, true), name)
+	}
+
+	assert.Equal(t, generic, run(static, elf.ET_DYN, true), "a PIE")
+	assert.Equal(t, generic, run(static, elf.ET_EXEC, false), "no build ID")
+
+	// No version file.
+	dir := t.TempDir()
+	writeELF(t, filepath.Join(dir, "tarantool"), []testSection{text, buildIDSection(t)}, nil)
+	assert.Equal(t, generic, debugInfoHint(dir, dir))
 }

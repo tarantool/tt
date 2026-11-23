@@ -284,9 +284,15 @@ func TestInspectDebugFile(t *testing.T) {
 
 	out, recorder := runInspect(t, dir, "")
 	assert.Contains(t, out, "gdb\n-iex\necho\n"+filepath.Join(dir, "tarantool")+"\n")
-	assert.Len(t, warnings(recorder), 1)
+	require.Len(t, warnings(recorder), 2)
 	assert.Contains(t, warnings(recorder)[0], "the tarantool of the core has no debugging "+
 		"information")
+	// The tarantool of the static deb of the version has it.
+	assert.Contains(t, warnings(recorder)[1], "hint: the tarantool of the static deb of "+
+		"Tarantool 3.9.0, which `tt binary install tarantool 3.9.0` installs, has the debugging "+
+		"information: if its build ID is that of the core, "+testBuildID+", copy it over "+
+		filepath.Join(dir, "tarantool")+", or to the debug file named above under "+dir+
+		", and run `tt coredump inspect "+dir+"`")
 
 	debugFile := filepath.Join(dir, "usr", "lib", "debug", ".build-id", testBuildID[:2],
 		testBuildID[2:]+".debug")

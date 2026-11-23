@@ -16,6 +16,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk/log/logtest"
 )
 
 // otherBuildID is a build ID of another executable than testBuildID.
@@ -258,6 +260,7 @@ func TestProbeArtefactsChecks(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, tarantool, artefacts.executable)
+	assert.Equal(t, elf.ET_EXEC, artefacts.executableType)
 
 	other := testExecutable(t, 0x400000, 0x123, otherBuildID).write(t,
 		filepath.Join(dir, "other"))
@@ -741,12 +744,12 @@ func TestProbeArtefactsDebugFile(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			path, core, id := tarantool(t)
+			path, core, build := tarantool(t)
 			root := t.TempDir()
 			empty := filepath.Join(root, "empty")
 			debugDir := filepath.Join(root, "debug")
-			debugFile := filepath.Join(debugDir, ".build-id", id[:2], id[2:]+".debug")
-			member := "usr/lib/debug/.build-id/" + id[:2] + "/" + id[2:] + ".debug"
+			debugFile := filepath.Join(debugDir, ".build-id", build[:2], build[2:]+".debug")
+			member := "usr/lib/debug/.build-id/" + build[:2] + "/" + build[2:] + ".debug"
 
 			require.NoError(t, os.MkdirAll(empty, 0o755))
 			require.NoError(t, os.MkdirAll(filepath.Dir(debugFile), 0o755))
@@ -763,13 +766,129 @@ func TestProbeArtefactsDebugFile(t *testing.T) {
 			require.NotEmpty(t, artefacts.files)
 			assert.Equal(t, member+"="+debugFile, artefacts.files[0])
 			assert.Equal(t, []string{"-f", member + "=" + debugFile}, artefacts.scriptArgs()[:2])
+			assert.Equal(t, build, artefacts.buildID)
+			assert.Equal(t, debugFile, artefacts.debugFile)
+			assert.False(t, artefacts.debugInfo, "neither the tarantool nor the file has DWARF")
+
+			// A debug file of DWARF.
+			writeELF(t, debugFile, []testSection{strippedText, debugInfo}, nil)
+
+			artefacts, err = probeArtefacts(io.Discard, opts, []string{empty, debugDir})
+			require.NoError(t, err)
+			assert.True(t, artefacts.debugInfo)
 
 			// None without it.
 			artefacts, err = probeArtefacts(io.Discard, opts, []string{empty})
 			require.NoError(t, err)
 			assert.NotContains(t, strings.Join(artefacts.files, "\n"), ".debug")
+			assert.Empty(t, artefacts.debugFile)
+			assert.False(t, artefacts.debugInfo)
 		})
 	}
+}
+
+// TestWarnPackDebugInfo checks that pack warns of a tarantool with no
+// debugging information of its own or of a debug file of its build ID, and
+// says what it looked for, and of none with it.
+func TestWarnPackDebugInfo(t *testing.T) {
+	t.Parallel()
+
+	artefacts := func(id, debugFile string, debugInfo bool) packArtefacts {
+		return packArtefacts{
+			executable: "/bin/tarantool", files: nil, buildID: id, debugFile: debugFile,
+			debugInfo: debugInfo,
+		}
+	}
+
+	cases := []struct {
+		name      string
+		artefacts packArtefacts
+		missing   string
+	}{
+		{"debug info", artefacts("abcdef", "", true), ""},
+		{"no build ID", artefacts("", "", false), "it has no build ID to find a debug file by"},
+		{
+			"a debug file of none", artefacts("abcdef", "/d/.build-id/ab/cdef.debug", false),
+			"neither has the debug file /d/.build-id/ab/cdef.debug of its build ID",
+		},
+		{
+			"no debug file", artefacts("abcdef", "", false),
+			"no debug file of its build ID abcdef is under /usr/lib/debug, /d",
+		},
+	}
+
+	for _, testCase := range cases {
+		log, recorder := logtest.New(t)
+
+		warnPackDebugInfo(log, testCase.artefacts, []string{"/usr/lib/debug", "/d"})
+
+		if testCase.missing == "" {
+			assert.Empty(t, warnings(recorder), testCase.name)
+
+			continue
+		}
+
+		assert.Equal(t, []string{
+			"the tarantool /bin/tarantool has no debugging information, and " + testCase.missing +
+				": the archive will have none, and the lj-* commands of LuaJIT and the " +
+				"pretty-printers of Tarantool will not work on the core, plain backtraces will",
+			"hint: install the debug file of the tarantool, of the debuginfo or dbgsym package " +
+				"of its package, and pack the core again",
+		}, warnings(recorder), testCase.name)
+	}
+}
+
+// TestWarnPackDebugInfoStaticDeb checks that the hint of pack of a
+// tarantool with no debugging information names the tarantool of the
+// static deb of a static build of Community, by its type, its build ID and
+// its version, and that a PIE is not run for its version.
+//
+//nolint:paralleltest // Replaces readTarantoolVersion.
+func TestWarnPackDebugInfoStaticDeb(t *testing.T) {
+	saved := readTarantoolVersion
+
+	t.Cleanup(func() { readTarantoolVersion = saved })
+
+	const generic = "hint: install the debug file of the tarantool, of the debuginfo or " +
+		"dbgsym package of its package, and pack the core again"
+
+	run := func(typ elf.Type, version string, err error) ([]string, []string) {
+		var ran []string
+
+		readTarantoolVersion = func(executable string) (string, error) {
+			ran = append(ran, executable)
+
+			return version, err
+		}
+
+		log, recorder := logtest.New(t)
+
+		warnPackDebugInfo(log, packArtefacts{
+			executable: "/bin/tarantool", executableType: typ, buildID: testBuildID,
+		}, []string{"/usr/lib/debug"})
+
+		got := warnings(recorder)
+		require.Len(t, got, 2)
+
+		return got, ran
+	}
+
+	got, ran := run(elf.ET_EXEC, "Tarantool 3.9.0-0-g8b9a0f59a95b", nil)
+	assert.Equal(t, "hint: the tarantool of the static deb of Tarantool 3.9.0, which `tt binary "+
+		"install tarantool 3.9.0` installs, has the debugging information: if its build ID is "+
+		"that of the core, "+testBuildID+", pack the core with it, `tt coredump pack -e <its "+
+		"path>`", got[1])
+	assert.Equal(t, []string{"/bin/tarantool"}, ran)
+
+	got, ran = run(elf.ET_DYN, "Tarantool 3.9.0-0-g8b9a0f59a95b", nil)
+	assert.Equal(t, generic, got[1])
+	assert.Empty(t, ran, "a PIE is no static build")
+
+	got, _ = run(elf.ET_EXEC, "Tarantool 3.9.0-3-g1234567", nil)
+	assert.Equal(t, generic, got[1])
+
+	got, _ = run(elf.ET_EXEC, "", errNotTarantool)
+	assert.Equal(t, generic, got[1])
 }
 
 func TestProbeArtefactsFiles(t *testing.T) {
@@ -807,8 +926,8 @@ func TestProbeArtefactsFiles(t *testing.T) {
 
 	artefacts, err := probeArtefacts(&notices, opts, nil)
 	require.NoError(t, err)
-	assert.Equal(t, packArtefacts{executable: tarantool, files: []string{libm, libc, threadDB}},
-		artefacts)
+	assert.Equal(t, tarantool, artefacts.executable)
+	assert.Equal(t, []string{libm, libc, threadDB}, artefacts.files)
 	assert.Equal(t, []string{"-f", libm, "-f", libc, "-f", threadDB}, artefacts.scriptArgs())
 	assert.Empty(t, notices.String())
 

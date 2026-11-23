@@ -145,7 +145,7 @@ func (p *packCmd) run(corePath string) error {
 		opts.Executable = executable
 	}
 
-	err := coredump.Pack(streams, opts)
+	err := coredump.Pack(streams, p.services.Log(), opts)
 	if err != nil {
 		return err
 	}

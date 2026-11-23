@@ -2,16 +2,19 @@ package coredump
 
 import (
 	"bytes"
+	"context"
 	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // tarantoolSignature is the symbol a Tarantool executable defines in its
@@ -97,6 +100,20 @@ type packArtefacts struct {
 	// member under usr/lib/debug, then the shared libraries of the process
 	// and libthread_db, by their paths, which are their members.
 	files []string
+	// stacks is what the core tells of the stacks of its threads, read
+	// while it is open for the rest (see coreDump.threadStacks).
+	stacks threadStacks
+	// executableType is the type of the ELF file of the tarantool: ET_EXEC
+	// of a static build of Tarantool, ET_DYN of a PIE.
+	executableType elf.Type
+	// buildID is the GNU build ID of the tarantool, empty without one.
+	buildID string
+	// debugFile is the debug file of the build ID found in a debug
+	// directory, empty when none has it.
+	debugFile string
+	// debugInfo reports whether the tarantool or its debug file has
+	// debugging information, as gdb needs for the extensions.
+	debugInfo bool
 }
 
 // scriptArgs returns the options of the pack script that pass the files.
@@ -119,7 +136,7 @@ func (a packArtefacts) scriptArgs() []string {
 func probeArtefacts(notices io.Writer, opts PackOptions, debugDirs []string) (
 	packArtefacts, error,
 ) {
-	none := packArtefacts{executable: "", files: nil}
+	var none packArtefacts
 
 	executable, err := findTarantool(opts.Executable)
 	if err != nil {
@@ -164,11 +181,11 @@ func probeArtefacts(notices io.Writer, opts PackOptions, debugDirs []string) (
 
 	// The debug file goes to usr/lib/debug of the archive, where gdb.sh
 	// points gdb to, whatever debug directory of the host has it.
-	id := buildID(binary)
+	build := buildID(binary)
 
-	debugFile := findDebugFile(debugDirs, id)
+	debugFile := findDebugFile(debugDirs, build)
 	if debugFile != "" {
-		files = append(files, debugFilePath(debugFileDir, id)+"="+debugFile)
+		files = append(files, debugFilePath(debugFileDir, build)+"="+debugFile)
 	}
 
 	libs := sharedLibraries(notices, core, loadedObjects(notices, core, binary), executable)
@@ -182,8 +199,100 @@ func probeArtefacts(notices io.Writer, opts PackOptions, debugDirs []string) (
 		files = append(files, threadDB)
 	}
 
-	return packArtefacts{executable: executable, files: files}, nil
+	return packArtefacts{
+		executable: executable, files: files, stacks: core.threadStacks(),
+		executableType: binary.Type, buildID: build, debugFile: debugFile,
+		debugInfo: hasDWARF(binary) || fileHasDWARF(debugFile),
+	}, nil
 }
+
+// fileHasDWARF reports whether the ELF file at path carries debugging
+// information (see hasDWARF); a path that is empty or names no ELF file
+// has none.
+func fileHasDWARF(path string) bool {
+	if path == "" {
+		return false
+	}
+
+	file, err := elf.Open(path)
+	if err != nil {
+		return false
+	}
+
+	defer func() { _ = file.Close() }()
+
+	return hasDWARF(file)
+}
+
+// warnPackDebugInfo warns, before the archive is made, when neither the
+// tarantool of artefacts nor a debug file of its build ID in debugDirs has
+// debugging information: the archive will have none, and the extensions
+// will not work on the core, while the debug file may still be installed
+// and the core packed again, or, of a static build of Community, the core
+// packed with the tarantool of the static deb, which has it (see
+// staticDebRelease), as the hint says.
+func warnPackDebugInfo(log *slog.Logger, artefacts packArtefacts, debugDirs []string) {
+	if artefacts.debugInfo {
+		return
+	}
+
+	var missing string
+
+	switch {
+	case artefacts.buildID == "":
+		missing = "it has no build ID to find a debug file by"
+	case artefacts.debugFile != "":
+		missing = "neither has the debug file " + artefacts.debugFile + " of its build ID"
+	default:
+		missing = fmt.Sprintf("no debug file of its build ID %s is under %s", artefacts.buildID,
+			strings.Join(debugDirs, ", "))
+	}
+
+	hint := "install the debug file of the tarantool, of the debuginfo or dbgsym package of " +
+		"its package, and pack the core again"
+
+	// Only an executable that may be a static build is run for its version.
+	if artefacts.executableType == elf.ET_EXEC && artefacts.buildID != "" {
+		line, err := readTarantoolVersion(artefacts.executable)
+		if err != nil {
+			log.Debug("cannot tell whether the tarantool is a static build: " + err.Error())
+		}
+
+		release, ok := staticDebRelease(line, artefacts.executableType, artefacts.buildID)
+		if ok {
+			hint = staticDebHint(release, artefacts.buildID,
+				"pack the core with it, `tt coredump pack -e <its path>`")
+		}
+	}
+
+	warnWithHint(log, fmt.Sprintf("the tarantool %s has no debugging information, and %s: the "+
+		"archive will have none, and the lj-* commands of LuaJIT and the pretty-printers of "+
+		"Tarantool will not work on the core, plain backtraces will", artefacts.executable,
+		missing), hint)
+}
+
+// tarantoolVersionTimeout bounds tarantool --version, which pack runs for
+// the version of a tarantool before the pack script runs it for its own.
+const tarantoolVersionTimeout = 10 * time.Second
+
+// executableVersion returns the first line of executable --version, the
+// version of a tarantool.
+func executableVersion(executable string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), tarantoolVersionTimeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, executable, "--version").Output()
+	if err != nil {
+		return "", fmt.Errorf("%s --version: %w", executable, err)
+	}
+
+	line, _, _ := strings.Cut(string(out), "\n")
+
+	return line, nil
+}
+
+// readTarantoolVersion tells the version of a tarantool; tests replace it.
+var readTarantoolVersion = executableVersion
 
 // loadedObjects returns the link map of core, the objects its dynamic
 // loader loaded, through the image of its program in the core, as

@@ -839,6 +839,67 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   gdb whose probe tells nothing, or does not answer in 10 s, as one
   stopped after its version and before its Python answered, is run
   unchecked.
+- `tt coredump pack` and `tt coredump inspect` warn of a core whose
+  threads besides the main one have nothing but zeros in the 1 KiB above
+  their stack pointers, once, with the count of them: gcore of a gdb older
+  than 18.1 writes so the stacks a glibc of 2.42 or later guards with
+  `MADV_GUARD_INSTALL` on Linux 6.13 or later, the backtraces of those
+  threads are empty, and libthread_db, which reads their descriptors
+  there, may fail on the core. The hint line after the warning says what
+  writes such stacks, and to take the core the kernel writes, or to write
+  it with `gcore-pages` of tarantool-gdb-tools. tt reads the stack
+  pointers from the `NT_PRSTATUS` notes of the core, on x86_64 and
+  aarch64, and the main thread is the one whose pid is that of
+  `NT_PRPSINFO`; how many stacks were read, and a stack the file of the
+  core does not hold, are said at the debug level only.
+- `tt coredump pack` warns, before the archive is made, when neither the
+  tarantool nor a debug file of its build ID under `/usr/lib/debug` has
+  debugging information: the archive will have none, and the `lj-*`
+  commands and the pretty-printers will not work on the core. The hint
+  line after the warning says to install the debug file of the tarantool
+  and pack the core again, and that of `tt coredump inspect` of such an
+  archive to pack the core where the debug file is installed. Of what may
+  be a static build of Tarantool Community, an executable of type
+  `ET_EXEC` of a 3.x release at its tag, as `Tarantool
+  3.9.0-0-g8b9a0f59a95b`, both hints name the tarantool of the static deb
+  of the release instead, which `tt binary install tarantool <version>`
+  installs and which has the debugging information, and the build ID of
+  the core to compare its own with: pack the core with it, `tt coredump
+  pack -e <its path>`, or copy it over the tarantool of the unpacked
+  archive, or to the debug file of its build ID there, and run
+  `tt coredump inspect` on the directory again. Of an Enterprise build, a
+  pre-release, a build past its tag or a PIE, as the builds of users and
+  distributions are, they name none: their build IDs are others.
+- `tt coredump inspect` warns, before gdb starts, when gdb will not read
+  `tarantool_L`, the Lua state of the main thread, of a core where it is
+  thread-local: as its symbol in the tarantool of the archive or its
+  debug file says, of type `STT_TLS`, or, where no symbol table lists
+  it, as the version does, Tarantool 3.7 or later. A gdb before 17.1
+  reads the thread-local variables of a core only through libthread_db,
+  which fails on a core whose threads have stacks of zeros, as gcore
+  writes them on glibc 2.42 or later, and otherwise reads them where the
+  libthread_db of the archive loads in the gdb of the host or that of the
+  host matches the core, which it does of its own glibc and machine
+  alone. gdb loads the libthread_db of the archive into itself, which
+  works where the libc of the host is of its machine and defines every
+  version the library needs: tt compares its `DT_VERNEED` with the
+  version definitions of the libc of the host, not the versions of
+  glibc, as the libthread_db of glibc 2.43 needs
+  `GLIBC_ABI_DT_X86_64_PLT`, which 2.41 of Debian 13 defines and 2.39 of
+  Ubuntu 24.04 does not. `lj-bt` finds no Lua state of the main thread
+  then, `L=0x0 (none)`, and shows the Lua frames of the VM entries alone,
+  and the `lj-*` commands given no `lua_State` do not find it. The hint
+  line after the warning says why, and to use gdb 17.1 or later, or to
+  inspect the core on a host of the glibc of the core, and of its machine
+  when the host is of another, or, of stacks of zeros, to take the core
+  the kernel writes or to write it with `gcore-pages` of
+  tarantool-gdb-tools. A development version of gdb 17, as 17.0.50 of a
+  snapshot or 17.0.90 of a pre-release, may read them on its own or not,
+  and the warning says it may not. The glibc of a libc, of the archive or
+  of the host, is that of its banner, `stable release version 2.43.`, or
+  of a libc without one the highest of its `GLIBC_x.y` version
+  definitions, which glibc 2.37 and 2.40 add none of; what cannot be told
+  is said at the debug level.
 
 ### Changed
 
