@@ -56,8 +56,11 @@ GDB_TOOLS_VENDOR = GDB_TOOLS_DIR / "vendor.json"
 skip_coredump_cond = os.getenv("TT_ENABLE_COREDUMP_TESTS") is None
 skip_coredump_reason = "Should be launched explicitly to control coredump it produces"
 
-# The tarantool built as a PIE the tests take a core of as well.
+# The tarantool built as a PIE the tests take a core of as well, and the
+# variable that makes a tarantool without debugging information a failure
+# rather than a skip.
 PIE_TARANTOOL_ENV = "TT_TEST_PIE_TARANTOOL"
+REQUIRE_DEBUG_INFO_ENV = "TT_TEST_REQUIRE_DEBUG_INFO"
 
 # The script whose core the tests read. It starts two fibers with names of
 # their own, which sleep, makes a tuple and a MsgPack string, writes what
@@ -333,7 +336,10 @@ class Scenario:
 def tarantool_under_test(flavor):
     """The tarantool the cores of flavor are of: that of PATH, or the PIE of
     TT_TEST_PIE_TARANTOOL. A test is skipped for one with no debugging
-    information gdb finds, which the extensions need."""
+    information gdb finds, which the extensions need, or fails with
+    TT_TEST_REQUIRE_DEBUG_INFO, as in the CI job of the gdb of each runner:
+    a gdb that cannot read the debugging information of a tarantool would
+    skip every test there."""
     if flavor == "path":
         tarantool = shutil.which("tarantool")
         assert tarantool is not None, "no tarantool on PATH"
@@ -344,7 +350,10 @@ def tarantool_under_test(flavor):
         assert os.access(tarantool, os.X_OK), f"{PIE_TARANTOOL_ENV}={tarantool} is no executable"
         assert is_pie(tarantool), f"{PIE_TARANTOOL_ENV}={tarantool} is not a PIE"
     if not has_debug_info(tarantool):
-        pytest.skip(f"gdb finds no debugging information of {tarantool}, which the extensions need")
+        reason = f"gdb finds no debugging information of {tarantool}, which the extensions need"
+        if os.getenv(REQUIRE_DEBUG_INFO_ENV):
+            pytest.fail(f"{reason}, and {REQUIRE_DEBUG_INFO_ENV} is set")
+        pytest.skip(reason)
     return Path(tarantool)
 
 

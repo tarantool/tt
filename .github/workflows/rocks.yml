@@ -227,23 +227,19 @@ jobs:
           path: ${{ runner.temp }}/tarantool-build
           key: tarantool-build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.level }}-${{ steps.version.outputs.version }}
 
-      # download.tarantool.org times out now and then: try once more.
+      # download.tarantool.org times out now and then: try once more. The
+      # cache key of the action has the architecture since v4.
       - name: Install Tarantool from the packages of the system
         id: os-tarantool
         if: matrix.level == 'os' && runner.os == 'Linux'
         continue-on-error: true
-        uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
-        env:
-          # The action's default cache key omits the architecture.
-          TARANTOOL_CACHE_KEY_SUFFIX: -${{ runner.arch }}
+        uses: tarantool/setup-tarantool@6544c70014ba3d74b469acc744e578e2430a15be # v4.0.1
         with:
           tarantool-version: ${{ steps.version.outputs.series }}
 
       - name: Install Tarantool from the packages of the system, second attempt
         if: steps.os-tarantool.outcome == 'failure'
-        uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
-        env:
-          TARANTOOL_CACHE_KEY_SUFFIX: -${{ runner.arch }}
+        uses: tarantool/setup-tarantool@6544c70014ba3d74b469acc744e578e2430a15be # v4.0.1
         with:
           tarantool-version: ${{ steps.version.outputs.series }}
 

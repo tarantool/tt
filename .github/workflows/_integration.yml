@@ -45,6 +45,22 @@ on:
         description: Enable coredump tests on the disposable runner
         type: boolean
         default: false
+      require-debug-info:
+        description: >-
+          Fail rather than skip the coredump tests whose tarantool gdb finds no
+          debugging information for
+        type: boolean
+        default: false
+      gdb-tools-upstream:
+        description: >-
+          Check the vendored tarantool-gdb-tools against their commit on GitHub,
+          which one job does
+        type: boolean
+        default: false
+      rocks-mirror:
+        description: Build the rock mirror the tests that fetch rocks install from
+        type: boolean
+        default: true
       cache:
         type: boolean
         default: true
@@ -128,17 +144,18 @@ jobs:
         uses: ./.github/actions/setup-build-toolchains # zizmor: ignore[self-repository] -- Test the checked-out revision.
 
       # The tests that fetch rocks install them from this directory rather
-      # than from the registries; see test/rocks-mirror.txt.
+      # than from the registries; see test/rocks-mirror.txt. A job of tests
+      # that fetch none goes without it.
       - name: Restore the rock mirror
         id: rocks-mirror
-        if: inputs.cache && inputs.edition != 'none'
+        if: inputs.cache && inputs.rocks-mirror && inputs.edition != 'none'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/rocks-mirror
           key: rocks-mirror-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('test/rocks-mirror.txt') }}
 
       - name: Build the rock mirror
-        if: inputs.edition != 'none' && steps.rocks-mirror.outputs.cache-hit != 'true'
+        if: inputs.rocks-mirror && inputs.edition != 'none' && steps.rocks-mirror.outputs.cache-hit != 'true'
         run: ci/retry-network.sh python3 test/ci.py rocks-mirror --dir "$RUNNER_TEMP/rocks-mirror" --tt-cmd "$PWD/tt"
 
       - name: Run integration tests
@@ -147,6 +164,8 @@ jobs:
           MARKER: ${{ inputs.marker }}
           TEST_DIR: ${{ inputs.test-dir }}
           FULL: ${{ inputs.full }}
+          REQUIRE_DEBUG_INFO: ${{ inputs.require-debug-info }}
+          GDB_TOOLS_UPSTREAM: ${{ inputs.gdb-tools-upstream }}
           EE_CREDENTIALS: ${{ inputs.ee-credentials }}
           TT_CLI_EE_USERNAME: ${{ inputs.ee-credentials && secrets.TT_EE_USERNAME || '' }}
           TT_CLI_EE_PASSWORD: ${{ inputs.ee-credentials && secrets.TT_EE_PASSWORD || '' }}
@@ -157,6 +176,12 @@ jobs:
           # on a runner that is thrown away after it.
           if [ "$FULL" = true ]; then
             export TT_ENABLE_COREDUMP_TESTS=1
+          fi
+          if [ "$REQUIRE_DEBUG_INFO" = true ]; then
+            export TT_TEST_REQUIRE_DEBUG_INFO=1
+          fi
+          if [ "$GDB_TOOLS_UPSTREAM" = true ]; then
+            export TT_TEST_GDB_TOOLS_UPSTREAM=1
           fi
           if [ "$EE_CREDENTIALS" != true ]; then
             unset TT_CLI_EE_USERNAME TT_CLI_EE_PASSWORD
@@ -181,6 +206,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: pytest-${{ inputs.edition }}-${{ inputs.tarantool-version }}-${{ inputs.shard }}-${{ inputs.test-dir || 'all' }}-${{ inputs.tt-artifact }}
+          # The runner tells apart the jobs of one directory on several.
+          name: pytest-${{ inputs.edition }}-${{ inputs.tarantool-version }}-${{ inputs.shard }}-${{ inputs.test-dir || 'all' }}-${{ inputs.tt-artifact }}-${{ inputs.runner }}
           path: reports/
           retention-days: 7
