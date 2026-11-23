@@ -791,8 +791,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt coredump pack` puts the separate debugging information of the
   tarantool into the archive when the host has it: the debug file a
   debuginfo package installs by the build ID of the tarantool,
-  `.build-id/<xx>/<rest>.debug` under a debug directory of gdb,
-  `/usr/lib/debug` unless a gdbinit sets another, goes to
+  `/usr/lib/debug/.build-id/<xx>/<rest>.debug`, goes to
   `usr/lib/debug/.build-id/<xx>/<rest>.debug` of the archive, and the
   `gdb.sh` of tt looks for debug files there first. A tarantool stripped
   of its debugging information has its types back from it, and the gdb
@@ -849,6 +848,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   exit of its own for the watchdog, which starts it again as the restart
   policy of the instance says, so an instance is stopped with
   `tt instance stop`.
+- `tt coredump pack` needs neither gdb nor `file`: a host with only lldb,
+  or with no debugger, packs a core, and the archive is the one gdb made,
+  member for member. The pack script refused a host without gdb, which it
+  asked for the shared libraries of the core, for libthread_db and for
+  the debug directories. tt reads the core itself: the link map of the
+  dynamic loader in the memory of the core, which gdb's `info shared`
+  lists, gives the libraries under the names gdb looks them up by in the
+  archive, `/lib64/ld-linux-x86-64.so.2` rather than the real path the
+  kernel records; the ELF shared objects of the `NT_FILE` note of the core
+  that the link map does not have follow, by their paths, but for files
+  deleted since they were mapped, devices and memfds. libthread_db is the
+  one gdb loads by its default search path: next to the libc or
+  libpthread of the core that defines `pthread_create`, else in the
+  library directories of the system. The debug file of the tarantool is
+  looked for under `/usr/lib/debug` alone: a debug directory a gdbinit
+  sets no longer counts.
 - Breaking: the version descriptor `tt package build` generates into the
   package is `_version.lua`, `require('<name>._version')`, where it was
   `version.lua`, `require('<name>.version')`; the rocks of the build are
@@ -1426,6 +1441,38 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   command of gdb and nothing else. The terminal sends SIGINT to tt as well,
   which died of it and left gdb running on a terminal the shell had taken
   back; tt now waits for gdb.
+- `tt coredump pack -e TARANTOOL CORE` refuses a core that `TARANTOOL`
+  did not dump by its build ID: the GNU build ID of the executable in the
+  memory of the core, its first page, which Linux and gcore dump, against
+  that of `TARANTOOL`, or, with no build ID on a side, the entry point and
+  the program headers. "core dump file is produced by the different
+  Tarantool executable" names both build IDs. The pack script refused a
+  core when gdb found no shared library of it through the executable given:
+  a tarantool whose dynamic section was where that of the executable of the
+  core was passed, whatever build it was, and the error said only `pack
+  script execution failed: exit status 1`. tt checks the core and the
+  executable before it runs the script, and says what is wrong: `not a core
+  dump`, `not an ELF file` or `not a Tarantool binary`, with the path,
+  where the script said nothing without a terminal.
+  A core of a tarantool the dynamic loader ran, `ld.so TARANTOOL`, is
+  checked against the tarantool the loader mapped, not the loader the
+  kernel ran.
+- `tt coredump pack` of a core with a shared library deleted since it was
+  loaded packs the core without the library and says so: "The shared
+  library ... of the core is not packed: ...". Tarantool deletes its copy
+  of the module of a C function of `box.func` once it has loaded it, and
+  an upgrade of a package replaces a library under a running process. The
+  pack script staged a link to the path, tar failed on it with "Cannot
+  stat", and pack failed with exit status 2 and left a partial archive and
+  its temporary directory next to it. A library whose mapping the core
+  marks deleted is left out even when another file is at its path now.
+  Where the library in the core and the file at its path both have a
+  build ID, the build ID tells instead: a file of the one the process
+  loaded is packed even when the mapping is marked deleted, as after a
+  package is reinstalled, and a file of another one is left out with "the
+  file at its path is not the one the process loaded", as after a link to
+  the library is re-pointed to a new version, which was packed in its
+  place.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read

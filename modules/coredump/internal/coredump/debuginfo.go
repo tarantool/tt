@@ -1,7 +1,6 @@
 package coredump
 
 import (
-	"bytes"
 	"debug/elf"
 	"encoding/binary"
 	"encoding/hex"
@@ -79,33 +78,10 @@ func buildID(file *elf.File) string {
 // "" when there is none. The name and the descriptor of a note are padded
 // to align, 4 bytes unless the section or the segment says 8.
 func noteBuildID(data []byte, order binary.ByteOrder, align uint64) string {
-	pad := uint64(4) //nolint:mnd // The alignment of the notes of ELF.
-	if align == 8 {  //nolint:mnd // A segment of 8-byte aligned notes.
-		pad = align
-	}
-
-	padded := func(size uint64) uint64 {
-		return (size + pad - 1) / pad * pad
-	}
-
-	for uint64(len(data)) >= noteHeaderSize {
-		nameSize := uint64(order.Uint32(data[0:4]))
-		descSize := uint64(order.Uint32(data[4:8]))
-		noteType := order.Uint32(data[8:12])
-
-		nameEnd := noteHeaderSize + padded(nameSize)
-		descEnd := nameEnd + padded(descSize)
-
-		if descEnd > uint64(len(data)) || nameEnd+descSize > uint64(len(data)) {
-			return ""
+	for _, note := range parseNotes(data, order, align) {
+		if note.typ == ntGNUBuildID && note.name == "GNU\x00" && len(note.desc) > 0 {
+			return hex.EncodeToString(note.desc)
 		}
-
-		name := data[noteHeaderSize : noteHeaderSize+nameSize]
-		if noteType == ntGNUBuildID && bytes.Equal(name, []byte("GNU\x00")) && descSize > 0 {
-			return hex.EncodeToString(data[nameEnd : nameEnd+descSize])
-		}
-
-		data = data[descEnd:]
 	}
 
 	return ""

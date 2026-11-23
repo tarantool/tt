@@ -65,9 +65,11 @@ func TestArguments(t *testing.T) {
 func TestPackNoSuchFile(t *testing.T) {
 	t.Parallel()
 
-	got := sdktest.Run(t, coredump.New, "coredump", "pack", "-e", "/bin/true",
-		filepath.Join(t.TempDir(), "core"))
-	require.ErrorContains(t, got.Err, "pack script execution failed")
+	core := filepath.Join(t.TempDir(), "core")
+
+	got := sdktest.Run(t, coredump.New, "coredump", "pack", "-e", "/bin/true", core)
+	require.ErrorContains(t, got.Err, "not a core dump: "+core+": ")
+	require.ErrorContains(t, got.Err, "no such file or directory")
 }
 
 //nolint:paralleltest // Unpack extracts into the working directory.
