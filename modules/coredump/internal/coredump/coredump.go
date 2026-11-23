@@ -20,6 +20,16 @@ import (
 //go:embed scripts/*
 var coreScripts embed.FS
 
+// extensions are the sets of gdb extensions tt embeds, each with its
+// manifest and vendor.json: the copies of the upstream extensions, which
+// inspect loads for a core it finds none of and pack puts into the
+// archive, in extensionsDir, and the universal extensions of
+// tarantool-gdb-tools, which inspect loads on request instead of those of
+// the Tarantool of the core, with the license files of the repository, in
+// gdbToolsDir under it. The whole directory is embedded rather than the
+// files of each set by a pattern: a file put into it that no manifest
+// names fails a test instead of being left out of tt unseen.
+//
 //go:embed extensions
 var extensions embed.FS
 
@@ -31,6 +41,9 @@ const (
 	commandArgsCapacity = 2
 	// extensionsDir is the directory of the gdb extensions in extensions.
 	extensionsDir = "extensions"
+	// gdbToolsDir is the directory of the extensions of tarantool-gdb-tools
+	// in extensions.
+	gdbToolsDir = extensionsDir + "/gdb-tools"
 )
 
 // writeExtensions writes the gdb extensions tt embeds, those of their

@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,12 +46,20 @@ type vendoredFile struct {
 	Note string `json:"note"`
 }
 
-// readVendorRecord returns the vendorFile tt embeds, which must hold no
-// field the test does not know.
+// readVendorRecord returns the vendorFile of the copies of the upstream
+// extensions tt embeds (see readVendorRecordOf).
 func readVendorRecord(t *testing.T) vendorRecord {
 	t.Helper()
 
-	data, err := extensions.ReadFile(extensionsDir + "/" + vendorFile)
+	return readVendorRecordOf(t, embeddedSet)
+}
+
+// readVendorRecordOf returns the vendorFile of set, which must hold no field
+// the test does not know.
+func readVendorRecordOf(t *testing.T, set extensionSet) vendorRecord {
+	t.Helper()
+
+	data, err := fs.ReadFile(set.files, set.dir+"/"+vendorFile)
 	require.NoError(t, err)
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -63,9 +74,10 @@ func readVendorRecord(t *testing.T) vendorRecord {
 
 // gdbParameterPattern matches a parameter of gdb a Python extension
 // registers, the way the extensions of Tarantool and LuaJIT declare one: a
-// subclass of gdb.Parameter whose first line names it.
+// subclass of gdb.Parameter whose first line names it, as name or, in
+// tarantool_gdb.py of tarantool-gdb-tools, as param_name.
 var gdbParameterPattern = regexp.MustCompile(
-	`(?m)^class \w+\(gdb\.Parameter\):\n[ \t]+name = ['"]([^'"]+)['"]`)
+	`(?m)^class \w+\(gdb\.Parameter\):\n[ \t]+(?:param_)?name = ['"]([^'"]+)['"]`)
 
 // registeredParameters returns the names of the parameters of gdb content,
 // an extension, registers.
@@ -94,7 +106,10 @@ func manifestFiles(entries []manifestEntry) []string {
 // TestEmbeddedManifest checks that the manifest of the copies tt embeds
 // names every file of their directory but itself and vendor.json, and only
 // those, in the order the copies were loaded in before it, and that every
-// command it lists is a name the file has.
+// command it lists is a name the file has. The one directory under theirs
+// is that of the extensions of tarantool-gdb-tools, which has a manifest
+// and a record of its own (see TestGDBToolsVendored): any other directory,
+// as any other file, would be embedded with them and loaded by nothing.
 func TestEmbeddedManifest(t *testing.T) {
 	t.Parallel()
 
@@ -108,7 +123,9 @@ func TestEmbeddedManifest(t *testing.T) {
 	var present []string
 
 	for _, entry := range dir {
-		if entry.Name() != manifestFile && entry.Name() != vendorFile {
+		switch {
+		case entry.IsDir() && path.Join(extensionsDir, entry.Name()) == gdbToolsDir:
+		case entry.Name() != manifestFile && entry.Name() != vendorFile:
 			present = append(present, entry.Name())
 		}
 	}
@@ -131,6 +148,30 @@ func TestEmbeddedManifest(t *testing.T) {
 
 		assert.ElementsMatch(t, registeredParameters(content), entry.Parameters,
 			"the parameters %s registers", entry.File)
+	}
+}
+
+// TestManifestErrorNames checks that an error of a manifest that does not
+// read names it by its path under the directory of the extensions: the
+// manifest of the copies of the upstream extensions by its name alone, as
+// before there was another set, that of tarantool-gdb-tools under the
+// directory of the set.
+func TestManifestErrorNames(t *testing.T) {
+	t.Parallel()
+
+	files := fstest.MapFS{
+		extensionsDir + "/" + manifestFile: {Data: []byte(`{"schema": 0}`)},
+		gdbToolsDir + "/" + manifestFile:   {Data: []byte(`{"schema": 0}`)},
+	}
+
+	for dir, want := range map[string]string{
+		extensionsDir: "embedded extensions.json: ",
+		gdbToolsDir:   "embedded gdb-tools/extensions.json: ",
+	} {
+		_, err := extensionSet{files: files, dir: dir}.manifest()
+		require.ErrorIs(t, err, errManifestSchema, dir)
+		assert.EqualError(t, err, want+"unknown schema of the extension manifest: 0, this tt "+
+			"reads 1", dir)
 	}
 }
 
@@ -171,6 +212,155 @@ func TestVendoredCopies(t *testing.T) {
 		case tarantoolGDBName:
 			assert.Equal(t, "tarantool/tarantool", file.Repo)
 			assert.Equal(t, embeddedTarantool, file.Ref)
+		}
+	}
+}
+
+// The universal extensions of tarantool-gdb-tools tt embeds, by the names of
+// their files, and the repository.
+const (
+	gdbToolsLuaJIT    = "luajit_gdb.py"
+	gdbToolsTarantool = "tarantool_gdb.py"
+	gdbToolsBacktrace = "luajit_backtrace_gdb.py"
+	gdbToolsGcore     = "gcore_pages_gdb.py"
+	gdbToolsRepo      = "buyemune-sys/tarantool-gdb-tools"
+)
+
+// gdbToolsFiles are the license files of tarantool-gdb-tools, which a copy
+// of its extensions carries along: LICENSE, the BSD 2-Clause License of the
+// repository, asks a copy to keep it, and NOTICE has the licenses of the
+// extensions that come from LuaJIT and Tarantool.
+var gdbToolsFiles = []string{"LICENSE", "NOTICE"}
+
+// TestGDBToolsVendored checks that vendor.json of the extensions of
+// tarantool-gdb-tools names every other file of their directory, and only
+// those, the extensions, their manifest and the license files, each the
+// file of the root of the repository at one full commit, with its
+// checksum: the files are copies, byte for byte, the manifest too.
+//
+// To pin another commit of tarantool-gdb-tools, run this from the root of
+// tt: it replaces the files of the directory with those of the commit,
+// writes vendor.json of them and stages it all, the files gone too, for
+// git commit:
+//
+//	clone=<a clone of buyemune-sys/tarantool-gdb-tools> rev=<a commit of it>
+//	commit=$(git -C "$clone" rev-parse --verify "$rev^{commit}")
+//	dir=modules/coredump/internal/coredump/extensions/gdb-tools
+//	rm -f -- "${dir:?}"/*
+//	files=$(git -C "$clone" cat-file blob "$commit:extensions.json" |
+//		jq -r '.extensions[].file')
+//	for file in extensions.json $files LICENSE NOTICE; do
+//		git -C "$clone" cat-file blob "$commit:$file" > "$dir/$file"
+//	done
+//	(cd "$dir" && sha256sum extensions.json $files LICENSE NOTICE) |
+//		jq -nR --arg commit "$commit" '{files: [inputs | split("  ") | {
+//			file: .[1], repo: "buyemune-sys/tarantool-gdb-tools", path: .[1],
+//			ref: $commit, commit: $commit, sha256: .[0]}]}' > "$dir/vendor.json"
+//	git add -A "$dir"
+//
+// Then cd modules/coredump && go test ./... checks the copy. A commit that
+// adds, removes or renames an extension changes what inspect loads: the
+// tests that name the extensions, TestGDBToolsManifest among them, fail
+// until they name the new ones.
+func TestGDBToolsVendored(t *testing.T) {
+	t.Parallel()
+
+	record := readVendorRecordOf(t, gdbToolsSet)
+	vendored := make([]string, 0, len(record.Files))
+	commits := map[string]bool{}
+
+	for _, file := range record.Files {
+		vendored = append(vendored, file.File)
+
+		data, err := fs.ReadFile(gdbToolsSet.files, gdbToolsSet.dir+"/"+file.File)
+		require.NoError(t, err)
+
+		sum := sha256.Sum256(data)
+		assert.Equal(t, file.SHA256, hex.EncodeToString(sum[:]), file.File)
+		assert.Equal(t, gdbToolsRepo, file.Repo, file.File)
+		assert.Equal(t, file.File, file.Path, file.File)
+		assert.Regexp(t, fullCommitPattern, file.Commit, file.File)
+		assert.Equal(t, file.Commit, file.Ref, file.File)
+
+		commits[file.Commit] = true
+	}
+
+	assert.Len(t, commits, 1, "the files are of one commit")
+
+	dir, err := fs.ReadDir(gdbToolsSet.files, gdbToolsSet.dir)
+	require.NoError(t, err)
+
+	var present []string
+
+	for _, entry := range dir {
+		if entry.Name() != vendorFile {
+			present = append(present, entry.Name())
+		}
+	}
+
+	assert.ElementsMatch(t, present, vendored, "the directory and vendor.json")
+
+	entries, err := gdbToolsSet.manifest()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, append(append([]string{manifestFile}, gdbToolsFiles...),
+		manifestFiles(entries)...), vendored, "the manifest and vendor.json")
+}
+
+// TestGDBToolsManifest checks that the manifest of the extensions of
+// tarantool-gdb-tools reads, lists the Python files of their directory, and
+// only those, lj-bt after the extension of LuaJIT, whose helpers it takes,
+// and that each entry says the debuggers it loads in, the versions and
+// the architectures it was checked on, in the terms inspect compares a
+// core with, and the commands and the parameters the file registers: every
+// command is a name the file has, and the parameters are those its
+// gdb.Parameter subclasses name.
+func TestGDBToolsManifest(t *testing.T) {
+	t.Parallel()
+
+	entries, err := gdbToolsSet.manifest()
+	require.NoError(t, err)
+	assert.Equal(t, []string{gdbToolsLuaJIT, gdbToolsTarantool, gdbToolsBacktrace, gdbToolsGcore},
+		manifestFiles(entries))
+
+	dir, err := fs.ReadDir(gdbToolsSet.files, gdbToolsSet.dir)
+	require.NoError(t, err)
+
+	var scripts []string
+
+	for _, entry := range dir {
+		if path.Ext(entry.Name()) == ".py" {
+			scripts = append(scripts, entry.Name())
+		}
+	}
+
+	assert.ElementsMatch(t, scripts, manifestFiles(entries), "the manifest and the directory")
+
+	for _, entry := range entries {
+		assert.NotEmpty(t, entry.Debuggers, entry.File)
+		assert.Subset(t, []string{debuggerGDB, debuggerLLDB}, entry.Debuggers, entry.File)
+		assert.NotEmpty(t, entry.Tarantool.Min, entry.File)
+		assert.NotEmpty(t, entry.Tarantool.Max, entry.File)
+		assert.NotEmpty(t, entry.Arch, entry.File)
+		assert.Subset(t, []string{"x86_64", "aarch64"}, entry.Arch, entry.File)
+		require.NotEmpty(t, entry.Commands, entry.File)
+
+		data, err := fs.ReadFile(gdbToolsSet.files, gdbToolsSet.dir+"/"+entry.File)
+		require.NoError(t, err)
+
+		content := string(data)
+
+		for _, command := range entry.Commands {
+			assert.True(t, strings.Contains(content, "'"+command+"'") ||
+				strings.Contains(content, `"`+command+`"`), "%s registers %s", entry.File, command)
+		}
+
+		assert.ElementsMatch(t, registeredParameters(content), entry.Parameters,
+			"the parameters %s registers", entry.File)
+
+		if entry.File == gdbToolsBacktrace {
+			assert.Equal(t, []string{gdbToolsLuaJIT}, entry.After, entry.File)
+		} else {
+			assert.Empty(t, entry.After, entry.File)
 		}
 	}
 }

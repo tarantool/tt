@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "extensions": [
+    {
+      "file": "luajit_gdb.py",
+      "debuggers": ["gdb", "lldb"],
+      "after": [],
+      "tarantool": {"min": "3.0.2", "max": "3.9.0"},
+      "arch": ["x86_64", "aarch64"],
+      "commands": [
+        "lj-arch",
+        "lj-bc",
+        "lj-ctype",
+        "lj-func",
+        "lj-gc",
+        "lj-gco",
+        "lj-gctop",
+        "lj-ir",
+        "lj-jslots",
+        "lj-proto",
+        "lj-stack",
+        "lj-state",
+        "lj-str",
+        "lj-tab",
+        "lj-trace",
+        "lj-tv"
+      ],
+      "parameters": []
+    },
+    {
+      "file": "tarantool_gdb.py",
+      "debuggers": ["gdb"],
+      "after": [],
+      "tarantool": {"min": "3.0.2", "max": "3.9.0"},
+      "arch": ["x86_64", "aarch64"],
+      "commands": [
+        "info tt-fibers",
+        "tt-fiber",
+        "tt-list",
+        "tt-list-walk",
+        "tt-mp"
+      ],
+      "parameters": [
+        "print tt-list-entry",
+        "tl-var-search-range"
+      ]
+    },
+    {
+      "file": "luajit_backtrace_gdb.py",
+      "debuggers": ["gdb"],
+      "after": ["luajit_gdb.py"],
+      "tarantool": {"min": "3.3.5", "max": "3.9.0"},
+      "arch": ["x86_64", "aarch64"],
+      "commands": [
+        "lj-bt"
+      ],
+      "parameters": []
+    },
+    {
+      "file": "gcore_pages_gdb.py",
+      "debuggers": ["gdb"],
+      "after": [],
+      "tarantool": {"min": "3.0.2", "max": "3.9.0"},
+      "arch": ["x86_64", "aarch64"],
+      "commands": [
+        "gcore-pages"
+      ],
+      "parameters": []
+    }
+  ]
+}
