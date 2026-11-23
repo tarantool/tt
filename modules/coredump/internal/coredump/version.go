@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"os"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -51,6 +53,100 @@ func parseVersion(line string) (tarantoolVersion, bool) {
 		Release:    match[3],
 		Commit:     match[4],
 	}, true
+}
+
+// releasePattern matches a release of Tarantool alone, x.y.z: the Release
+// of a version, and the ends of the range of the versions in a manifest.
+var releasePattern = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)$`)
+
+// release is a release of Tarantool, x.y.z, by its numbers.
+type release [3]int
+
+// parseRelease reads a release, x.y.z. It reports false for anything else,
+// a pre-release suffix too.
+func parseRelease(text string) (release, bool) {
+	match := releasePattern.FindStringSubmatch(text)
+	if match == nil {
+		return release{}, false
+	}
+
+	var parsed release
+
+	for part := range parsed {
+		number, err := strconv.Atoi(match[part+1])
+		if err != nil {
+			return release{}, false
+		}
+
+		parsed[part] = number
+	}
+
+	return parsed, true
+}
+
+// compare returns a negative number, zero or a positive one as r is before
+// other, the same or after it.
+func (r release) compare(other release) int {
+	return slices.Compare(r[:], other[:])
+}
+
+// minor returns the minor of r, x.y, as its first patch, x.y.0.
+func (r release) minor() release {
+	return release{r[0], r[1], 0}
+}
+
+// minorRange is a versionRange by the minors of its ends, x.y.0 each. CI
+// runs an extension on the last patch of every minor from the one of the
+// first end of the range of its manifest to the one of the last: a core of
+// any patch of those minors is in the range, one of another minor is not.
+// 3.9.1 is in 3.0.2..3.9.0, and so is 3.3.0 in 3.3.5..3.9.0.
+type minorRange struct {
+	// first is the minor of the first end.
+	first release
+	// last is the minor of the last end.
+	last release
+}
+
+// minors returns r by the minors of its ends. It reports false when an end
+// is no release x.y.z: a core cannot be told to be in such a range or out
+// of it.
+func (r versionRange) minors() (minorRange, bool) {
+	first, ok := parseRelease(r.Min)
+	if !ok {
+		return minorRange{first: release{}, last: release{}}, false
+	}
+
+	last, ok := parseRelease(r.Max)
+	if !ok {
+		return minorRange{first: release{}, last: release{}}, false
+	}
+
+	return minorRange{first: first.minor(), last: last.minor()}, true
+}
+
+// String returns m as a warning names it, by its minors: "3.3 to 3.9", or
+// "3.9" for a range of one minor.
+func (m minorRange) String() string {
+	first := strconv.Itoa(m.first[0]) + "." + strconv.Itoa(m.first[1])
+	if m.first == m.last {
+		return first
+	}
+
+	return first + " to " + strconv.Itoa(m.last[0]) + "." + strconv.Itoa(m.last[1])
+}
+
+// excludes reports whether the release version, x.y.z, is out of m: of a
+// minor before the first or after the last. A version that is no release
+// is excluded by nothing: nothing can be told of it.
+func (m minorRange) excludes(version string) bool {
+	parsed, ok := parseRelease(version)
+	if !ok {
+		return false
+	}
+
+	minor := parsed.minor()
+
+	return minor.compare(m.first) < 0 || minor.compare(m.last) > 0
 }
 
 // readVersion returns the first line of the version file at path.

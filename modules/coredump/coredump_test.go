@@ -99,3 +99,13 @@ func TestInspectNoSuchFile(t *testing.T) {
 	got := sdktest.Run(t, coredump.New, "coredump", "inspect", filepath.Join(t.TempDir(), "x"))
 	require.ErrorContains(t, got.Err, "failed to inspect")
 }
+
+// TestInspectExperimental checks that inspect takes --experimental and goes
+// on to open what it is given with it.
+func TestInspectExperimental(t *testing.T) {
+	t.Parallel()
+
+	got := sdktest.Run(t, coredump.New, "coredump", "inspect", "--experimental",
+		filepath.Join(t.TempDir(), "x"))
+	require.ErrorContains(t, got.Err, "failed to inspect")
+}

@@ -2831,6 +2831,13 @@ USAGE
   tt coredump inspect {ARCHIVE|DIRECTORY} [flags]
 
 FLAGS
+      --experimental       Load the experimental gdb extensions of
+                           tarantool-gdb-tools (vendored by tt at dba4b9be),
+                           with lj-bt, instead of those of the Tarantool of the
+                           core: they are checked on the versions of Tarantool
+                           their manifest names, and inspect warns of a core
+                           outside them; -s then only maps the sources and picks
+                           no extensions
   -h, --help               help for inspect
   -s, --sourcedir string   Source directory
 

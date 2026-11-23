@@ -122,7 +122,7 @@ func runInspect(t *testing.T, archiveOrDir, sourceDir string) (string, *logtest.
 
 	err := inspect(t.Context(), output.Streams{
 		In: strings.NewReader(""), Out: &stdout, Err: &stderr,
-	}, res, archiveOrDir, sourceDir)
+	}, res, InspectOptions{Path: archiveOrDir, SourceDir: sourceDir})
 	require.NoError(t, err, stdout.String()+stderr.String())
 
 	return stdout.String(), recorder
@@ -284,7 +284,7 @@ func TestInspectOffline(t *testing.T) {
 
 	err := inspect(t.Context(), output.Streams{
 		In: strings.NewReader(""), Out: &stdout, Err: &stdout,
-	}, res, dir, "")
+	}, res, InspectOptions{Path: dir})
 	require.NoError(t, err, stdout.String())
 
 	firstLine := func(name string) string {
@@ -298,6 +298,68 @@ func TestInspectOffline(t *testing.T) {
 		tarantoolGDBName: firstLine(tarantoolGDBName),
 	}, sourced(stdout.String()))
 	assert.Len(t, warnings(recorder), 2)
+}
+
+// sourcedOrder returns the names of the files the gdb command line of out
+// sources, in the order it sources them.
+func sourcedOrder(out string) []string {
+	var files []string
+
+	for line := range strings.Lines(out) {
+		path, ok := strings.CutPrefix(strings.TrimSuffix(line, "\n"), "source ")
+		if ok {
+			files = append(files, filepath.Base(path))
+		}
+	}
+
+	return files
+}
+
+// TestInspectGDBTools checks that inspect with GDBTools has gdb.sh source
+// the universal extensions of tarantool-gdb-tools tt embeds, in the order of
+// their manifest, once the core is loaded, and that -s maps the build path
+// to the sources then without their extensions being loaded.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectGDBTools(t *testing.T) {
+	withFakeGDB(t)
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+
+	sources := writeSources(t, map[string]string{
+		"third_party/luajit/src/luajit_dbg.py": "luajit_dbg.py of the sources",
+		"tools/tarantool-gdb.py":               "tarantool-gdb.py of the sources",
+	})
+
+	github, server := newFakeGitHub(t)
+	res, _ := testResolver(t, server, t.TempDir())
+
+	var stdout, stderr bytes.Buffer
+
+	err := inspect(t.Context(), output.Streams{
+		In: strings.NewReader(""), Out: &stdout, Err: &stderr,
+	}, res, InspectOptions{Path: dir, SourceDir: sources, GDBTools: true})
+	require.NoError(t, err, stdout.String()+stderr.String())
+
+	out := stdout.String()
+	firstLine := func(name string) string {
+		line, _, _ := strings.Cut(gdbToolsContent(t, name), "\n")
+
+		return line
+	}
+
+	order := []string{gdbToolsLuaJIT, gdbToolsTarantool, gdbToolsBacktrace, gdbToolsGcore}
+	assert.Equal(t, order, sourcedOrder(out))
+
+	for name, content := range sourced(out) {
+		assert.Equal(t, firstLine(name), content, name)
+	}
+
+	assert.Less(t, strings.Index(out, "core "+filepath.Join(dir, "coredump")),
+		strings.Index(out, "source "), "the extensions are sourced once the core is loaded")
+	assert.Contains(t, out, "set substitute-path /build/tarantool "+sources+"\n")
+	assert.Empty(t, github.Requests())
 }
 
 // TestWrapperSourcesTheArchiveExtensions checks that the gdb.sh of an
@@ -333,7 +395,7 @@ func TestWrapperWithoutVersion(t *testing.T) {
 
 	err := inspect(t.Context(), output.Streams{
 		In: strings.NewReader(""), Out: &stdout, Err: &stdout,
-	}, res, t.TempDir(), "")
+	}, res, InspectOptions{Path: t.TempDir()})
 	require.ErrorContains(t, err, "inspect script execution failed")
 	assert.Contains(t, stdout.String(), "version file is missing")
 	assert.Empty(t, github.Requests())

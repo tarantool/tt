@@ -91,6 +91,14 @@ type extension struct {
 	Debuggers []string
 	// After are the names of the extensions that are loaded before it.
 	After []string
+	// Tarantool and Arch are the versions of Tarantool and the
+	// architectures its manifest says it was checked on; an upstream one
+	// has none. inspect warns of a core of another for the universal
+	// extensions alone (see warnUnchecked): a copy of a release is of
+	// that release, and is loaded for a core of another with a warning of
+	// its own.
+	Tarantool versionRange
+	Arch      []string
 }
 
 // upstreamDebuggers are the debuggers the upstream extensions load in, by
@@ -109,7 +117,10 @@ var upstreamDebuggers = map[string][]string{
 // upstreamExtension returns the upstream extension name of content data,
 // with the debuggers it loads in.
 func upstreamExtension(name string, data []byte) *extension {
-	return &extension{Name: name, Data: data, Debuggers: upstreamDebuggers[name], After: nil}
+	return &extension{
+		Name: name, Data: data, Debuggers: upstreamDebuggers[name], After: nil,
+		Tarantool: versionRange{Min: "", Max: ""}, Arch: nil,
+	}
 }
 
 // resolver finds the gdb extensions that match the Tarantool of a core: of
@@ -336,6 +347,7 @@ func (s extensionSet) read(entry manifestEntry) (*extension, error) {
 
 	return &extension{
 		Name: entry.File, Data: data, Debuggers: entry.Debuggers, After: entry.After,
+		Tarantool: entry.Tarantool, Arch: entry.Arch,
 	}, nil
 }
 

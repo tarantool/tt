@@ -126,21 +126,37 @@ func newUnpackCmd(services sdk.Services) *cobra.Command {
 	}
 }
 
+// experimentalFlag is the flag of tt coredump inspect that loads the
+// experimental gdb extensions of tarantool-gdb-tools tt embeds, one version
+// for many releases of Tarantool, instead of those of the Tarantool of the
+// core.
+const experimentalFlag = "experimental"
+
 // newInspectCmd builds `tt coredump inspect`.
 func newInspectCmd(services sdk.Services) *cobra.Command {
-	sourceDir := ""
+	opts := coredump.InspectOptions{Path: "", SourceDir: "", GDBTools: false}
 
 	cmd := &cobra.Command{
 		Use:   "inspect {ARCHIVE|DIRECTORY}",
 		Short: "inspect tarantool coredump",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return coredump.Inspect(cmd.Context(), services.Streams().IO(), services.Log(),
-				args[0], sourceDir)
+			opts.Path = args[0]
+
+			return coredump.Inspect(cmd.Context(), services.Streams().IO(), services.Log(), opts)
 		},
 	}
 
-	cmd.Flags().StringVarP(&sourceDir, "sourcedir", "s", "", "Source directory")
+	cmd.Flags().StringVarP(&opts.SourceDir, "sourcedir", "s", "", "Source directory")
+	// The help names no version of Tarantool: those the extensions are
+	// checked on are the ones of their manifest, which a pin of another
+	// commit changes with the files alone.
+	cmd.Flags().BoolVar(&opts.GDBTools, experimentalFlag, false, fmt.Sprintf(
+		"Load the experimental gdb extensions of tarantool-gdb-tools (vendored by tt at %s), "+
+			"with lj-bt, instead of those of the Tarantool of the core: they are checked on "+
+			"the versions of Tarantool their manifest names, and inspect warns of a core "+
+			"outside them; -s then only maps the sources and picks no extensions",
+		coredump.GDBToolsCommit()))
 
 	return cmd
 }

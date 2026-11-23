@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -81,7 +82,7 @@ func TestInspectInDebugger(t *testing.T) {
 
 		err := inspectWith(t.Context(), output.Streams{
 			In: strings.NewReader(""), Out: &stdout, Err: &stdout,
-		}, res, backend, dir, sourceDir)
+		}, res, backend, InspectOptions{Path: dir, SourceDir: sourceDir})
 		require.NoError(t, err, stdout.String())
 	}
 
@@ -122,6 +123,73 @@ func TestInspectInDebugger(t *testing.T) {
 	run(t, gdb, sources, 0)
 	assert.Equal(t, []string{luajitGDBName, tarantoolGDBName}, gdb.exts)
 	assert.Equal(t, "luajit-gdb.py of the sources", gdb.contents[luajitGDBName])
+}
+
+// TestInspectGDBToolsInDebugger checks that with GDBTools a debugger is
+// handed the universal extensions of tarantool-gdb-tools that load in it,
+// each after those its manifest names in after: gdb all four, lj-bt after
+// the extension of LuaJIT, whose helpers it takes, and lldb that one
+// alone. Neither GitHub nor the extensions of the sources are looked at,
+// the sources are still the debugger's to map, and the log names the
+// extensions and their commit. Without GDBTools the extensions are those
+// of the Tarantool of the core, of the sources here.
+func TestInspectGDBToolsInDebugger(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+
+	sources := writeSources(t, map[string]string{
+		"third_party/luajit/src/luajit_dbg.py": "luajit_dbg.py of the sources",
+		"tools/tarantool-gdb.py":               "tarantool-gdb.py of the sources",
+	})
+
+	run := func(t *testing.T, backend debugger, gdbTools bool,
+	) (*fakeGitHub, *logtest.Recorder) {
+		t.Helper()
+
+		github, server := newFakeGitHub(t)
+		res, recorder := testResolver(t, server, t.TempDir())
+
+		var stdout bytes.Buffer
+
+		err := inspectWith(t.Context(), output.Streams{
+			In: strings.NewReader(""), Out: &stdout, Err: &stdout,
+		}, res, backend, InspectOptions{Path: dir, SourceDir: sources, GDBTools: gdbTools})
+		require.NoError(t, err, stdout.String())
+
+		return github, recorder
+	}
+
+	gdb := newRecordingDebugger(debuggerGDB)
+	github, recorder := run(t, gdb, true)
+	assert.ElementsMatch(t,
+		[]string{gdbToolsLuaJIT, gdbToolsTarantool, gdbToolsBacktrace, gdbToolsGcore}, gdb.exts)
+	assert.Less(t, slices.Index(gdb.exts, gdbToolsLuaJIT), slices.Index(gdb.exts,
+		gdbToolsBacktrace), "lj-bt is loaded after the extension of LuaJIT")
+
+	for _, name := range gdb.exts {
+		assert.Equal(t, gdbToolsContent(t, name), gdb.contents[name], name)
+	}
+
+	assert.Equal(t, sources, gdb.sourceDir)
+	assert.Empty(t, github.Requests())
+	assert.Empty(t, warnings(recorder))
+	assert.Contains(t, recorder.Messages(), "gdb extensions of tarantool-gdb-tools "+
+		GDBToolsCommit()+", which tt embeds: "+strings.Join(gdb.exts, ", "))
+
+	lldb := newRecordingDebugger(debuggerLLDB)
+
+	github, recorder = run(t, lldb, true)
+	assert.Equal(t, []string{gdbToolsLuaJIT}, lldb.exts)
+	assert.Equal(t, gdbToolsContent(t, gdbToolsLuaJIT), lldb.contents[gdbToolsLuaJIT])
+	assert.Empty(t, github.Requests())
+	assert.Empty(t, warnings(recorder))
+
+	gdb = newRecordingDebugger(debuggerGDB)
+	run(t, gdb, false)
+	assert.Equal(t, []string{luajitDbgName, tarantoolGDBName}, gdb.exts)
+	assert.Equal(t, "luajit_dbg.py of the sources", gdb.contents[luajitDbgName])
 }
 
 // TestResolveDebuggers checks that every extension resolve returns says the
