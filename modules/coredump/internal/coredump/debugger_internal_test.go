@@ -20,9 +20,12 @@ import (
 
 // recordingDebugger is a debugger of any name whose command does nothing:
 // it records what it is handed, the extensions by name, in order, with
-// their content.
+// their content. Its probe is probe, or fails with probeErr; it tells a
+// debugger 17.1 with Python, which nothing is warned of, unless set.
 type recordingDebugger struct {
 	name      string
+	probe     debuggerProbe
+	probeErr  error
 	dir       string
 	sourceDir string
 	exts      []string
@@ -31,12 +34,23 @@ type recordingDebugger struct {
 
 // newRecordingDebugger returns a recordingDebugger named name.
 func newRecordingDebugger(name string) *recordingDebugger {
-	return &recordingDebugger{name: name, contents: map[string]string{}}
+	return &recordingDebugger{
+		name: name,
+		probe: debuggerProbe{
+			Path: "/usr/bin/" + name, Version: debuggerVersion{17, 1}, Python: true,
+		},
+		contents: map[string]string{},
+	}
 }
 
 // Name implements debugger.
 func (d *recordingDebugger) Name() string {
 	return d.name
+}
+
+// Probe implements debugger.
+func (d *recordingDebugger) Probe(context.Context) (debuggerProbe, error) {
+	return d.probe, d.probeErr
 }
 
 // Command implements debugger: it reads the extensions, which exist until

@@ -168,9 +168,19 @@ if [ -n "${EXTS}" ]; then
 fi
 
 # Launch gdb and load coredump with all related artefacts.
+#
+# gdb loads libthread_db when it loads the core. The one of the
+# archive, packed next to the thread library of the core, is $pdir
+# under the sysroot, and loads from the archive, which the safe-path
+# allows; that of the host is $sdir. It is looked for in the archive
+# first: gdb searches "$sdir:$pdir" by default, the directories of
+# the host first, and took the one of the host whenever it matched
+# the core, as on the host that packed it, and the one of the archive
+# went untried.
 exec gdb -iex "${DEBUGFILEDIR}" "${ABSWORKDIR}/tarantool" \
 	-ex "set sysroot ${ABSWORKDIR}" \
 	-ex "add-auto-load-safe-path ${ABSWORKDIR}" \
 	-ex "set auto-load libthread-db on" \
+	-ex 'set libthread-db-search-path $pdir:$sdir' \
 	-ex "core ${ABSWORKDIR}/coredump" \
 	"$@"

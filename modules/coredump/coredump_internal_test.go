@@ -14,6 +14,7 @@ import (
 
 	"github.com/tarantool/tt/modules/coredump/internal/coredump"
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/sdktest"
 )
 
@@ -97,20 +98,26 @@ func TestInspectExperimentalFlag(t *testing.T) {
 		"tarantool-gdb-tools (vendored by tt at "+coredump.GDBToolsCommit()+")")
 }
 
+// fakeGDB is a gdb that answers the probe of inspect as gdb 17.1 with
+// Python does, with shell builtins alone.
+const fakeGDB = "#!/bin/sh\necho 'GNU gdb (GDB) 17.1'\necho 'tt-gdb-python: 17.1'\n"
+
 // TestInspectExperimentalGDBTools checks that the flag reaches inspect: with
 // it inspect hands the debugger the extensions of tarantool-gdb-tools,
-// which it logs before the debugger runs. PATH has no program, not even
-// the sh that runs gdb.sh, so that the debugger fails to start whether gdb
-// is installed or not; and should the flag not reach inspect, it looks the
-// extensions of the release of the core up neither on GitHub, the proxy
-// refuses the connection, nor in the cache of the user. The test sets the
-// environment of the process and runs alone.
+// which it logs before it runs the debugger. PATH has a fake gdb alone,
+// which answers the probe, and no sh, so that inspect fails to run gdb.sh
+// whether gdb is installed or not; and should the flag not reach inspect,
+// it looks the extensions of the release of the core up neither on
+// GitHub, the proxy refuses the connection, nor in the cache of the user.
+// The test sets the environment of the process and runs alone.
 func TestInspectExperimentalGDBTools(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "version"),
 		[]byte("Tarantool 3.9.0-0-g8b9a0f59a95b\n"), 0o644))
 
-	t.Setenv("PATH", t.TempDir())
+	bin := t.TempDir()
+	require.NoError(t, execfile.WriteFile(filepath.Join(bin, "gdb"), []byte(fakeGDB), 0o755))
+	t.Setenv("PATH", bin)
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"} {
@@ -122,6 +129,7 @@ func TestInspectExperimentalGDBTools(t *testing.T) {
 
 	got := sdktest.Run(t, New, "coredump", "inspect", "--"+experimentalFlag, dir)
 	require.ErrorIs(t, got.Err, exec.ErrNotFound)
+	require.ErrorContains(t, got.Err, "inspect script execution failed")
 
 	prefix := "gdb extensions of tarantool-gdb-tools " + coredump.GDBToolsCommit() +
 		", which tt embeds: "

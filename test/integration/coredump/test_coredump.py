@@ -943,6 +943,41 @@ def test_coredump_inspect_no_such_file(tt_cmd, tmp_path):
     assert re.search(r"failed to inspect", output)
 
 
+def test_coredump_inspect_without_gdb(tt_cmd, tmp_path):
+    """inspect on a host without gdb in PATH fails with an error of tt that
+    says so and what to do, before gdb.sh runs: the wrapper said it on its
+    standard output, and tt failed with "inspect script execution failed".
+    PATH has what gdb.sh runs before it looks gdb up, and no gdb."""
+    if sys.platform != "linux":
+        pytest.skip("gdb.sh needs GNU getopt")
+    artefacts = tmp_path / "artefacts"
+    artefacts.mkdir()
+    (artefacts / "version").write_text("Tarantool 3.9.0-0-g8b9a0f59a95b\n")
+    (artefacts / "tarantool").write_text("ELF")
+    (artefacts / "coredump").write_text("ELF")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("sh", "basename", "dirname", "cat", "getopt"):
+        (bin_dir / tool).symlink_to(shutil.which(tool))
+    env = offline_env(tmp_path)
+    env["PATH"] = bin_dir.as_posix()
+
+    process = subprocess.run(
+        [os.path.abspath(tt_cmd), "coredump", "inspect", artefacts],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    output = process.stdout + process.stderr
+    assert process.returncode != 0, output
+    assert (
+        "gdb is not found in PATH: install gdb, or put the directory of the gdb to use first in "
+        "PATH" in output
+    ), output
+    assert "gdb is not installed" not in output, output
+
+
 def has_debug_info(tarantool):
     """Whether gdb finds the debugging information of tarantool: the line of
     its main, as gdb.sh asks for it."""
@@ -1127,6 +1162,34 @@ def test_coredump_inspect_debug_file(tt_cmd, tmp_path, coredump):
     rc, output = inspect(tt_cmd, tmp_path, unpacked, EXTENSION_COMMANDS)
     assert rc == 0, output
     check_extensions(output, True)
+
+
+# What gdb says of the libthread_db it loads for a core, which it calls one
+# of the host whatever directory of its search path it is in.
+THREAD_DB_LOADED = re.compile(
+    r"\[Thread debugging using libthread_db enabled\]\s*"
+    r'Using host libthread_db library "([^"]+)"',
+)
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+def test_coredump_inspect_thread_db(tt_cmd, tmp_path, coredump_unpacked):
+    """inspect loads the libthread_db of the archive, which pack takes next
+    to the thread library of the core, the one of the glibc of the core,
+    rather than that of the host: gdb looks in the directories of the host
+    first by default, "$sdir:$pdir", and took the one of the host whenever it
+    matched the core, as on the host that packed it, and the archive's went
+    untried."""
+    unpacked = Path(coredump_unpacked).resolve()
+    packed = list(unpacked.glob("**/libthread_db.so.1"))
+    if not packed:
+        pytest.skip("pack found no libthread_db on this host")
+
+    rc, output = inspect(tt_cmd, tmp_path, unpacked.as_posix(), ["info threads"])
+    assert rc == 0, output
+    loaded = THREAD_DB_LOADED.search(output)
+    assert loaded, output
+    assert Path(loaded.group(1)).resolve() in [path.resolve() for path in packed], output
 
 
 # The lines each extension of the fake sources starts with, which gdb prints
