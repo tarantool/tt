@@ -91,6 +91,9 @@ type instanceSource struct {
 	launch *Launch
 	ran    InstanceCtx
 	log    *watchdogLog
+	// state publishes the state of the watchdog in the run directory of the
+	// instance it runs.
+	state *statePublisher
 	// stdout and stderr are where the output of tarantool goes; nil is the
 	// log of the watchdog, tt.log.
 	stdout io.Writer
@@ -99,14 +102,19 @@ type instanceSource struct {
 
 func newInstanceSource(cmdCtx *cmdcontext.CmdCtx, launch *Launch, log *watchdogLog,
 ) *instanceSource {
-	return &instanceSource{
+	src := &instanceSource{
 		cmdCtx: cmdCtx,
 		launch: launch,
 		ran:    launch.Instance,
 		log:    log,
+		state:  nil,
 		stdout: nil,
 		stderr: nil,
 	}
+
+	src.state = newStatePublisher(&src.ran)
+
+	return src
 }
 
 // Next returns the Spec of the launch, once what its start needs is there:
@@ -223,8 +231,11 @@ func (src *instanceSource) exited(pid int) {
 // tarantool handles it, and
 // the periodic integrity check, when there is one, is a hard stop. Once the
 // watchdog holds the pid file, the launch it runs goes into the run
-// directory (Launch.publish), for tt instance status --details, and is
-// removed at the end with the sockets of the instance.
+// directory (Launch.publish), for tt instance status --details, and so does
+// the state of the watchdog, kept up to date at every start and exit of the
+// process and after every integrity check (statePublisher), for
+// tt instance status; both are removed at the end with the sockets of the
+// instance.
 //
 // The watchdog of an external process writes the pid of the process into its
 // own pid file as well, since the process leads a group of its own that
@@ -246,6 +257,7 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 		Cleanup: func() {
 			removeSockets(&src.ran)
 			src.launch.unpublish()
+			src.state.unpublish()
 
 			err := removeAppDir(&src.ran)
 			if err != nil {
@@ -265,6 +277,11 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 				}
 			case supervisor.Exit:
 				src.exited(event.Pid)
+			}
+
+			err := src.state.onEvent(event)
+			if err != nil {
+				src.log.logger.Printf("(WARN): %v.", err)
 			}
 
 			src.log.onEvent(event)
