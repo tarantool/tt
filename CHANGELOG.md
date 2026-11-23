@@ -1336,6 +1336,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   current user` for a user the user database does not know. The build
   container runs as the uid and gid of the process now, which need no entry
   there.
+- `tt binary install tt master --yes` with a master of tt installed failed
+  with `failed to find commit master: exit status 128`, since the default
+  branch of tarantool/tt is `v3`: the clone tt looks the newest commit up in
+  had only the default branch of the remote. It is a bare clone now, which
+  has every branch of the remote, so that any branch resolves by its name,
+  as the tags, commits and pull requests do. With `--local-repo`, a branch
+  the repository has only from one remote, `origin/master` of a clone, is
+  looked up there, as `git checkout` of the build takes it.
 - `tt connect` to an `app:inst`, and every command that asks an instance
   over its console socket, reads the answer in a time linear in its size:
   a statement whose result is a megabyte, such as the `select` of a big

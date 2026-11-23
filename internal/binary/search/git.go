@@ -79,25 +79,81 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 
 // GetCommitFromGitLocal reads the revision reported by git show without fetching.
 // For an annotated tag object, git show reports the tag name before the commit.
+//
+// A branch the repository has only as the remote-tracking branch of one
+// remote is read from there, as a clone has every branch of its remote but
+// the one it checked out so: git checkout, which prepares a build from the
+// repository, takes that branch for the name too (see checkoutGitVersion of
+// the install).
 func GetCommitFromGitLocal(repo, ref string) (string, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
 		return "", errUnableToGetCommitsGitCommandIsMissing
 	}
 
+	output, err := gitShow(repo, ref)
+	if err != nil {
+		tracking, found := remoteTrackingBranch(repo, ref)
+		if !found {
+			return "", fmt.Errorf("failed to find commit %s: %w", ref, err)
+		}
+
+		output, err = gitShow(repo, tracking)
+		if err != nil {
+			return "", fmt.Errorf("failed to find commit %s: %w", ref, err)
+		}
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	hash := strings.Split(lines[0], " ")[1]
+
+	return hash, nil
+}
+
+// gitShow returns what git show reports of ref in repo, without the diff.
+func gitShow(repo, ref string) (string, error) {
 	cmd := exec.CommandContext(context.Background(), "git", "show", ref, "--quiet")
 
 	cmd.Dir = repo
 
 	output, err := cmd.Output()
+
+	return string(output), err
+}
+
+// remoteTrackingBranch returns refs/remotes/<remote>/<branch> of the only remote
+// of repo that has branch, as git checkout of a branch the repository does not
+// have finds one: a name that no remote or several have finds none.
+func remoteTrackingBranch(repo, branch string) (string, bool) {
+	cmd := exec.CommandContext(context.Background(), "git", "remote")
+
+	cmd.Dir = repo
+
+	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to find commit %s: %w", ref, err)
+		return "", false
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	hash := strings.Split(lines[0], " ")[1]
+	var found []string
 
-	return hash, nil
+	for remote := range strings.FieldsSeq(string(output)) {
+		ref := "refs/remotes/" + remote + "/" + branch
+
+		cmd := exec.CommandContext(context.Background(), "git", "show-ref", "--verify",
+			"--quiet", ref)
+
+		cmd.Dir = repo
+
+		if cmd.Run() == nil {
+			found = append(found, ref)
+		}
+	}
+
+	if len(found) != 1 {
+		return "", false
+	}
+
+	return found[0], true
 }
 
 // GetPullRequestCommitFromGitLocal fetches the pull request and resolves its head commit.
@@ -143,7 +199,11 @@ func GetPullRequestCommitFromGitRemote(repo, pullRequestID string) (string, erro
 	return GetPullRequestCommitFromGitLocal(tempRepoPath, pullRequestID)
 }
 
-// cloneGitRepoForLookup clones the remote without checking out source files.
+// cloneGitRepoForLookup clones the remote bare and without the contents of the
+// files. Every branch of the remote is a branch of a bare clone, where a clone
+// with a work tree has only the default branch of the remote, so that any
+// branch resolves by its name: master of tarantool/tt, whose default branch
+// is not master, too.
 func cloneGitRepoForLookup(repo string) (string, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
@@ -157,8 +217,8 @@ func cloneGitRepoForLookup(repo string) (string, error) {
 
 	binary.RemoveOnInterrupt(tempRepoPath)
 
-	cmd := exec.CommandContext(context.Background(), "git", "clone",
-		"--filter=blob:none", "--no-checkout", repo, tempRepoPath)
+	cmd := exec.CommandContext(context.Background(), "git", "clone", "--bare",
+		"--filter=blob:none", repo, tempRepoPath)
 
 	err = cmd.Run()
 	if err != nil {
