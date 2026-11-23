@@ -123,6 +123,9 @@ TimeoutStopSec=65s
   flag keeps it; it warns when the host has no such user or group. Settings of
   your own go into a drop-in of your own, `myapp@.service.d/override.conf`;
   `Restart=` and `TimeoutStopSec=` come from `instances.yaml`.
+  `LimitCORE=infinity` lets the instances dump cores (see
+  [Inspect a crash of Tarantool](coredump.md)), and `LimitCORE=0` in such a
+  drop-in turns that off.
 - An application or instance name that a unit name would have to escape, a
   user or a group that `User=` and `Group=` would have to escape, and a root or
   a path of `tt` that a unit would have to quote, are refused.

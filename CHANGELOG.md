@@ -213,6 +213,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   runs `tt instance start --foreground --scope system`, `docker exec` for
   the other instance commands, a volume for the data, and the pair of the
   host that publishes a port and takes a password from the environment.
+- The documentation has a how-to page for support engineers on a crash of
+  Tarantool: where the kernel puts the core, packing it on the customer's
+  host with `tt coredump pack`, from a core file or as the pipe of
+  `kernel.core_pattern`, a hung instance and `tt instance kill --dump`,
+  gcore and `gcore-pages`, a tarantool without debugging information and
+  the static deb, what the archive holds and how to handle it, and an
+  archive of tt 2; on the support host, a Docker image of Ubuntu 26.04 with
+  gdb 17.1 that runs `tt coredump inspect --experimental`, the warnings
+  before gdb starts and what to do of each, and `lj-bt`, the fibers, the
+  Lua stack, tuples and the Lua heap in gdb.
 - Rock servers that publish a `tt-rocks-index.json`, an index that names
   every file of a rock version by URL with its sha256, so the rocks may live
   on release pages and the index in git. Resolving reads the rockspec the

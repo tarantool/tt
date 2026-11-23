@@ -57,6 +57,7 @@ nav = [
     "how-to/user-scope.md",
     "how-to/systemd.md",
     "how-to/docker.md",
+    "how-to/coredump.md",
     "how-to/script-instances.md",
     "how-to/external-processes.md",
     "how-to/tcm.md",
