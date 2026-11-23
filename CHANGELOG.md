@@ -26,7 +26,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   in red when it failed; `-o json` and `-o yaml` give them as `started_at`,
   `restarts` and `last_integrity_check`, left out when they are not known.
   It is the same for a Tarantool instance, an external process, TCM and an
-  instance a systemd unit manages.
+  instance a systemd unit manages. The watchdog names the process in
+  `tt.log` as well, at every start, `(INFO): started tarantool, PID 123.`,
+  and at every exit, with how it exited, as `last_exit.json` records it,
+  `(WARN): tarantool, PID 123, has ended: it was killed by signal 9
+  (killed).`, before it publishes either; an external process is named by
+  its program, `the program /…/worker.sh`, and TCM as `TCM`. That one line
+  tells an exit, a warning when the process failed: the `(WARN): "exit
+  status 1"` line that told it again in the words of Go is gone.
 - The SDK connects a module to an instance and runs Lua on it, where only
   the core could: `Services.Connect(ctx, target, opts)` returns a
   `sdk.Conn` as `tt connect` reaches the target without `--binary`, an

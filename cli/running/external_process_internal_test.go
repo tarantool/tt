@@ -504,7 +504,9 @@ func superviseExternal(t *testing.T, inst *InstanceCtx) *externalWatchdog {
 	launch, err := ResolveLaunch(inst)
 	require.NoError(t, err)
 
-	src := newInstanceSource(cmdCtx, &launch, &watchdogLog{logger: logger, checkPeriod: 0})
+	src := newInstanceSource(cmdCtx, &launch, &watchdogLog{
+		logger: logger, checkPeriod: 0, process: processName(inst, &launch.Spec),
+	})
 
 	opts := watchdogOptions(cmdCtx, src)
 

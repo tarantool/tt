@@ -21,6 +21,7 @@ from utils import (
     inst_log_dir,
     inst_run_dir,
     instances_file,
+    log_file,
     pid_file,
     run_command_and_get_output,
     short_tmp_dir,
@@ -531,6 +532,24 @@ def test_status_pid_is_the_process(tt_cmd, tmp_path):
         # The restarted tarantool is the one its console answers from.
         assert wait_event(10, lambda: os.path.exists(os.path.join(run_dir, control_socket)))
         assert box_info_pid(tt_cmd, app_path, inst) == restarted
+
+        # tt.log names every process by its PID as the watchdog starts it and
+        # as it ends, and says how it ended. The watchdog logs a start before
+        # it publishes the process: the start of the one the status names is
+        # there already.
+        with open(os.path.join(inst_log_dir(app_path, app_name, app_name), log_file)) as f:
+            log = f.read()
+        at = 0
+        for line in [
+            f"(INFO): started tarantool, PID {pid}.\n",
+            f"(WARN): tarantool, PID {pid}, has ended: it was killed by signal 9 (killed).\n",
+            "(INFO): waiting for restart timeout 5s.\n",
+            f"(INFO): started tarantool, PID {restarted}.\n",
+        ]:
+            found = log.find(line, at)
+            assert found >= 0, f"{line!r} is not in tt.log after {at}:\n{log}"
+            at = found + len(line)
+        assert log.count("(INFO): started tarantool, PID ") == 2, log
     finally:
         stop_application(tt_cmd, app_name, app_path)
 

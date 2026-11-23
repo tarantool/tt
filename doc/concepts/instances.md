@@ -288,8 +288,11 @@ $ tt instance start
    • Starting an instance [demo:instance001]...
    ⨯ instance demo:instance001 did not start: it exited with code 1
      The last lines of /…/demo/.tarantool/var/log/demo/instance001/tt.log:
+         …
          … E> init.lua:1: boom on start
-         Watchdog … (WARN): "exit status 1".
+         … I> tx_binary: stopped
+         Watchdog … (WARN): tarantool, PID 3792062, has ended: it exited with code 1.
+         Watchdog … (INFO): the Instance has shutdown.
 ```
 
 `--no-wait` starts the watchdogs and returns at once. An application file
@@ -305,10 +308,12 @@ record as `last_exit`:
 
 ```console
 $ tt instance status --details
-Last exit of demo:instance001: it exited with code 1, at 2026-11-17 00:39:27
+Last exit of demo:instance001: it exited with code 1, at 2026-11-23 15:08:14
   The last lines of /…/demo/.tarantool/var/log/demo/instance001/tt.log:
+    … I> set 'metrics' configuration option to {"labels":{"alias":"instance001"},"include":["all"],"exclude":[]}
     … E> init.lua:1: boom on start
-    Watchdog … (WARN): "exit status 1".
+    … I> tx_binary: stopped
+    Watchdog … (WARN): tarantool, PID 3792062, has ended: it exited with code 1.
     Watchdog … (INFO): the Instance has shutdown.
   tt instance logs demo:instance001 prints more.
 …
@@ -353,15 +358,32 @@ one who finishes it by hand:
 ```console
 $ tt instance status demo:demo
  INSTANCE   STATUS   PID      MODE  CONFIG  BOX      UPSTREAM
- demo:demo  RUNNING  3608128  RW    --      running  --
+ demo:demo  RUNNING  3793543  RW    ready   running  --
 $ tt instance stop -y demo:demo
-   • The instance demo:demo (PID = 3608128) has been terminated.
+   • The instance demo:demo (PID = 3793543) has been terminated.
 $ tt instance start demo:demo
 …
-$ kill -9 3608223                      # the PID the status shows now
+$ kill -9 3793651                      # the PID the status shows now
 $ tt instance stop -y demo:demo        # in the delay before the restart
-   • The instance demo:demo (watchdog PID = 3608209) has been terminated.
+   • The instance demo:demo (watchdog PID = 3793635) has been terminated.
 ```
+
+`tt.log` names the process by its PID as well, every time the watchdog
+starts it and every time it ends, with how it ended, as `last_exit.json`
+records it, in one line, a warning when the process failed. The same run,
+the lines of the watchdog:
+
+```console
+$ grep Watchdog .tarantool/var/log/demo/demo/tt.log | tail -5
+Watchdog 2026/11/23 15:08:35 (INFO): started tarantool, PID 3793651.
+Watchdog 2026/11/23 15:08:36 (WARN): tarantool, PID 3793651, has ended: it was killed by signal 9 (killed).
+Watchdog 2026/11/23 15:08:36 (INFO): waiting for restart timeout 5s.
+Watchdog 2026/11/23 15:08:37 (INFO): interrupt received.
+Watchdog 2026/11/23 15:08:37 (INFO): the Instance has shutdown.
+```
+
+An external process is named by the program the watchdog runs:
+`started the program /opt/tarantool/versions/myapp/myapp_1.0.0/worker.sh, PID 163.`
 
 Which pid file a monitor watches is in
 [Which pid file to watch](../reference/layout.md#which-pid-file-to-watch).
@@ -374,7 +396,7 @@ the scope of the application:
 | Directory | What |
 | --- | --- |
 | `<root>/var/lib/<app>/<instance>/` | data: `*.snap`, `*.xlog`, vinyl; the working directory of an external process |
-| `<root>/var/log/<app>/<instance>/` | `tt.log`: the output of the instance and of its watchdog |
+| `<root>/var/log/<app>/<instance>/` | `tt.log`: the output of the instance and of its watchdog, which names the process by its PID at every start and exit |
 | `<root>/var/run/<app>/<instance>/` | `tt.pid` of the watchdog, `watchdog.json`, the state it publishes, `tarantool.pid`, the console socket `tarantool.control`; `process.pid` of an external process |
 
 In a project `<root>` is `.tarantool/`. A Tarantool instance runs in the

@@ -2,6 +2,7 @@ package running
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -196,6 +197,69 @@ func TestWatchdogPublishesItsState(t *testing.T) {
 	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
 	require.NoError(t, waitDone(t, done))
 	assert.NoFileExists(t, filepath.Join(test.inst.RunDir, watchdogStateFileName))
+}
+
+// TestWatchdogLogNamesTheProcess pins that tt.log names the process the
+// watchdog runs by its pid, the PID of tt instance status, at every start and
+// every exit, and says how it exited, as the record of the last exit does:
+// tarantool killed is started again as restart: on-failure says, under a pid
+// of its own. An exit is one line, a warning when the process failed and
+// information when it ended well, with no second line that repeats it in the
+// words of Go.
+func TestWatchdogLogNamesTheProcess(t *testing.T) {
+	test := newWatchdogTest(t, instances.RestartOnFailure, &cmdcontext.CmdCtx{})
+	done := test.run()
+
+	first := test.waitStarted(1)
+	require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
+
+	second := test.waitStarted(2)
+	require.NotEqual(t, first, second)
+
+	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
+	require.NoError(t, waitDone(t, done))
+
+	// The log is whole once the watchdog has ended.
+	log := test.log.String()
+	lines := []string{
+		fmt.Sprintf("Watchdog (INFO): started tarantool, PID %d.\n", first),
+		fmt.Sprintf("Watchdog (WARN): tarantool, PID %d, has ended: "+
+			"it was killed by signal 9 (killed).\n", first),
+		"Watchdog (INFO): waiting for restart timeout 100ms.\n",
+		fmt.Sprintf("Watchdog (INFO): started tarantool, PID %d.\n", second),
+		"Watchdog (INFO): interrupt received.\n",
+		fmt.Sprintf("Watchdog (INFO): tarantool, PID %d, has ended: ", second),
+		"Watchdog (INFO): the Instance has shutdown.\n",
+	}
+
+	offset := 0
+
+	for _, line := range lines {
+		found := strings.Index(log[offset:], line)
+		require.GreaterOrEqual(t, found, 0, "%q is not in the log after %d:\n%s", line, offset,
+			log)
+
+		offset += found + len(line)
+	}
+
+	assert.Equal(t, 2, strings.Count(log, "(INFO): started tarantool, PID "), log)
+	assert.Equal(t, 2, strings.Count(log, ", has ended: "), log)
+	assert.NotContains(t, log, `(WARN): "`, "an exit is told once")
+}
+
+// TestProcessName pins what tt.log calls the process of every kind of
+// instance.
+func TestProcessName(t *testing.T) {
+	spec := &LaunchSpec{Path: "/opt/app/worker.sh"}
+
+	for kind, want := range map[instances.Kind]string{
+		instances.KindCluster:  "tarantool",
+		instances.KindScript:   "tarantool",
+		instances.KindExternal: "the program /opt/app/worker.sh",
+		instances.KindTCM:      "TCM",
+	} {
+		assert.Equal(t, want, processName(&InstanceCtx{Kind: kind}, spec), kind)
+	}
 }
 
 // TestWatchdogRestartsItsLaunch pins that the watchdog starts the instance

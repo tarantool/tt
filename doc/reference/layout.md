@@ -46,7 +46,7 @@ the system scope.
 | `run/.../tarantool.control` | the console socket `tt connect <app>:<instance>` uses |
 | `run/.../tarantool.sock` | the binary port, unless the cluster config or the script listens elsewhere |
 | `run/.../process.pid` | the pid of an external process, and of TCM |
-| `log/.../tt.log` | everything the instance writes and the messages of its watchdog |
+| `log/.../tt.log` | everything the instance writes and the messages of its watchdog, which names the process by its PID at every start and exit |
 
 A monitor watches the process, not `tt.pid`: see
 [Which pid file to watch](#which-pid-file-to-watch).
