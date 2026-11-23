@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -282,10 +283,53 @@ func (r *resolver) embedded(name, version string, reason error, copyOf, match, w
 	return ext, nil
 }
 
-// readEmbedded returns the copy of tt of the extension of entry, an entry
-// of the embedded manifest, with what the manifest says of it.
-func readEmbedded(entry manifestEntry) (*extension, error) {
-	data, err := extensions.ReadFile(extensionsDir + "/" + entry.File)
+// extensionSet is a directory of extensions tt embeds, which the manifest
+// in it describes.
+type extensionSet struct {
+	// files holds the directory.
+	files fs.FS
+	// dir is the directory in files.
+	dir string
+}
+
+var (
+	// embeddedSet are the copies of the upstream extensions, which inspect
+	// loads for a core it finds none of and pack puts into the archive.
+	embeddedSet = extensionSet{files: extensions, dir: extensionsDir}
+	// gdbToolsSet are the universal extensions of tarantool-gdb-tools.
+	gdbToolsSet = extensionSet{files: extensions, dir: gdbToolsDir}
+)
+
+// name returns how a message names file of the set: by its path under
+// extensionsDir, which is the file alone for the copies of the upstream
+// extensions, as their messages named it before there was another set.
+func (s extensionSet) name(file string) string {
+	return strings.TrimPrefix(path.Join(s.dir, file), extensionsDir+"/")
+}
+
+// manifest returns the entries of the manifest of the set, in their load
+// order: the files of the directory that are extensions, which the manifest
+// itself, the record of where they come from, vendor.json, and the license
+// files are not.
+func (s extensionSet) manifest() ([]manifestEntry, error) {
+	data, err := fs.ReadFile(s.files, s.dir+"/"+manifestFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find the manifest of the embedded GDB-extensions: %w",
+			err)
+	}
+
+	entries, err := parseManifest(data)
+	if err != nil {
+		return nil, fmt.Errorf("embedded %s: %w", s.name(manifestFile), err)
+	}
+
+	return entries, nil
+}
+
+// read returns the extension of entry, an entry of the manifest of the set,
+// with what the manifest says of it.
+func (s extensionSet) read(entry manifestEntry) (*extension, error) {
+	data, err := fs.ReadFile(s.files, s.dir+"/"+entry.File)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read embedded GDB-extension %s: %w", entry.File, err)
 	}
@@ -295,23 +339,39 @@ func readEmbedded(entry manifestEntry) (*extension, error) {
 	}, nil
 }
 
-// embeddedManifest returns the entries of the manifest of the extensions tt
-// embeds, in their load order: the files of the directory that are
-// extensions, which the manifest itself and the record of where they come
-// from, vendor.json, are not.
+// all returns the extensions of the manifest of the set, in their load
+// order.
+func (s extensionSet) all() ([]extension, error) {
+	entries, err := s.manifest()
+	if err != nil {
+		return nil, err
+	}
+
+	exts := make([]extension, 0, len(entries))
+
+	for _, entry := range entries {
+		ext, err := s.read(entry)
+		if err != nil {
+			return nil, err
+		}
+
+		exts = append(exts, *ext)
+	}
+
+	return exts, nil
+}
+
+// readEmbedded returns the copy of tt of the extension of entry, an entry
+// of the embedded manifest, with what the manifest says of it.
+func readEmbedded(entry manifestEntry) (*extension, error) {
+	return embeddedSet.read(entry)
+}
+
+// embeddedManifest returns the entries of the manifest of the copies of the
+// upstream extensions tt embeds, in their load order (see
+// extensionSet.manifest).
 func embeddedManifest() ([]manifestEntry, error) {
-	data, err := extensions.ReadFile(extensionsDir + "/" + manifestFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find the manifest of the embedded GDB-extensions: %w",
-			err)
-	}
-
-	entries, err := parseManifest(data)
-	if err != nil {
-		return nil, fmt.Errorf("embedded %s: %w", manifestFile, err)
-	}
-
-	return entries, nil
+	return embeddedSet.manifest()
 }
 
 // tarantoolOf returns tools/tarantool-gdb.py of tarantool/tarantool at the

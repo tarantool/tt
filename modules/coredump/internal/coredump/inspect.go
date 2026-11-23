@@ -151,23 +151,7 @@ func selectExtensions(ctx context.Context, res *resolver, dir, sourceDir string,
 // embeddedExtensions returns the copies of the gdb extensions tt embeds,
 // those of their manifest, in their load order.
 func embeddedExtensions() ([]extension, error) {
-	entries, err := embeddedManifest()
-	if err != nil {
-		return nil, err
-	}
-
-	exts := make([]extension, 0, len(entries))
-
-	for _, entry := range entries {
-		ext, err := readEmbedded(entry)
-		if err != nil {
-			return nil, err
-		}
-
-		exts = append(exts, *ext)
-	}
-
-	return exts, nil
+	return embeddedSet.all()
 }
 
 // skippedExtension is an extension forDebugger leaves out although it

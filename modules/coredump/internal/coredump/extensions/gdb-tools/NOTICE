@@ -1,0 +1,117 @@
+tarantool-gdb-tools
+===================
+
+The repository is BSD 2-Clause (see LICENSE), except for the files
+below, which come from other projects and keep their licenses.
+
+luajit_gdb.py
+-------------
+
+The LuaJIT debugger extension, from src/luajit_dbg.py of
+https://github.com/tarantool/luajit (the LuaJIT of Tarantool), renamed
+to luajit_gdb.py here:
+
+- base: commit c4cf7f367fe709f032e7e7f176379579603fff1e, the head of
+  the branch elhimov/gh-13094-dbg-avoid-hardcoded-enums by Mikhail
+  Elhimov (four commits on tarantool/master 8af934d9);
+- lj-gctop: ported from src/luajit-gdb.py of the branch
+  elhimov/gh-noticket-gdb-gctop (Sergey Kaplun 53d24a63, Mikhail
+  Elhimov 42e6a904);
+- the changes of this repository on top, listed by `git log --follow
+  luajit_gdb.py`.
+
+License: MIT, the license of LuaJIT (COPYRIGHT of tarantool/luajit),
+quoted below.
+
+tests/dbg/upstream/luajit/debug-extension-tests.py
+--------------------------------------------------
+
+test/tarantool-debugger-tests/debug-extension-tests.py of
+tarantool/luajit at the same commit c4cf7f36, unchanged.  License: MIT,
+as above.
+
+tarantool_gdb.py
+----------------
+
+The Tarantool debugger extension, from tools/tarantool-gdb.py of
+https://github.com/tarantool/tarantool, renamed to tarantool_gdb.py
+here:
+
+- base: commit fa8bd1760306454649f128e261a37bfa48fc53b8, the head of
+  PR #13078 (branch elhimov/gh-13076-add-fiber-switch-tests by Mikhail
+  Elhimov, three commits on tarantool/master 773e8814);
+- the MsgPack refactor of PR #9665 by Mikhail Elhimov (ce972e10,
+  4f7e2fff), rebased onto it;
+- the changes of this repository on top, listed by `git log --follow
+  tarantool_gdb.py`.
+
+License: BSD 2-Clause, the license of Tarantool (LICENSE of
+tarantool/tarantool), quoted below.
+
+tests/dbg/upstream/tarantool/
+-----------------------------
+
+conftest.py, test_gdb.py, utils.py, ut_tt_fiber.py and ut_tl_var.py:
+test/gdb/ of tarantool/tarantool at fa8bd176 (PR #13078), unchanged;
+test-tarantool-gdb.py: tools/test-tarantool-gdb.py of tarantool/tarantool
+at 4f7e2fff (PR #9665), unchanged.  License: BSD 2-Clause, as
+tarantool_gdb.py.
+
+The Tarantool license
+---------------------
+
+Copyright 2010-2020 Tarantool AUTHORS: please see AUTHORS file.
+
+Redistribution and use in source and binary forms, with or
+without modification, are permitted provided that the following
+conditions are met:
+
+1. Redistributions of source code must retain the above
+   copyright notice, this list of conditions and the
+   following disclaimer.
+
+2. Redistributions in binary form must reproduce the above
+   copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials
+   provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY AUTHORS ``AS IS'' AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.
+
+The LuaJIT license
+------------------
+
+LuaJIT -- a Just-In-Time Compiler for Lua. http://luajit.org/
+
+Copyright (C) 2005-2017 Mike Pall. All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+[ MIT license: http://www.opensource.org/licenses/mit-license.php ]
