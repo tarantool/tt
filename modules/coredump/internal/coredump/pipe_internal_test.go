@@ -6,10 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -45,58 +43,6 @@ func testCoreData() []byte {
 	data.Write(make([]byte, sparseBlock+123))
 
 	return data.Bytes()
-}
-
-// keepsHoles reports whether the file system of dir keeps a hole of gap
-// bytes between two blocks of data, of a file written as writeSparse
-// writes one: a block, a seek over the gap from its end, and a block; the
-// file is kept sparse when it takes less of the disk than its size. The
-// file systems of Linux keep a hole of a block, ext4, XFS, Btrfs and tmpfs
-// among them, and there one that does not fails the test, so that the
-// check of the holes is never dropped unseen. Elsewhere it is the file
-// system's own: the APFS of the macOS runner of CI allocated the zeros of a
-// gap of 12 KiB and of one of a MiB, and kept a hole of 16 MiB, so the
-// probe is of the gap the test writes, and where it is not kept, the test
-// passes over its check of the holes and says so.
-func keepsHoles(t *testing.T, dir string, gap int64) bool {
-	t.Helper()
-
-	path := filepath.Join(dir, "holes")
-	block := bytes.Repeat([]byte{1}, sparseBlock)
-
-	probe, err := os.Create(path)
-	require.NoError(t, err)
-
-	_, err = probe.Write(block)
-	require.NoError(t, err)
-
-	_, err = probe.Seek(gap, io.SeekCurrent)
-	require.NoError(t, err)
-
-	_, err = probe.Write(block)
-	require.NoError(t, err)
-	require.NoError(t, probe.Close())
-
-	info, err := os.Stat(path)
-	require.NoError(t, err)
-
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	require.True(t, ok)
-	require.NoError(t, os.Remove(path))
-
-	if stat.Blocks*512 < info.Size() {
-		return true
-	}
-
-	if runtime.GOOS == "linux" {
-		t.Fatalf("the file system of %s keeps no hole of %d bytes: those of Linux do, and "+
-			"the holes are checked there", dir, gap)
-	}
-
-	t.Logf("the file system of %s keeps no hole of %d bytes: the holes are not checked",
-		dir, gap)
-
-	return false
 }
 
 // panicReader is a standard input that must not be read.
@@ -191,9 +137,7 @@ func TestReceiveCore(t *testing.T) {
 			// the file system keeps a hole of the three blocks of zeros
 			// between the data.
 			if keepsHoles(t, dir, 3*sparseBlock) {
-				stat, ok := info.Sys().(*syscall.Stat_t)
-				require.True(t, ok)
-				assert.Less(t, stat.Blocks*512, info.Size())
+				assert.Less(t, diskSize(t, got.Core), info.Size())
 			}
 		})
 	}

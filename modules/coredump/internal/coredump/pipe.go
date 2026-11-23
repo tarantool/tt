@@ -1,7 +1,6 @@
 package coredump
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -27,10 +26,6 @@ const procDir = "/proc"
 // stored to: the memory of a process is for its owner, as Linux writes a
 // core.
 const coreFileMode = 0o600
-
-// sparseBlock is the size of the blocks of a core of the standard input
-// that are left holes of the file it is stored to when they are all zeros.
-const sparseBlock = 64 << 10
 
 var (
 	// errNoProcess reports a core of the standard input whose process
@@ -129,8 +124,11 @@ func processExecutable(dir string) string {
 	return target
 }
 
-// storeCore writes the core of stdin to a new file at path. The file is
-// removed when the core cannot be written whole.
+// storeCore writes the core of stdin to a new file at path, the blocks of
+// zeros left holes (see writeSparse): Linux leaves the pages a process never
+// touched holes of a core it writes to a file, and writes them as zeros to a
+// pipe, those of a bare tarantool most of its gigabyte. The file is removed
+// when the core cannot be written whole.
 //
 //nolint:gosec // G703: path is in the directory the user named, by a comm with no slash.
 func storeCore(path string, stdin io.Reader) error {
@@ -154,53 +152,6 @@ func storeCore(path string, stdin io.Reader) error {
 		_ = os.Remove(path)
 
 		return fmt.Errorf("cannot store the core on the standard input to %s: %w", path, err)
-	}
-
-	return nil
-}
-
-// writeSparse copies stdin to file, the blocks of zeros left holes. Linux
-// leaves the pages a process never touched holes of a core it writes to a
-// file, and writes them as zeros to a pipe: those of a bare tarantool make
-// most of its gigabyte.
-func writeSparse(file *os.File, stdin io.Reader) error {
-	block := make([]byte, sparseBlock)
-	zeros := make([]byte, sparseBlock)
-
-	var size int64
-
-	for {
-		read, err := io.ReadFull(stdin, block)
-		if read > 0 {
-			var writeErr error
-
-			if bytes.Equal(block[:read], zeros[:read]) {
-				_, writeErr = file.Seek(int64(read), io.SeekCurrent)
-			} else {
-				_, writeErr = file.Write(block[:read])
-			}
-
-			if writeErr != nil {
-				return fmt.Errorf("cannot write the core: %w", writeErr)
-			}
-
-			size += int64(read)
-		}
-
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			break
-		}
-
-		if err != nil {
-			return fmt.Errorf("cannot read the core: %w", err)
-		}
-	}
-
-	// A core that ends with zeros ends with a hole, which only the size of
-	// the file makes.
-	err := file.Truncate(size)
-	if err != nil {
-		return fmt.Errorf("cannot write the core: %w", err)
 	}
 
 	return nil

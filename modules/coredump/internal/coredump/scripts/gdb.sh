@@ -4,6 +4,7 @@ set -eu
 TOOL=$(basename "$0")
 WORKDIR=$(dirname "$0")
 EXTS=
+SOURCES=
 
 HELP=$(cat <<HELP
 ${TOOL} - gdb wrapper loading artefacts collected via tarabrt.sh
@@ -15,7 +16,10 @@ Supported options are:
   -d DIRECTORY                  Load the artefacts from DIRECTORY, the
                                 unpacked archive (default: the directory
                                 of ${TOOL}).
-  -s DIRECTORY                  Set mapping to source.
+  -s DIRECTORY                  Map the paths of the build of the
+                                tarantool to DIRECTORY, its sources at
+                                its commit (default: sources/ of the
+                                artefacts).
   -x EXT                        Load GDB-extension EXT. This option may
                                 appear multiple times. Without it, the
                                 extensions in ext/ of the artefacts are
@@ -81,30 +85,39 @@ NOARTEFACTS
 	exit 1;
 fi
 
-SOURCES=${SOURCES:-${WORKDIR}/sources}
-
-# Check whether Tarantool sources are setup. Otherwise, leave a
-# recipe for user, how to do it.
+# Without the sources of the Tarantool of the core, of -s or sources/
+# of the artefacts, leave a recipe for the user: a checkout of the
+# commit of the core into a directory of the working directory, which
+# outlives the artefacts, as an archive tt coredump inspect unpacks
+# into a temporary directory and removes at the exit, and the -s that
+# gives it. The commit is the one of the version, else its release,
+# which is a tag; a version of neither gets no recipe.
 # FIXME: This can be done automatically (simply run the commands
 # below), but this obliges git to be installed. For now, it makes
 # the wrapper more complex by additional checks, so this activity
 # is left for the user.
-if [ ! -d "${SOURCES}" ]; then
+if [ -z "${SOURCES}" ] && [ ! -d "${WORKDIR}/sources" ]; then
 	REGEX='Tarantool( Enterprise)? \d+\.\d+\.\d+(-(alpha|beta|rc)[0-9]+|(-entrypoint))?-\d+-g\K[a-f0-9]+'
 	REVISION=$(grep -oP "$REGEX" "$VERSION" || true)
-	cat <<SOURCES
+	if [ -z "${REVISION}" ]; then
+		REVISION=$(grep -oP '^Tarantool( Enterprise)? \K\d+\.\d+\.\d+' "$VERSION" || true)
+	fi
+	CHECKOUT=tarantool-${REVISION}
+	if [ -n "${REVISION}" ]; then
+		cat <<SOURCES
 ================================================================================
-
-Do not forget to properly setup the environment:
-* git clone https://github.com/tarantool/tarantool.git ${SOURCES}
-* cd !$
-* git checkout ${REVISION}
-* git submodule update --recursive --init
-* cd -
-
+gdb shows no lines of the C code of Tarantool without its sources. Clone them
+once, at the commit of the core:
+  git clone https://github.com/tarantool/tarantool.git ${CHECKOUT}
+  git -C ${CHECKOUT} checkout ${REVISION}
+  git -C ${CHECKOUT} submodule update --init --recursive
+and give them with -s ${CHECKOUT}.
 ================================================================================
 SOURCES
+	fi
 fi
+
+SOURCES=${SOURCES:-${WORKDIR}/sources}
 
 ABSWORKDIR=$(realpath "$WORKDIR")
 
@@ -139,6 +152,27 @@ fi
 # which hold no option any longer.
 set --
 
+# gdb pages its start on a terminal: the loading of the tarantool and
+# the core and the lines the extensions print run past a screen, and gdb
+# stops at "--Type <RET> for more, q to quit, c to continue without
+# paging--" before its first prompt, where q quits the loading. The
+# pagination is off for the start and, with the last command of it,
+# back to what the init files of gdb set, the system one and the
+# user's, which gdb reads before it runs -iex, wherever -iex is on the
+# command line: a "set pagination off" of theirs stays. gdb tells a
+# setting with $_gdb_setting since 9; an older one pages its start as
+# before. The banner of gdb comes before the init files and pages on a
+# terminal shorter than it: -eiex, which runs before the banner, runs
+# before the init files as well, and what they set would be lost.
+PAGINATION=
+# shellcheck disable=SC2016 # $_gdb_setting, $1 and $tt_pagination are of gdb.
+if gdb -batch -n -ex 'print $_gdb_setting("pagination")' 2>/dev/null | \
+	grep -q '^\$1 = [01]$'; then
+	PAGINATION=yes
+	set -- -iex 'set $tt_pagination = $_gdb_setting("pagination")' \
+		-iex 'set pagination off'
+fi
+
 # Define the build path to be substituted with the source path.
 # XXX: Check the absolute path on the function <main> definition
 # considering it is located in src/main.cc within Tarantool repo.
@@ -167,6 +201,13 @@ if [ -n "${EXTS}" ]; then
 	set +f
 fi
 
+# The last command of the start: the pagination of the init files is
+# back for the commands of the user.
+# shellcheck disable=SC2016 # $tt_pagination is of gdb.
+if [ -n "${PAGINATION}" ]; then
+	set -- "$@" -ex 'eval "set pagination %d", $tt_pagination'
+fi
+
 # Launch gdb and load coredump with all related artefacts.
 #
 # gdb loads libthread_db when it loads the core. The one of the
@@ -177,6 +218,7 @@ fi
 # the host first, and took the one of the host whenever it matched
 # the core, as on the host that packed it, and the one of the archive
 # went untried.
+# shellcheck disable=SC2016 # $pdir and $sdir are of gdb.
 exec gdb -iex "${DEBUGFILEDIR}" "${ABSWORKDIR}/tarantool" \
 	-ex "set sysroot ${ABSWORKDIR}" \
 	-ex "add-auto-load-safe-path ${ABSWORKDIR}" \

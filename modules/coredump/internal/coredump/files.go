@@ -2,6 +2,7 @@ package coredump
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -17,6 +18,19 @@ import (
 
 // dirMode is the mode of the directories the extraction creates.
 const dirMode = 0o755
+
+const (
+	// sparseBlock is the size of the blocks writeSparse writes a file in: a
+	// block of zeros is skipped rather than written, and stays a hole of the
+	// file. It is the block of the file systems that keep holes, ext4, XFS
+	// and Btrfs, and the page of tmpfs on amd64: a hole smaller than their
+	// block takes the block on the disk anyway.
+	sparseBlock = 4 << 10
+	// sparseBuffer is how much writeSparse reads at a time, a whole number
+	// of sparseBlocks, so that every block but the last of a file begins at
+	// an offset of the file that is a multiple of sparseBlock.
+	sparseBuffer = 256 * sparseBlock
+)
 
 var (
 	// errUnsafePath reports an entry whose name is outside the destination.
@@ -52,7 +66,8 @@ func copyEmbedded(fsys fs.FS, src, dst string, perms fs.FileMode) error {
 // directory. The files are written through an [os.Root] of the directory,
 // so no write follows a symbolic link out of it. Directory entries are
 // skipped: the directory of every file is created, with 0755, before the
-// file. A file that exists is overwritten.
+// file. A file that exists is overwritten. The blocks of zeros of a file,
+// the holes of a core, are left as holes (see writeSparse).
 func extractTarGz(archivePath, dir string) error {
 	archive, err := os.Open(archivePath)
 	if err != nil {
@@ -162,7 +177,7 @@ func (e *extractor) file(header *tar.Header, name string, content io.Reader) err
 		return fmt.Errorf("cannot create an extracted file: %w", err)
 	}
 
-	_, err = io.Copy(output, content)
+	err = writeSparse(output, content)
 	if err != nil {
 		_ = output.Close()
 
@@ -175,6 +190,97 @@ func (e *extractor) file(header *tar.Header, name string, content io.Reader) err
 	}
 
 	return nil
+}
+
+// writeSparse writes what content reads to output, an empty file, leaving
+// the blocks of zeros holes: each sparseBlock of zeros is skipped rather
+// than written, and the file is truncated to the size read at the end, so
+// that a hole at its end stays too. Any file may be written so: one without
+// a block of zeros is written as it is, and a hole reads as zeros.
+//
+// A core is mostly holes, the pages of the mappings the process never
+// touched. Linux writes them as zeros to a pipe, the core of
+// kernel.core_pattern pack stores (see storeCore). pack archives a core with
+// tar --sparse, which keeps its data and a map of its holes, and archive/tar
+// reads the holes back as zeros: it expands the map itself and tells no
+// hole, and written out as read, a core of 11 MB on the disk and 1.1 GB in
+// size took 1.1 GB when it was extracted (see extractTarGz).
+func writeSparse(output *os.File, content io.Reader) error {
+	buffer := make([]byte, sparseBuffer)
+	zeros := make([]byte, sparseBlock)
+
+	// isHole reports whether the block of the buffer at start is zeros.
+	isHole := func(start, read int) bool {
+		end := min(start+sparseBlock, read)
+
+		return bytes.Equal(buffer[start:end], zeros[:end-start])
+	}
+
+	var size int64
+
+	for {
+		read, readErr := fill(content, buffer)
+
+		// The blocks of the same kind in a row are written, or skipped, at
+		// once.
+		for start := 0; start < read; {
+			hole := isHole(start, read)
+
+			end := min(start+sparseBlock, read)
+			for end < read && isHole(end, read) == hole {
+				end = min(end+sparseBlock, read)
+			}
+
+			var err error
+
+			if hole {
+				_, err = output.Seek(int64(end-start), io.SeekCurrent)
+			} else {
+				_, err = output.Write(buffer[start:end])
+			}
+
+			if err != nil {
+				return fmt.Errorf("cannot write the content: %w", err)
+			}
+
+			start = end
+		}
+
+		size += int64(read)
+
+		if errors.Is(readErr, io.EOF) {
+			break
+		} else if readErr != nil {
+			return fmt.Errorf("cannot read the content: %w", readErr)
+		}
+	}
+
+	err := output.Truncate(size)
+	if err != nil {
+		return fmt.Errorf("cannot write the content: %w", err)
+	}
+
+	return nil
+}
+
+// fill reads content into buffer until the buffer is full or content ends,
+// and returns how much it read and the error that stopped it, io.EOF at the
+// end. io.ReadFull would not do: it reports a short read at the end as
+// io.ErrUnexpectedEOF, the error archive/tar reports a truncated entry
+// with, which would end the file short without an error.
+func fill(content io.Reader, buffer []byte) (int, error) {
+	read := 0
+
+	for read < len(buffer) {
+		count, err := content.Read(buffer[read:])
+
+		read += count
+		if err != nil {
+			return read, err //nolint:wrapcheck // The caller wraps it.
+		}
+	}
+
+	return read, nil
 }
 
 // symlink extracts a symbolic link whose target, read from the directory of

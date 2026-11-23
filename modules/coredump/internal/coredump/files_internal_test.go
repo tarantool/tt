@@ -2,9 +2,16 @@ package coredump
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
 	"testing"
 	"testing/fstest"
 
@@ -265,6 +272,262 @@ func TestExtractTarGzBadArchive(t *testing.T) {
 	text := filepath.Join(base, "text.tgz")
 	require.NoError(t, os.WriteFile(text, []byte("text"), 0o644))
 	require.ErrorContains(t, extractTarGz(text, dst), "cannot decompress")
+}
+
+// fragment is the data of a sparse file of a test archive at its offset.
+type fragment struct {
+	offset int64
+	data   string
+}
+
+// tarBlockSize is the size of a block of a tar archive.
+const tarBlockSize = 512
+
+// tarHeader returns the ustar header block of an entry name of the type
+// typeflag and size bytes of data.
+func tarHeader(name string, typeflag byte, size int) []byte {
+	block := make([]byte, tarBlockSize)
+	copy(block[0:100], name)
+	copy(block[100:], "0000644\x00")
+	copy(block[108:], "0000000\x00")
+	copy(block[116:], "0000000\x00")
+	copy(block[124:], fmt.Sprintf("%011o\x00", size))
+	copy(block[136:], "00000000000\x00")
+	copy(block[148:156], "        ")
+	copy(block[257:], "ustar\x0000")
+
+	block[156] = typeflag
+
+	sum := 0
+	for _, b := range block {
+		sum += int(b)
+	}
+
+	copy(block[148:], fmt.Sprintf("%06o\x00 ", sum))
+
+	return block
+}
+
+// padded returns data padded with zeros to a whole number of tar blocks.
+func padded(data []byte) []byte {
+	return append(data, make([]byte, (tarBlockSize-len(data)%tarBlockSize)%tarBlockSize)...)
+}
+
+// paxRecord returns the record of key and value of an extended header of
+// PAX, "<length> <key>=<value>\n", the length counting itself.
+func paxRecord(key, value string) string {
+	body := len(key) + len(value) + len(" =\n")
+	length := body + len(strconv.Itoa(body))
+
+	record := fmt.Sprintf("%d %s=%s\n", length, key, value)
+	if len(record) != length {
+		record = fmt.Sprintf("%d %s=%s\n", len(record), key, value)
+	}
+
+	return record
+}
+
+// writeSparseArchive writes a tar.gz archive into dir of one file, name, of
+// size bytes, the fragments and holes elsewhere, as tar --sparse
+// --format=posix of pack stores the core: an extended header of the
+// GNU.sparse records of the format 1.0, and an entry whose data is the map
+// of the fragments, the number of them and the offset and the size of each,
+// in whole blocks, and the fragments after it. archive/tar writes no sparse
+// entry.
+func writeSparseArchive(t *testing.T, dir, name string, size int64,
+	fragments []fragment,
+) string {
+	t.Helper()
+
+	records := paxRecord("GNU.sparse.major", "1") + paxRecord("GNU.sparse.minor", "0") +
+		paxRecord("GNU.sparse.name", name) +
+		paxRecord("GNU.sparse.realsize", strconv.FormatInt(size, 10))
+
+	var sparseMap, data bytes.Buffer
+
+	fmt.Fprintf(&sparseMap, "%d\n", len(fragments))
+
+	for _, item := range fragments {
+		fmt.Fprintf(&sparseMap, "%d\n%d\n", item.offset, len(item.data))
+		data.WriteString(item.data)
+	}
+
+	content := append(padded(sparseMap.Bytes()), data.Bytes()...)
+
+	var stream bytes.Buffer
+
+	stream.Write(tarHeader("PaxHeaders/"+name, tar.TypeXHeader, len(records)))
+	stream.Write(padded([]byte(records)))
+	stream.Write(tarHeader("GNUSparseFile.0/"+name, tar.TypeReg, len(content)))
+	stream.Write(padded(content))
+	stream.Write(make([]byte, 2*tarBlockSize))
+
+	path := filepath.Join(dir, "sparse.tar.gz")
+
+	var compressed bytes.Buffer
+
+	writer := gzip.NewWriter(&compressed)
+	_, err := writer.Write(stream.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	require.NoError(t, os.WriteFile(path, compressed.Bytes(), 0o644))
+
+	return path
+}
+
+// diskSize returns the bytes the file at path takes on the disk.
+func diskSize(t *testing.T, path string) int64 {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	require.True(t, ok, "the blocks of %s are told", path)
+
+	return stat.Blocks * 512
+}
+
+// keepsHoles reports whether the file system of dir keeps a hole of gap
+// bytes between two blocks of data, of a file written as writeSparse
+// writes one: a block, a seek over the gap from its end, and a block; the
+// file is kept sparse when it takes less of the disk than its size. The
+// file systems of Linux keep a hole of a block, ext4, XFS, Btrfs and tmpfs
+// among them, and there one that does not fails the test, so that the
+// check of the holes is never dropped unseen. Elsewhere it is the file
+// system's own: the APFS of the macOS runner of CI allocated the zeros of a
+// gap of 12 KiB and of one of a MiB, and kept a hole of 16 MiB, so the
+// probe is of the gap the test writes, and where it is not kept, the test
+// passes over its check of the holes and says so.
+func keepsHoles(t *testing.T, dir string, gap int64) bool {
+	t.Helper()
+
+	path := filepath.Join(dir, "holes")
+	block := bytes.Repeat([]byte{1}, sparseBlock)
+
+	probe, err := os.Create(path)
+	require.NoError(t, err)
+
+	_, err = probe.Write(block)
+	require.NoError(t, err)
+
+	_, err = probe.Seek(gap, io.SeekCurrent)
+	require.NoError(t, err)
+
+	_, err = probe.Write(block)
+	require.NoError(t, err)
+	require.NoError(t, probe.Close())
+
+	kept := diskSize(t, path) < gap+2*sparseBlock
+	require.NoError(t, os.Remove(path))
+
+	if kept {
+		return true
+	}
+
+	if runtime.GOOS == "linux" {
+		t.Fatalf("the file system of %s keeps no hole of %d bytes: those of Linux do, and "+
+			"the holes are checked there", dir, gap)
+	}
+
+	t.Logf("the file system of %s keeps no hole of %d bytes: the holes are not checked",
+		dir, gap)
+
+	return false
+}
+
+// TestExtractTarGzSparse checks that a file is extracted with its holes: of
+// a sparse entry, as pack stores the core, and the zeros of a regular one.
+// The content is the same, and the file takes the blocks of its data alone
+// on the disk, a hole at its end too, where the file system keeps a hole of
+// the gap between the data (see keepsHoles). archive/tar reads the holes
+// back as zeros, which were written out: a core of 11 MB on the disk and
+// 1.1 GB in size took 1.1 GB.
+func TestExtractTarGzSparse(t *testing.T) {
+	t.Parallel()
+
+	const size = 32 << 20
+
+	fragments := []fragment{
+		{offset: 0, data: "\x7fELF" + strings.Repeat("h", 1000)},
+		{offset: size/2 + 100, data: "the data in the middle"},
+	}
+
+	expected := make([]byte, size)
+	for _, item := range fragments {
+		copy(expected[item.offset:], item.data)
+	}
+
+	cases := []struct {
+		name    string
+		archive func(dir string) string
+	}{
+		{"sparse entry", func(dir string) string {
+			return writeSparseArchive(t, dir, "core", size, fragments)
+		}},
+		{"zeros of a regular entry", func(dir string) string {
+			return writeArchive(t, dir, file("core", string(expected), 0o600))
+		}},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			base, dst, _ := layout(t)
+
+			require.NoError(t, extractTarGz(testCase.archive(base), dst))
+
+			path := filepath.Join(dst, "core")
+			content, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Len(t, content, size)
+			assert.True(t, bytes.Equal(expected, content), "the content of the file")
+
+			// The blocks of zeros between the fragments are the half of the
+			// file but one block.
+			if keepsHoles(t, dst, size/2-sparseBlock) {
+				assert.Less(t, diskSize(t, path), int64(1<<20),
+					"the holes of the file take no blocks")
+			}
+		})
+	}
+}
+
+// TestExtractTarGzTruncated checks that a file cut short in the archive is
+// an error, not a file extracted short: the reader of an entry reports it
+// with io.ErrUnexpectedEOF, which io.ReadFull reports at the end of any
+// entry that does not fill its buffer.
+func TestExtractTarGzTruncated(t *testing.T) {
+	t.Parallel()
+
+	base, dst, _ := layout(t)
+
+	archive := writeArchive(t, base, file("core", strings.Repeat("x", 10000), 0o600))
+
+	content, err := os.ReadFile(archive)
+	require.NoError(t, err)
+
+	stream, err := gzip.NewReader(bytes.NewReader(content))
+	require.NoError(t, err)
+
+	raw, err := io.ReadAll(stream)
+	require.NoError(t, err)
+
+	var cut bytes.Buffer
+
+	writer := gzip.NewWriter(&cut)
+
+	_, err = writer.Write(raw[:tarBlockSize+5000])
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	truncated := filepath.Join(base, "truncated.tar.gz")
+	require.NoError(t, os.WriteFile(truncated, cut.Bytes(), 0o644))
+
+	err = extractTarGz(truncated, dst)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	require.ErrorContains(t, err, `cannot extract "core"`)
 }
 
 // TestUnpackedDir checks that the artefacts of an archive are in the one
