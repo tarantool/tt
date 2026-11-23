@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/tarantool/tt/sdk/output"
 )
@@ -75,13 +76,22 @@ type PackOptions struct {
 	// Core is the core dump. Empty or StdinCore with a PID is the core on
 	// the standard input, which ReceiveCore stores to a file for Pack.
 	Core string
-	// Executable is the Tarantool that dumped it; empty is the tarantool of
-	// PATH.
+	// Executable is the Tarantool that dumped it, as -e names it, or as the
+	// process of the core of a pipe runs it: the core is refused when this
+	// one did not dump it. Empty is the one pack finds for the core (see
+	// findTarantool): the executable the core names, or else the first that
+	// dumped it of the tarantool of PATH and of Tarantools.
 	Executable string
+	// Tarantools returns the tarantools tt knows of, which pack tries for a
+	// core of no Executable after the executable the core names and the
+	// tarantool of PATH, and calls it for only when neither dumped the core;
+	// nil is none.
+	Tarantools func() []Candidate
 	// Dir is the directory the archive is created in; empty is the working
 	// directory.
 	Dir string
-	// PID is the PID of the dumped process, 0 for none.
+	// PID is the PID of the dumped process, which names the archive; 0 is
+	// that of the process of the core, or none when it has none.
 	PID uint
 	// Time is the time of the dump in seconds since the Epoch; empty is
 	// now.
@@ -122,29 +132,42 @@ func packArgs(opts PackOptions) ([]string, error) {
 	return args, nil
 }
 
-// Pack packs a core dump into a tar.gz archive. It logs to log what of the
-// core will not work in gdb, while another core may still be taken.
-func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) error {
+// archiveReport is the file of the temporary directory of Pack the pack
+// script writes the path of the archive into (-r).
+const archiveReport = "archive"
+
+// Pack packs a core dump into a tar.gz archive and returns its path. It logs
+// to log the tarantool it found for a core of no Executable, and what of the
+// core will not work in gdb, while another core may still be taken. The
+// archive is named by the PID of opts, or else by that of the process of the
+// core, which the pack script takes with the core of a file, -c, for the
+// name alone.
+func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, error) {
 	artefacts, err := probeArtefacts(streams.Err, opts, defaultDebugDirs)
 	if err != nil {
-		return err
+		return "", err
 	}
 
+	logTarantoolChoice(log, artefacts.choice)
 	warnPackDebugInfo(log, artefacts, defaultDebugDirs)
 	warnThreadStacks(log, artefacts.stacks)
 
 	opts.Executable = artefacts.executable
 
+	if opts.PID == 0 {
+		opts.PID = artefacts.pid
+	}
+
 	scriptArgs, err := packArgs(opts)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	scriptArgs = append(scriptArgs, artefacts.scriptArgs()...)
 
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
-		return fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
+		return "", fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
 	}
 
 	defer func() {
@@ -156,7 +179,7 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) error {
 
 	err = copyEmbedded(coreScripts, inspectEmbedPath, inspectPath, scriptFileMode)
 	if err != nil {
-		return fmt.Errorf("failed to put the inspecting script into the archive: %w", err)
+		return "", fmt.Errorf("failed to put the inspecting script into the archive: %w", err)
 	}
 
 	scriptArgs = append(scriptArgs, "-g", inspectPath)
@@ -164,14 +187,28 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) error {
 	// Prepare gdb extensions for packing.
 	exts, err := writeExtensions(tmpDir)
 	if err != nil {
-		return fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
+		return "", fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
 	}
 
 	for _, ext := range exts {
 		scriptArgs = append(scriptArgs, "-x", ext)
 	}
 
-	return runPackScript(streams, tmpDir, scriptArgs)
+	// The script names the archive and tells its path to a terminal alone:
+	// it writes the path into the report for tt to tell it.
+	report := filepath.Join(tmpDir, archiveReport)
+
+	err = runPackScript(streams, tmpDir, append(scriptArgs, "-r", report))
+	if err != nil {
+		return "", err
+	}
+
+	archive, err := os.ReadFile(report)
+	if err != nil {
+		return "", fmt.Errorf("cannot read the path of the archive the pack script made: %w", err)
+	}
+
+	return strings.TrimSuffix(string(archive), "\n"), nil
 }
 
 // runPackScript writes the pack script into dir and runs it with args. bash

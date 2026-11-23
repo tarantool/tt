@@ -25,7 +25,7 @@ asks no debugger.
 SYNOPSIS
 
   $0 [-h] [-c core] [-d dir] [-e executable] [-f [name=]file]...
-     [-p procID] [-t datetime]
+     [-p procID] [-r file] [-t datetime]
 
 Supported options are:
   -c COREDUMP                   Use file COREDUMP as a core dump to examine.
@@ -59,7 +59,14 @@ Supported options are:
                                 -c, the core dump is read from the standard
                                 input into DIRECTORY/COMM-core.PID.DATETIME,
                                 with COMM of /proc/PID/comm, and the
-                                executable is /proc/PID/exe.
+                                executable is /proc/PID/exe. The PID names
+                                the archive, with -c as well.
+
+  -r FILE                       Write the path of the resulting archive
+                                into FILE once it is packed, for a caller
+                                that is no terminal: the path and the
+                                listing of the archive are printed to a
+                                terminal alone.
 
   -t DATETIME                   Time of dump, expressed as seconds since the
                                 epoch, 1970-01-01 00:00:00 +0000 (UTC).
@@ -90,10 +97,11 @@ EXTS=
 FILES=
 GDB=
 PID=
+REPORT=
 TIME=$(date +%s)
 
 # Parse CLI options.
-OPTIONS=$(getopt -o c:d:e:f:g:hp:t:x: -n "${TOOL}" -- "$@")
+OPTIONS=$(getopt -o c:d:e:f:g:hp:r:t:x: -n "${TOOL}" -- "$@")
 eval set -- "${OPTIONS}"
 while true; do
 	case "$1" in
@@ -105,6 +113,7 @@ while true; do
 "; shift 2;;
 		-g) GDB=$2;      shift 2;;
 		-p) PID=$2;      shift 2;;
+		-r) REPORT=$2;   shift 2;;
 		-t) TIME=$2;     shift 2;;
 		-x) EXTS=$2:$EXTS; shift 2;;
 		-h) printf "%s\n" "${HELP}";
@@ -141,6 +150,9 @@ if [ -n "${COREFILE}" ]; then
 fi
 if [ -n "${GDB}" ]; then
 	GDB=$(abspath "${GDB}")
+fi
+if [ -n "${REPORT}" ]; then
+	REPORT=$(abspath "${REPORT}")
 fi
 
 # XXX: This section handles the case when the script is used for
@@ -311,6 +323,13 @@ done
 PARTIAL=${ARCHIVE}
 tar -czhf "${ARCHIVE}" -C "${TMPDIR}" -T "${TARLIST}" \
 	--format=posix --sparse
+
+# The caller of -r learns where the archive is whatever the standard
+# output is, as the lines below tell it to a terminal alone: tt says it.
+# An archive the caller is not told of is removed with the rest.
+if [ -n "${REPORT}" ]; then
+	printf '%s\n' "${ARCHIVE}" >"${REPORT}"
+fi
 PARTIAL=
 
 [ -t 1 ] && cat <<FINALIZE

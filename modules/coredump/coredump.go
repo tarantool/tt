@@ -15,6 +15,7 @@ import (
 
 	"github.com/tarantool/tt/modules/coredump/internal/coredump"
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/scope"
 )
 
 // New builds the coredump module's commands: the coredump group with its
@@ -49,15 +50,24 @@ func newPackCmd(services sdk.Services) *cobra.Command {
 		Short: "pack tarantool coredump into tar.gz archive",
 		Long: "Pack COREDUMP, a core dump of Tarantool, into a tar.gz archive with the " +
 			"tarantool that dumped it, the shared libraries it had loaded and the gdb " +
-			"extensions, for `tt coredump inspect`.\n\n" +
+			"extensions, for `tt coredump inspect`. The archive is " +
+			"tarantool-core-PID-TIME-HOST.tar.gz in --dir, the working directory by " +
+			"default, with the PID of --pid, or of the process of the core, and the time " +
+			"of --time, or now; pack says its path.\n\n" +
+			"The tarantool is the one --executable names, and the core is refused when " +
+			"that one did not dump it. Without --executable, it is the executable the core " +
+			"names, when the file is still there and dumped the core, and otherwise the " +
+			"first that dumped it, by its build ID, of the tarantool of PATH, the one tt " +
+			"runs here and those tt binary installed into the project, user and system " +
+			"scopes; pack says which it takes.\n\n" +
 			"With --pid, tt is the pipe of kernel.core_pattern, as in /etc/sysctl.conf:\n\n" +
 			"  kernel.core_pattern = |/usr/bin/tt coredump pack -d /var/core -p %p -t %t\n\n" +
 			"COREDUMP is omitted then, or -, and tt reads the core from its standard input. " +
 			"While /proc/PID has the process, the core is stored as DIR/COMM-core.PID.TIME, " +
 			"COMM of /proc/PID/comm, and packed with /proc/PID/exe, unless --executable " +
 			"names a tarantool; the core of a process whose comm is not tarantool is " +
-			"stored and not packed. A COREDUMP file is packed as it is, and the PID " +
-			"names the archive.",
+			"stored and not packed. A COREDUMP file is packed as it is, with the tarantool " +
+			"found as without --pid, and the PID names the archive.",
 		Args: pack.args,
 		RunE: func(_ *cobra.Command, args []string) error {
 			core := ""
@@ -70,7 +80,7 @@ func newPackCmd(services sdk.Services) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&pack.executable, "executable", "e", "",
-		"Tarantool executable path")
+		"Tarantool executable that dumped the core, instead of the one pack finds for it")
 	// tt reserves --directory, -C, for the project directory of a command.
 	cmd.Flags().StringVarP(&pack.directory, "dir", "d", "",
 		"Directory the resulting archive is created in")
@@ -114,7 +124,8 @@ func (p *packCmd) args(cmd *cobra.Command, args []string) error {
 func (p *packCmd) run(corePath string) error {
 	streams := p.services.Streams().IO()
 	opts := coredump.PackOptions{
-		Core: corePath, Executable: p.executable, Dir: p.directory, PID: p.pid, Time: p.time,
+		Core: corePath, Executable: p.executable, Tarantools: nil, Dir: p.directory, PID: p.pid,
+		Time: p.time,
 	}
 
 	if p.pid != 0 {
@@ -137,42 +148,66 @@ func (p *packCmd) run(corePath string) error {
 	}
 
 	if opts.Executable == "" {
-		executable, err := p.tarantool()
-		if err != nil {
-			return err
-		}
-
-		opts.Executable = executable
+		opts.Tarantools = p.tarantools
 	}
 
-	err := coredump.Pack(streams, p.services.Log(), opts)
+	archive, err := coredump.Pack(streams, p.services.Log(), opts)
 	if err != nil {
 		return err
 	}
 
-	p.services.Log().Info("Core was successfully packed.")
+	p.services.Log().Info("Core was successfully packed: " + archive)
 
 	return nil
 }
 
-// tarantool returns the executable to pack the core with: the one --executable
-// names, or the Tarantool tt runs. With neither it is empty, and the pack
-// script looks tarantool up in PATH.
-func (p *packCmd) tarantool() (string, error) {
-	if p.executable != "" {
-		return p.executable, nil
-	}
+// runsOrigin is what pack calls the Tarantool tt runs, Services.Tarantool.
+const runsOrigin = "the tarantool tt runs here"
+
+// tarantools returns the tarantools tt knows of, for pack to look the one
+// that dumped a core up among when it is given none and neither the
+// executable the core names nor the tarantool of PATH dumped it, in their
+// order: the Tarantool tt runs here, of the project or of PATH, then those
+// tt binary installed into the project, the user and the system scopes, the
+// active one of each first. One that cannot be found is a candidate with
+// the error, which pack lists should none of the others be the one.
+func (p *packCmd) tarantools() []coredump.Candidate {
+	var candidates []coredump.Candidate
 
 	tarantool, err := p.services.Tarantool()
-	if errors.Is(err, sdk.ErrNotFound) {
-		return "", nil
+
+	switch {
+	case err == nil:
+		candidates = append(candidates,
+			coredump.Candidate{Path: tarantool.Path(), Origin: runsOrigin, Err: nil})
+	case !errors.Is(err, sdk.ErrNotFound):
+		candidates = append(candidates, coredump.Candidate{Path: "", Origin: runsOrigin,
+			Err: fmt.Errorf("cannot find the tarantool executable: %w", err)})
 	}
 
-	if err != nil {
-		return "", fmt.Errorf("cannot find the tarantool executable: %w", err)
+	scopes := []struct {
+		name string
+		root func() (string, error)
+	}{
+		{name: "project", root: p.services.Project().ScopeDir},
+		{name: "user", root: scope.UserRoot},
+		{name: "system", root: scope.SystemRoot},
 	}
 
-	return tarantool.Path(), nil
+	for _, installed := range scopes {
+		root, err := installed.root()
+		if err != nil {
+			candidates = append(candidates, coredump.Candidate{
+				Path: "", Origin: "the tarantools of the " + installed.name + " scope", Err: err,
+			})
+
+			continue
+		}
+
+		candidates = append(candidates, coredump.ScopeTarantools(installed.name, root)...)
+	}
+
+	return candidates
 }
 
 // newUnpackCmd builds `tt coredump unpack`.

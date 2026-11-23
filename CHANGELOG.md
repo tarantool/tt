@@ -1124,8 +1124,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt coredump` is a standard module, `coredump`
   (`github.com/tarantool/tt/modules/coredump`), written against the SDK
   alone, which `tt version --modules` lists, so a distribution may exclude
-  it. `tt coredump pack` packs a core with the Tarantool tt runs, that of
-  the project or of `PATH`, as it did. Its `--directory` is `--dir` now:
+  it. `tt coredump pack` takes the Tarantool tt runs, that of the project
+  or of `PATH`, among the tarantools it tries for a core given without `-e`.
+  Its `--directory` is `--dir` now:
   tt reserves `--directory` for the project directory, `-C`, of every
   command; `-d` is as it was. The other flags, the help and the output of
   `pack`, `unpack` and `inspect` are as they were, but for the lines
@@ -1533,6 +1534,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   A core of a tarantool the dynamic loader ran, `ld.so TARANTOOL`, is
   checked against the tarantool the loader mapped, not the loader the
   kernel ran.
+  Without `-e`, pack packs a core with the executable the core names, the
+  file mapped where its program headers are, when it is still there and
+  dumped the core: the tarantool of `bin/` of a project or of `tt binary
+  install` that an instance ran while `PATH` has another one, or none.
+  pack took the Tarantool tt runs, that of the project or of `PATH`, alone,
+  and refused such a core, or found no tarantool. Otherwise it takes the
+  first that dumped the core of the tarantool of `PATH`, the one tt runs,
+  and those `tt binary install` put into the project, user and system
+  scopes, the active one and every version of each, and says which and
+  why: "packing with /usr/bin/tarantool, the tarantool of PATH: it has the
+  build ID of the core, ...", after "not packing with ..., the executable
+  the core names: missing". With none, the error lists each tarantool it
+  tried and why it is not the one, and says to give the tarantool that
+  dumped the core with `-e`, with the path the core records of it. The
+  tarantool of `-e`, or `/proc/PID/exe` of a `kernel.core_pattern` pipe, is
+  the only one tried, as before.
 - `tt coredump pack` of a core with a shared library deleted since it was
   loaded packs the core without the library and says so: "The shared
   library ... of the core is not packed: ...". Tarantool deletes its copy
@@ -1579,6 +1596,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   could not read, or the pack was interrupted. It removes both on a
   failure now, with the exit status kept, and an archive of the same
   name packed before stays when the pack fails before tar starts.
+- `tt coredump pack` says where it put the archive, "Core was
+  successfully packed: DIR/tarantool-core-PID-TIME-HOST.tar.gz", whatever
+  its standard output is. The pack script tells the path, and lists the
+  archive, to a terminal alone, and a pack run from a script, over ssh
+  without a terminal or in CI never learnt the name of its archive; the
+  script writes the path into the file of its new `-r` for tt. A core given
+  without `-p` names the archive by the PID of its process, `pr_pid` of its
+  NT_PRPSINFO note, which Linux and gcore write, as `-p` names it, where
+  the archive was `tarantool-core-N-...`. A core without the note, or of a
+  32-bit process, is still N, and `-p` and `-t` name the archive as before.
 - `tt coredump inspect` loads the libthread_db of the archive, which pack
   takes next to the thread library of the core, before that of the host:
   `gdb.sh` sets `libthread-db-search-path` to `$pdir:$sdir`. gdb looks in
