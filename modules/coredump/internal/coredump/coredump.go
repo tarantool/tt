@@ -123,10 +123,19 @@ func packArgs(opts PackOptions) ([]string, error) {
 
 // Pack packs a core dump into a tar.gz archive.
 func Pack(streams output.Streams, opts PackOptions) error {
+	artefacts, err := probeArtefacts(streams.Err, opts)
+	if err != nil {
+		return err
+	}
+
+	opts.Executable = artefacts.executable
+
 	scriptArgs, err := packArgs(opts)
 	if err != nil {
 		return err
 	}
+
+	scriptArgs = append(scriptArgs, artefacts.scriptArgs()...)
 
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {

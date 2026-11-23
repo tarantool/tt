@@ -12,13 +12,18 @@ a single archive with unified format:
   - /tarantool      - the executable binary file produced the core dump
   - /coredump       - the core dump file produced by the executable
   - /etc/os-release - the plain text file with OS identification data
-  - all shared libraries loaded (even via dlopen(3)) at the crash moment
-  - /usr/lib/debug/.build-id/XX/YYYY.debug - the separate debugging
-                      information of the executable, when the host has it
+  - the files of the host given with -f, under their paths: all shared
+    libraries loaded (even via dlopen(3)) at the crash moment, libthread_db
+    and /usr/lib/debug/.build-id/XX/YYYY.debug, the separate debugging
+    information of the executable, when the host has it
+
+tt finds those files in the core dump and passes them with -f: the script
+asks no debugger.
 
 SYNOPSIS
 
-  $0 [-h] [-c core] [-d dir] [-e executable] [-p procID] [-t datetime]
+  $0 [-h] [-c core] [-d dir] [-e executable] [-f file]... [-p procID]
+     [-t datetime]
 
 Supported options are:
   -c COREDUMP                   Use file COREDUMP as a core dump to examine.
@@ -33,7 +38,11 @@ Supported options are:
                                 If PID is specified, the one from /proc/PID/exe
                                 is chosen (see proc(5) for more info).
 
-  -g GDBWRAPPER                 Include GDB-wrapper script GDBWRAPPER into the
+  -f FILE                       Include FILE, a file of the host the core
+                                dump needs, into the archive under its
+                                path. This option may appear multiple times.
+
+  -g GDBWRAPPER                Include GDB-wrapper script GDBWRAPPER into the
                                 archive.
 
   -p PID                        PID of the dumped process, as seen in the PID
@@ -68,12 +77,13 @@ BINARY=
 COREDIR=${PWD}
 COREFILE=
 EXTS=
+FILES=
 GDB=
 PID=
 TIME=$(date +%s)
 
 # Parse CLI options.
-OPTIONS=$(getopt -o c:d:e:g:hp:t:x: -n "${TOOL}" -- "$@")
+OPTIONS=$(getopt -o c:d:e:f:g:hp:t:x: -n "${TOOL}" -- "$@")
 eval set -- "${OPTIONS}"
 while true; do
 	case "$1" in
@@ -81,6 +91,8 @@ while true; do
 		-c) COREFILE=$2; shift 2;;
 		-d) COREDIR=$2;  shift 2;;
 		-e) BINARY=$2;   shift 2;;
+		-f) FILES="${FILES}$2
+"; shift 2;;
 		-g) GDB=$2;      shift 2;;
 		-p) PID=$2;      shift 2;;
 		-t) TIME=$2;     shift 2;;
@@ -162,79 +174,11 @@ NOCOREDUMP
 	exit 1;
 fi
 
-if ! command -v file >/dev/null; then
-	[ -t 1 ] && cat <<NOFILE
-file is not installed, but it is obligatory for checking the
-artefacts to be collected.
-
-You can proceed collecting the artefacts manually later by running
-the following command:
-$ ${TOOL} -e ${BINARY} -c ${COREFILE}
-NOFILE
-fi
-
-if file "${COREFILE}" | grep -qv 'core file'; then
-	[ -t 1 ] && cat <<NOTACOREDUMP
-Not a core dump: ${COREFILE}
-
-The given COREDUMP file is not a valid core dump (see core(5) for
-more info) or not even an ELF (see elf(5) for more info). If you
-see this message, check the COREDUMP file the following way:
-$ file ${COREFILE}
-NOTACOREDUMP
-	exit 1;
-fi
-
-# Check that gdb is installed.
-if ! command -v gdb >/dev/null; then
-	[ -t 1 ] && cat <<NOGDB
-gdb is not installed, but it is obligatory for collecting the
-loaded shared libraries from the core dump.
-
-You can proceed collecting the artefacts manually later by running
-the following command:
-$ ${TOOL} -e ${BINARY} -c ${COREFILE}
-NOGDB
-	exit 1;
-fi
-
-# XXX: There is annoying bug in file(1), making it claim that PIE
-# is a shared object, but not an executable one. Strictly saying,
-# there was no PIE support until 5.34 at all, but the whole thing
-# didn't work until 5.36. Unfortunately, there are distros (e.g.
-# CentOS 8) providing file utility without valid PIE support, but
-# compiling PIE binaries. As a result we ought to respect both
-# behaviours for the check below. For more info, see the highly
-# detailed answer on Stack Overflow below.
-# https://stackoverflow.com/a/55704865/4609359
-if file -L "${BINARY}" | grep -qvE 'executable|shared object'; then
-	[ -t 1 ] && cat <<NOTELF
-Not an ELF file: ${BINARY}
-
-The given BINARY file is not an ELF (see elf(5) for more info).
-If you see this message, check the BINARY file the following way:
-$ file ${BINARY}
-NOTELF
-	exit 1;
-fi
-
-if gdb -batch -n "${BINARY}" -ex 'info symbol tarantool_version' 2>/dev/null | \
-	grep -q 'tarantool_version in section .text'
-then
-	# XXX: This is a very ugly hack to implement 'unless'
-	# operator in bash for a long pipeline as a conditional.
-	:
-else
-	[ -t 1 ] && cat <<NOTARANTOOL
-Not a Tarantool binary: ${BINARY}
-
-The given BINARY file is not a Tarantool executable: there is no
-signature symbol in the binary file. If you see this message,
-check the BINARY file the following way:
-$ ${BINARY} --help
-NOTARANTOOL
-	exit 1;
-fi
+# tt checks the core and the executable before it runs the script: that
+# the core is a core dump, that the executable is an ELF executable of
+# Tarantool, and that its build ID is that of the executable of the core.
+# It reads the core for the files of the host to pack with it, which it
+# passes with -f, so neither gdb nor file(1) is needed here.
 
 # Resolve the host name if possible.
 HOSTNAME=$(hostname 2>/dev/null || echo hostname)
@@ -242,7 +186,6 @@ HOSTNAME=$(hostname 2>/dev/null || echo hostname)
 # Proceed with collecting and packing artefacts.
 TMPDIR=$(mktemp -d -p "${COREDIR}")
 TARLIST=${TMPDIR}/tarlist
-LIBLIST=${TMPDIR}/liblist
 OSRELEASE=/etc/os-release
 ARCHIVENAME=tarantool-core-${PID:-N}-$(date +%Y%m%d%H%M -d @"${TIME}")-${HOSTNAME%%.*}
 ARCHIVE=${COREDIR}/${ARCHIVENAME}.tar.gz
@@ -278,88 +221,20 @@ stage "${OSRELEASE#/}" "${OSRELEASE}"
 stage tarantool "${BINARY}"
 stage coredump "${COREFILE}"
 
-# The separate debugging information of the binary, when the host has
-# it: a debuginfo package installs it under a debug directory of gdb,
-# /usr/lib/debug by default, by the build ID of the binary, which may
-# itself carry none. It goes where gdb.sh points gdb to, under the same
-# name in usr/lib/debug of the archive.
-BUILDID=$(file -L "${BINARY}" | \
-	sed -n 's/.*BuildID\[[^]]*\]=\([0-9a-f][0-9a-f][0-9a-f]*\).*/\1/p')
-if [ -n "${BUILDID}" ]; then
-	BUILDIDFILE=.build-id/$(echo "${BUILDID}" | cut -c1-2)/$(echo "${BUILDID}" | cut -c3-).debug
-	DEBUGDIRS=$(gdb -batch -ex 'show debug-file-directory' 2>/dev/null | \
-		sed -n 's/^.*"\(.*\)"\.$/\1/p')
-	set -f
-	OLDIFS=${IFS}
-	IFS=:
-	for DEBUGDIR in ${DEBUGDIRS:-/usr/lib/debug}; do
-		if [ -f "${DEBUGDIR}/${BUILDIDFILE}" ]; then
-			stage "usr/lib/debug/${BUILDIDFILE}" "$(abspath "${DEBUGDIR}/${BUILDIDFILE}")"
-			break
-		fi
-	done
-	IFS=${OLDIFS}
-	set +f
-fi
-
-SEPARATOR1='Shared Object Library'
-SEPARATOR2='Shared library is missing debugging information'
-# XXX: This is kinda "postmortem ldd": the command below dumps the
-# full list of the shared libraries the binary is linked against
-# or those loaded via dlopen at the platform runtime.
-# This is black voodoo magic. Do not touch. You are warned.
-if gdb -batch -n "${BINARY}" -c "${COREFILE}" -ex 'info shared'    | \
-	sed -n "/${SEPARATOR1}/,/${SEPARATOR2}/p;/${SEPARATOR2}/q" | \
-	awk '{ print $NF }' | grep '^/' >"${LIBLIST}"
-then
-	# XXX: This is a very ugly hack to implement 'unless'
-	# operator in bash for a long pipeline as a conditional.
-	:
-else
-	[ -t 1 ] && cat <<COREMISMATCH
-Core dump file is produced by the different Tarantool executable.
-
-Looks like '${COREFILE}' is not generated by \`${BINARY}'.
-If you see this message, please check that the given COREDUMP
-is produced by the specified BINARY.
-There are some temporary artefacts in ${TMPDIR}.
-Remove it manually if you don't need them anymore.
-COREMISMATCH
-	exit 1;
-fi
-
-# The shared libraries keep their paths, under the root of the archive.
-while IFS= read -r LIB; do
-	stage "${LIB#/}" "${LIB}"
-done <"${LIBLIST}"
-
-# XXX: This is poor man's libthread_db location resolution.
-# I'm sure there are many ways to implement this, but most of them
-# requires additional tools, libs, etc. The one implemented below
-# is quite simple, robust and requires nothing more than being
-# already used above.
-GREETING=$(gdb "${BINARY}" -c "${COREFILE}" -ex 'quit' 2>/dev/null)
-LIBTHREAD_DB=
-PATTERN1='[Thread debugging using libthread_db enabled]'
-PATTERN2='Using host libthread_db library ".*"\.'
-
-if echo "${GREETING}" | grep -F "${PATTERN1}" >/dev/null; then
-	LIBTHREAD_DB=$(echo "${GREETING}" | grep "${PATTERN2}" | \
-		awk -F'"' '{ print $2 }')
-	if [ -n "${LIBTHREAD_DB}" ]; then
-		stage "${LIBTHREAD_DB#/}" "${LIBTHREAD_DB}"
-	fi
-fi
-
-if [ -z "${LIBTHREAD_DB}" ]; then
-	[ -t 1 ] && cat <<NOLIBTHREAD_DB
-Failed to find libthread_db.so. Brace yourselves, thread debugging
-will be a challenging exercise.
-
-This is just a notice, not an error.
-NOLIBTHREAD_DB
-	# XXX: Not an error, proceed packing.
-fi
+# The files of the host the core needs keep their paths, under the root
+# of the archive: the separate debugging information of the binary, which
+# a debuginfo package installs under /usr/lib/debug, where gdb.sh points
+# gdb to in the archive, the shared libraries the process had loaded, and
+# libthread_db. They are given one per line.
+set -f
+OLDIFS=${IFS}
+IFS='
+'
+for FILE in ${FILES}; do
+	stage "${FILE#/}" "${FILE}"
+done
+IFS=${OLDIFS}
+set +f
 
 # Include GDB-wrapper script
 if [ -n "${GDB}" ] && [ -f "${GDB}" ]; then

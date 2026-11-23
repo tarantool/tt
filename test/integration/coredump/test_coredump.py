@@ -6,6 +6,7 @@ import re
 import resource
 import shutil
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -101,6 +102,259 @@ def coredump(tmp_path_factory) -> Path:
     return generate_coredump(tmp_path_factory)
 
 
+# The Lua that crashes a tarantool.
+CRASH = "require('ffi').cast('char *', 0)[0] = 42"
+
+# What gdb says when it cannot trace a process: "warning: ptrace: Operation
+# not permitted" where it runs one in a container without ptrace, and
+# "Could not attach to process" where the ptrace_scope of Yama keeps it off
+# one that is not its child.
+NO_PTRACE = re.compile(r"ptrace: |Could not (?:attach to|trace the inferior)")
+
+
+def check_gcore(core, process):
+    """Check that gdb, run as process, made core, or skip the test when gdb
+    cannot trace the process to make it."""
+    output = process.stdout + process.stderr
+    if not core.is_file() and NO_PTRACE.search(output):
+        pytest.skip(f"gdb cannot trace a process here to make a core: {output.strip()}")
+    assert core.is_file(), output
+
+
+def gcore_of_crash(tmp_path_factory, name, lua, commands=()) -> Path:
+    """A core of the tarantool of PATH that crashed running lua, made by
+    gcore of the gdb it runs under, at the signal, the commands of gdb run
+    before it runs the tarantool. It leaves nothing behind the temporary
+    directory, whatever core_pattern says, so the tests of such cores need
+    no TT_ENABLE_COREDUMP_TESTS; they need gdb on Linux, allowed to trace a
+    process, which a container may not allow."""
+    if sys.platform != "linux" or shutil.which("gdb") is None:
+        pytest.skip("needs gdb on Linux to make a core")
+    tarantool = shutil.which("tarantool")
+    assert tarantool is not None, "no tarantool on PATH"
+    work = tmp_path_factory.mktemp(name)
+    core = work / "core"
+    before = [arg for command in commands for arg in ("-ex", command)]
+    cmd = ["gdb", "-batch", "-n", *before, "-ex", "run", "-ex", f"gcore {core}", "-ex", "kill"]
+    process = subprocess.run(
+        [*cmd, "--args", tarantool, "-e", lua],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        env=gdb_env(),
+    )
+    check_gcore(core, process)
+    return core
+
+
+@pytest.fixture(scope="session")
+def gcore(tmp_path_factory) -> Path:
+    return gcore_of_crash(tmp_path_factory, "gcore", CRASH)
+
+
+# The name of the copy of libm a tarantool loads and deletes before it
+# crashes, in its working directory.
+DELETED_LIBRARY = "libtt-test-deleted.so"
+
+# The Lua that loads a copy of the libm the tarantool has mapped, deletes
+# the copy, as Tarantool deletes its copy of the module of a C function of
+# box.func once it has loaded it, and crashes.
+CRASH_WITH_DELETED_LIBRARY = f"""
+local ffi = require('ffi')
+local fio = require('fio')
+local libm
+for line in io.lines('/proc/self/maps') do
+    libm = libm or line:match('%s(/%S*/libm%.so[.%d]*)$')
+end
+if libm ~= nil then
+    local copy = fio.pathjoin(fio.cwd(), '{DELETED_LIBRARY}')
+    assert(fio.copyfile(libm, copy))
+    ffi.load(copy)
+    os.remove(copy)
+end
+{CRASH}
+"""
+
+
+@pytest.fixture(scope="session")
+def gcore_deleted_library(tmp_path_factory) -> Path:
+    return gcore_of_crash(tmp_path_factory, "gcore_deleted", CRASH_WITH_DELETED_LIBRARY)
+
+
+# The names of the copies of libm a tarantool loads and replaces before it
+# crashes, in its working directory: one replaced with a new copy of the
+# same content, as a package reinstalled replaces it, and a link to the
+# other one re-pointed to a copy of libc, as an upgrade re-points a link
+# to a new version.
+SAME_LIBRARY = "libtt-test-same.so"
+LINKED_LIBRARY = "libtt-test-link.so"
+
+CRASH_WITH_REPLACED_LIBRARIES = f"""
+local ffi = require('ffi')
+local fio = require('fio')
+local libm, libc
+for line in io.lines('/proc/self/maps') do
+    libm = libm or line:match('%s(/%S*/libm%.so[.%d]*)$')
+    libc = libc or line:match('%s(/%S*/libc%.so[.%d]*)$')
+end
+if libm ~= nil and libc ~= nil then
+    local same = fio.pathjoin(fio.cwd(), '{SAME_LIBRARY}')
+    assert(fio.copyfile(libm, same))
+    ffi.load(same)
+    assert(fio.copyfile(libm, same .. '.new'))
+    assert(fio.rename(same .. '.new', same))
+
+    local old = fio.pathjoin(fio.cwd(), 'libtt-test-old.so')
+    local new = fio.pathjoin(fio.cwd(), 'libtt-test-new.so')
+    local link = fio.pathjoin(fio.cwd(), '{LINKED_LIBRARY}')
+    assert(fio.copyfile(libm, old))
+    assert(fio.copyfile(libc, new))
+    assert(fio.symlink(old, link))
+    ffi.load(link)
+    assert(fio.unlink(link))
+    assert(fio.symlink(new, link))
+end
+{CRASH}
+"""
+
+
+@pytest.fixture(scope="session")
+def gcore_replaced_libraries(tmp_path_factory) -> Path:
+    return gcore_of_crash(tmp_path_factory, "gcore_replaced", CRASH_WITH_REPLACED_LIBRARIES)
+
+
+# The Lua that sets the coredump_filter of the tarantool to 0x23, the bit of
+# the ELF headers off (see core(5)), and crashes: Linux and gcore of gdb
+# leave the first page of a file mapped out of the core, that of the
+# tarantool too, where the interpreter of the tarantool, the name glibc
+# gives the dynamic loader, is. They do unless the process wrote to the
+# mapping of the page: a mapping with a page of its own, a copy of that of
+# the file, is anonymous memory to both, dumped whole, as that of the
+# dynamic loader, where gdb writes its breakpoints, may be.
+CRASH_WITH_FILTER = f"""
+local filter = io.open('/proc/self/coredump_filter', 'w')
+filter:write('0x23')
+filter:close()
+{CRASH}
+"""
+
+
+@pytest.fixture(scope="session")
+def gcore_filtered(tmp_path_factory) -> Path:
+    """A gcore of the tarantool of PATH that crashed with CRASH_WITH_FILTER,
+    without the first page of the tarantool, as the fixture checks.
+
+    gdb runs the tarantool with displaced stepping off. On, gdb steps over
+    each of its breakpoints in the dynamic loader, where it learns of the
+    libraries loaded, on a copy of the instruction at the entry point of the
+    tarantool, which gives the mapping of the entry a page of its own. The
+    entry and the ELF headers are in the same mapping of the static
+    tarantools of 3.3 to 3.6 on x86-64 and of those of aarch64, which no -z
+    separate-code links, and the first page of the tarantool was in the
+    core there: the tests of the core did not check what they were for. Off,
+    gdb steps over a breakpoint where it is and writes nothing to the
+    tarantool."""
+    in_place = ["set displaced-stepping off"]
+    core = gcore_of_crash(tmp_path_factory, "gcore_filtered", CRASH_WITH_FILTER, in_place)
+    tarantool = shutil.which("tarantool")
+    assert not has_first_page(core, tarantool), f"the core holds the first page of {tarantool}"
+    return core
+
+
+# The types of a program header and of a note of an ELF core: PT_LOAD of a
+# segment, PT_NOTE of the notes, and NT_FILE of the files the core maps.
+PT_LOAD, PT_NOTE, NT_FILE = 1, 4, 0x46494C45
+
+
+def word(data, at, size=8):
+    """The little-endian number of size bytes of data at the offset at."""
+    return int.from_bytes(data[at : at + size], "little")
+
+
+def core_segments(core):
+    """The segments of core, an ELF core of 64 bits of a little-endian
+    machine, as of x86-64 and aarch64: the ranges of addresses of those
+    with content, PT_LOAD, and the files mapped, NT_FILE, the address, the
+    offset in pages and the path of each mapping. The headers and the notes
+    alone are read, not the whole core."""
+    contents, mappings, notes = [], [], []
+    with open(core, "rb") as f:
+        header = f.read(64)
+        f.seek(word(header, 32))
+        segments = [f.read(word(header, 54, 2)) for _ in range(word(header, 56, 2))]
+        for segment in segments:
+            kind, offset = word(segment, 0, 4), word(segment, 8)
+            address, length = word(segment, 16), word(segment, 32)
+            if kind == PT_LOAD and length > 0:
+                contents.append((address, address + length))
+            elif kind == PT_NOTE:
+                f.seek(offset)
+                notes.append(f.read(length))
+    for data in notes:
+        note = 0
+        while note + 12 <= len(data):
+            name_size, desc_size = word(data, note, 4), word(data, note + 4, 4)
+            note_type = word(data, note + 8, 4)
+            desc = note + 12 + (name_size + 3) // 4 * 4
+            note = desc + (desc_size + 3) // 4 * 4
+            if note_type != NT_FILE:
+                continue
+            files = word(data, desc)
+            paths = data[desc + 16 + 24 * files : desc + desc_size].split(b"\0")
+            for index in range(files):
+                entry = desc + 16 + 24 * index
+                path = os.fsdecode(paths[index])
+                mappings.append((word(data, entry), word(data, entry + 16), path))
+    return contents, mappings
+
+
+def has_first_page(core, path):
+    """Whether core holds the first page of the file at path where the file
+    is loaded: at the lowest address the core maps it at from the offset 0,
+    that of the ELF headers of an executable. A small executable maps the
+    page again, for its data."""
+    contents, mappings = core_segments(core)
+    path = os.path.realpath(path)
+    starts = [start for start, page, mapped in mappings if page == 0 and mapped == path]
+    assert starts, f"the core maps no {path}"
+    return any(low <= min(starts) < high for low, high in contents)
+
+
+# The dynamic loaders of glibc by the machine of the host, which run the
+# program they are given: ld.so PROGRAM.
+LOADERS = {
+    "x86_64": "/lib64/ld-linux-x86-64.so.2",
+    "aarch64": "/lib/ld-linux-aarch64.so.1",
+}
+
+
+@pytest.fixture(scope="session")
+def gcore_via_loader(tmp_path_factory) -> Path:
+    """A core of the tarantool of PATH that the dynamic loader ran, ld.so
+    TARANTOOL, crashed, made by gcore of the gdb it runs under: the kernel
+    ran the loader, whose program headers AT_PHDR of the core gives, and the
+    loader mapped the tarantool."""
+    if sys.platform != "linux" or shutil.which("gdb") is None:
+        pytest.skip("needs gdb on Linux to make a core")
+    loader = LOADERS.get(platform.machine())
+    if loader is None or not os.path.isfile(loader):
+        pytest.skip(f"no dynamic loader of glibc known for {platform.machine()}")
+    tarantool = shutil.which("tarantool")
+    assert tarantool is not None, "no tarantool on PATH"
+    work = tmp_path_factory.mktemp("gcore_via_loader")
+    core = work / "core"
+    cmd = ["gdb", "-batch", "-n", "-ex", "run", "-ex", f"gcore {core}", "-ex", "kill"]
+    process = subprocess.run(
+        [*cmd, "--args", loader, tarantool, "-e", CRASH],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        env=gdb_env(),
+    )
+    assert core.is_file(), process.stdout + process.stderr
+    return core
+
+
 @pytest.fixture(scope="session")
 def alt_tarantool(tmp_path_factory) -> Path:
     """A tarantool other than the one on PATH, for the tests of which executable
@@ -171,7 +425,7 @@ def test_coredump_pack_no_such_file(tt_cmd, tmp_path):
     cmd = [tt_cmd, "coredump", "pack", "wrong_core_file"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
-    assert re.search(r"pack script execution failed", output)
+    assert re.search(r"not a core dump: wrong_core_file: .*no such file or directory", output)
 
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
@@ -221,6 +475,239 @@ def test_coredump_pack_executable_project(tt_cmd, tmp_path, coredump_alt, alt_ta
     assert re.search(r"Core was successfully packed.", output)
 
     check_tarantool_in_archive(tmp_path, alt_tarantool)
+
+
+def test_coredump_pack_other_tarantool(tt_cmd, tmp_path, gcore):
+    """pack refuses a core with a tarantool of another build ID than the
+    executable of the core: here a copy of the one that dumped it with the
+    last byte of its build ID changed. The copy has the layout of the
+    original, and gdb, which only warns of it, found the shared libraries of
+    the core with it: the check of pack was that gdb found some."""
+    if shutil.which("objcopy") is None:
+        pytest.skip("needs objcopy")
+    tarantool = shutil.which("tarantool")
+    note = tmp_path / "build-id"
+    only = ["objcopy", "-O", "binary", "--only-section=.note.gnu.build-id"]
+    subprocess.run([*only, tarantool, note], check=True)
+    data = bytearray(note.read_bytes())
+    if not data:
+        pytest.skip("the tarantool of PATH has no build ID")
+    data[-1] ^= 0xFF
+    note.write_bytes(data)
+    other = tmp_path / "bin" / "tarantool"
+    other.parent.mkdir()
+    update = ["objcopy", f"--update-section=.note.gnu.build-id={note}"]
+    subprocess.run([*update, tarantool, other], check=True)
+
+    cmd = [tt_cmd, "coredump", "pack", "-e", other, gcore]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc != 0, output
+    assert "core dump file is produced by the different Tarantool executable" in output
+    assert re.search(r"the executable of the core has build ID [0-9a-f]+, the binary", output)
+    # The check is made before anything is staged.
+    assert set(tmp_path.iterdir()) == {note, other.parent}
+
+
+# The programs the pack script runs: bash runs it, tar packs the archive,
+# with gzip, and the rest stage the artefacts. Neither gdb nor file(1) is
+# among them.
+PACK_TOOLS = (
+    "bash",
+    "basename",
+    "cat",
+    "date",
+    "dirname",
+    "getopt",
+    "gzip",
+    "hostname",
+    "ln",
+    "mkdir",
+    "mktemp",
+    "rm",
+    "tar",
+)
+
+
+def test_coredump_pack_without_gdb(tt_cmd, tmp_path, gcore):
+    """pack needs no debugger, so that a host with lldb or with none packs a
+    core: with a PATH of the programs of the pack script alone, without gdb
+    and file(1), it packs the core with its shared libraries, and inspect,
+    with gdb, shows its backtrace. pack refused a host without gdb, which it
+    asked for the shared libraries of the core."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in PACK_TOOLS:
+        path = shutil.which(tool)
+        if path is None:
+            pytest.skip(f"no {tool} on PATH")
+        os.symlink(path, bin_dir / tool)
+    env = gdb_env()
+    env["PATH"] = bin_dir.as_posix()
+
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-e", shutil.which("tarantool"), "-d", out, gcore]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
+    assert rc == 0, output
+    assert re.search(r"Core was successfully packed.", output)
+
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    members = check_archive_members(archives[0])
+    assert any(re.search(r"/libc[.-]", "/" + member) for member in members), members
+
+    rc, output = inspect(tt_cmd, tmp_path, archives[0], ["bt 1"])
+    assert rc == 0, output
+    assert re.search(r"#0 ", output), output
+
+
+def gdb_shared_libraries(tarantool, core):
+    """The shared libraries gdb lists for core of tarantool with info shared,
+    by their absolute paths, and the libthread_db gdb says it loads for the
+    core, None for none."""
+    listed = subprocess.run(
+        ["gdb", "-batch", "-n", tarantool, "-c", core, "-ex", "info shared"],
+        capture_output=True,
+        text=True,
+        env=gdb_env(),
+    )
+    libs, table = [], False
+    for line in listed.stdout.splitlines():
+        fields = line.split()
+        if "Shared Object Library" in line:
+            table = True
+        elif table and fields and fields[-1].startswith("/"):
+            libs.append(fields[-1])
+
+    greeting = subprocess.run(
+        ["gdb", "-n", tarantool, "-c", core, "-ex", "quit"],
+        capture_output=True,
+        text=True,
+        env=gdb_env(),
+    )
+    thread_db = re.search(r'Using host libthread_db library "([^"]+)"', greeting.stdout)
+    return libs, thread_db.group(1) if thread_db is not None else None
+
+
+@pytest.mark.parametrize("source", ["gcore", "gcore_filtered", "coredump"])
+def test_coredump_pack_libraries_of_gdb(tt_cmd, tmp_path, request, source):
+    """pack reads the shared libraries of a core from the core, where it
+    asked gdb: the archive has every library info shared of gdb lists,
+    under its path, and the libthread_db gdb loads for the core. The core
+    is a gcore, one without the first page of the tarantool, gcore_filtered,
+    where pack reads the name of the dynamic loader from the tarantool, as
+    gdb does, and a core of Linux where the coredump tests are enabled."""
+    if source == "coredump" and skip_coredump_cond:
+        pytest.skip(skip_coredump_reason)
+    if shutil.which("gdb") is None:
+        pytest.skip("needs gdb to compare with")
+    core = request.getfixturevalue(source)
+    tarantool = shutil.which("tarantool")
+    libs, thread_db = gdb_shared_libraries(tarantool, core)
+    assert libs
+
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-e", tarantool, "-d", out, core]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    members = check_archive_members(archives[0])
+    assert {lib.lstrip("/") for lib in libs} <= members, (libs, members)
+    if thread_db is not None:
+        assert thread_db.lstrip("/") in members, (thread_db, members)
+
+
+def test_coredump_pack_via_loader(tt_cmd, tmp_path, gcore_via_loader):
+    """pack takes a core of a tarantool the dynamic loader ran, ld.so
+    TARANTOOL, with the shared libraries gdb lists: AT_PHDR of the core is
+    that of the loader, whose build ID pack compared with that of the
+    tarantool, and refused the core. The tarantool is packed once, as the
+    tarantool of the archive, and not among the libraries too."""
+    tarantool = shutil.which("tarantool")
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-e", tarantool, "-d", out, gcore_via_loader]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    assert "Cannot read the link map" not in output, output
+
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    members = check_archive_members(archives[0])
+    copies = [
+        member
+        for member in members - {"tarantool"}
+        if os.path.isfile("/" + member) and os.path.samefile("/" + member, tarantool)
+    ]
+    assert not copies, copies
+
+    if shutil.which("gdb") is not None:
+        libs, _ = gdb_shared_libraries(tarantool, gcore_via_loader)
+        assert {lib.lstrip("/") for lib in libs} <= members, (libs, members)
+
+
+def test_coredump_pack_deleted_library(tt_cmd, tmp_path, gcore_deleted_library):
+    """pack of a core with a shared library deleted since it was loaded
+    leaves the library out with a notice and packs the rest. The symbolic
+    link the pack script staged for the library dangled, tar failed on it
+    with "Cannot stat", and pack failed with exit status 2, leaving a
+    partial archive and its temporary directory behind."""
+    core = gcore_deleted_library
+    deleted = core.parent / DELETED_LIBRARY
+    libs, _ = gdb_shared_libraries(shutil.which("tarantool"), core)
+    if deleted.as_posix() not in libs:
+        pytest.skip("the tarantool of PATH maps no libm to load a copy of")
+
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-d", out, core]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    assert f"The shared library {deleted} of the core is not packed: " in output
+    assert "gdb will have no symbols of it." in output
+
+    # The archive and nothing else, with every other library gdb lists.
+    archives = list(out.glob("*.tar.gz"))
+    assert set(out.iterdir()) == set(archives)
+    assert len(archives) == 1
+    members = check_archive_members(archives[0])
+    assert deleted.as_posix().lstrip("/") not in members
+    others = {lib.lstrip("/") for lib in libs if lib != deleted.as_posix()}
+    assert others <= members, (others, members)
+
+
+def test_coredump_pack_replaced_libraries(tt_cmd, tmp_path, gcore_replaced_libraries):
+    """pack compares the build ID of a shared library in the core with that
+    of the file at its path. A library replaced with a file of the same
+    content, whose mapping the core marks deleted, is packed, where it was
+    left out; a link re-pointed to another library is left out with a
+    notice, where the other library was packed under its name, and gdb read
+    the core with the symbols of the wrong file."""
+    core = gcore_replaced_libraries
+    same, link = core.parent / SAME_LIBRARY, core.parent / LINKED_LIBRARY
+    libs, _ = gdb_shared_libraries(shutil.which("tarantool"), core)
+    if same.as_posix() not in libs:
+        pytest.skip("the tarantool of PATH maps no libm and libc to load copies of")
+
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-d", out, core]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    assert (
+        f"The shared library {link} of the core is not packed: the file at its path is "
+        "not the one the process loaded: it has build ID "
+    ) in output, output
+    assert f"The shared library {same} " not in output, output
+
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    members = check_archive_members(archives[0])
+    assert same.as_posix().lstrip("/") in members
+    assert link.as_posix().lstrip("/") not in members
 
 
 def check_archive_members(archive):
@@ -439,59 +926,53 @@ def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
     check_extensions(output, has_debug_info(shutil.which("tarantool")))
 
 
-def gdb_debug_dir_env(tmp_path, debug_dir):
-    """The environment of a tt whose gdb looks for separate debug files in
-    debug_dir alone, as a debug-file-directory of the gdbinit of its home
-    says."""
-    home = tmp_path / ("home-" + debug_dir.name)
-    home.mkdir()
-    (home / ".gdbinit").write_text(f"set debug-file-directory {debug_dir}\n")
-    env = os.environ.copy()
-    env["HOME"] = home.as_posix()
-    env["XDG_CONFIG_HOME"] = (home / ".config").as_posix()
-    return env
-
-
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 def test_coredump_pack_debug_file(tt_cmd, tmp_path, coredump):
     """pack of a core of a tarantool without debugging information takes the
-    debug file of its build ID from a debug directory of gdb into the
-    archive, and inspect points gdb to it; with none there, inspect warns
-    before gdb starts. The tarantool and its debug file are those of the
-    tarantool of PATH, split by objcopy."""
+    debug file of its build ID from /usr/lib/debug, where a debuginfo
+    package installs it, into usr/lib/debug of the archive, and inspect
+    points gdb to it there; with none, inspect warns before gdb starts. The
+    tarantool and its debug file are those of the tarantool of PATH, split
+    by objcopy. A test cannot write to /usr/lib/debug: pack takes the debug
+    file of the host if it has one, and the test puts the file into the
+    unpacked archive, where pack puts it."""
     tarantool = shutil.which("tarantool")
     described = subprocess.run(["file", "-L", tarantool], capture_output=True, text=True)
     if shutil.which("objcopy") is None or "with debug_info" not in described.stdout:
         pytest.skip("needs objcopy and a tarantool with debugging information of its own")
     build_id = re.search(r"BuildID\[[^]]*\]=([0-9a-f]+)", described.stdout).group(1)
+    member = f"usr/lib/debug/.build-id/{build_id[:2]}/{build_id[2:]}.debug"
 
     stripped = tmp_path / "bin" / "tarantool"
     stripped.parent.mkdir()
     subprocess.run(["objcopy", "--strip-debug", tarantool, stripped], check=True)
 
-    debug_dir = tmp_path / "debug"
-    member = f"usr/lib/debug/.build-id/{build_id[:2]}/{build_id[2:]}.debug"
-    (debug_dir / member).parent.mkdir(parents=True)
-    subprocess.run(["objcopy", "--only-keep-debug", tarantool, debug_dir / member], check=True)
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-e", stripped, "-d", out, coredump]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
 
-    empty_dir = tmp_path / "empty"
-    empty_dir.mkdir()
+    archives = list(out.glob("*.tar.gz"))
+    assert len(archives) == 1
+    collected = os.path.isfile("/" + member)
+    assert (member in check_archive_members(archives[0])) == collected
 
-    for collected, gdb_dir in ((True, debug_dir / "usr" / "lib" / "debug"), (False, empty_dir)):
-        out = tmp_path / f"out-{collected}"
-        out.mkdir()
-        cmd = [tt_cmd, "coredump", "pack", "-e", stripped, "-d", out, coredump]
-        env = gdb_debug_dir_env(tmp_path, gdb_dir)
-        rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
-        assert rc == 0, output
+    rc, output = inspect(tt_cmd, tmp_path, archives[0], EXTENSION_COMMANDS)
+    assert rc == 0, output
+    check_extensions(output, collected)
 
-        archives = list(out.glob("*.tar.gz"))
-        assert len(archives) == 1
-        assert (member in check_archive_members(archives[0])) == collected
+    cmd = [tt_cmd, "coredump", "unpack", archives[0]]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    unpacked = tmp_path / archives[0].name.split(".")[0]
+    debug_file = unpacked / member
+    debug_file.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["objcopy", "--only-keep-debug", tarantool, debug_file], check=True)
 
-        rc, output = inspect(tt_cmd, tmp_path, archives[0], EXTENSION_COMMANDS)
-        assert rc == 0, output
-        check_extensions(output, collected)
+    rc, output = inspect(tt_cmd, tmp_path, unpacked, EXTENSION_COMMANDS)
+    assert rc == 0, output
+    check_extensions(output, True)
 
 
 # The lines each extension of the fake sources starts with, which gdb prints
