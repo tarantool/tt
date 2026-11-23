@@ -103,6 +103,25 @@ func extractTarGz(archivePath, dir string) error {
 	return ext.checkLinks()
 }
 
+// unpackedDir returns the directory of the artefacts of an archive
+// extracted into dir, relative to it: the one entry of dir when it is a
+// directory, as pack puts the artefacts into tarantool-core-<pid>-<time>-
+// <host>/ and names the archive after it, else dir itself, ".", of an
+// archive of the artefacts at its root. The name of the archive does not
+// tell it: an archive renamed keeps the directory it holds.
+func unpackedDir(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", fmt.Errorf("cannot read the unpacked archive: %w", err)
+	}
+
+	if len(entries) == 1 && entries[0].IsDir() {
+		return entries[0].Name(), nil
+	}
+
+	return ".", nil
+}
+
 // extractor writes the entries of one archive into root.
 type extractor struct {
 	root *os.Root

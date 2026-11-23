@@ -266,3 +266,44 @@ func TestExtractTarGzBadArchive(t *testing.T) {
 	require.NoError(t, os.WriteFile(text, []byte("text"), 0o644))
 	require.ErrorContains(t, extractTarGz(text, dst), "cannot decompress")
 }
+
+// TestUnpackedDir checks that the artefacts of an archive are in the one
+// directory it holds, whatever the archive is named, and in the directory
+// it is extracted into otherwise.
+func TestUnpackedDir(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		entries []entry
+		want    string
+	}{
+		{
+			"the directory of pack", []entry{
+				file("tarantool-core-N-202611240156-host/version", "Tarantool 3.9.0", 0o644),
+				file("tarantool-core-N-202611240156-host/ext/x.py", "x", 0o644),
+			}, "tarantool-core-N-202611240156-host",
+		},
+		{
+			"the artefacts at the root", []entry{
+				file("version", "Tarantool 3.9.0", 0o644), file("ext/x.py", "x", 0o644),
+			}, ".",
+		},
+		{"a file alone", []entry{file("version", "Tarantool 3.9.0", 0o644)}, "."},
+		{"nothing", nil, "."},
+	}
+
+	for _, testCase := range cases {
+		base, dst, _ := layout(t)
+
+		require.NoError(t, extractTarGz(writeArchive(t, base, testCase.entries...), dst),
+			testCase.name)
+
+		unpacked, err := unpackedDir(dst)
+		require.NoError(t, err, testCase.name)
+		assert.Equal(t, testCase.want, unpacked, testCase.name)
+	}
+
+	_, err := unpackedDir(filepath.Join(t.TempDir(), "missing"))
+	require.ErrorContains(t, err, "cannot read the unpacked archive")
+}

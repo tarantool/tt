@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
@@ -100,22 +101,34 @@ func writeArtefacts(t *testing.T, dir string) {
 	}
 }
 
+// artefactsDir is the directory of the artefacts of the test archives, as
+// pack names it and the archive after it.
+const artefactsDir = "tarantool-core-N-202611230344-host"
+
 // writeArtefactsArchive writes artefacts into an archive in dir, under the
 // directory the name of the archive names, as pack does.
 func writeArtefactsArchive(t *testing.T, dir string) string {
 	t.Helper()
 
-	path := filepath.Join(dir, "tarantool-core-N-202611230344-host.tar.gz")
+	path := filepath.Join(dir, artefactsDir+".tar.gz")
+	writeFilesArchive(t, path, artefactsDir+"/", artefacts)
+
+	return path
+}
+
+// writeFilesArchive writes files, by name, into a tar.gz archive at path,
+// each under prefix.
+func writeFilesArchive(t *testing.T, path, prefix string, files map[string]string) {
+	t.Helper()
 
 	var buffer bytes.Buffer
 
 	compressed := gzip.NewWriter(&buffer)
 	writer := tar.NewWriter(compressed)
 
-	for name, content := range artefacts {
+	for name, content := range files {
 		require.NoError(t, writer.WriteHeader(&tar.Header{
-			Typeflag: tar.TypeReg, Name: "tarantool-core-N-202611230344-host/" + name,
-			Mode: 0o755, Size: int64(len(content)),
+			Typeflag: tar.TypeReg, Name: prefix + name, Mode: 0o755, Size: int64(len(content)),
 		}))
 
 		_, err := writer.Write([]byte(content))
@@ -125,8 +138,6 @@ func writeArtefactsArchive(t *testing.T, dir string) string {
 	require.NoError(t, writer.Close())
 	require.NoError(t, compressed.Close())
 	require.NoError(t, os.WriteFile(path, buffer.Bytes(), 0o644))
-
-	return path
 }
 
 // runInspect runs inspect with the extensions of the fake GitHub, which has
@@ -321,6 +332,62 @@ func TestInspectArchive(t *testing.T) {
 		luajitDbgName:    "luajit_dbg.py of " + luajitNew,
 		tarantoolGDBName: "tarantool-gdb.py of 8b9a0f59a95b",
 	}, sourced(out))
+}
+
+// TestInspectRenamedArchive checks that inspect of an archive opens the
+// artefacts of the directory it holds, whatever the archive is named: the
+// one pack named, which an archive renamed keeps, or the archive itself of
+// one of the artefacts at its root. The checks before gdb read them, and the
+// hint of the tarantool of the static deb names the directory tt coredump
+// unpack puts them in. inspect took the directory of the name of the
+// archive, where gdb.sh found no version and failed.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectRenamedArchive(t *testing.T) {
+	withFakeGDB(t)
+
+	// A tarantool of a static build without debugging information.
+	tarantool := filepath.Join(t.TempDir(), "tarantool")
+	writeELF(t, tarantool, []testSection{text, buildIDSection(t)}, nil)
+
+	data, err := os.ReadFile(tarantool)
+	require.NoError(t, err)
+
+	files := maps.Clone(artefacts)
+
+	files["tarantool"] = string(data)
+
+	extensions := map[string]string{
+		luajitDbgName:    "luajit_dbg.py of " + luajitNew,
+		tarantoolGDBName: "tarantool-gdb.py of 8b9a0f59a95b",
+	}
+	hint := func(archive, unpacked string) string {
+		return "hint: the tarantool of the static deb of Tarantool 3.9.0, which `tt binary " +
+			"install tarantool 3.9.0` installs, has the debugging information: if its build ID " +
+			"is that of the core, " + testBuildID + ", unpack the archive with `tt coredump " +
+			"unpack " + archive + "`, copy it over " + filepath.Join(unpacked, "tarantool") +
+			", or to the debug file named above under " + unpacked + ", and run `tt coredump " +
+			"inspect " + unpacked + "`"
+	}
+
+	renamed := filepath.Join(t.TempDir(), "core.tar.gz")
+	writeFilesArchive(t, renamed, artefactsDir+"/", files)
+
+	out, recorder := runInspect(t, renamed, "")
+	assert.NotContains(t, out, "the gdb.sh of the archive")
+	assert.Regexp(t, `\n-ex\ncore /.*/tt-coredump-\d+/`+artefactsDir+`/coredump\n`, out)
+	assert.Equal(t, extensions, sourced(out))
+	require.Len(t, warnings(recorder), 2)
+	assert.Equal(t, hint(renamed, artefactsDir), warnings(recorder)[1])
+
+	root := filepath.Join(t.TempDir(), "root.tar.gz")
+	writeFilesArchive(t, root, "", files)
+
+	out, recorder = runInspect(t, root, "")
+	assert.Regexp(t, `\n-ex\ncore /.*/tt-coredump-\d+/coredump\n`, out)
+	assert.Equal(t, extensions, sourced(out))
+	require.Len(t, warnings(recorder), 2)
+	assert.Equal(t, hint(root, "."), warnings(recorder)[1])
 }
 
 // TestInspectOffline checks that inspect with no GitHub loads the copies

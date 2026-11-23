@@ -1575,6 +1575,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the directories of the host first by default, `$sdir:$pdir`, and took
   the libthread_db of the host whenever it matched the core, as on the
   host that packed it, and the one of the archive was never tried.
+- `tt coredump inspect` of an archive renamed from the name pack gave
+  it, as `core.tar.gz`, opens the artefacts of the directory the archive
+  holds, which keeps the name pack gave it, or of its root for an
+  archive of the artefacts alone. inspect took the directory of the name
+  of the archive without its extensions, where the wrapper found no
+  `version` file and failed with `inspect script execution failed: exit
+  status 1`, and the checks before gdb read nothing. The hint of the
+  tarantool of the static deb names that directory too.
 - A TLS connection of `tt connect`, `tt replicaset`, `tt status`,
   `tt backup` and `tt cluster topology` no longer waits 3 s before it is
   made: a `tt connect` over TLS took 3.1 s where a plain one takes 0.1 s. tt read

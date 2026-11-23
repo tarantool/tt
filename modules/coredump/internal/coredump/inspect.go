@@ -68,7 +68,10 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 		return err
 	}
 
-	dir := opts.Path
+	// dir is the directory of the artefacts, and unpacked, of an archive,
+	// the one tt coredump unpack puts them in, relative to the working
+	// directory.
+	dir, unpacked := opts.Path, ""
 
 	if !stat.IsDir() {
 		// It seems archive was specified, so try to unpack into
@@ -87,8 +90,12 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 			return fmt.Errorf("failed to unpack: %w", err)
 		}
 
-		// Directory name is archive basename w/o extensions.
-		dir = filepath.Join(tmpDir, strings.Split(filepath.Base(opts.Path), ".")[0])
+		unpacked, err = unpackedDir(tmpDir)
+		if err != nil {
+			return fmt.Errorf("failed to unpack: %w", err)
+		}
+
+		dir = filepath.Join(tmpDir, unpacked)
 	}
 
 	// The files of the debugger and the extensions tt loads live in a
@@ -140,7 +147,7 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 		return err
 	}
 
-	warnDebugInfo(res.log, dir, opts.Path)
+	warnDebugInfo(res.log, dir, opts.Path, unpacked)
 
 	stacks := readThreadStacks(filepath.Join(dir, "coredump"))
 	warnThreadStacks(res.log, stacks)
@@ -190,34 +197,36 @@ func extensionNames(exts []extension) []string {
 
 // warnDebugInfo warns, before gdb starts, when gdb will find no debugging
 // information for the tarantool of the artefacts in dir, unpacked from the
-// archive at path or the directory path itself: the extensions look the
-// types of LuaJIT and Tarantool up and fail without them. The hint says
-// where the information is (see debugInfoHint).
-func warnDebugInfo(log *slog.Logger, dir, path string) {
+// archive at path into unpacked, relative to the working directory as tt
+// coredump unpack puts them, or the directory path itself, unpacked empty:
+// the extensions look the types of LuaJIT and Tarantool up and fail without
+// them. The hint says where the information is (see debugInfoHint).
+func warnDebugInfo(log *slog.Logger, dir, path, unpacked string) {
 	err := checkDebugInfo(dir)
 
 	switch {
 	case errors.Is(err, errNoDebugInfo):
 		warnWithHint(log, fmt.Sprintf("the tarantool of the core has %s: the lj-* commands of "+
 			"LuaJIT and the pretty-printers of Tarantool will not work, plain backtraces will",
-			err), debugInfoHint(dir, path))
+			err), debugInfoHint(dir, path, unpacked))
 	case err != nil:
 		log.Debug("cannot tell whether the tarantool has debugging information: " + err.Error())
 	}
 }
 
 // debugInfoHint returns what warnDebugInfo hints at of the artefacts in dir,
-// of path. The tarantool of the static deb has the debugging information
-// of a static build of Community (see staticDebRelease): gdb.sh finds it
-// as the tarantool of the artefacts, or as the debug file of its build ID
-// under usr/lib/debug of the artefacts, the one the warning names, and
-// inspect is run again on them. symbol-file at the prompt of gdb would not
-// do: the extensions are loaded by then, and fail without the types. An
-// archive is unpacked first, where tt coredump unpack puts it, by its name
-// without the extensions; inspect unpacks it into a directory it removes.
-// Of another tarantool the debug file a host the core is packed on may
-// have is all there is.
-func debugInfoHint(dir, path string) string {
+// of path, unpacked into unpacked. The tarantool of the static deb has the
+// debugging information of a static build of Community (see
+// staticDebRelease): gdb.sh finds it as the tarantool of the artefacts, or
+// as the debug file of its build ID under usr/lib/debug of the artefacts,
+// the one the warning names, and inspect is run again on them. symbol-file
+// at the prompt of gdb would not do: the extensions are loaded by then, and
+// fail without the types. An archive is unpacked first, where tt coredump
+// unpack puts it, into the directory it holds, as pack named it, whatever
+// the archive is named now (see unpackedDir); inspect unpacks it into a
+// directory it removes. Of another tarantool the debug file a host the core
+// is packed on may have is all there is.
+func debugInfoHint(dir, path, unpacked string) string {
 	generic := "pack the core again where the debug file of its tarantool is installed, " +
 		"under " + hostDebugDir
 
@@ -242,8 +251,8 @@ func debugInfoHint(dir, path string) string {
 
 	target, unpack := path, ""
 
-	if dir != path {
-		target = strings.Split(filepath.Base(path), ".")[0]
+	if unpacked != "" {
+		target = unpacked
 		unpack = "unpack the archive with `tt coredump unpack " + path + "`, "
 	}
 

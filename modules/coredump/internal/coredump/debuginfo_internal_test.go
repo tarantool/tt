@@ -314,7 +314,7 @@ func TestWarnDebugInfo(t *testing.T) {
 
 	// A directory of artefacts, inspected as it is.
 	log, recorder := logtest.New(t)
-	warnDebugInfo(log, dir, dir)
+	warnDebugInfo(log, dir, dir, "")
 	assert.Equal(t, []string{
 		warning,
 		deb + "copy it over " + filepath.Join(dir, "tarantool") + ", or to the debug file named " +
@@ -322,16 +322,30 @@ func TestWarnDebugInfo(t *testing.T) {
 	}, warnings(recorder))
 
 	// The artefacts of an archive, which inspect unpacks where it removes
-	// them, and tt coredump unpack puts in the working directory.
+	// them, and tt coredump unpack puts in the working directory, into the
+	// directory the archive holds, whatever its name.
+	for _, archive := range []string{
+		"cores/tarantool-core-N-202611240035-host.tar.gz", "cores/core.tar.gz",
+	} {
+		log, recorder = logtest.New(t)
+		warnDebugInfo(log, dir, archive, "tarantool-core-N-202611240035-host")
+		assert.Equal(t, []string{
+			warning,
+			deb + "unpack the archive with `tt coredump unpack " + archive + "`, copy it over " +
+				"tarantool-core-N-202611240035-host/tarantool, or to the debug file named above " +
+				"under tarantool-core-N-202611240035-host, and run `tt coredump inspect " +
+				"tarantool-core-N-202611240035-host`",
+		}, warnings(recorder), archive)
+	}
+
+	// An archive of the artefacts at its root unpacks into the working
+	// directory itself.
 	log, recorder = logtest.New(t)
-	warnDebugInfo(log, dir, "cores/tarantool-core-N-202611240035-host.tar.gz")
+	warnDebugInfo(log, dir, "cores/core.tar.gz", ".")
 	assert.Equal(t, []string{
 		warning,
-		deb + "unpack the archive with `tt coredump unpack " +
-			"cores/tarantool-core-N-202611240035-host.tar.gz`, copy it over " +
-			"tarantool-core-N-202611240035-host/tarantool, or to the debug file named above " +
-			"under tarantool-core-N-202611240035-host, and run `tt coredump inspect " +
-			"tarantool-core-N-202611240035-host`",
+		deb + "unpack the archive with `tt coredump unpack cores/core.tar.gz`, copy it over " +
+			"tarantool, or to the debug file named above under ., and run `tt coredump inspect .`",
 	}, warnings(recorder))
 
 	// A tarantool with debugging information, and one that is no ELF file,
@@ -339,13 +353,13 @@ func TestWarnDebugInfo(t *testing.T) {
 	writeELF(t, filepath.Join(dir, "tarantool"), []testSection{text, debugInfo}, nil)
 
 	log, recorder = logtest.New(t)
-	warnDebugInfo(log, dir, dir)
+	warnDebugInfo(log, dir, dir, "")
 	assert.Empty(t, warnings(recorder))
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "tarantool"), []byte("text"), 0o755))
 
 	log, recorder = logtest.New(t)
-	warnDebugInfo(log, dir, dir)
+	warnDebugInfo(log, dir, dir, "")
 	assert.Empty(t, warnings(recorder))
 }
 
@@ -385,7 +399,7 @@ func TestDebugInfoHint(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "version"), []byte(version+"\n"),
 			0o644))
 
-		return debugInfoHint(dir, dir)
+		return debugInfoHint(dir, dir, "")
 	}
 
 	static := "Tarantool 3.9.0-0-g8b9a0f59a95b"
@@ -411,5 +425,5 @@ func TestDebugInfoHint(t *testing.T) {
 	// No version file.
 	dir := t.TempDir()
 	writeELF(t, filepath.Join(dir, "tarantool"), []testSection{text, buildIDSection(t)}, nil)
-	assert.Equal(t, generic, debugInfoHint(dir, dir))
+	assert.Equal(t, generic, debugInfoHint(dir, dir, ""))
 }
