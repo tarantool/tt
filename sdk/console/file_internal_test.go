@@ -2,6 +2,7 @@ package console
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -64,4 +65,30 @@ func TestIsRegularFile(t *testing.T) {
 	assert.True(t, isRegularFile(writeLines(t, "a\n")))
 	assert.False(t, isRegularFile(dir))
 	assert.False(t, isRegularFile(filepath.Join(dir, "missing")))
+}
+
+// TestGetHomeDir checks that the home directory is $HOME, whatever the user
+// database says, and the one the database has without HOME: a container may
+// run the console as a uid the database does not know.
+func TestGetHomeDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	got, err := getHomeDir()
+	require.NoError(t, err)
+	assert.Equal(t, home, got)
+
+	require.NoError(t, os.Unsetenv("HOME"))
+
+	got, err = getHomeDir()
+
+	current, currentErr := user.Current()
+	if currentErr != nil {
+		require.ErrorContains(t, err, currentErr.Error())
+
+		return
+	}
+
+	require.NoError(t, err)
+	assert.Equal(t, current.HomeDir, got)
 }

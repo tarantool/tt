@@ -90,6 +90,32 @@ func TestIsRegularFile(t *testing.T) {
 	assert.False(util.IsRegularFile("./non-existing-file"))
 }
 
+// TestGetHomeDir checks that the home directory is $HOME, whatever the user
+// database says, and the one the database has without HOME: a container may
+// run tt as a uid the database does not know.
+func TestGetHomeDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	got, err := util.GetHomeDir()
+	require.NoError(t, err)
+	assert.Equal(t, home, got)
+
+	require.NoError(t, os.Unsetenv("HOME"))
+
+	got, err = util.GetHomeDir()
+
+	current, currentErr := user.Current()
+	if currentErr != nil {
+		require.ErrorContains(t, err, currentErr.Error())
+
+		return
+	}
+
+	require.NoError(t, err)
+	assert.Equal(t, current.HomeDir, got)
+}
+
 func TestCreateDirectory(t *testing.T) {
 	currentUser, err := user.Current()
 	if err == nil && currentUser.Uid == "0" {

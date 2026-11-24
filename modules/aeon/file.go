@@ -47,11 +47,19 @@ func isRegularFile(filePath string) bool {
 	return fileInfo.Mode().IsRegular()
 }
 
-// homeDir returns the home directory of the current user.
+// homeDir returns the home directory of the current user: $HOME, or the one
+// the user database has when HOME is not set. A process may run as a user
+// the database does not know, as a container started with an arbitrary uid
+// does, and has a HOME all the same.
 func homeDir() (string, error) {
-	usr, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("cannot get the current user: %w", err)
+	home, err := os.UserHomeDir()
+	if err == nil {
+		return home, nil
+	}
+
+	usr, userErr := user.Current()
+	if userErr != nil {
+		return "", fmt.Errorf("cannot get the home directory: %w; %w", err, userErr)
 	}
 
 	return usr.HomeDir, nil
