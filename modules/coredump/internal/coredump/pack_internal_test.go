@@ -9,8 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -172,7 +174,8 @@ func TestPackScriptFiles(t *testing.T) {
 // stayed there. The version of the tarantool fails, before the archive is
 // begun, or tar fails on a file it cannot read, a missing one for root,
 // after it has begun the archive. An archive packed before of the name the
-// failed pack would take stays.
+// failed pack would take stays, and the failed pack leaves no archive of the
+// name it took instead.
 func TestPackScriptFailure(t *testing.T) {
 	t.Parallel()
 	requirePackScript(t)
@@ -304,10 +307,187 @@ func TestPackScriptReport(t *testing.T) {
 	}
 }
 
+// archiveDirs returns the top directories of the members of the tar.gz
+// archive at path.
+func archiveDirs(t *testing.T, path string) []string {
+	t.Helper()
+
+	file, err := os.Open(path)
+	require.NoError(t, err)
+
+	defer func() { _ = file.Close() }()
+
+	compressed, err := gzip.NewReader(file)
+	require.NoError(t, err)
+
+	var dirs []string
+
+	reader := tar.NewReader(compressed)
+
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		require.NoError(t, err)
+
+		dir, _, _ := strings.Cut(header.Name, "/")
+		if !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+		}
+	}
+
+	return dirs
+}
+
+// TestPackScriptTakenName runs the pack script, as Pack does, on the same
+// core of the same time and PID three times: the archive of the name there
+// already stays as it is, and the next packs take the name with -2 and -3
+// before .tar.gz, for the archive and its directory alike, and report the
+// archive of the first name on the second line of -r. The second pack
+// replaced the archive: the name has the minute of the time alone.
+func TestPackScriptTakenName(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	out := t.TempDir()
+	core := filepath.Join(dir, "core")
+
+	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o600))
+
+	args := []string{
+		"-c", core, "-e", fakeTarantool(t, dir), "-d", out, "-p", "42", "-t", "1763869440",
+	}
+
+	var name string
+
+	var first []byte
+
+	for index, suffix := range []string{"", "-2", "-3"} {
+		report := filepath.Join(t.TempDir(), "archive")
+
+		output, err := runScript(t, "", append(args, "-r", report)...)
+		require.NoError(t, err, output)
+
+		archives, err := filepath.Glob(filepath.Join(out, "*.tar.gz"))
+		require.NoError(t, err)
+		require.Len(t, archives, index+1, suffix)
+
+		if name == "" {
+			name = strings.TrimSuffix(filepath.Base(archives[0]), ".tar.gz")
+			require.True(t, strings.HasPrefix(name, "tarantool-core-42-"), name)
+		}
+
+		archive := filepath.Join(out, name+suffix+".tar.gz")
+
+		content, err := os.ReadFile(report)
+		require.NoError(t, err, suffix)
+
+		want := archive + "\n"
+		if suffix != "" {
+			want += filepath.Join(out, name+".tar.gz") + "\n"
+		}
+
+		assert.Equal(t, want, string(content), suffix)
+		assert.Equal(t, []string{name + suffix}, archiveDirs(t, archive), suffix)
+		assert.Equal(t, "the core", archiveMembers(t, archive)["coredump"], suffix)
+
+		packed, err := os.ReadFile(filepath.Join(out, name+".tar.gz"))
+		require.NoError(t, err)
+
+		if first == nil {
+			first = packed
+		}
+
+		assert.Equal(t, first, packed, "the first archive stays as it was")
+	}
+
+	entries, err := os.ReadDir(out)
+	require.NoError(t, err)
+	assert.Len(t, entries, 3, "the archives alone")
+}
+
+// TestPackScriptNameNotRegular runs the pack script where the names of the
+// archive are taken by files that are no regular ones: a symbolic link to
+// /dev/null, a FIFO, a symbolic link to nothing and a directory. The pack
+// takes the first name none of them has, -5, and creates the archive as a
+// regular file there, and leaves each as it was; the first name taken is
+// reported. The noclobber of the shell opened the link to /dev/null, which
+// tar wrote the archive to, and a FIFO, where the pack waited for a reader.
+func TestPackScriptNameNotRegular(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	out := t.TempDir()
+	core := filepath.Join(dir, "core")
+	report := filepath.Join(t.TempDir(), "archive")
+
+	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o600))
+
+	args := []string{
+		"-c", core, "-e", fakeTarantool(t, dir), "-d", out, "-p", "42", "-t", "1763869440",
+		"-r", report,
+	}
+
+	// The name is the one a pack of the same core and time takes.
+	probe := t.TempDir()
+
+	output, err := runScript(t, "", "-c", core, "-e", fakeTarantool(t, dir), "-d", probe,
+		"-p", "42", "-t", "1763869440")
+	require.NoError(t, err, output)
+
+	archives, err := filepath.Glob(filepath.Join(probe, "*.tar.gz"))
+	require.NoError(t, err)
+	require.Len(t, archives, 1)
+
+	name := strings.TrimSuffix(filepath.Base(archives[0]), ".tar.gz")
+	first := filepath.Join(out, name+".tar.gz")
+
+	require.NoError(t, os.Symlink(os.DevNull, first))
+	require.NoError(t, syscall.Mkfifo(filepath.Join(out, name+"-2.tar.gz"), 0o600))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "nothing"),
+		filepath.Join(out, name+"-3.tar.gz")))
+	require.NoError(t, os.Mkdir(filepath.Join(out, name+"-4.tar.gz"), 0o700))
+
+	output, err = runScript(t, "", args...)
+	require.NoError(t, err, output)
+
+	archive := filepath.Join(out, name+"-5.tar.gz")
+
+	content, err := os.ReadFile(report)
+	require.NoError(t, err)
+	assert.Equal(t, archive+"\n"+first+"\n", string(content))
+
+	info, err := os.Lstat(archive)
+	require.NoError(t, err)
+	assert.True(t, info.Mode().IsRegular(), info.Mode())
+	assert.Equal(t, "the core", archiveMembers(t, archive)["coredump"])
+
+	target, err := os.Readlink(first)
+	require.NoError(t, err)
+	assert.Equal(t, os.DevNull, target)
+
+	info, err = os.Lstat(filepath.Join(out, name+"-2.tar.gz"))
+	require.NoError(t, err)
+	assert.Equal(t, os.ModeNamedPipe, info.Mode().Type())
+
+	entries, err := os.ReadDir(filepath.Join(out, name+"-4.tar.gz"))
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+
+	entries, err = os.ReadDir(out)
+	require.NoError(t, err)
+	assert.Len(t, entries, 5, "the four names and the archive alone")
+}
+
 // TestPackArchive runs Pack on a core of a tarantool cc built, of the
 // process 4242: it returns the path of the archive, which it named by the
 // PID of the core without one given, where it named it N, and by the one
-// given otherwise, as the pipe gives it.
+// given otherwise, as the pipe gives it. Packed again into the directory,
+// the archive is named apart, and Pack returns the one of the name too.
 func TestPackArchive(t *testing.T) {
 	t.Parallel()
 	requirePackScript(t)
@@ -323,19 +503,27 @@ func TestPackArchive(t *testing.T) {
 		Dir: "", PID: 0, Time: "1763869440",
 	}
 
+	streams := output.Streams{In: nil, Out: io.Discard, Err: io.Discard}
+
 	for pid, name := range map[uint]string{0: "4242", 7: "7"} {
 		opts.Dir, opts.PID = t.TempDir(), pid
 
 		log, _ := logtest.New(t)
 
-		archive, err := Pack(output.Streams{In: nil, Out: io.Discard, Err: io.Discard}, log, opts)
+		archive, taken, err := Pack(streams, log, opts)
 		require.NoError(t, err, pid)
+		assert.Empty(t, taken, pid)
 
 		archives, err := filepath.Glob(filepath.Join(opts.Dir, "*.tar.gz"))
 		require.NoError(t, err)
 		assert.Equal(t, []string{archive}, archives, pid)
 		assert.True(t, strings.HasPrefix(filepath.Base(archive), "tarantool-core-"+name+"-"),
 			archive)
+
+		again, taken, err := Pack(streams, log, opts)
+		require.NoError(t, err, pid)
+		assert.Equal(t, archive, taken, pid)
+		assert.Equal(t, strings.TrimSuffix(archive, ".tar.gz")+"-2.tar.gz", again, pid)
 	}
 }
 

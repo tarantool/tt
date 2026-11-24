@@ -290,10 +290,14 @@ func testExecutable(t *testing.T, base, entry uint64, id string) testObject {
 	}
 }
 
-// testSegment is a segment of memory of a test core.
+// testSegment is a segment of memory of a test core: data at vaddr, of the
+// permissions flags, read and write when they are 0, and of size bytes of
+// memory, len(data) when it is less, of which the core holds data alone.
 type testSegment struct {
 	vaddr uint64
 	data  []byte
+	flags elf.ProgFlag
+	size  uint64
 }
 
 // testCore is a test core dump, little-endian and 64-bit: its segments of
@@ -365,10 +369,15 @@ func (c testCore) write(t *testing.T, path string) string {
 	offset += uint64(len(notes))
 
 	for _, segment := range c.segments {
+		flags := segment.flags
+		if flags == 0 {
+			flags = elf.PF_R | elf.PF_W
+		}
+
 		progs = append(progs, elf.Prog64{
-			Type: uint32(elf.PT_LOAD), Flags: uint32(elf.PF_R | elf.PF_W), Off: offset,
+			Type: uint32(elf.PT_LOAD), Flags: uint32(flags), Off: offset,
 			Vaddr: segment.vaddr, Filesz: uint64(len(segment.data)),
-			Memsz: uint64(len(segment.data)), Align: testPage,
+			Memsz: max(segment.size, uint64(len(segment.data))), Align: testPage,
 		})
 
 		offset += uint64(len(segment.data))

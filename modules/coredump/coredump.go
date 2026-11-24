@@ -10,6 +10,7 @@ package coredump
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -151,12 +152,18 @@ func (p *packCmd) run(corePath string) error {
 		opts.Tarantools = p.tarantools
 	}
 
-	archive, err := coredump.Pack(streams, p.services.Log(), opts)
+	archive, taken, err := coredump.Pack(streams, p.services.Log(), opts)
 	if err != nil {
 		return err
 	}
 
-	p.services.Log().Info("Core was successfully packed: " + archive)
+	// An archive of the name is kept, and the archive is named apart.
+	packed := "Core was successfully packed: " + archive
+	if taken != "" {
+		packed += ", since " + filepath.Base(taken) + " is there already"
+	}
+
+	p.services.Log().Info(packed)
 
 	return nil
 }

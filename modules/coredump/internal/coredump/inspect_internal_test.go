@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"io/fs"
+	"log/slog"
 	"maps"
 	"net/http"
 	"os"
@@ -457,6 +459,82 @@ func TestInspectArchive(t *testing.T) {
 		luajitDbgName:    "luajit_dbg.py of " + luajitNew,
 		tarantoolGDBName: "tarantool-gdb.py of 8b9a0f59a95b",
 	}, sourced(out))
+}
+
+// mappedNote is what inspect says before gdb starts of the files the core of
+// mappedArtefacts maps that are not in the archive and hold no code.
+const mappedNote = "gdb will warn of 2 files the core maps that are not in the archive, " +
+	"/usr/lib/locale/locale-archive and /usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache: " +
+	"they hold no code gdb needs"
+
+// TestInspectMappedFiles checks that inspect gives the files the core maps,
+// of the archive under other names, the paths the core records of them in
+// the artefacts before gdb starts, which gdb opens them by under the sysroot,
+// and says that gdb will warn of the others, which hold no code: of an
+// unpacked archive, where the links stay, and of an archive. gdb warned
+// "Can't open file" of the executable and of the dynamic loader of a core,
+// as of the locale archive, unexplained.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectMappedFiles(t *testing.T) {
+	withFakeGDB(t)
+
+	dir := t.TempDir()
+	writeArtefacts(t, dir)
+	mappedArtefacts(t, dir)
+
+	infos := func(recorder *logtest.Recorder) []string {
+		var got []string
+
+		for _, record := range recorder.Records() {
+			if record.Level == slog.LevelInfo && strings.HasPrefix(record.Message, "gdb will") {
+				got = append(got, record.Message)
+			}
+		}
+
+		return got
+	}
+
+	out, recorder := runInspect(t, dir, "")
+	assert.Contains(t, out, "-ex\nset sysroot "+dir+"\n")
+	assert.Equal(t, []string{mappedNote}, infos(recorder))
+
+	for path, target := range map[string]string{
+		mappedExecutable: "tarantool", mappedLoader: "lib64/ld-linux-x86-64.so.2",
+	} {
+		linked, err := os.Stat(filepath.Join(dir, path))
+		require.NoError(t, err, path)
+
+		file, err := os.Stat(filepath.Join(dir, target))
+		require.NoError(t, err, path)
+		assert.True(t, os.SameFile(linked, file), path)
+	}
+
+	// The archive of the artefacts, without the links.
+	files := map[string]string{}
+	artefacts := os.DirFS(dir)
+
+	require.NoError(t, fs.WalkDir(artefacts, ".", func(name string, entry fs.DirEntry,
+		err error,
+	) error {
+		if err != nil || !entry.Type().IsRegular() {
+			return err
+		}
+
+		data, err := fs.ReadFile(artefacts, name)
+		require.NoError(t, err)
+
+		files[name] = string(data)
+
+		return nil
+	}))
+	require.NotContains(t, files, strings.TrimPrefix(mappedExecutable, "/"))
+
+	archive := filepath.Join(t.TempDir(), artefactsDir+".tar.gz")
+	writeFilesArchive(t, archive, artefactsDir+"/", files)
+
+	_, recorder = runInspect(t, archive, "")
+	assert.Equal(t, []string{mappedNote}, infos(recorder))
 }
 
 // TestInspectRenamedArchive checks that inspect of an archive opens the
