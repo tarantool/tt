@@ -12,7 +12,5 @@ import (
 // TestRegistryFlagUsage: the help of --registry, which the SDK holds for the
 // modules, names the variable the core reads the rock servers from.
 func TestRegistryFlagUsage(t *testing.T) {
-	t.Parallel()
-
 	assert.Contains(t, sdk.RegistryFlagUsage, manifestrocks.EnvRegistries+" ")
 }

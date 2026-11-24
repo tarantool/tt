@@ -13,8 +13,6 @@ import (
 // gets the check for bash-completion, and that a script without the
 // fallback it replaces is an error rather than a script without the check.
 func TestRequireBashCompletion(t *testing.T) {
-	t.Parallel()
-
 	var script bytes.Buffer
 
 	require.NoError(t, (&cobra.Command{Use: "tt"}).GenBashCompletionV2(&script, true))

@@ -11,8 +11,6 @@ import (
 // it drops. Everything else, and everything from the script name on, goes
 // to Tarantool as typed.
 func TestSplitRunArgs(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name string
 		args []string
@@ -87,8 +85,6 @@ func TestSplitRunArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			help, argv := splitRunArgs(tt.args)
 
 			assert.Equal(t, tt.help, help)
