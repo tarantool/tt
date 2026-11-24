@@ -176,8 +176,6 @@ func TestUnknownTopLevelCommand(t *testing.T) {
 // TestMovedCommandsAreGone checks that tt has none of the commands the hints
 // are for: a hint is given only for a command tt does not run.
 func TestMovedCommandsAreGone(t *testing.T) {
-	t.Parallel()
-
 	root := NewCmdRoot()
 
 	for name := range movedCommands {
@@ -191,8 +189,6 @@ func TestMovedCommandsAreGone(t *testing.T) {
 // TestRejectUnknownSubcommands checks which commands become groups: those
 // with subcommands and no RunE of their own.
 func TestRejectUnknownSubcommands(t *testing.T) {
-	t.Parallel()
-
 	ran := false
 	own := &cobra.Command{Use: "own", RunE: func(*cobra.Command, []string) error {
 		ran = true

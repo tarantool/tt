@@ -104,8 +104,6 @@ func TestErrorsHelpTopic(t *testing.T) {
 // TestHelpColor checks that the help is coloured on a terminal only, and
 // there not with NO_COLOR set to a value or TERM=dumb.
 func TestHelpColor(t *testing.T) {
-	t.Parallel()
-
 	env := func(vars map[string]string) func(string) (string, bool) {
 		return func(key string) (string, bool) {
 			value, ok := vars[key]
