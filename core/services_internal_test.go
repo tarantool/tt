@@ -70,6 +70,12 @@ func TestServicesReadiness(t *testing.T) {
 		"ClusterConfig": func() {
 			_, _ = svc.ClusterConfig(t.Context(), sdk.FileSource("config.yaml"))
 		},
+		"Connect": func() {
+			_, _ = svc.Connect(t.Context(), "app:inst", sdk.ConnectOptions{})
+		},
+		"LocalInstances": func() {
+			_, _ = svc.LocalInstances(t.Context(), nil, sdk.AppLookup{})
+		},
 		"Exit": func() { svc.Exit(nil) },
 	} {
 		assert.PanicsWithValue(t, `module "early" used Services.`+method+

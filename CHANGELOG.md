@@ -79,6 +79,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   module such as one of `tt perf` needed the code of `tt connect`, which a
   module cannot import. `Services` has a method more, which a module that
   implemented it, as it must not, has to add.
+- The SDK gives a module the instances of this host:
+  `Services.LocalInstances(ctx, targets, lookup)` selects them as `tt
+  instance status` does, `app:inst`, `app:*` and comma-separated lists,
+  every instance of the project for no target and every instance of the
+  user or the system scope with `--scope`, the config read as far as it
+  can be, and returns an `sdk.LocalInstance` of each, running or not: its
+  name, the working directory of its process, where a core of a relative
+  `kernel.core_pattern` goes (the application directory, or the
+  `process.work_dir` of the config, or `TT_WORK_DIR` of the record of a
+  script, the workdir of an external process), its run directory, its
+  `tt.log`, the file Tarantool logs into of its own with `log.to: file`,
+  and its crashes, `sdk.Crash` of `crashes.json` with the time, the PID,
+  the signal and whether a core was dumped, or `CrashesErr`, why they
+  cannot be read: a file of another user, a broken one, or one a newer tt
+  wrote. A bare application is refused, and an application or an instance
+  not found wraps `sdk.ErrNotFound`. `sdktest` fakes it:
+  `WithLocalInstances` gives the instances it selects among, in the order
+  and with the refusals of the core, and `LocalInstancesCalls` records the
+  calls. `Services` has a
+  method more, which a module that implemented it, as it must not, has to
+  add.
 - `tt package build --target OS/ARCH` and `tt package pack --target
   OS/ARCH` build the components of the package for another platform than
   the machine tt runs on: `linux/amd64`, `linux/arm64`, `darwin/amd64` or

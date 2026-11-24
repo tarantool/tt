@@ -68,6 +68,9 @@ func TestServicesPanicBeforeStart(t *testing.T) {
 		"Connect": func() {
 			_, _ = services.Connect(t.Context(), "app:inst", sdk.ConnectOptions{})
 		},
+		"LocalInstances": func() {
+			_, _ = services.LocalInstances(t.Context(), nil, sdk.AppLookup{})
+		},
 		"Exit": func() { services.Exit(nil) },
 	}
 

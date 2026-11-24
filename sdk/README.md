@@ -150,7 +150,16 @@ core uses, and the core never requires older ones.
   same Go values over either transport - integers as `int64`, strings
   byte for byte, tables as `[]any` or `map[any]any` - and a Lua error as
   an error that wraps `ErrEval` and reads as its message alone; the
-  deadline of its context bounds the wait for the answer)
+  deadline of its context bounds the wait for the answer), `LocalInstances`
+  (the instances of this host the targets select, as `tt instance status`
+  selects them with `--scope` and `--template`, every instance of the
+  project for none, each a `LocalInstance` with its name, the working
+  directory of its process, where a core of a relative
+  `kernel.core_pattern` goes, its run directory, `tt.log`, the file
+  Tarantool logs into of its own, if any, and the crashes its watchdogs
+  recorded, the last ten exits by a signal with the PID, the signal and
+  whether a core was dumped, running or not, or in `CrashesErr` why they
+  cannot be read, as those of another user; nothing connects to them)
   and `Exit` (reports an error and ends the process with tt's code for it,
   for code such as a prompt callback that cannot return the error).
   `ErrNotFound` is wrapped by what is not found.
@@ -273,7 +282,13 @@ core uses, and the core never requires older ones.
   which returns `EvalError` for a Lua error, `WithConnectError` makes a
   target fail, any other target is not found, and the calls and the
   connections left open are recorded (`Connects`, `Evals`, `Conns`); an
-  `Eval` its context ends closes the `Conn`, as the core's does. The
+  `Eval` its context ends closes the `Conn`, as the core's does.
+  `LocalInstances` selects among the instances `WithLocalInstances` gives,
+  as the core selects, all of them for no target, the applications in the
+  order the targets name them, and records the calls
+  (`LocalInstancesCalls`); a target that selects none is not found, and one
+  that is no instance target, as `app` or `app:`, is refused with the
+  message of the core. The
   project reads, edits and installs nothing: its root is the
   project directory or the one `WithRoot` sets, its manifest the one
   `WithManifest` gives - empty by default, none with `WithNoManifest` - with
