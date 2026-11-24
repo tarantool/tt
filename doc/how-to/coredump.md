@@ -19,8 +19,9 @@ flags of the commands are in [`tt coredump`](../reference/commands/coredump.md).
 You need:
 
 - tt 3 for Linux, amd64 or arm64;
-- the tarantool that dumped the core, the very file: pack compares its
-  build ID with that of the core and runs `tarantool --version`;
+- the tarantool that dumped the core, that file or another of its build, as
+  the same release installed again: pack finds it, compares its build ID
+  with that of the core and runs `tarantool --version`;
 - bash, GNU tar and gzip, `getopt` of util-linux and the coreutils
   `basename`, `cat`, `date`, `dirname`, `ln`, `mkdir`, `mktemp` and `rm`.
   `hostname` is optional: without it the archive is named `...-hostname`.
@@ -136,8 +137,8 @@ the log of the instance, and the core in the directory of the project:
 ```console
 $ tt instance logs kv:instance001 -n 3
 kv:instance001: #12 0xeaa17e in coro_init+62
-kv:instance001: Watchdog 2026/11/23 22:27:26 (WARN): tarantool, PID 33, has ended: it was killed by signal 6 (aborted).
-kv:instance001: Watchdog 2026/11/23 22:27:26 (INFO): the Instance has shutdown.
+kv:instance001: Watchdog 2026/11/23 23:40:36 (WARN): tarantool, PID 33, has ended: it was killed by signal 6 (aborted).
+kv:instance001: Watchdog 2026/11/23 23:40:36 (INFO): the Instance has shutdown.
 $ ls core.*
 core.33
 ```
@@ -146,52 +147,95 @@ Tarantool reports a crash, a SIGSEGV here, and then aborts, so the core is
 of signal 6. Pack it in the directory of the project:
 
 ```console
-$ tt coredump pack -p 33 core.33
-The resulting archive is located here: /home/user/kv/tarantool-core-33-202611232227-db1.tar.gz
+$ tt coredump pack core.33
+   • packing with /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool, the executable the core names module=coredump
+The resulting archive is located here: /home/user/kv/tarantool-core-33-202611232340-db1.tar.gz
 The archive contents are listed below:
-tarantool-core-33-202611232227-db1/version
-tarantool-core-33-202611232227-db1/etc/os-release
-tarantool-core-33-202611232227-db1/tarantool
-tarantool-core-33-202611232227-db1/coredump
-tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/libdl.so.2
-tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/librt.so.1
-tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/libpthread.so.0
-tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/libm.so.6
-tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/libgcc_s.so.1
-tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/libc.so.6
-tarantool-core-33-202611232227-db1/lib64/ld-linux-x86-64.so.2
-tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/libthread_db.so.1
-tarantool-core-33-202611232227-db1/gdb.sh
-tarantool-core-33-202611232227-db1/ext/tarantool-gdb.py
-tarantool-core-33-202611232227-db1/ext/luajit_dbg.py
+tarantool-core-33-202611232340-db1/version
+tarantool-core-33-202611232340-db1/etc/os-release
+tarantool-core-33-202611232340-db1/tarantool
+tarantool-core-33-202611232340-db1/coredump
+tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/libdl.so.2
+tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/librt.so.1
+tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/libpthread.so.0
+tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/libm.so.6
+tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/libgcc_s.so.1
+tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/libc.so.6
+tarantool-core-33-202611232340-db1/lib64/ld-linux-x86-64.so.2
+tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/libthread_db.so.1
+tarantool-core-33-202611232340-db1/gdb.sh
+tarantool-core-33-202611232340-db1/ext/tarantool-gdb.py
+tarantool-core-33-202611232340-db1/ext/luajit_dbg.py
 
 If you want to upload it, choose the available resource
 and run the following command:
-$ curl -T /home/user/kv/tarantool-core-33-202611232227-db1.tar.gz <resource-uri>
-   • Core was successfully packed. module=coredump
+$ curl -T /home/user/kv/tarantool-core-33-202611232340-db1.tar.gz <resource-uri>
+   • Core was successfully packed: /home/user/kv/tarantool-core-33-202611232340-db1.tar.gz module=coredump
 ```
 
-The archive is `tarantool-core-<PID>-<time>-<host>.tar.gz`; `-p` gives the
-PID, `N` without it, and the time is that of the pack, unless `-t` gives
-the time of the dump in seconds since the Epoch. The list of the contents
-and the hint of `curl` are printed on a terminal only. `-d` makes the
-archive in another directory.
+The last line says where the archive is, on a terminal or not; the list of
+the contents and the hint of `curl` are printed on a terminal only. The
+archive is `tarantool-core-<PID>-<time>-<host>.tar.gz`. The PID is that of
+the process of the core, which the core records, unless `-p` gives it, and
+`N` for a core that records none, as one of a 32-bit process. The time is
+that of the pack, unless `-t` gives the time of the dump in seconds since
+the Epoch. `-d` makes the archive in another directory than the working
+one. An archive of the same name, as of the same core packed again in the
+same minute, is replaced.
 
-Pack takes the tarantool `-e` names. Without `-e` it takes the one the
-instance commands run in the project of the working directory, else the
-`tarantool` of `PATH`; the pipe takes the executable of the process. A
-tarantool of another build is refused, as when the Tarantool of the project
-was upgraded after the crash:
+Pack finds the tarantool by itself and says which it took. It is the
+executable the core names, the file the process ran, when that file is
+still there and has the build ID of the core. Otherwise it is the first with
+that build ID of the `tarantool` of `PATH`, the one the instance commands
+run in the project of the working directory, and those `tt binary install`
+put into the project, user and system scopes: the active one of each scope,
+then each of its versions. `-e` names the tarantool instead, and pack tries
+no other; the pipe takes the executable of the process.
+
+So, run in any directory of the host and whatever `PATH` has, pack takes
+the tarantool the instance ran, as here, after the project went back to
+Tarantool 3.8.2, which its instances run now:
 
 ```console
-$ tt coredump pack -p 33 core.33
-   ⨯ core dump file is produced by the different Tarantool executable: looks like 'core.33' is not generated by `/home/user/kv/.tarantool/versions/tarantool/tarantool_3.8.2/tarantool': the executable of the core has build ID 781dc56a9fb4e0f2e457995160fea91d4cd3fa72, the binary 77b6c017b00ea47bd50386524b503e4457420aa8; check that the given COREDUMP is produced by the specified BINARY
-$ tt coredump pack -e .tarantool/versions/tarantool/tarantool_3.9.0/tarantool -p 33 core.33
-   • Core was successfully packed. module=coredump
+$ tt binary install tarantool 3.8.2
+...
+   • Made default by symlink "/home/user/kv/.tarantool/bin/tarantool"
+...
+$ tt coredump pack core.33
+   • packing with /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool, the executable the core names module=coredump
+...
+   • Core was successfully packed: /home/user/kv/tarantool-core-33-202611232353-db1.tar.gz module=coredump
 ```
 
-The first line gdb prints of the core, `Core was generated by ...`, names
-the path the process ran.
+A tarantool of another build is refused. When none has the build, as once
+the project has uninstalled 3.9.0, pack fails: it lists each tarantool it
+tried and why it is not the one, and names the path the core records:
+
+```console
+$ tt binary uninstall tarantool 3.9.0
+...
+$ tt coredump pack core.33
+   ⨯ core dump file is produced by the different Tarantool executable: none of the tarantools tried dumped 'core.33':
+       /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool, the executable the core names: missing
+       /home/user/kv/.tarantool/versions/tarantool/tarantool_3.8.2/tarantool, the tarantool tt runs here: the executable of the core has build ID 781dc56a9fb4e0f2e457995160fea91d4cd3fa72, the binary 77b6c017b00ea47bd50386524b503e4457420aa8
+     specify the tarantool that dumped the core with -e <path>; the core records it as /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool
+```
+
+`tt binary install` of the same release installs the same build again, and
+pack finds it in a scope by its build ID:
+
+```console
+$ tt binary install tarantool 3.9.0 --scope user
+...
+$ tt coredump pack core.33
+   • not packing with /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool, the executable the core names: missing module=coredump
+   • packing with /home/user/.local/share/tarantool/bin/tarantool, the active tarantool of the user scope: it has the build ID of the core, 781dc56a9fb4e0f2e457995160fea91d4cd3fa72 module=coredump
+...
+   • Core was successfully packed: /home/user/kv/tarantool-core-33-202611232353-db1.tar.gz module=coredump
+```
+
+A tarantool of the build anywhere else, as a copy, is given with `-e`, as
+the error says; with `-e` pack prints no `packing with` line.
 
 ### A tarantool without debugging information
 
@@ -202,13 +246,16 @@ of it, and finds the debug file a debuginfo or dbgsym package installs under
 `/usr/lib/debug/.build-id/` and packs it, when there is one. For a release
 of Tarantool Community 3.x, whose static builds are the same in the RPM and
 the deb packages, the hint names the tarantool of the static deb, which
-keeps its DWARF and which `tt binary install` installs:
+keeps its DWARF and which `tt binary install` installs. Here the instance
+ran the `/usr/bin/tarantool` of a package, without DWARF:
 
 ```console
-$ tt coredump pack -e /usr/bin/tarantool -p 33 core.33
+$ tt coredump pack core.33
+   • packing with /usr/bin/tarantool, the executable the core names module=coredump
    ⚠ the tarantool /usr/bin/tarantool has no debugging information, and no debug file of its build ID 781dc56a9fb4e0f2e457995160fea91d4cd3fa72 is under /usr/lib/debug: the archive will have none, and the lj-* commands of LuaJIT and the pretty-printers of Tarantool will not work on the core, plain backtraces will module=coredump
    ⚠ hint: the tarantool of the static deb of Tarantool 3.9.0, which `tt binary install tarantool 3.9.0` installs, has the debugging information: if its build ID is that of the core, 781dc56a9fb4e0f2e457995160fea91d4cd3fa72, pack the core with it, `tt coredump pack -e <its path>` module=coredump
-   • Core was successfully packed. module=coredump
+...
+   • Core was successfully packed: /home/user/kv/tarantool-core-33-202611232347-db1.tar.gz module=coredump
 $ mkdir ~/deb
 $ cd ~/deb
 $ tt binary install tarantool 3.9.0
@@ -218,11 +265,14 @@ $ tt binary install tarantool 3.9.0
    • Done.
 ...
 $ cd ~/kv
-$ tt coredump pack -e ~/deb/.tarantool/bin/tarantool -p 33 core.33
-   • Core was successfully packed. module=coredump
+$ tt coredump pack -e ~/deb/.tarantool/bin/tarantool core.33
+...
+   • Core was successfully packed: /home/user/kv/tarantool-core-33-202611232348-db1.tar.gz module=coredump
 ```
 
-The build ID check of pack tells whether it is the same build. `tt binary
+`-e` is needed here: pack takes the tarantool the core names when it has the
+build ID, whether it has DWARF or not, and looks no further. The build ID
+check of pack tells whether the one of `-e` is the same build. `tt binary
 install` needs the network; support can do the same with an archive
 already packed, as its hint says (see
 [Warnings](#warnings-before-gdb-starts)). An Enterprise build, a
@@ -242,8 +292,10 @@ $ tt instance kill --dump kv:instance001 --yes
    • The instance kv:instance001 (PID = 33) has been terminated with dump.
 $ ls core.*
 core.33
-$ tt coredump pack -p 33 core.33
-   • Core was successfully packed. module=coredump
+$ tt coredump pack core.33
+   • packing with /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool, the executable the core names module=coredump
+...
+   • Core was successfully packed: /home/user/kv/tarantool-core-33-202611232342-db1.tar.gz module=coredump
 ```
 
 An instance a unit of systemd runs is refused, and tt names the
@@ -255,16 +307,18 @@ it running, but gcore of gdb before 18.1, on glibc 2.42 or later with Linux
 Pack warns of such a core:
 
 ```console
-# gcore -o core 80747
+# gcore -o core 38
 ...
-warning: Memory read failed for corefile section, 1048576 bytes at 0x787ab8fff000.
+warning: Memory read failed for corefile section, 1048576 bytes at 0x7cd4b2fff000.
 ...
-Saved corefile core.80747
-[Inferior 1 (process 80747) detached]
-# tt coredump pack -p 80747 core.80747
+Saved corefile core.38
+[Inferior 1 (process 38) detached]
+# tt coredump pack core.38
+   • packing with /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool, the executable the core names module=coredump
    ⚠ all 4 threads of the core besides the main one have nothing but zeros in the 1024 bytes above the stack pointer: the backtraces of those threads will be empty, and libthread_db may fail on the core module=coredump
    ⚠ hint: gcore of gdb older than 18.1 writes such stacks on glibc 2.42 or later with Linux 6.13 or later; take the core the kernel writes, or write it with gcore-pages of tarantool-gdb-tools module=coredump
-   • Core was successfully packed. module=coredump
+...
+   • Core was successfully packed: /root/tarantool-core-38-202611232344-db1.tar.gz module=coredump
 ```
 
 Prefer `tt instance kill --dump`. Where the process must keep running,
@@ -274,13 +328,15 @@ is a gcore that keeps the stacks. Take it at the commit `tt coredump inspect
 
 ```console
 # curl -fsSLO https://raw.githubusercontent.com/buyemune-sys/tarantool-gdb-tools/dba4b9be8be9c9a35c0d318fd2f9a244f40fff92/gcore_pages_gdb.py
-# gdb -p 80747 -batch -ex 'source gcore_pages_gdb.py' -ex 'gcore-pages core.80747'
+# gdb -p 38 -batch -ex 'source gcore_pages_gdb.py' -ex 'gcore-pages core.38'
 ...
-Saved corefile core.80747
-gcore-pages: read again 33570816 bytes of 4 mappings, 5 pages unreadable
-[Inferior 1 (process 80747) detached]
-# tt coredump pack -p 80747 core.80747
-   • Core was successfully packed. module=coredump
+Saved corefile core.38
+gcore-pages: read again 41963520 bytes of 5 mappings, 6 pages unreadable
+[Inferior 1 (process 38) detached]
+# tt coredump pack core.38
+   • packing with /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool, the executable the core names module=coredump
+...
+   • Core was successfully packed: /root/tarantool-core-38-202611232344-db1.tar.gz module=coredump
 ```
 
 ### What the archive holds
@@ -327,7 +383,11 @@ its own `gdb.sh` and picks the extensions itself, by `version`, and leaves
 the `gdb.sh` and `ext/` of the archive alone. On the customer's host, the
 pack of tt 2 needs gdb and `file`, packs no debug file of `/usr/lib/debug`,
 and cannot be the pipe of `kernel.core_pattern`, since it reads the core
-from a file only. Have the customer pack with tt 3 where they can.
+from a file only. It does not look for the tarantool of the core: it takes
+the one of `-e`, else that of the `bin_dir` of its `tt.yaml` or of `PATH`.
+Without `-p` it names the archive `tarantool-core-N-...`, and it says where
+the archive is on a terminal only. Have the customer pack with tt 3 where
+they can.
 
 ## On the support host
 
@@ -389,7 +449,7 @@ pager at all: tt leaves it off.
 Run it in the directory of the archive, which it sees as `/work`:
 
 ```console
-$ docker run --rm -it -v "$PWD:/work" tt-coredump tarantool-core-33-202611232227-db1.tar.gz
+$ docker run --rm -it -v "$PWD:/work" tt-coredump tarantool-core-33-202611232340-db1.tar.gz
 ```
 
 The archive is unpacked into `/tmp` of the container and removed when gdb
@@ -412,14 +472,14 @@ and give them with -s tarantool-8b9a0f59a95b.
 ================================================================================
 GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1
 ...
-Reading symbols from /tmp/tt-coredump-4045708535/tarantool-core-33-202611232227-db1/tarantool...
+Reading symbols from /tmp/tt-coredump-1462132376/tarantool-core-33-202611232340-db1/tarantool...
 warning: Can't open file /home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool during file-backed mapping note processing
 ...
 [New LWP 33]
-[New LWP 36]
+[New LWP 39]
 ...
 [Thread debugging using libthread_db enabled]
-Using host libthread_db library "/tmp/tt-coredump-4045708535/tarantool-core-33-202611232227-db1/lib/x86_64-linux-gnu/libthread_db.so.1".
+Using host libthread_db library "/tmp/tt-coredump-1462132376/tarantool-core-33-202611232340-db1/lib/x86_64-linux-gnu/libthread_db.so.1".
 Core was generated by `/home/user/kv/.tarantool/versions/tarantool/tarantool_3.9.0/tarantool -n instance001 -c /home/user/kv/.templates/default/config.yaml'.
 Program terminated with signal SIGABRT, Aborted.
 ...
@@ -449,9 +509,9 @@ into the working directory; in the image, as the user of the host, so that
 the files are theirs:
 
 ```console
-$ docker run --rm -v "$PWD:/work" --user "$(id -u):$(id -g)" --entrypoint tt tt-coredump coredump unpack tarantool-core-33-202611232227-db1.tar.gz
+$ docker run --rm -v "$PWD:/work" --user "$(id -u):$(id -g)" --entrypoint tt tt-coredump coredump unpack tarantool-core-33-202611232340-db1.tar.gz
    • Archive was successfully unpacked. module=coredump
-$ docker run --rm -it -v "$PWD:/work" tt-coredump tarantool-core-33-202611232227-db1
+$ docker run --rm -it -v "$PWD:/work" tt-coredump tarantool-core-33-202611232340-db1
 ```
 
 `-s` gives gdb the sources of the Tarantool of the core, a checkout of its
@@ -463,7 +523,7 @@ directory of the archive, which the image sees as its working directory:
 $ git clone https://github.com/tarantool/tarantool.git tarantool-8b9a0f59a95b
 $ git -C tarantool-8b9a0f59a95b checkout 8b9a0f59a95b
 $ git -C tarantool-8b9a0f59a95b submodule update --init --recursive
-$ docker run --rm -it -v "$PWD:/work" tt-coredump -s tarantool-8b9a0f59a95b tarantool-core-33-202611232227-db1.tar.gz
+$ docker run --rm -it -v "$PWD:/work" tt-coredump -s tarantool-8b9a0f59a95b tarantool-core-33-202611232340-db1.tar.gz
 ...
 (gdb) frame function crash_signal_cb
 #3  0x000000000063da59 in crash_signal_cb (signo=11, siginfo=<optimized out>,
@@ -506,7 +566,7 @@ copy where:
 
 ```text
    ⚠ the tarantool of the core has no debugging information: no .debug_info in the tarantool, and no usr/lib/debug/.build-id/78/1dc56a9fb4e0f2e457995160fea91d4cd3fa72.debug of its build ID in the archive: the lj-* commands of LuaJIT and the pretty-printers of Tarantool will not work, plain backtraces will module=coredump
-   ⚠ hint: the tarantool of the static deb of Tarantool 3.9.0, which `tt binary install tarantool 3.9.0` installs, has the debugging information: if its build ID is that of the core, 781dc56a9fb4e0f2e457995160fea91d4cd3fa72, unpack the archive with `tt coredump unpack tarantool-core-33-202611232228-db1.tar.gz`, copy it over tarantool-core-33-202611232228-db1/tarantool, or to the debug file named above under tarantool-core-33-202611232228-db1, and run `tt coredump inspect tarantool-core-33-202611232228-db1` module=coredump
+   ⚠ hint: the tarantool of the static deb of Tarantool 3.9.0, which `tt binary install tarantool 3.9.0` installs, has the debugging information: if its build ID is that of the core, 781dc56a9fb4e0f2e457995160fea91d4cd3fa72, unpack the archive with `tt coredump unpack tarantool-core-33-202611232347-db1.tar.gz`, copy it over tarantool-core-33-202611232347-db1/tarantool, or to the debug file named above under tarantool-core-33-202611232347-db1, and run `tt coredump inspect tarantool-core-33-202611232347-db1` module=coredump
 ...
 (gdb) lj-bt
 lj-bt: the LuaJIT extension is not initialized yet (no LuaJIT symbols loaded?)
@@ -674,10 +734,22 @@ lj-` lists the other `lj-*` commands, `lj-tv`, `lj-str`, `lj-tab`,
   `--experimental` switches there.
 
 <!-- Verified on 2026-11-24 with tt 3 and Tarantool 3.9.0 of the static
-deb: the customer side in debian:stable-slim, its gcore part as root in the
-image above, the support side in the image above, with gdb 17.1, and, for
-gdb 15.1, in one of ubuntu:24.04. The sizes of the archive unpacked, the
-start of gdb without the pager in the image on a terminal of 24 rows, the
-block of git clone and the -s of its checkout were checked again on a core
-of the same crash. The tt-fiber limit was seen on an Ubuntu 26.04 host with
-libc6-dbg. -->
+deb: the customer side in debian:stable-slim, Debian 13.7, with --hostname
+db1, HOME=/home/user and a project kv of tt new, tt binary install
+tarantool 3.9.0 and tt package build, crashed by an FFI write through a null
+pointer from tt connect; its gcore part as root in the image above, with
+the instance of kv running in it; the support side in the image above, with
+gdb 17.1, and, for gdb 15.1, in one of ubuntu:24.04. Every output of pack
+was captured again from the commands as printed, on a terminal: the lookup
+with Tarantool 3.8.2 installed into the project, 3.9.0 uninstalled from it
+and installed into the user scope; the section without debugging
+information on the core of an instance that ran a /usr/bin/tarantool
+stripped by objcopy --strip-debug, of the build ID of the static one. Pack
+run in a directory outside the project, with no tarantool in PATH and no
+terminal, took the tarantool the core names and printed the path of the
+archive. The start of gdb, unpack, inspect of the directory, the sizes of
+the archive unpacked and the -s of a checkout of the block of git clone
+were checked on the archive of the crash; the outputs of gdb from lj-bt on
+are of an earlier core of the same crash, and so is the check of the start
+of gdb without the pager in the image on a terminal of 24 rows. The
+tt-fiber limit was seen on an Ubuntu 26.04 host with libc6-dbg. -->
