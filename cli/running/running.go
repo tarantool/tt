@@ -352,6 +352,8 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, launch *Launch, echo io.Writer
 
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
 
+	exits.warn = func(message string) { logger.Printf("(WARN): %s.", message) }
+
 	src := newInstanceSource(cmdCtx, launch, &watchdogLog{
 		logger:      logger,
 		checkPeriod: time.Duration(cmdCtx.Cli.IntegrityCheckPeriod) * time.Second,

@@ -33,7 +33,8 @@ the system scope.
     ├── log/<app>/<instance>/tt.log       # the output of the instance and its watchdog
     └── run/<app>/<instance>/             # tt.pid, tarantool.pid, tarantool.control,
                                           # tarantool.sock, process.pid, launch.json,
-                                          # watchdog.json, last_exit.json
+                                          # watchdog.json, last_exit.json,
+                                          # crashes.json
 ```
 
 | File | |
@@ -42,6 +43,7 @@ the system scope.
 | `run/.../launch.json` | what the watchdog runs, as `tt instance start` resolved it, while the watchdog runs |
 | `run/.../watchdog.json` | the state of the watchdog, while it runs: its pid, the pid of the process it runs and when that started, the count of restarts and the last integrity check, for `tt instance status` |
 | `run/.../last_exit.json` | how the last process of the instance ended and when, left by its watchdog for `tt instance status --details` |
+| `run/.../crashes.json` | the last 10 exits of the process by a signal, with the PID, the signal and whether a core was dumped, kept by the watchdogs across restarts and stops for `tt instance status --details` |
 | `run/.../tarantool.pid` | the pid file Tarantool writes, once `box.cfg` runs, unless the cluster config moves it with `process.pid_file` |
 | `run/.../tarantool.control` | the console socket `tt connect <app>:<instance>` uses |
 | `run/.../tarantool.sock` | the binary port, unless the cluster config or the script listens elsewhere |

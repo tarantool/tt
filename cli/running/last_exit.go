@@ -26,6 +26,13 @@ type LastExit struct {
 	// Exited tells how the process exited (describeExit), empty when the
 	// watchdog ended before one exited.
 	Exited string `json:"exited,omitempty" yaml:"exited,omitempty"`
+	// PID is the PID of the process that exited, 0 when the watchdog ended
+	// before one exited, and in a record a tt before it wrote.
+	PID int `json:"pid,omitempty" yaml:"pid,omitempty"`
+	// CoreDumped tells that the process was killed by a signal and the
+	// kernel dumped a core of it, as the crashes of the instance record it
+	// (Crash).
+	CoreDumped bool `json:"core_dumped,omitempty" yaml:"core_dumped,omitempty"`
 	// Stopped tells that the process exited after a stop: tt instance stop,
 	// restart, or a stop signal sent to the watchdog.
 	Stopped bool `json:"stopped,omitempty" yaml:"stopped,omitempty"`
@@ -90,8 +97,10 @@ func ReadLastExit(inst *InstanceCtx) (LastExit, bool) {
 }
 
 // exitRecorder keeps the record of the last exit of the process of an
-// instance up to date (lastExitFileName). It is used by the goroutine the
-// watchdog runs on, and does nothing for an instance with no run directory.
+// instance up to date (lastExitFileName), and adds every exit by a signal to
+// its crashes (recordCrash), which a new life of the instance keeps. It is
+// used by the goroutine the watchdog runs on, and does nothing for an
+// instance with no run directory.
 type exitRecorder struct {
 	inst *InstanceCtx
 	// held tells that the watchdog holds the pid file of the instance.
@@ -100,6 +109,10 @@ type exitRecorder struct {
 	stopping bool
 	last     LastExit
 	now      func() time.Time
+	// warn writes a warning into the log of the watchdog, once it has
+	// one: of a record of the crashes moved aside or not written
+	// (recordCrash). nil writes nothing.
+	warn func(message string)
 }
 
 // newExitRecorder returns the recorder of the last exit of inst.
@@ -108,8 +121,11 @@ func newExitRecorder(inst *InstanceCtx) *exitRecorder {
 		inst:     inst,
 		held:     false,
 		stopping: false,
-		last:     LastExit{At: time.Time{}, Exited: "", Stopped: false, Error: ""},
-		now:      time.Now,
+		last: LastExit{
+			At: time.Time{}, Exited: "", PID: 0, CoreDumped: false, Stopped: false, Error: "",
+		},
+		now:  time.Now,
+		warn: nil,
 	}
 }
 
@@ -133,13 +149,28 @@ func (rec *exitRecorder) onEvent(event supervisor.Event) {
 			rec.stopping = true
 		}
 	case supervisor.Exit:
+		ended := rec.now()
+		crash, crashed := crashOf(event, ended)
+
 		rec.last = LastExit{
-			At:      rec.now(),
-			Exited:  describeExit(event),
-			Stopped: rec.stopping,
-			Error:   "",
+			At:         ended,
+			Exited:     describeExit(event),
+			PID:        event.Pid,
+			CoreDumped: crash.CoreDumped,
+			Stopped:    rec.stopping,
+			Error:      "",
 		}
 		rec.write()
+
+		// A process a stop ended by a signal, as tt instance kill --dump
+		// ends one with SIGQUIT and a core, is a crash as well.
+		if crashed {
+			for _, warning := range recordCrash(rec.inst, crash, ended) {
+				if rec.warn != nil {
+					rec.warn(warning)
+				}
+			}
+		}
 	}
 }
 
@@ -178,10 +209,12 @@ func recordKilled(inst *InstanceCtx) {
 	}
 
 	writeLastExit(inst, &LastExit{
-		At:      time.Now(),
-		Exited:  "it was killed by tt instance kill",
-		Stopped: false,
-		Error:   "",
+		At:         time.Now(),
+		Exited:     "it was killed by tt instance kill",
+		PID:        0,
+		CoreDumped: false,
+		Stopped:    false,
+		Error:      "",
 	})
 }
 

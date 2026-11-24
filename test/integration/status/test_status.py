@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -635,6 +636,77 @@ def test_status_details_last_exit(tt_cmd, tmp_path):
         out = details()
         assert f"Last exit of {inst}: it was killed by tt instance kill, at " in out
         assert "The last lines of " in out
+    finally:
+        stop_application(tt_cmd, app_name, app_path)
+
+
+def test_status_details_last_crash(tt_cmd, tmp_path):
+    # The watchdog records every exit of the process by a signal in
+    # crashes.json of the run directory: the restart that follows it, a
+    # clean stop and the next start keep it, where last_exit.json is the
+    # last exit alone. tt instance status --details tells the last crash,
+    # and -o json gives it as last_crash.
+    app_name = "app"
+    app_path = tmp_path / app_name
+    os.makedirs(os.path.dirname(app_path / instances_file))
+    with open(app_path / instances_file, "w") as f:
+        f.write("app:\n  script: init.lua\n  restart: on-failure\n")
+    (app_path / "init.lua").write_text("box.cfg{}\n")
+    inst = f"{app_name}:{app_name}"
+    run_dir = inst_run_dir(app_path, app_name, app_name)
+
+    def status(*args):
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "status", inst, *args],
+            cwd=app_path,
+            stderr=subprocess.DEVNULL,
+        )
+        assert rc == 0, out
+        return out
+
+    try:
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
+        assert rc == 0, out
+        assert "Last crash" not in status("--details")
+
+        # SIGKILL ends the process with no core, whatever RLIMIT_CORE is.
+        pid = box_info_pid(tt_cmd, app_path, inst)
+        os.kill(pid, signal.SIGKILL)
+
+        def json_pid():
+            return extract_status_from_json(status("-o", "json"))[inst]["pid"]
+
+        assert wait_event(30, lambda: json_pid() not in (None, pid))
+        restarted = json_pid()
+
+        # A stop during box.cfg of the restarted process ends it with code 1,
+        # "fiber is cancelled": the stop below waits for its box to run.
+        def box():
+            return extract_status_from_json(status("-o", "json"))[inst]["box"]
+
+        assert wait_event(30, lambda: box() == "running")
+
+        last_crash = rf"Last crash of {inst}: PID {pid}, it was killed by signal 9 \(killed\), at "
+        assert re.search(last_crash, status("--details"))
+
+        stop_application(tt_cmd, app_name, app_path)
+        out = status("--details")
+        assert re.search(rf"Last exit of {inst}: stopped, it exited with code 0, at ", out), out
+        assert re.search(last_crash, out), out
+
+        info = extract_status_from_json(status("-o", "json"))[inst]
+        assert info["last_exit"]["pid"] == restarted
+        assert "core_dumped" not in info["last_exit"]
+        assert info["last_crash"]["pid"] == pid
+        assert info["last_crash"]["signal"] == signal.SIGKILL
+        assert info["last_crash"]["core_dumped"] is False
+
+        # The next life of the instance keeps it.
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
+        assert rc == 0, out
+        assert re.search(last_crash, status("--details"))
+        with open(os.path.join(run_dir, "crashes.json")) as f:
+            assert [crash["pid"] for crash in json.load(f)["crashes"]] == [pid]
     finally:
         stop_application(tt_cmd, app_name, app_path)
 
