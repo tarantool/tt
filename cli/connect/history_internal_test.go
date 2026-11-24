@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseHistoryCells(t *testing.T) {
@@ -62,7 +63,9 @@ func TestParseHistoryCells(t *testing.T) {
 func TestHistoryAppend(t *testing.T) {
 	limit := 20
 
-	history, _ := newCommandHistory("", limit)
+	history, err := newCommandHistory("", limit)
+	require.NoError(t, err)
+
 	for i := range limit {
 		history.appendCommand(fmt.Sprintf("command%d", i))
 		assert.Len(t, history.commands, i+1)

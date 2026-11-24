@@ -12,11 +12,19 @@ import (
 // it walks a file backwards.
 const tailChunkSize int64 = 10000
 
-// getHomeDir returns the home directory of the current user.
+// getHomeDir returns the home directory of the current user: $HOME, or the
+// one the user database has when HOME is not set. A process may run as a
+// user the database does not know, as a container started with an arbitrary
+// uid does, and has a HOME all the same.
 func getHomeDir() (string, error) {
-	usr, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("cannot get the current user: %w", err)
+	home, err := os.UserHomeDir()
+	if err == nil {
+		return home, nil
+	}
+
+	usr, userErr := user.Current()
+	if userErr != nil {
+		return "", fmt.Errorf("cannot get the home directory: %w; %w", err, userErr)
 	}
 
 	return usr.HomeDir, nil

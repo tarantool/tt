@@ -1326,6 +1326,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt connect` and `tt aeon connect` failed with `cannot get the current
+  user: user: unknown userid 1001` when run as a user the user database
+  does not know, as in a container started with an arbitrary uid: they
+  looked the home directory, where the history of the console is kept, up
+  there. They take it from `HOME` now, and from the user database only when
+  `HOME` is not set.
 - `tt connect` to an `app:inst`, and every command that asks an instance
   over its console socket, reads the answer in a time linear in its size:
   a statement whose result is a megabyte, such as the `select` of a big
