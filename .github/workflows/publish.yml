@@ -76,6 +76,20 @@ jobs:
         run: |
           goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_linux.yml
 
+      # Fail when the static libraries of the runner need a newer CPU (#1475).
+      - name: Check that tt runs on baseline x86-64
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends binutils qemu-user
+          mapfile -t bins < <(find dist -type f -path 'dist/tt_linux_amd64*/tt')
+          if [ ${#bins[@]} -eq 0 ]; then
+            echo "::error::no linux amd64 tt binary found under dist/"
+            find dist -maxdepth 2 || true
+            exit 1
+          fi
+          ./ci/check-amd64-baseline.sh "${bins[@]}"
+
       - name: Upload packages artifacts
         uses: actions/upload-artifact@v4
         with:
