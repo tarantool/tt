@@ -3,12 +3,14 @@ package rocks
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // spell-checker:ignore emptyrepo
@@ -126,6 +128,64 @@ func TestGetRocksRepoPath(t *testing.T) {
 	// Return passed repo path, since manifest exists. Env var is ignored.
 	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
 	os.Unsetenv(repoRocksPathEnvVarName)
+}
+
+func TestLuarocksPlatform(t *testing.T) {
+	tests := []struct {
+		goos      string
+		goarch    string
+		system    string
+		processor string
+	}{
+		{"linux", "amd64", "linux", "x86_64"},
+		{"linux", "arm64", "linux", "aarch64"},
+		{"linux", "386", "linux", "x86"},
+		{"darwin", "amd64", "macosx", "x86_64"},
+		{"darwin", "arm64", "macosx", "aarch64"},
+		{"freebsd", "riscv64", "freebsd", "riscv64"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.goos+"/"+tc.goarch, func(t *testing.T) {
+			system, processor := luarocksPlatform(tc.goos, tc.goarch)
+			assert.Equal(t, tc.system, system)
+			assert.Equal(t, tc.processor, processor)
+		})
+	}
+}
+
+// TestHostArch checks that LuaRocks takes the platform from tt and not from
+// its own detection, which on macOS on Apple Silicon reads the first slice of
+// the fat /bin/sh, an x86_64 one.
+func TestHostArch(t *testing.T) {
+	// Keep the LuaRocks configuration files of the host out of the test.
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("LUAROCKS_SYSCONFDIR", dir)
+	for _, name := range []string{"LUAROCKS_CONFIG", "LUAROCKS_CONFIG_5_1"} {
+		t.Setenv(name, "")
+		os.Unsetenv(name)
+	}
+
+	L, err := newLuaState()
+	require.NoError(t, err)
+	defer L.Close()
+
+	// Make the detection of LuaRocks return a platform no host has.
+	err = L.DoString(`
+		package.preload["luarocks.core.sysdetect"] = function()
+			return { detect = function() return "netbsd", "unknown" end }
+		end
+		local cfg = require("luarocks.core.cfg")
+		assert(cfg.init())
+		arch = cfg.arch
+	`)
+	require.NoError(t, err)
+
+	system, processor := luarocksPlatform(runtime.GOOS, runtime.GOARCH)
+	assert.Equal(t, system+"-"+processor, lua.LVAsString(L.GetGlobal("arch")))
 }
 
 func TestSetupTarantoolPrefix(t *testing.T) {

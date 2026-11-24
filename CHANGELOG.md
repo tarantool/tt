@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   it required a Haswell or newer CPU and crashed with SIGILL at start on
   older CPUs and on virtual machines with a conservative CPU model
   (#1475).
+- `tt rocks` on macOS on Apple Silicon installs and finds `macosx-aarch64`
+  binary rocks. LuaRocks took the platform from the first slice of the fat
+  `/bin/sh`, an x86_64 one, so `tt rocks` refused a rock built on the host
+  with `Incompatible architecture macosx-aarch64`, looked for
+  `macosx-x86_64` rocks on the servers and packed rocks under that name.
+  The platform now comes from tt itself.
 
 ## [2.15.2] - 2026-10-22
 

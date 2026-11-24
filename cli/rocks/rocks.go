@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/apex/log"
@@ -127,6 +128,35 @@ func getwdWrapperForLua(L *lua.LState) int {
 	return 1
 }
 
+// luarocksPlatform returns the LuaRocks names of the system and the processor
+// for the Go names of the OS and the architecture.
+func luarocksPlatform(goos, goarch string) (string, string) {
+	system := goos
+	if goos == "darwin" {
+		system = "macosx"
+	}
+
+	processor := goarch
+	switch goarch {
+	case "amd64":
+		processor = "x86_64"
+	case "386":
+		processor = "x86"
+	case "arm64":
+		processor = "aarch64"
+	}
+	return system, processor
+}
+
+// hostPlatformWrapperForLua returns the LuaRocks names of the system and the
+// processor tt is built for.
+func hostPlatformWrapperForLua(state *lua.LState) int {
+	system, processor := luarocksPlatform(runtime.GOOS, runtime.GOARCH)
+	state.Push(lua.LString(system))
+	state.Push(lua.LString(processor))
+	return 2
+}
+
 // Execute LuaRocks command. All args will be processed by LuaRocks.
 func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) error {
 	var cmd string
@@ -172,6 +202,24 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 		rocks_cmd = fmt.Sprintf("t=require('extra.wrapper').exec('%s', %s)",
 			os.Args[0], cmd)
 	}
+
+	L, err := newLuaState()
+	if err != nil {
+		return fmt.Errorf("failed to set up LuaRocks: %w", err)
+	}
+	defer L.Close()
+
+	if err := L.DoString(rocks_cmd); err != nil {
+		return err //nolint:wrapcheck // LuaRocks errors are shown as they are.
+	}
+
+	return nil
+}
+
+// newLuaState returns a Lua state with the LuaRocks modules preloaded.
+//
+//nolint:funlen // most of it is the table of the LuaRocks modules.
+func newLuaState() (*lua.LState, error) {
 	extra_path := "extra/"
 	rocks_path := "third_party/luarocks/src/"
 
@@ -274,25 +322,23 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	}
 
 	L := lua.NewState()
-	defer L.Close()
 	L.SetGlobal("tt_getwd", L.NewFunction(getwdWrapperForLua))
+	L.SetGlobal("tt_host_platform", L.NewFunction(hostPlatformWrapperForLua))
 	preload := L.GetField(L.GetField(L.Get(lua.EnvironIndex), "package"), "preload")
 
 	for modName, path := range rocks_preload {
 		ctx, err := fs.ReadFile(luarocks, path)
 		if err != nil {
-			return err
+			L.Close()
+			return nil, fmt.Errorf("failed to read %q: %w", path, err)
 		}
 		mod, err := L.LoadString(string(ctx))
 		if err != nil {
-			return err
+			L.Close()
+			return nil, fmt.Errorf("failed to load %q: %w", path, err)
 		}
 		L.SetField(preload, modName, mod)
 	}
 
-	if err := L.DoString(rocks_cmd); err != nil {
-		return err
-	}
-
-	return nil
+	return L, nil
 }
