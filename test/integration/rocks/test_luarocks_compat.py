@@ -484,9 +484,10 @@ def test_luarocks_builds_the_source_rock(tt_cmd, tt2, tmp_path, package):
         path = trees["source rock"] / ".rocks" / "bin" / program
         assert subprocess.run([path], capture_output=True, text=True).stdout == "42\n"
 
-    # tt 3 installs the binary rock: LuaRocks 3.9.2 takes the platform from
-    # the first architecture of /bin/sh, which on a macOS of arm64 may be
-    # x86_64, and refuses a binary rock of macosx-aarch64 then.
+    # tt 3 installs the binary rock, as it names the host from the Go
+    # runtime: LuaRocks 3.9.2 of tt 2 up to 2.15.2 takes the platform from
+    # the first architecture of /bin/sh, x86_64 on a macOS of arm64, and
+    # refuses a binary rock of macosx-aarch64 there (#1501).
     binary = tmp / "binary-rock"
     binary.mkdir()
     rc, output = run_command_and_get_output(

@@ -12,10 +12,10 @@ manifests/, and rocks of this repository in fixtures/. For each rock the test:
 4. installs with tt rocks of tt 2, LuaRocks 3.9.2, the source rock into tree
    A, and builds the bare rockspec, whose sources it fetches from the
    repository at the tag, into tree C;
-5. installs the binary rock into tree B with tt rocks of tt 3: LuaRocks 3.9.2
-   of tt 2 takes the platform from the first architecture of /bin/sh, which
-   on a macOS of arm64 may be x86_64, and refuses a binary rock of
-   macosx-aarch64 then;
+5. installs the binary rock into tree B with tt rocks of tt 3, which names
+   the host from the Go runtime: LuaRocks 3.9.2 of tt 2 up to 2.15.2 takes
+   the platform from the first architecture of /bin/sh, x86_64 on a macOS
+   of arm64, and refuses a binary rock of macosx-aarch64 there (#1501);
 6. compares lua/, lib/ and bin/ of the three trees: the same files, the same
    bytes of each but an ELF or a Mach-O file, which a build compiles anew,
    and the same executable bit in bin/;

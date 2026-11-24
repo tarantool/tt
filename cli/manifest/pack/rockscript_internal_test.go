@@ -240,11 +240,12 @@ func TestSrcRockOfBuildsBuildsWithLuaRocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(built), string(fresh))
 
-	// The binary rock is installed by the native backend alone: LuaRocks,
-	// that of the lua backend, takes the platform from the first
-	// architecture of /bin/sh, which on a macOS of arm64 may be x86_64, and
-	// refuses a rock of macosx-aarch64 then. The source rock is what LuaRocks
-	// builds on any machine.
+	// The binary rock the native backend installs is what the trees of each
+	// backend are compared with: its binary rock, its source rock and the
+	// bare rockspec. Both backends name the host from the Go runtime; the
+	// LuaRocks of the lua backend took it from the first architecture of
+	// /bin/sh, x86_64 on a macOS of arm64, and refused a rock of
+	// macosx-aarch64 there.
 	binary := luaRocksInstall(t, client.BackendNative, result.Rock)
 	require.NoError(t, binary.err)
 
@@ -257,6 +258,11 @@ func TestSrcRockOfBuildsBuildsWithLuaRocks(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
+			binaryRock := luaRocksInstall(t, backend, result.Rock)
+			require.NoError(t, binaryRock.err)
+			assertSameRock(t, want, installedRock(t, binaryRock.tree, result.Rockspec),
+				"binary rock")
 
 			srcRock := luaRocksInstall(t, backend, result.SrcRock)
 			require.NoError(t, srcRock.err)
