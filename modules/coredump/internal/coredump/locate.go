@@ -507,9 +507,10 @@ type coredumpctlEntry struct {
 }
 
 // runCoredumpctl runs coredumpctl with args, its standard output written to
-// stdout; an error has what it said on its standard error.
+// stdout; an error has what it said on its standard error. An empty PATH is
+// that of the system (see command).
 func runCoredumpctl(ctx context.Context, stdout io.Writer, args ...string) error {
-	cmd := exec.CommandContext(ctx, coredumpctlName, args...)
+	cmd := command(ctx, coredumpctlName, args...)
 
 	var stderr strings.Builder
 

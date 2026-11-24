@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/tarantool/tt/sdk/output"
 )
@@ -44,7 +45,8 @@ type InspectOptions struct {
 // opts.Path names (see linkMappedFiles): a directory given is the artefacts
 // as tt coredump unpack or tar unpacked them, and the links, relative ones
 // to its files, make it more of the sysroot of the core it is to gdb. One
-// that cannot be written to is opened as it is.
+// that cannot be written to is opened as it is; artefacts that cannot be
+// read are an error before gdb starts (see checkReadable).
 func Inspect(ctx context.Context, streams output.Streams, log *slog.Logger,
 	opts InspectOptions,
 ) error {
@@ -103,6 +105,11 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 		}
 
 		dir = filepath.Join(tmpDir, unpacked)
+	}
+
+	err = checkReadable(dir)
+	if err != nil {
+		return err
 	}
 
 	// The files of the debugger and the extensions tt loads live in a
@@ -176,6 +183,77 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 	}
 
 	return runDebugger(cmd, streams)
+}
+
+// artefactFiles are the files of the artefacts gdb.sh opens gdb on: the
+// version, without which it refuses them, the tarantool and the core.
+var artefactFiles = []string{"version", "tarantool", "coredump"}
+
+// errUnreadable reports artefacts inspect cannot read.
+var errUnreadable = errors.New("cannot read the artefacts")
+
+// unknownOwner is the owner of artefacts whose owner cannot be told.
+const unknownOwner = -1
+
+// checkReadable checks that the artefacts in dir can be read before gdb.sh
+// runs on them: the directory and its artefactFiles, opened for reading.
+// One that cannot, permission denied, is the error, which names the owner
+// of the artefacts to a tt of another user: gdb.sh said the version file
+// is missing of a directory it could not read, as one of another user is,
+// and gdb could open neither the tarantool nor the core of a file it could
+// not. A file that is not there is left to gdb.sh and gdb.
+func checkReadable(dir string) error {
+	for _, name := range append([]string{"."}, artefactFiles...) {
+		path := filepath.Join(dir, name)
+
+		// A FIFO in the place of a file is not waited on to open.
+		file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		if err == nil {
+			_ = file.Close()
+
+			continue
+		}
+
+		if errors.Is(err, fs.ErrPermission) {
+			return unreadableError(dir, err, ownerOf(path, dir), int64(os.Geteuid()))
+		}
+	}
+
+	return nil
+}
+
+// ownerOf returns the uid of the owner of the first of paths that can be
+// told, unknownOwner of none: a file of a directory that cannot be
+// searched cannot be, and the directory may.
+func ownerOf(paths ...string) int64 {
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if ok {
+			return int64(stat.Uid)
+		}
+	}
+
+	return unknownOwner
+}
+
+// unreadableError returns the error of the artefacts in dir that cannot be
+// read, err, of the owner of the uid owner, unknownOwner when it cannot be
+// told, to a tt of the effective uid euid. A tt of another user is to run
+// as the owner, as the image of the how-to of tt coredump runs as the user
+// ubuntu of the uid 1000 unless docker run --user names another.
+func unreadableError(dir string, err error, owner, euid int64) error {
+	if owner == unknownOwner || owner == euid {
+		return fmt.Errorf("%w in %s: %w", errUnreadable, dir, err)
+	}
+
+	return fmt.Errorf("%w in %s: %w; they are of the uid %d and tt runs as the uid %d: run tt "+
+		`as their owner, as docker run --user "$(id -u):$(id -g)" runs a container as you`,
+		errUnreadable, dir, err, owner, euid)
 }
 
 // chooseExtensions returns the extensions for the core of the artefacts in
