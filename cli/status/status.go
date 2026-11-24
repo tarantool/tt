@@ -143,6 +143,11 @@ type instanceStatus struct {
 	// LastExit is how the last process of an instance that does not run
 	// ended, as its watchdog recorded it, nil for none (running.ReadLastExit).
 	LastExit *running.LastExit `json:"last_exit,omitempty" yaml:"last_exit,omitempty"`
+	// LastCrash is the last exit of the process of the instance by a
+	// signal, running or not, as its watchdog recorded it, nil for none
+	// (running.LastCrash): the restart that followed it, and a stop later,
+	// keep it.
+	LastCrash *running.Crash `json:"last_crash,omitempty" yaml:"last_crash,omitempty"`
 	// log is the tt.log of an instance that does not run, whose last lines
 	// the details quote.
 	log string `json:"-" yaml:"-"`
@@ -182,6 +187,7 @@ func newInstanceStatus() instanceStatus {
 		activeVersion:      "",
 		TCM:                nil,
 		LastExit:           nil,
+		LastCrash:          nil,
 		log:                "",
 		NotInConfig:        false,
 	}
@@ -228,6 +234,18 @@ func setLastExit(instStatus *instanceStatus, run *running.InstanceCtx) {
 	}
 
 	instStatus.log = run.Log
+}
+
+// setLastCrash sets the last crash of the process of the instance run in
+// instStatus, if its watchdog recorded one. Crashes that cannot be read, as
+// those of another user, are none to the status, which names no crash of an
+// instance whose crashes are read: ReadCrashes says why to those that tell
+// the crashes.
+func setLastCrash(instStatus *instanceStatus, run *running.InstanceCtx) {
+	crash, ok, _ := running.LastCrash(run)
+	if ok {
+		instStatus.LastCrash = &crash
+	}
 }
 
 // setTCM sets how TCM run is reached in instStatus, or an alert that says
@@ -472,6 +490,8 @@ func processStatusForInstance(instance running.InstanceCtx,
 	} else {
 		setLastExit(&instStatus, &instance)
 	}
+
+	setLastCrash(&instStatus, &instance)
 
 	name := running.GetAppInstanceName(instance)
 	result := statusResult{name: name, uuid: "", status: &instStatus}

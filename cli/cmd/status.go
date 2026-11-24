@@ -92,7 +92,11 @@ the watchdog started it again and the last periodic integrity check; -o json
 and -o yaml give them as started_at, restarts and last_integrity_check. For
 an instance that does not run it prints how its last process ended and when,
 as its watchdog recorded it, and the last lines of its tt.log unless it was
-stopped cleanly; -o json and -o yaml give that record as last_exit.
+stopped cleanly; -o json and -o yaml give that record as last_exit. For
+every instance it prints the last crash of its process, an exit by a
+signal, with its PID, the signal and whether the kernel dumped a core, as
+the watchdog recorded it: a restart and a stop later keep it. -o json and
+-o yaml give it as last_crash.
 
 The status reads the cluster config as far as it can. When "*" stands for
 a topology in a config storage that is out of reach, it stands for the

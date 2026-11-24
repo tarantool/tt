@@ -258,9 +258,11 @@ func (t TablePrinter) withDetails() bool {
 // printDetails prints the details of the instances, by name: the watchdog
 // and the process of every running instance (printProcess), the version of
 // the application of the user or system scope every running instance runs,
-// with a restart pending when another one is active, the tarantool every
-// Tarantool instance starts on, with the warnings of the choice, and then the
-// alerts of every instance.
+// with a restart pending when another one is active, how the last process of
+// every instance that does not run ended (printLastExit), the last crash of
+// every instance (printLastCrash), the tarantool every Tarantool instance
+// starts on, with the warnings of the choice, and then the alerts of every
+// instance.
 func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 	names := slices.Sorted(maps.Keys(instances))
 	printed := false
@@ -283,6 +285,10 @@ func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
 		}
 
 		if printLastExit(name, instStatus) {
+			printed = true
+		}
+
+		if printLastCrash(name, instStatus) {
 			printed = true
 		}
 
@@ -345,6 +351,21 @@ func printLastExit(name string, instStatus *instanceStatus) bool {
 		_, _ = fmt.Fprintf(os.Stdout, "  The last lines of %s:\n%s\n", instStatus.log, tail)
 		_, _ = fmt.Fprintf(os.Stdout, "  tt instance logs %s prints more.\n", name)
 	}
+
+	return true
+}
+
+// printLastCrash prints the last crash of the process of the instance name,
+// running or not, if its watchdog recorded one: its PID, the signal and
+// whether the kernel dumped a core, and when, in red. It reports whether it
+// printed anything.
+func printLastCrash(name string, instStatus *instanceStatus) bool {
+	crash := instStatus.LastCrash
+	if crash == nil {
+		return false
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "Last crash of %s: %s\n", name, printRed(crash.Describe()))
 
 	return true
 }

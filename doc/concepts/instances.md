@@ -350,6 +350,25 @@ state, until the instance is restarted. Stop an instance with
 process a signal ended for one that exited, and starts it again as its
 `restart` says.
 
+`last_exit.json` is the last exit alone: the next exit replaces it, and the
+next start removes it. Every exit of the process by a signal, a crash, goes
+into `crashes.json` in the run directory as well, with its PID, the signal
+and whether the kernel dumped a core, and stays there through the restart
+that follows, a stop and the next start; the watchdog keeps the last 10.
+`tt instance status --details` tells the last crash of every instance,
+running or not, and `-o json` and `-o yaml` give it as `last_crash`. Here
+the process was killed, started again by `restart: on-failure`, and the
+instance stopped:
+
+```console
+$ tt instance stop -y
+   • The instance demo:instance001 (PID = 692679) has been terminated.
+$ tt instance status --details
+Last exit of demo:instance001: stopped, it exited with code 0, at 2026-11-24 07:54:59
+Last crash of demo:instance001: PID 691721, it was killed by signal 9 (killed), at 2026-11-24 07:54:51
+…
+```
+
 The messages of `tt instance start`, `stop`, `kill` and `logrotate` name an
 instance by the same PID, read before the signal; while it is not known,
 they name the watchdog, labelled so. A stop that fails names both, for the

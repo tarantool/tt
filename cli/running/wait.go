@@ -195,11 +195,21 @@ func describeExit(exit supervisor.Exit) string {
 
 	status, ok := exit.State.Sys().(syscall.WaitStatus)
 	if ok && status.Signaled() {
-		return fmt.Sprintf("it was killed by signal %d (%s)", int(status.Signal()),
-			status.Signal())
+		return describeSignal(status.Signal(), status.CoreDump())
 	}
 
 	return describeExitCode(exit.State.ExitCode())
+}
+
+// describeSignal tells of a process that signal killed, and whether the
+// kernel dumped a core of it, as the shell tells it: ", core dumped".
+func describeSignal(signal syscall.Signal, coreDumped bool) string {
+	described := fmt.Sprintf("it was killed by signal %d (%s)", int(signal), signal)
+	if coreDumped {
+		described += ", core dumped"
+	}
+
+	return described
 }
 
 // describeExitCode tells of a process that exited with code.

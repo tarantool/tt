@@ -34,6 +34,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   its program, `the program /…/worker.sh`, and TCM as `TCM`. That one line
   tells an exit, a warning when the process failed: the `(WARN): "exit
   status 1"` line that told it again in the words of Go is gone.
+- The watchdog of an instance records every exit of its process by a
+  signal, a crash, in `crashes.json` in the run directory of the instance:
+  when it was, the PID of the process, the signal and whether the kernel
+  dumped a core, `{"at": …, "pid": 123, "signal": 11, "core_dumped":
+  true}`, the last 10 of them, written whole through a file renamed into
+  place. A `crashes.json` the watchdog cannot read, as one a newer tt
+  wrote, which a downgrade finds, or a broken one, is moved aside to
+  `crashes.json.<time>`, with a warning in `tt.log`, and the crashes are
+  recorded anew. `last_exit.json` is the last exit alone, which every exit
+  replaces and the next start removes: a crash the restart policy, or
+  `Restart=on-failure` of a systemd unit, followed with a start, and a
+  stop later, was gone from it, and the crashes keep it. `tt instance
+  status --details` tells the last crash of every instance, running or
+  not, `Last crash of app:inst: PID 123, it was killed by signal 11
+  (segmentation fault), core dumped, at 2026-11-24 10:00:00`, and `-o
+  json` and `-o yaml` give it as `last_crash`. An exit with a core says
+  so in `tt.log` and in `last_exit.json`, `it was killed by signal 11
+  (segmentation fault), core dumped`, and `last_exit.json` has the `pid`
+  of the process and `core_dumped` as well.
 - The SDK connects a module to an instance and runs Lua on it, where only
   the core could: `Services.Connect(ctx, target, opts)` returns a
   `sdk.Conn` as `tt connect` reaches the target without `--binary`, an

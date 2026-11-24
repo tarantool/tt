@@ -1051,6 +1051,80 @@ func TestStatusDetailsLastExit(t *testing.T) {
 	assert.NotContains(t, out, "were not stopped")
 }
 
+// TestStatusDetailsLastCrash pins the last crash of an instance, running or
+// not: the details tell it, and JSON gives it as last_crash.
+func TestStatusDetailsLastCrash(t *testing.T) {
+	crashedAt := time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)
+	watchdog := 41
+	crashed := newInstanceStatus()
+	killed := newInstanceStatus()
+
+	crashed.LastCrash = &running.Crash{
+		At: crashedAt, PID: 42, Signal: syscall.SIGSEGV, CoreDumped: true,
+	}
+	killed.LastCrash = &running.Crash{At: crashedAt, PID: 43, Signal: syscall.SIGKILL}
+	killed.WatchdogPID = &watchdog
+
+	never := newInstanceStatus()
+
+	instances := map[string]*instanceStatus{
+		"app:crashed": &crashed, "app:killed": &killed, "app:never": &never,
+	}
+	for _, instStatus := range instances {
+		instStatus.procStatus = process_utils.ProcStateStopped
+	}
+
+	out := captureStdout(t, func() error {
+		return NewTablePrinter(WithDetails(true)).Print(instances)
+	})
+	assert.Contains(t, out, "Last crash of app:crashed: PID 42, it was killed by signal 11 "+
+		"(segmentation fault), core dumped, at 2026-11-24 10:00:00\n")
+	assert.Contains(t, out, "Last crash of app:killed: PID 43, it was killed by signal 9 "+
+		"(killed), at 2026-11-24 10:00:00\n")
+	assert.NotContains(t, out, "Last crash of app:never")
+
+	out = captureStdout(t, func() error {
+		return NewTablePrinter().Print(instances)
+	})
+	assert.NotContains(t, out, "Last crash")
+
+	out = captureStdout(t, func() error {
+		return NewJSONPrinter().Print(instances)
+	})
+
+	var decoded map[string]map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(out), &decoded))
+	assert.Equal(t, map[string]any{
+		"at": "2026-11-24T10:00:00Z", "pid": float64(42), "signal": float64(11),
+		"core_dumped": true,
+	}, decoded["app:crashed"]["last_crash"])
+	assert.NotContains(t, decoded["app:never"], "last_crash")
+}
+
+// TestStatusReadsTheLastCrash checks that the status of an instance that
+// does not run reads its last crash from its run directory.
+func TestStatusReadsTheLastCrash(t *testing.T) {
+	dir := t.TempDir()
+	inst := running.InstanceCtx{
+		AppName: "myapp", InstName: "worker-1", Kind: instances.KindExternal,
+		PIDFile: filepath.Join(dir, "tt.pid"), RunDir: dir,
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "crashes.json"), []byte(`{"version": 1,
+		"crashes": [{"at": "2026-11-24T09:00:00Z", "pid": 1, "signal": 6, "core_dumped": true},
+		{"at": "2026-11-24T10:00:00Z", "pid": 2, "signal": 11, "core_dumped": false}]}`),
+		0o644))
+
+	ctx := running.RunningCtx{Instances: []running.InstanceCtx{inst}}
+
+	out := captureStdout(t, func() error {
+		return Status(ctx, NewTablePrinter(WithDetails(true)), DefaultInstanceTimeout)
+	})
+	assert.Contains(t, out, "Last crash of myapp:worker-1: PID 2, it was killed by signal 11 "+
+		"(segmentation fault), at ")
+}
+
 func TestConfigStatus(t *testing.T) {
 	script := running.InstanceCtx{Kind: instances.KindScript}
 	cluster := running.InstanceCtx{Kind: instances.KindCluster}
