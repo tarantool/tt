@@ -195,19 +195,28 @@ def get_completions_from_shell(
 
     It runs helper script for the specified shell, specifying necessary
     paths and commands with arguments.
+
+    The helper runs without COLUMNS and LINES, the size of the terminal the
+    test may run in. When COLUMNS is set, the bash script of cobra appends
+    to each completion its description, padded to that width, for a shell
+    to list them; the completions the test compares are the bare ones, as
+    without it. The fish completions do not depend on them, and the zsh
+    script of cobra does not read them.
     """
     helper_script = HELPERS_DIR / f"{completion.shell}_completion.sh"
+
+    env = {name: value for name, value in os.environ.items() if name not in ("COLUMNS", "LINES")}
 
     # Completion scripts invoke the literal "tt", even if --tt-cmd has another name.
     with TemporaryDirectory(dir=tmp_path) as bin_dir:
         (Path(bin_dir) / "tt").symlink_to(tt_cmd.resolve())
-        path = f"{bin_dir}:{os.environ.get('PATH', '')}"
+        env["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
         process = run(
             [helper_script, completion.file, line_to_complete],
             text=True,
             capture_output=True,
             cwd=tmp_path,
-            env=dict(os.environ, PATH=path),
+            env=env,
         )
     if process.returncode != 0:
         print("STDERR:", process.stderr)
