@@ -4,8 +4,8 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
+	"strconv"
 
 	cp "github.com/otiai10/copy"
 	"github.com/tarantool/tt/v3/cli/docker"
@@ -21,6 +21,14 @@ const (
 //go:embed templates/Dockerfile.tnt.build
 var tarantoolBuildDockerfile []byte
 
+// buildDockerfile renders the Dockerfile of the image Tarantool is built in.
+// The build runs as the process does, so the directories it writes are given
+// to the uid of the process, which the user database need not know.
+func buildDockerfile() (string, error) {
+	return templates.NewDefaultEngine().RenderText(string(tarantoolBuildDockerfile),
+		map[string]string{"uid": strconv.Itoa(os.Getuid())})
+}
+
 func installTarantoolInDocker(tntVersion, artifactRoot string, installCtx InstallCtx) error {
 	tmpDir, err := os.MkdirTemp("", "docker_build_ctx")
 	if err != nil {
@@ -33,15 +41,7 @@ func installTarantoolInDocker(tntVersion, artifactRoot string, installCtx Instal
 		_ = os.RemoveAll(tmpDir)
 	}()
 
-	currentUser, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("failed to get current user: %w", err)
-	}
-
-	goTextEngine := templates.NewDefaultEngine()
-
-	dockerfileText, err := goTextEngine.RenderText(string(tarantoolBuildDockerfile),
-		map[string]string{"uid": currentUser.Uid})
+	dockerfileText, err := buildDockerfile()
 	if err != nil {
 		return err
 	}
