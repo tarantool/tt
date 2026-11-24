@@ -137,13 +137,15 @@ is sent. The archive of the pipe has no logs of the instance. `core_pattern`
 is one for the whole host; this replaces systemd-coredump or apport there.
 
 <!-- TODO(writers): the pipe was not set up on the host of the walkthrough,
-which other users share. The command line of the pipe was run as root,
-from / with a core on the standard input while /proc/PID was a tarantool of
-the same build, as test_coredump_pack_pipe does. With PATH set it stored
-the core and made the archive, both 0600 under a umask of 022. With an
-empty environment, which the kernel gives a pipe of core_pattern, it stored
-the core and did not pack it: exec: "bash": executable file not found in
-$PATH. Check the page again once tt runs the pack script without PATH. -->
+which other users share. The command line of the pipe was run as the
+kernel runs it, in a container: as root, from /, under env -i, the empty
+environment the kernel gives a pipe of core_pattern, with a core on the
+standard input while /proc/PID was a tarantool of the same build, as
+test_coredump_pack_pipe does. It stored the core and made the archive, both
+0600 under a umask of 022. The tt before stored the core and did not pack
+it, exec: "bash": executable file not found in $PATH; tt looks the programs
+it runs up in the PATH of the system now when it has none, and
+test_coredump_pack_pipe runs the command line under env -i too. -->
 
 ### The crashes of an instance
 
@@ -577,7 +579,7 @@ $ cp "$(command -v tt)" .
 ```dockerfile
 FROM ubuntu:26.04
 RUN apt-get update \
- && apt-get install -y --no-install-recommends gdb \
+ && apt-get install -y --no-install-recommends ca-certificates gdb \
  && rm -rf /var/lib/apt/lists/*
 COPY tt /usr/local/bin/tt
 USER ubuntu
@@ -590,9 +592,11 @@ $ docker build -t tt-coredump .
 ```
 
 gdb runs as the user `ubuntu` of the image, not root, unless `--user`
-names another, as below, and asks for no network: the extensions come from
-tt. The gdb of Ubuntu reads the cores of its own architecture alone: build
-the image on a host of the architecture of the core.
+names another, as below, and with the `--experimental` of the entrypoint
+asks for no network: the extensions come from tt. The CA certificates are
+for inspect without it, which looks the extensions up on GitHub (see
+below). The gdb of Ubuntu reads the cores of its own architecture alone:
+build the image on a host of the architecture of the core.
 
 The image keeps the pagination of gdb. tt turns it off while gdb loads the
 core and the extensions, whose lines run past a screen, and back on at the
@@ -699,8 +703,12 @@ directory, so it may be moved. A directory inspect cannot write to, as one
 mounted read-only, is opened as it is: tt says that it cannot link the
 files, and gdb warns that it cannot open them. The directory unpack makes
 is 0700, and no other user reads it, the user `ubuntu` of the image among
-them, for whom inspect says that `/work/<dir>/version file is missing`: run
-the image with `--user` on it too.
+them: run the image with `--user` on it too. Without it, for a user of the
+uid 1234, inspect fails before gdb starts:
+
+```text
+   ⨯ cannot read the artefacts in tarantool-core-3030-202611240401-db1: open tarantool-core-3030-202611240401-db1: permission denied; they are of the uid 1234 and tt runs as the uid 1000: run tt as their owner, as docker run --user "$(id -u):$(id -g)" runs a container as you
+```
 
 `-s` gives gdb the sources of the Tarantool of the core, a checkout of its
 commit with its submodules, so that it shows the lines of the C code. The
@@ -725,9 +733,22 @@ as well: `-v ~/src/tarantool:/src:ro` and `-s /src`.
 Without `--experimental`, `tt coredump inspect` loads the extensions of the
 release of the core instead: those of the sources of `-s`, else those it
 finds on GitHub by the version of the core, else the copies tt embeds.
-They have no `lj-bt`. The image has no CA certificates, so the lookup on
-GitHub fails there, and tt warns and takes its copies: add
-`ca-certificates` to the `apt-get install` of the `Dockerfile` for it.
+They have no `lj-bt`. In the image, with tt as the entrypoint:
+
+```console
+$ docker run --rm -it -v "$PWD:/work" --user "$(id -u):$(id -g)" --entrypoint tt tt-coredump coredump inspect tarantool-core-3030-202611240401-db1.tar.gz
+   • looking up the gdb extensions of Tarantool 3.9.0-0-g8b9a0f59a95b on GitHub module=coredump
+   • gdb extension luajit_dbg.py: src/luajit_dbg.py of tarantool/luajit 8af934d93cf26fb1e9b08b28a8b51833d55fc8e8, the LuaJIT of tarantool/tarantool 8b9a0f59a95b module=coredump
+   • gdb extension tarantool-gdb.py: tools/tarantool-gdb.py of tarantool/tarantool 8b9a0f59a95b module=coredump
+...
+```
+
+Each line says where the extension comes from: `luajit_dbg.py` of the
+LuaJIT the commit of the core has, `tarantool-gdb.py` of `tools/` at that
+commit. The lookup needs the CA certificates of the image: without them, or
+without a way to GitHub, tt warns `cannot get the luajit_dbg.py of Tarantool
+3.9.0-0-g8b9a0f59a95b: cannot reach GitHub`, with why, and takes its
+copies, which may not match the core.
 
 ### Warnings before gdb starts
 
@@ -960,12 +981,21 @@ commands of the block of git clone, in the directory of the archive and
 mounted on /src. A user of the uid 1234, in a container with the docker
 CLI, on a copy of the archive of its own: the commands of the image without
 --user failed on the archive, permission denied, and on the directory
-unpack made; with --user they opened both, and inspect without
---experimental warned that GitHub cannot be reached for want of CA
-certificates. The warnings of gdb 15.1 are of an image of ubuntu:24.04 on
-the archive of the gcore-pages core of the image, of glibc 2.43. tt-fiber
-then bt showed the fiber on the core of a crash in ubuntu:26.04 with the
-libc6-dbg of its glibc, where abort() stops under two inline frames, and
+unpack made; with --user they opened both. That image had no
+ca-certificates, which --experimental does not need. Taken again on the
+same day with the tt that tells the permission of the artefacts and the
+image with ca-certificates, built as above, on an archive of the same name
+of a crash of the same tarantool in debian:stable-slim with --init and
+--hostname db1, packed with -p 3030 and -t of 04:01: inspect of the image
+without --user on the directory unpack made as the uid 1234, and inspect
+without --experimental, which took the extensions of 8b9a0f59a95b from
+GitHub, both on a pty, as printed; the image without ca-certificates warned
+there that GitHub cannot be reached and took the copies of tt, and the
+archive failed without --user as printed. The warnings of gdb 15.1 are of
+an image of ubuntu:24.04 on the archive of the gcore-pages core of the
+image, of glibc 2.43. tt-fiber then bt showed the fiber on the core of a
+crash in ubuntu:26.04 with the libc6-dbg of its glibc, where abort() stops
+under two inline frames, and
 the crash stack with the extensions tt had before; on the crash above, in
 images with the libc6-dbg of its Debian build, both showed the fiber. The
 command line of the pipe ran as its comment says, and the logs of an
