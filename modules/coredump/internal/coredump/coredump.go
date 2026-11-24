@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/tarantool/tt/sdk/output"
 )
@@ -96,6 +97,10 @@ type PackOptions struct {
 	// Time is the time of the dump in seconds since the Epoch; empty is
 	// now.
 	Time string
+	// Logs are the logs of the instance of the core, whose tails, the last
+	// LogTailBytes of each, go into logs/ of the archive; none for a core
+	// of no instance.
+	Logs []PackLog
 }
 
 // packArgs returns the arguments of the pack script for opts, with the
@@ -141,17 +146,23 @@ const archiveReport = "archive"
 // core will not work in gdb, while another core may still be taken. The
 // archive is named by the PID of opts, or else by that of the process of the
 // core, which the pack script takes with the core of a file, -c, for the
-// name alone. An archive of that name there already, as of the same core
-// packed in the same minute, is kept, and its path is returned second: the
-// archive is named with -2 before .tar.gz, or the next number that is free.
-// The second is empty when the name was free.
-func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, string, error) {
+// name alone. The tails of the Logs of opts go into logs/ of the archive,
+// and Pack logs what of each. An archive of that name there already, as of
+// the same core packed in the same minute, is kept, and its path is
+// returned second: the archive is named with -2 before .tar.gz, or the next
+// number that is free. The second is empty when the name was free. A ctx
+// that ends, as a signal to tt ends it, ends the pack script with SIGTERM,
+// which removes what it made, and Pack removes its temporary directory.
+func Pack(ctx context.Context, streams output.Streams, log *slog.Logger, opts PackOptions) (
+	string, string, error,
+) {
 	artefacts, err := probeArtefacts(streams.Err, opts, defaultDebugDirs)
 	if err != nil {
 		return "", "", err
 	}
 
 	logTarantoolChoice(log, artefacts.choice)
+	warnPackVersion(log, artefacts)
 	warnPackDebugInfo(log, artefacts, defaultDebugDirs)
 	warnThreadStacks(log, artefacts.stacks)
 
@@ -166,8 +177,6 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, s
 		return "", "", err
 	}
 
-	scriptArgs = append(scriptArgs, artefacts.scriptArgs()...)
-
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
 		return "", "", fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
@@ -176,6 +185,16 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, s
 	defer func() {
 		_ = os.RemoveAll(tmpDir)
 	}() // Clean up on function return.
+
+	// The version goes first, before any file of the host could take its
+	// name: the script packs a name once.
+	versionArgs, err := stageVersion(tmpDir, artefacts)
+	if err != nil {
+		return "", "", err
+	}
+
+	scriptArgs = append(scriptArgs, versionArgs...)
+	scriptArgs = append(scriptArgs, artefacts.scriptArgs()...)
 
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
@@ -197,12 +216,21 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, s
 		scriptArgs = append(scriptArgs, "-x", ext)
 	}
 
+	// The tails of the logs of the instance go into logs/ of the archive,
+	// as files of their own in the temporary directory.
+	logArgs, err := stageLogs(log, tmpDir, opts.Logs)
+	if err != nil {
+		return "", "", err
+	}
+
+	scriptArgs = append(scriptArgs, logArgs...)
+
 	// The script names the archive and tells its path to a terminal alone:
 	// it writes the path into the report for tt to tell it, and that of the
 	// archive of the name it did not take.
 	report := filepath.Join(tmpDir, archiveReport)
 
-	err = runPackScript(streams, tmpDir, append(scriptArgs, "-r", report))
+	err = runPackScript(ctx, streams, tmpDir, append(scriptArgs, "-r", report))
 	if err != nil {
 		return "", "", err
 	}
@@ -222,8 +250,11 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, s
 // runs the file, and the standard input of the script is none: the script
 // takes it for the core of a kernel.core_pattern pipe when it is given no
 // core, and with the script fed to `bash -s` it read the rest of its own
-// text for the core.
-func runPackScript(streams output.Streams, dir string, args []string) error {
+// text for the core. A ctx that ends sends the script SIGTERM, on which it
+// stops tar and removes what it made, and the script is waited for: a kill
+// left the temporary directory of the script and the archive begun.
+func runPackScript(ctx context.Context, streams output.Streams, dir string, args []string,
+) error {
 	script := filepath.Join(dir, filepath.Base(packEmbedPath))
 
 	err := copyEmbedded(coreScripts, packEmbedPath, script, scriptFileMode)
@@ -231,13 +262,18 @@ func runPackScript(streams output.Streams, dir string, args []string) error {
 		return fmt.Errorf("failed to write the pack script: %w", err)
 	}
 
-	cmd := exec.CommandContext(context.Background(), "bash", append([]string{script}, args...)...)
+	cmd := exec.CommandContext(ctx, "bash", append([]string{script}, args...)...)
 
 	cmd.Stdout = streams.Out
 	cmd.Stderr = streams.Err
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 
 	err = cmd.Run()
-	if err != nil {
+
+	switch {
+	case ctx.Err() != nil:
+		return fmt.Errorf("the pack script is stopped: %w", context.Cause(ctx))
+	case err != nil:
 		return fmt.Errorf("pack script execution failed: %w", err)
 	}
 

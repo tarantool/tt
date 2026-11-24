@@ -8,6 +8,7 @@ import platform
 import re
 import select
 import shutil
+import stat
 import struct
 import subprocess
 import sys
@@ -395,15 +396,32 @@ def test_coredump_pack_no_such_file(tt_cmd, tmp_path):
 def test_coredump_pack(coredump, coredump_pack):
     """pack of a kernel core says where the archive is with no terminal on
     its standard output, as from a script, where the pack script tells it to
-    a terminal alone and pack said nothing of it."""
+    a terminal alone and pack said nothing of it. The version of the archive
+    is the first line of tarantool --version, which pack reads from the
+    file of the tarantool rather than runs it, and the line alone. The
+    archive, the memory of a process, is its user's alone, whatever the
+    umask."""
     rc, output = coredump_pack
     assert rc == 0, output
     assert "nothing but zeros" not in output, output
+    assert "cannot read the version" not in output, output
     archives = list(coredump.parent.glob("*.tar.gz"))
     assert len(archives) == 1
     assert f"Core was successfully packed: {archives[0]}" in output, output
     assert "The resulting archive is located here" not in output, output
     check_archive_members(archives[0])
+    assert stat.S_IMODE(archives[0].stat().st_mode) == 0o600
+
+    shown = subprocess.run(
+        [shutil.which("tarantool"), "--version"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    name = os.path.basename(archives[0]).split(".")[0]
+    with tarfile.open(archives[0]) as tar:
+        version = tar.extractfile(f"{name}/version").read().decode()
+    assert version == shown.splitlines()[0] + "\n"
 
 
 def check_tarantool_in_archive(tmp_path, expected_tarantool):
@@ -1120,7 +1138,10 @@ def test_coredump_unpack(tt_cmd, tmp_path, coredump, coredump_packed):
     the core took less than a quarter of its size, which the core of 3.3
     failed with every hole kept. A file system that keeps no holes fails the
     test on Linux, whose file systems keep them, ext4, XFS, Btrfs and tmpfs,
-    so that the check is not dropped there unseen, and skips it elsewhere."""
+    so that the check is not dropped there unseen, and skips it elsewhere.
+
+    What unpack extracts is its user's alone: the core and the rest, the
+    tarantool of the entry 0755 too, and the directories."""
     if not keeps_holes(tmp_path):
         message = f"the file system of {tmp_path} keeps no holes"
         if sys.platform == "linux":
@@ -1139,6 +1160,9 @@ def test_coredump_unpack(tt_cmd, tmp_path, coredump, coredump_packed):
     room = runs * block
     assert size - data * block > room, (size, data * block, room)
     assert disk_size(core) <= data * block + room, (disk_size(core), data * block, room)
+    assert stat.S_IMODE(core.stat().st_mode) == 0o600
+    assert stat.S_IMODE((core.parent / "tarantool").stat().st_mode) == 0o700
+    assert stat.S_IMODE(core.parent.stat().st_mode) == 0o700
 
     rc, output = inspect(tt_cmd, tmp_path, core.parent.as_posix(), EXTENSION_COMMANDS)
     assert rc == 0, output

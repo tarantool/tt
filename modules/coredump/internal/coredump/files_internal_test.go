@@ -147,13 +147,16 @@ func TestExtractTarGzWellFormed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "#!/bin/sh\n", string(content))
 
-	info, err := os.Stat(filepath.Join(dst, "core", "bin", "run.sh"))
-	require.NoError(t, err)
-	assert.Equal(t, createdMode(t, 0o755), info.Mode().Perm())
-
-	info, err = os.Stat(filepath.Join(dst, "core", "data", "version"))
-	require.NoError(t, err)
-	assert.Equal(t, createdMode(t, 0o640), info.Mode().Perm())
+	// The files and the directories are their user's alone, whatever the
+	// modes of the entries give others.
+	for name, mode := range map[string]os.FileMode{
+		"core/bin/run.sh": 0o700, "core/data/version": 0o600, "top.txt": 0o600, "core": 0o700,
+		"core/bin": 0o700, "core/data": 0o700,
+	} {
+		info, err := os.Stat(filepath.Join(dst, name))
+		require.NoError(t, err)
+		assert.Equal(t, mode, info.Mode().Perm(), name)
+	}
 
 	target, err := os.Readlink(filepath.Join(dst, "core", "link-to-data"))
 	require.NoError(t, err)
@@ -181,6 +184,12 @@ func TestExtractTarGzCreatesAndOverwrites(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(dst, "a.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "short", string(content))
+
+	// The file overwritten gets the mode of the entry, of its owner alone,
+	// rather than keep the one others could read it by.
+	info, err := os.Stat(filepath.Join(dst, "a.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
 func TestExtractTarGzUnsafe(t *testing.T) {

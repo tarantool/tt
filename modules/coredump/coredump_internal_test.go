@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +21,89 @@ import (
 	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/sdk/sdktest"
 )
+
+// TestPackSignals checks that the first SIGINT or SIGTERM tt gets ends the
+// context of pack, with the signal as its cause, and gives the signal its
+// default handling back, and that pack then exits 128 and the number of the
+// signal, 130 and 143, saying that what it was making is removed. A pack
+// that ends of itself releases the handling, and its error is as it is.
+func TestPackSignals(t *testing.T) {
+	t.Parallel()
+
+	for signal, code := range map[syscall.Signal]int{syscall.SIGINT: 130, syscall.SIGTERM: 143} {
+		notified := make(chan chan<- os.Signal, 1)
+
+		var stopped atomic.Int32
+
+		pack := &packCmd{
+			notify: func(c chan<- os.Signal, sig ...os.Signal) {
+				assert.Equal(t, interruptSignals, sig)
+
+				notified <- c
+			},
+			stopNotify: func(chan<- os.Signal) { stopped.Add(1) },
+		}
+
+		ctx, stop := pack.signalContext(t.Context())
+
+		(<-notified) <- signal
+
+		<-ctx.Done()
+		assert.Positive(t, stopped.Load(), "the default handling is back")
+
+		failed := errors.New("pack script execution failed: exit status 143")
+		err := interruptedError(ctx, failed)
+		require.ErrorIs(t, err, errInterrupted)
+		assert.Equal(t, code, sdk.ExitCode(err), signal)
+		require.EqualError(t, err, "pack is interrupted by "+coredump.SignalName(signal)+
+			": what it was making is removed")
+		require.NoError(t, interruptedError(ctx, nil))
+
+		stop()
+	}
+
+	pack := &packCmd{
+		notify: func(chan<- os.Signal, ...os.Signal) {}, stopNotify: func(chan<- os.Signal) {},
+	}
+
+	ctx, stop := pack.signalContext(t.Context())
+	stop()
+
+	failed := errors.New("not a core dump")
+	assert.Equal(t, failed, interruptedError(ctx, failed))
+	assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(interruptedError(ctx, failed)))
+}
+
+// TestInstancePackOptions pins what pack <APP>:<INSTANCE> packs of a crash:
+// the archive named by its PID and its time, unless --time names another,
+// with the tails of tt.log and of the file tarantool logs into of its own,
+// and none with --no-logs, which the pack command takes.
+func TestInstancePackOptions(t *testing.T) {
+	t.Parallel()
+
+	inst := sdk.LocalInstance{Name: "app:i1", Log: "/var/log/app/i1/tt.log",
+		TarantoolLog: "/var/log/app/i1/tarantool.log"}
+	crash := sdk.Crash{At: time.Unix(1763869440, 0), PID: 4242, Signal: syscall.SIGSEGV,
+		CoreDumped: true}
+	pack := &packCmd{directory: "/out"}
+
+	opts := pack.instancePackOptions(inst, crash, "/core")
+	assert.Equal(t, coredump.PackOptions{
+		Core: "/core", Dir: "/out", PID: 4242, Time: "1763869440", Logs: []coredump.PackLog{
+			{Name: "tt.log", Path: inst.Log}, {Name: "tarantool.log", Path: inst.TarantoolLog},
+		},
+	}, opts)
+
+	pack.noLogs, pack.time = true, "1"
+
+	opts = pack.instancePackOptions(inst, crash, "/core")
+	assert.Empty(t, opts.Logs)
+	assert.Equal(t, "1", opts.Time)
+
+	flag := newPackCmd(sdktest.New(t)).Flags().Lookup("no-logs")
+	require.NotNil(t, flag)
+	assert.Equal(t, "false", flag.DefValue)
+}
 
 // writeTarantool writes a file at path, as tt binary installs a tarantool
 // there, and returns path.

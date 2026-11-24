@@ -3,8 +3,11 @@ package coredump
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
+	"debug/elf"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,17 +65,24 @@ func requirePackScript(t *testing.T) {
 	}
 }
 
-// fakeTarantool writes a tarantool into dir that prints its version, all
-// the pack script runs it for, and returns its path.
+// fakeTarantool writes a tarantool into dir and returns its path: a file
+// the pack script packs and never runs. Run, it prints its version, as the
+// script ran it for, and leaves a file next to it, ranMarker of its path.
 func fakeTarantool(t *testing.T, dir string) string {
 	t.Helper()
 
 	path := filepath.Join(dir, "tarantool")
 
-	require.NoError(t, os.WriteFile(path,
-		[]byte("#!/bin/sh\necho 'Tarantool 3.9.0-0-g8b9a0f59a95b'\n"), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n: >\"$0.ran\"\n"+
+		"echo 'Tarantool 3.9.0-0-g8b9a0f59a95b'\n"), 0o755))
 
 	return path
+}
+
+// ranMarker returns the file a fake tarantool at path leaves when it is
+// run.
+func ranMarker(path string) string {
+	return path + ".ran"
 }
 
 // runScript runs the pack script on its own, with stdin its standard input
@@ -154,8 +165,8 @@ func TestPackScriptFiles(t *testing.T) {
 
 	var stderr strings.Builder
 
-	err = runPackScript(output.Streams{In: nil, Out: io.Discard, Err: &stderr}, t.TempDir(),
-		append(args, "-f", library, "-f", member+"="+debugFile))
+	err = runPackScript(t.Context(), output.Streams{In: nil, Out: io.Discard, Err: &stderr},
+		t.TempDir(), append(args, "-f", library, "-f", member+"="+debugFile))
 	require.NoError(t, err, stderr.String())
 
 	archives, err := filepath.Glob(filepath.Join(out, "*.tar.gz"))
@@ -168,60 +179,107 @@ func TestPackScriptFiles(t *testing.T) {
 	assert.Equal(t, "the core", members["coredump"])
 }
 
-// TestPackScriptFailure runs the pack script as Pack does, and checks that
-// a pack that fails leaves nothing in the directory of the archive: neither
-// the temporary directory of the script nor a partial archive, which both
-// stayed there. The version of the tarantool fails, before the archive is
-// begun, or tar fails on a file it cannot read, a missing one for root,
-// after it has begun the archive. An archive packed before of the name the
-// failed pack would take stays, and the failed pack leaves no archive of the
-// name it took instead.
-func TestPackScriptFailure(t *testing.T) {
+// TestPackScriptVersion runs the pack script as Pack does, with the version
+// of -f version=FILE, which goes into the archive as its version, and
+// without, where the version says it is unknown: the script never runs the
+// tarantool for it. It ran tarantool --version, as root of the pipe of
+// kernel.core_pattern, for any executable of a process that crashed.
+func TestPackScriptVersion(t *testing.T) {
 	t.Parallel()
 	requirePackScript(t)
 
 	dir := t.TempDir()
 	core := filepath.Join(dir, "core")
-	failing := filepath.Join(dir, "failing")
-	unreadable := filepath.Join(dir, "unreadable.so")
-
-	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o600))
-	require.NoError(t, os.WriteFile(failing, []byte("#!/bin/sh\nexit 3\n"), 0o755))
-	require.NoError(t, os.WriteFile(unreadable, []byte("a library"), 0o000))
-
+	version := filepath.Join(dir, "version")
 	tarantool := fakeTarantool(t, dir)
 
-	cases := []struct {
-		name, executable string
-		files            []string
-	}{
-		{name: "version", executable: failing, files: nil},
-		{name: "missing", executable: tarantool, files: []string{filepath.Join(dir, "gone.so")}},
-	}
+	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o600))
+	require.NoError(t, os.WriteFile(version, []byte("Tarantool 3.9.0-0-g8b9a0f59a95b\n"),
+		0o600))
 
-	if os.Geteuid() != 0 {
-		cases = append(cases, struct {
-			name, executable string
-			files            []string
-		}{name: "unreadable", executable: tarantool, files: []string{unreadable}})
+	cases := []struct {
+		name, want string
+		args       []string
+	}{
+		{"given", "Tarantool 3.9.0-0-g8b9a0f59a95b\n", []string{"-f", "version=" + version}},
+		{"unknown", "Tarantool of an unknown version\n", nil},
 	}
 
 	for _, testCase := range cases {
 		out := t.TempDir()
 
 		args, err := packArgs(PackOptions{
-			Core: core, Executable: testCase.executable, Dir: out, PID: 42, Time: "1763869440",
+			Core: core, Executable: tarantool, Dir: out, PID: 0, Time: "1763869440",
+		})
+		require.NoError(t, err)
+
+		var stderr strings.Builder
+
+		err = runPackScript(t.Context(), output.Streams{In: nil, Out: io.Discard, Err: &stderr},
+			t.TempDir(), append(args, testCase.args...))
+		require.NoError(t, err, stderr.String())
+
+		archives, err := filepath.Glob(filepath.Join(out, "*.tar.gz"))
+		require.NoError(t, err)
+		require.Len(t, archives, 1)
+
+		assert.Equal(t, testCase.want, archiveMembers(t, archives[0])["version"], testCase.name)
+		assert.NoFileExists(t, ranMarker(tarantool), testCase.name)
+	}
+}
+
+// TestPackScriptFailure runs the pack script as Pack does, and checks that
+// a pack that fails leaves nothing in the directory of the archive: neither
+// the temporary directory of the script nor a partial archive, which both
+// stayed there. An extension that is missing fails before tar runs, or tar
+// fails on a file it cannot read, a missing one for root, after it has
+// begun the archive. An archive packed before of the name the failed pack
+// would take stays, and the failed pack leaves no archive of the name it
+// took instead.
+func TestPackScriptFailure(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	core := filepath.Join(dir, "core")
+	unreadable := filepath.Join(dir, "unreadable.so")
+
+	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o600))
+	require.NoError(t, os.WriteFile(unreadable, []byte("a library"), 0o000))
+
+	tarantool := fakeTarantool(t, dir)
+
+	cases := []struct {
+		name, flag string
+		files      []string
+	}{
+		{name: "extension", flag: "-x", files: []string{filepath.Join(dir, "gone.py")}},
+		{name: "missing", flag: "-f", files: []string{filepath.Join(dir, "gone.so")}},
+	}
+
+	if os.Geteuid() != 0 {
+		cases = append(cases, struct {
+			name, flag string
+			files      []string
+		}{name: "unreadable", flag: "-f", files: []string{unreadable}})
+	}
+
+	for _, testCase := range cases {
+		out := t.TempDir()
+
+		args, err := packArgs(PackOptions{
+			Core: core, Executable: tarantool, Dir: out, PID: 42, Time: "1763869440",
 		})
 		require.NoError(t, err)
 
 		for _, file := range testCase.files {
-			args = append(args, "-f", file)
+			args = append(args, testCase.flag, file)
 		}
 
 		var stderr strings.Builder
 
-		err = runPackScript(output.Streams{In: nil, Out: io.Discard, Err: &stderr}, t.TempDir(),
-			args)
+		err = runPackScript(t.Context(), output.Streams{In: nil, Out: io.Discard, Err: &stderr},
+			t.TempDir(), args)
 		require.Error(t, err, testCase.name)
 
 		entries, err := os.ReadDir(out)
@@ -235,12 +293,9 @@ func TestPackScriptFailure(t *testing.T) {
 			require.NoError(t, os.WriteFile(file, []byte("a library"), 0o644))
 		}
 
-		args, err = packArgs(PackOptions{
-			Core: core, Executable: tarantool, Dir: out, PID: 42, Time: "1763869440",
-		})
-		require.NoError(t, err)
-		require.NoError(t, runPackScript(output.Streams{In: nil, Out: io.Discard, Err: io.Discard},
-			t.TempDir(), args), testCase.name)
+		require.NoError(t, runPackScript(t.Context(),
+			output.Streams{In: nil, Out: io.Discard, Err: io.Discard}, t.TempDir(), args),
+			testCase.name)
 
 		archives, err := filepath.Glob(filepath.Join(out, "*.tar.gz"))
 		require.NoError(t, err)
@@ -250,11 +305,12 @@ func TestPackScriptFailure(t *testing.T) {
 		require.NoError(t, err)
 
 		args, err = packArgs(PackOptions{
-			Core: core, Executable: failing, Dir: out, PID: 42, Time: "1763869440",
+			Core: core, Executable: tarantool, Dir: out, PID: 42, Time: "1763869440",
 		})
 		require.NoError(t, err)
-		require.Error(t, runPackScript(output.Streams{In: nil, Out: io.Discard, Err: io.Discard},
-			t.TempDir(), args), testCase.name)
+		require.Error(t, runPackScript(t.Context(),
+			output.Streams{In: nil, Out: io.Discard, Err: io.Discard}, t.TempDir(),
+			append(args, "-x", filepath.Join(dir, "gone-again.py"))), testCase.name)
 
 		entries, err = os.ReadDir(out)
 		require.NoError(t, err)
@@ -409,6 +465,62 @@ func TestPackScriptTakenName(t *testing.T) {
 	assert.Len(t, entries, 3, "the archives alone")
 }
 
+// TestPackScriptStopped stops the pack script as a signal to tt stops it,
+// the context of runPackScript ended, while tar, a fake of PATH that sleeps,
+// packs: the script is sent SIGTERM, stops tar at once rather than once it
+// is done, and leaves nothing in the directory of the archive, neither the
+// archive begun nor its temporary directory, and the error is the cause of
+// the stop. Killed, as the context killed it, the script left both.
+//
+//nolint:paralleltest // Sets PATH.
+func TestPackScriptStopped(t *testing.T) {
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	out := t.TempDir()
+	core := filepath.Join(dir, "core")
+	bin := t.TempDir()
+
+	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "tar"), []byte("#!/bin/sh\nexec sleep 60\n"),
+		0o755))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	args, err := packArgs(PackOptions{
+		Core: core, Executable: fakeTarantool(t, dir), Dir: out, PID: 42, Time: "1763869440",
+	})
+	require.NoError(t, err)
+
+	stopped := errors.New("interrupted by SIGTERM")
+	ctx, cancel := context.WithCancelCause(t.Context())
+
+	go func() {
+		// The archive is linked into the directory before tar runs.
+		for {
+			archives, _ := filepath.Glob(filepath.Join(out, "*.tar.gz"))
+			if len(archives) > 0 {
+				break
+			}
+
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+		cancel(stopped)
+	}()
+
+	began := time.Now()
+
+	err = runPackScript(ctx, output.Streams{In: nil, Out: io.Discard, Err: io.Discard},
+		t.TempDir(), args)
+	require.ErrorIs(t, err, stopped)
+	assert.Less(t, time.Since(began), 30*time.Second, "tar is stopped, not waited for")
+
+	entries, err := os.ReadDir(out)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
 // TestPackScriptNameNotRegular runs the pack script where the names of the
 // archive are taken by files that are no regular ones: a symbolic link to
 // /dev/null, a FIFO, a symbolic link to nothing and a directory. The pack
@@ -510,7 +622,7 @@ func TestPackArchive(t *testing.T) {
 
 		log, _ := logtest.New(t)
 
-		archive, taken, err := Pack(streams, log, opts)
+		archive, taken, err := Pack(t.Context(), streams, log, opts)
 		require.NoError(t, err, pid)
 		assert.Empty(t, taken, pid)
 
@@ -520,11 +632,179 @@ func TestPackArchive(t *testing.T) {
 		assert.True(t, strings.HasPrefix(filepath.Base(archive), "tarantool-core-"+name+"-"),
 			archive)
 
-		again, taken, err := Pack(streams, log, opts)
+		again, taken, err := Pack(t.Context(), streams, log, opts)
 		require.NoError(t, err, pid)
 		assert.Equal(t, archive, taken, pid)
 		assert.Equal(t, strings.TrimSuffix(archive, ".tar.gz")+"-2.tar.gz", again, pid)
 	}
+}
+
+// versionedTarantool is the source of a tarantool of Tarantool 3.9.0 that,
+// run, leaves the file MARKER.
+const versionedTarantool = `#include <stdio.h>
+const char *tarantool_package(void) { return "Tarantool"; }
+const char *tarantool_version(void) { return "3.9.0-0-g8b9a0f59a95b"; }
+int main(void) {
+	FILE *marker = fopen(MARKER, "w");
+	if (marker != NULL)
+		fclose(marker);
+	printf("%s %s\n", tarantool_package(), tarantool_version());
+	return 0;
+}
+`
+
+// TestPackRunsNoTarantool runs Pack on a core of a tarantool cc built, one
+// that leaves a file when it is run: the archive has the version of the
+// tarantool, read from its file, and the tarantool is not run. It is a
+// static executable, ET_EXEC, of a build ID and without DWARF, as the
+// static builds of Tarantool are, which Pack ran for its version to hint
+// at the static deb, and the pack script ran it for the version of the
+// archive: as the pipe of kernel.core_pattern both run as root, on the
+// executable of the process that crashed, whoever made it.
+func TestPackRunsNoTarantool(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "ran")
+	tarantool := compileC(t, dir, versionedTarantool, "-O2", "-no-pie",
+		"-DMARKER=\""+marker+"\"")
+
+	file, err := elf.Open(tarantool)
+	require.NoError(t, err)
+	assert.Equal(t, elf.ET_EXEC, file.Type)
+	require.NoError(t, file.Close())
+
+	core := binaryCore(t, tarantool, testExecBase)
+
+	core.notes = prpsinfoNote(4242)
+
+	log, recorder := logtest.New(t)
+
+	archive, _, err := Pack(t.Context(), output.Streams{In: nil, Out: io.Discard, Err: io.Discard},
+		log, PackOptions{
+			Core: core.write(t, filepath.Join(dir, "core")), Executable: tarantool,
+			Tarantools: nil, Dir: t.TempDir(), PID: 0, Time: "1763869440",
+		})
+	require.NoError(t, err)
+
+	assert.Equal(t, "Tarantool 3.9.0-0-g8b9a0f59a95b\n", archiveMembers(t, archive)["version"])
+	assert.NoFileExists(t, marker, "the tarantool is not run")
+	assert.NotContains(t, strings.Join(warnings(recorder), "\n"), "cannot read the version")
+}
+
+// TestPackScriptModes runs the pack script on its own under the umasks
+// 022, the usual one, and 000: on a core of a file, with -r, and as the
+// pipe of kernel.core_pattern, with -p of the test, a process whose comm
+// is not tarantool, whose core of the standard input it stores. The
+// archive, the file of -r and the core stored are their user's alone,
+// 0600. They were created under the umask, 0644 under 022 and 0666 under
+// 000, in a directory the pipe of root may share with every user: the
+// memory of a process for any user to read.
+func TestPackScriptModes(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	core := filepath.Join(dir, "core")
+	tarantool := fakeTarantool(t, dir)
+	script := filepath.Join(t.TempDir(), "tarabrt.sh")
+
+	require.NoError(t, os.WriteFile(core, []byte("the core"), 0o644))
+	require.NoError(t, copyEmbedded(coreScripts, packEmbedPath, script, scriptFileMode))
+
+	pid := strconv.Itoa(os.Getpid())
+
+	for _, umask := range []string{"022", "000"} {
+		out := t.TempDir()
+		report := filepath.Join(t.TempDir(), "archive")
+
+		for _, args := range [][]string{
+			{"-c", core, "-e", tarantool, "-d", out, "-t", "1763869440", "-r", report},
+			{"-d", out, "-p", pid, "-t", "1763869440"},
+		} {
+			cmd := exec.CommandContext(t.Context(), "bash", append([]string{
+				"-c", "umask " + umask + ` && exec bash "$0" "$@"`, script,
+			}, args...)...)
+
+			cmd.Stdin = strings.NewReader("the core of a pipe")
+
+			output, err := cmd.CombinedOutput()
+			require.NoError(t, err, string(output))
+		}
+
+		entries, err := os.ReadDir(out)
+		require.NoError(t, err)
+		require.Len(t, entries, 2, "the archive and the core of the pipe, umask %s", umask)
+
+		for _, entry := range entries {
+			info, err := entry.Info()
+			require.NoError(t, err)
+			assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "%s, umask %s", entry.Name(),
+				umask)
+		}
+
+		info, err := os.Stat(report)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "the report, umask %s", umask)
+	}
+}
+
+// TestPackUnpackModes packs a core of the mode 0644, as gcore writes one,
+// and unpacks the archive as tt coredump unpack does: the archive and the
+// core unpacked are their user's alone, 0600, and so is every other file
+// and directory unpacked. The archive was created under the umask, and the
+// core unpacked with the mode of its entry, for any user to read.
+func TestPackUnpackModes(t *testing.T) {
+	t.Parallel()
+	requirePackScript(t)
+
+	dir := t.TempDir()
+	tarantool := compileTarantool(t, dir)
+	core := binaryCore(t, tarantool, 0x555555554000).write(t, filepath.Join(dir, "core"))
+
+	require.NoError(t, os.Chmod(core, 0o644))
+
+	log, _ := logtest.New(t)
+
+	archive, _, err := Pack(t.Context(), output.Streams{In: nil, Out: io.Discard, Err: io.Discard},
+		log, PackOptions{
+			Core: core, Executable: tarantool, Tarantools: nil, Dir: t.TempDir(), PID: 42,
+			Time: "1763869440",
+		})
+	require.NoError(t, err)
+
+	info, err := os.Stat(archive)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "the archive")
+
+	unpacked := t.TempDir()
+
+	require.NoError(t, extractTarGz(archive, unpacked))
+
+	name := strings.TrimSuffix(filepath.Base(archive), ".tar.gz")
+
+	info, err = os.Stat(filepath.Join(unpacked, name, "coredump"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "the core unpacked")
+
+	err = filepath.WalkDir(filepath.Join(unpacked, name), func(path string, entry fs.DirEntry,
+		err error,
+	) error {
+		if err != nil || entry.Type()&fs.ModeSymlink != 0 {
+			return err
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+
+		assert.Zero(t, info.Mode().Perm()&0o077, "%s: %s", path, info.Mode())
+
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 // TestPackScriptPipe runs the pack script on its own with -p of the test, a

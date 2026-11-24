@@ -2816,6 +2816,7 @@ USAGE
 
 COMMANDS
   inspect     inspect tarantool coredump
+  list        list the crashes of instances and where their cores are
   pack        pack tarantool coredump into tar.gz archive
   unpack      unpack tarantool coredump tar.gz archive
 
@@ -2832,7 +2833,7 @@ USAGE
 
 FLAGS
       --experimental       Load the experimental gdb extensions of
-                           tarantool-gdb-tools (vendored by tt at dba4b9be),
+                           tarantool-gdb-tools (vendored by tt at d6510d75),
                            with lj-bt, instead of those of the Tarantool of the
                            core: they are checked on the versions of Tarantool
                            their manifest names, and inspect warns of a core
@@ -2841,13 +2842,63 @@ FLAGS
   -h, --help               help for inspect
   -s, --sourcedir string   Source directory
 
+=== tt coredump list --help
+List the crashes of the instances the targets select, as tt instance status
+selects them: every instance of the project the command runs in without a
+target, and with --scope user or system every instance installed there. A crash
+is an exit of the process of an instance by a signal, which its watchdog records
+in crashes.json of its run directory, the last 10, through its restarts and
+stops. Each is listed, the newest first, with when it was, the PID of the
+process, the signal and where its core is now, with its size, or why it is not
+found. Crashes that cannot be read, as those of an instance of another user, are
+warned of, with why.
+
+The core is looked for where kernel.core_pattern puts it now: a file of the
+pattern, %p and the other specifiers of core(5) expanded and .PID of
+core_uses_pid appended, relative to the working directory of the process; the
+cores of systemd-coredump, which coredumpctl lists by their PID and dumps; the
+core and the archive tt coredump pack, the pipe of the pattern, made in its
+--dir; and the core apport keeps in /var/lib/apport/coredump, or, of an older
+apport, in the working directory of the process, or its report in /var/crash. A
+core file of another process than the crash, by the PID it records, as of
+another instance that crashed then with a pattern without %p, is not its core. A
+pipe to another program is named, and its cores are not looked for.
+
+tt coredump pack <APP>:<INSTANCE> packs the core of the last crash of an
+instance that has one.
+
+USAGE
+  tt coredump list [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+
+FLAGS
+  -o, --format string     output format: table, json or yaml (default "table")
+  -h, --help              help for list
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+
 === tt coredump pack --help
 Pack COREDUMP, a core dump of Tarantool, into a tar.gz archive with the
 tarantool that dumped it, the shared libraries it had loaded and the gdb
 extensions, for `tt coredump inspect`. The archive is
 tarantool-core-PID-TIME-HOST.tar.gz in --dir, the working directory by default,
 with the PID of --pid, or of the process of the core, and the time of --time, or
-now; pack says its path.
+now; pack says its path. SIGINT or SIGTERM, as Ctrl-C or the stop of a service
+sends, stops pack, which removes what it was making, and tt exits 130 or 143.
+
+<APP>:<INSTANCE>, which is no file, is an instance of this host, found as tt
+instance status finds it with --scope and --template: pack packs the core of the
+last crash of the instance that dumped one, its watchdog recorded, found as tt
+coredump list finds it, a core of systemd-coredump dumped by coredumpctl, the
+one of the entry of the crash, into a file of --dir that pack removes after,
+with its holes, and names the archive by the PID and the time of the crash; a
+core file of another process is refused. pack says which crash it packs and
+where the core came from; a crash with no core, or one whose core is not found,
+is an error that says why. The archive has the last MiB of the logs of the
+instance in logs/: tt.log, with the standard error of tarantool, and the file
+tarantool logs into of its own, if any; the config of the instance, which may
+hold passwords, is not packed. With --no-logs the archive has no logs.
 
 The tarantool is the one --executable names, and the core is refused when that
 one did not dump it. Without --executable, it is the executable the core names,
@@ -2868,19 +2919,25 @@ packed. A COREDUMP file is packed as it is, with the tarantool found as without
 --pid, and the PID names the archive.
 
 USAGE
-  tt coredump pack [COREDUMP] [flags]
+  tt coredump pack [COREDUMP | <APP>:<INSTANCE>] [flags]
 
 FLAGS
   -d, --dir string          Directory the resulting archive is created in
   -e, --executable string   Tarantool executable that dumped the core, instead
                             of the one pack finds for it
   -h, --help                help for pack
+      --no-logs             Pack no logs of the instance of <APP>:<INSTANCE>,
+                            which may tell what it worked with
   -p, --pid uint            PID of the dumped process, as seen in the PID
                             namespace in which the given process resides (see %p
                             in core(5) for more info). This flag is to be used
                             when tt is used as kernel.core_pattern pipeline
                             script: without COREDUMP, or with -, the core is
                             read from the standard input
+      --scope string        scope the application is looked for in: project,
+                            user or system
+      --template string     template of the application the instances are
+                            described in (default "default")
   -t, --time string         Time of dump, expressed as seconds since the Epoch
                             (1970-01-01 00:00 UTC)
 
@@ -4050,8 +4107,9 @@ as its watchdog recorded it, and the last lines of its tt.log unless it was
 stopped cleanly; -o json and -o yaml give that record as last_exit. For
 every instance it prints the last crash of its process, an exit by a
 signal, with its PID, the signal and whether the kernel dumped a core, as
-the watchdog recorded it: a restart and a stop later keep it. -o json and
--o yaml give it as last_crash.
+the watchdog recorded it: a restart and a stop later keep it, and
+tt coredump list tells where the core is. -o json and -o yaml give it as
+last_crash.
 
 The status reads the cluster config as far as it can. When "*" stands for
 a topology in a config storage that is out of reach, it stands for the

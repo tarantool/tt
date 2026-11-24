@@ -1068,19 +1068,29 @@ func TestFindDebugFile(t *testing.T) {
 func compileTarantool(t *testing.T, dir string) string {
 	t.Helper()
 
+	return compileC(t, dir, "void tarantool_version(void) {}\n"+
+		"int main(void) { tarantool_version(); return 0; }\n")
+}
+
+// compileC compiles the C program source with cc, with flags, into dir, as
+// an executable named tarantool with a GNU build ID, and returns its path.
+// The test is skipped without cc on Linux.
+func compileC(t *testing.T, dir, source string, flags ...string) string {
+	t.Helper()
+
 	_, err := exec.LookPath("cc")
 	if runtime.GOOS != "linux" || err != nil {
 		t.Skip("needs cc on Linux to build an ELF executable")
 	}
 
-	source := filepath.Join(dir, "tarantool.c")
+	path := filepath.Join(dir, "tarantool.c")
 	tarantool := filepath.Join(dir, "tarantool")
 
-	require.NoError(t, os.WriteFile(source, []byte("void tarantool_version(void) {}\n"+
-		"int main(void) { tarantool_version(); return 0; }\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte(source), 0o644))
 
-	out, err := exec.CommandContext(t.Context(), "cc", "-Wl,--build-id=sha1", "-o", tarantool,
-		source).CombinedOutput()
+	args := append([]string{"-Wl,--build-id=sha1", "-o", tarantool}, flags...)
+
+	out, err := exec.CommandContext(t.Context(), "cc", append(args, path)...).CombinedOutput()
 	require.NoError(t, err, string(out))
 
 	return tarantool
@@ -1267,54 +1277,71 @@ func TestWarnPackDebugInfo(t *testing.T) {
 // TestWarnPackDebugInfoStaticDeb checks that the hint of pack of a
 // tarantool with no debugging information names the tarantool of the
 // static deb of a static build of Community, by its type, its build ID and
-// its version, and that a PIE is not run for its version.
-//
-//nolint:paralleltest // Replaces readTarantoolVersion.
+// its version, the one read from its file.
 func TestWarnPackDebugInfoStaticDeb(t *testing.T) {
-	saved := readTarantoolVersion
-
-	t.Cleanup(func() { readTarantoolVersion = saved })
+	t.Parallel()
 
 	const generic = "hint: install the debug file of the tarantool, of the debuginfo or " +
 		"dbgsym package of its package, and pack the core again"
 
-	run := func(typ elf.Type, version string, err error) ([]string, []string) {
-		var ran []string
-
-		readTarantoolVersion = func(executable string) (string, error) {
-			ran = append(ran, executable)
-
-			return version, err
-		}
-
+	run := func(typ elf.Type, version string, err error) []string {
 		log, recorder := logtest.New(t)
 
 		warnPackDebugInfo(log, packArtefacts{
 			executable: "/bin/tarantool", executableType: typ, buildID: testBuildID,
+			version: version, versionErr: err,
 		}, []string{"/usr/lib/debug"})
 
 		got := warnings(recorder)
 		require.Len(t, got, 2)
 
-		return got, ran
+		return got
 	}
 
-	got, ran := run(elf.ET_EXEC, "Tarantool 3.9.0-0-g8b9a0f59a95b", nil)
+	got := run(elf.ET_EXEC, "Tarantool 3.9.0-0-g8b9a0f59a95b", nil)
 	assert.Equal(t, "hint: the tarantool of the static deb of Tarantool 3.9.0, which `tt binary "+
 		"install tarantool 3.9.0` installs, has the debugging information: if its build ID is "+
 		"that of the core, "+testBuildID+", pack the core with it, `tt coredump pack -e <its "+
 		"path>`", got[1])
-	assert.Equal(t, []string{"/bin/tarantool"}, ran)
 
-	got, ran = run(elf.ET_DYN, "Tarantool 3.9.0-0-g8b9a0f59a95b", nil)
-	assert.Equal(t, generic, got[1])
-	assert.Empty(t, ran, "a PIE is no static build")
+	got = run(elf.ET_DYN, "Tarantool 3.9.0-0-g8b9a0f59a95b", nil)
+	assert.Equal(t, generic, got[1], "a PIE is no static build")
 
-	got, _ = run(elf.ET_EXEC, "Tarantool 3.9.0-3-g1234567", nil)
+	got = run(elf.ET_EXEC, "Tarantool 3.9.0-3-g1234567", nil)
 	assert.Equal(t, generic, got[1])
 
-	got, _ = run(elf.ET_EXEC, "", errNotTarantool)
+	got = run(elf.ET_EXEC, "Tarantool Enterprise 3.7.0-0-g1f1ec9fdf", nil)
 	assert.Equal(t, generic, got[1])
+
+	got = run(elf.ET_EXEC, "", errNoVersionString)
+	assert.Equal(t, generic, got[1])
+}
+
+// TestWarnPackVersion checks that pack warns of a tarantool whose version
+// cannot be read from its file, with what inspect then cannot do, and of
+// no other.
+func TestWarnPackVersion(t *testing.T) {
+	t.Parallel()
+
+	log, recorder := logtest.New(t)
+
+	warnPackVersion(log, packArtefacts{
+		executable: "/bin/tarantool", version: "Tarantool 3.9.0-0-g8b9a0f59a95b",
+	})
+	assert.Empty(t, warnings(recorder))
+
+	warnPackVersion(log, packArtefacts{
+		executable: "/bin/tarantool",
+		versionErr: fmt.Errorf("%w of the form x.y.z-N-gCOMMIT in the read-only data",
+			errNoVersionString),
+	})
+	assert.Equal(t, []string{
+		"cannot read the version of the tarantool /bin/tarantool from its file: no version " +
+			"string of the form x.y.z-N-gCOMMIT in the read-only data: the archive will say it " +
+			"is unknown, and tt coredump inspect will load the gdb extensions of tt, which may " +
+			"not match the core, rather than those of its version, and will not say which " +
+			"commit of the sources of Tarantool to check out",
+	}, warnings(recorder))
 }
 
 func TestProbeArtefactsFiles(t *testing.T) {
@@ -1640,15 +1667,15 @@ func TestLoadedObjectsOfStatic(t *testing.T) {
 		"core: ")
 }
 
-// filteredGcore returns a gcore of /bin/sh, killed by SIGSEGV under gdb,
-// with coredump_filter 0x23: the bit of the ELF headers off, as the
-// filters of anonymous memory alone have it. gcore of gdb honours it, as
-// Linux does, and leaves the first page of a file mapped out of the core,
-// unless the process wrote to the mapping of the page: a mapping with a
-// page of its own, a copy of that of the file, is anonymous memory to both,
-// dumped whole. It returns the path of the shell too.
+// filteredGcore returns a gcore of the program of argv, which sets its
+// coredump_filter to 0x23 and gets SIGSEGV under gdb: the bit of the ELF
+// headers off, as the filters of anonymous memory alone have it. gcore of
+// gdb honours it, as Linux does, and leaves the first page of a file mapped
+// out of the core, unless the process wrote to the mapping of the page: a
+// mapping with a page of its own, a copy of that of the file, is anonymous
+// memory to both, dumped whole.
 //
-// gdb runs the shell with displaced stepping off. On, gdb steps over each
+// gdb runs the program with displaced stepping off. On, gdb steps over each
 // of its breakpoints in the dynamic loader, where it learns of the
 // libraries loaded, on a copy of the instruction at the entry point of the
 // program, which gives the mapping of the entry such a page. Linked for
@@ -1657,7 +1684,7 @@ func TestLoadedObjectsOfStatic(t *testing.T) {
 // x86-64 binutils links them into mappings of their own, -z separate-code.
 // Off, gdb steps over a breakpoint where it is and writes nothing to the
 // program.
-func filteredGcore(t *testing.T) (string, string) {
+func filteredGcore(t *testing.T, argv ...string) string {
 	t.Helper()
 
 	_, err := exec.LookPath("gdb")
@@ -1665,54 +1692,124 @@ func filteredGcore(t *testing.T) (string, string) {
 		t.Skip("needs gdb on Linux")
 	}
 
-	shell, err := filepath.EvalSymlinks("/bin/sh")
-	require.NoError(t, err)
-
 	core := filepath.Join(t.TempDir(), "core")
+	args := []string{
+		"-batch", "-n", "-ex", "set displaced-stepping off", "-ex", "run", "-ex", "gcore " + core,
+		"-ex", "kill", "--args",
+	}
 
-	out, _ := gdbCommand(t, "-batch", "-n", "-ex", "set displaced-stepping off", "-ex", "run",
-		"-ex", "gcore "+core, "-ex", "kill",
-		"--args", shell, "-c", "echo 0x23 > /proc/$$/coredump_filter; kill -SEGV $$").
-		CombinedOutput()
+	out, _ := gdbCommand(t, append(args, argv...)...).CombinedOutput()
 
 	_, err = os.Stat(core)
 	if err != nil {
-		t.Skipf("gdb made no core of %s: %s", shell, out)
+		t.Skipf("gdb made no core of %s: %s", argv[0], out)
 	}
 
-	return core, shell
+	return core
 }
+
+// filteringProgram is the C program of a filteredGcore: it sets its
+// coredump_filter to 0x23 and raises SIGSEGV.
+const filteringProgram = `#include <signal.h>
+#include <stdio.h>
+
+int main(void) {
+	FILE *filter = fopen("/proc/self/coredump_filter", "w");
+	if (filter == NULL || fputs("0x23", filter) < 0 || fclose(filter) != 0)
+		return 1;
+	raise(SIGSEGV);
+	return 1;
+}
+`
 
 // TestProbeOfFilteredGcore checks the names of the shared libraries pack
 // finds in a gcore without the first page of the executable against those
 // gdb gives: the name of the dynamic loader, in the first page of the
-// executable, is read from the executable.
+// executable, is read from the executable. The executables are the shell,
+// and a program cc links with -z noseparate-code, as a linker for aarch64
+// links one: its entry point is in the mapping of its ELF headers, which
+// gdb wrote to with displaced stepping on, and its first page was in the
+// core on any machine.
 func TestProbeOfFilteredGcore(t *testing.T) {
 	t.Parallel()
 
-	core, shell := filteredGcore(t)
+	// The commands of the programs by name.
+	programs := map[string]func(t *testing.T) []string{
+		"sh": func(t *testing.T) []string {
+			t.Helper()
 
-	dump, err := openCore(core)
+			shell, err := filepath.EvalSymlinks("/bin/sh")
+			require.NoError(t, err)
+
+			return []string{shell, "-c", "echo 0x23 > /proc/$$/coredump_filter; kill -SEGV $$"}
+		},
+		"noseparate-code": func(t *testing.T) []string {
+			t.Helper()
+
+			program := compileC(t, t.TempDir(), filteringProgram, "-Wl,-z,noseparate-code")
+			requireEntryInFirstMapping(t, program)
+
+			return []string{program}
+		},
+	}
+
+	for name, program := range programs {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			argv := program(t)
+			executable := argv[0]
+			core := filteredGcore(t, argv...)
+
+			dump, err := openCore(core)
+			require.NoError(t, err)
+
+			defer func() { _ = dump.Close() }()
+
+			_, err = dump.executableImage()
+			require.ErrorIs(t, err, errNotInCore, "the filter leaves the ELF headers out")
+
+			binary, err := elf.Open(executable)
+			require.NoError(t, err)
+
+			defer func() { _ = binary.Close() }()
+
+			gdbLibs, _ := gdbLibraries(t, executable, core)
+			require.NotEmpty(t, gdbLibs)
+
+			var notices strings.Builder
+
+			libs := sharedLibraries(&notices, dump, loadedObjects(&notices, dump, binary),
+				executable)
+			assert.Empty(t, notices.String())
+			requireLibrariesOfGdb(t, gdbLibs, libs)
+		})
+	}
+}
+
+// requireEntryInFirstMapping checks that the entry point of the executable
+// at path is in its first PT_LOAD, that of its ELF headers, from the offset
+// 0: a linker that kept the headers apart, -z separate-code, would leave the
+// case of TestProbeOfFilteredGcore with nothing to check.
+func requireEntryInFirstMapping(t *testing.T, path string) {
+	t.Helper()
+
+	file, err := elf.Open(path)
 	require.NoError(t, err)
 
-	defer func() { _ = dump.Close() }()
+	defer func() { _ = file.Close() }()
 
-	_, err = dump.executableImage()
-	require.ErrorIs(t, err, errNotInCore, "the filter leaves the ELF headers out")
+	for _, prog := range file.Progs {
+		if prog.Type == elf.PT_LOAD {
+			require.Zero(t, prog.Off, "the first PT_LOAD of %s", path)
+			require.True(t, prog.Vaddr <= file.Entry && file.Entry < prog.Vaddr+prog.Memsz,
+				"the entry %#x of %s is out of its first PT_LOAD", file.Entry, path)
 
-	binary, err := elf.Open(shell)
-	require.NoError(t, err)
+			return
+		}
+	}
 
-	defer func() { _ = binary.Close() }()
-
-	gdbLibs, _ := gdbLibraries(t, shell, core)
-	require.NotEmpty(t, gdbLibs)
-
-	var notices strings.Builder
-
-	libs := sharedLibraries(&notices, dump, loadedObjects(&notices, dump, binary), shell)
-	assert.Empty(t, notices.String())
-	requireLibrariesOfGdb(t, gdbLibs, libs)
+	require.Fail(t, "no PT_LOAD in "+path)
 }
 
 // requireLibrariesOfGdb checks libs, the shared libraries pack finds for a

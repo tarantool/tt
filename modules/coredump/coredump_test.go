@@ -3,16 +3,22 @@ package coredump_test
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/modules/coredump"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/sdktest"
 )
 
@@ -51,8 +57,151 @@ func TestCommands(t *testing.T) {
 	got := sdktest.Run(t, coredump.New, "coredump", "--help")
 	require.NoError(t, got.Err)
 	assert.Regexp(t, `\n  inspect\s+inspect tarantool coredump\n`, got.Stdout)
+	assert.Regexp(t, `\n  list\s+list the crashes of instances and where their cores are\n`,
+		got.Stdout)
 	assert.Regexp(t, `\n  pack\s+pack tarantool coredump into tar.gz archive\n`, got.Stdout)
 	assert.Regexp(t, `\n  unpack\s+unpack tarantool coredump tar.gz archive\n`, got.Stdout)
+}
+
+// TestList lists the crashes of the instances the services give, each with
+// where its core is, in a table and in JSON, and says which instances have
+// none. The crashes dumped no core: where the cores of the others are is
+// what kernel.core_pattern of the host says, which the unit tests of the
+// locator pin.
+func TestList(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)
+	instances := sdktest.WithLocalInstances(
+		sdk.LocalInstance{Name: "app:i1", WorkDir: t.TempDir(), Crashes: []sdk.Crash{
+			{At: at.Add(-time.Hour), PID: 41, Signal: syscall.SIGABRT, CoreDumped: false},
+			{At: at, PID: 42, Signal: syscall.SIGKILL, CoreDumped: false},
+		}},
+		sdk.LocalInstance{Name: "app:i2", WorkDir: t.TempDir()},
+	)
+	services := sdktest.New(t, instances)
+
+	got := services.Run(coredump.New, "coredump", "list", "--scope", "user", "app:*")
+	require.NoError(t, got.Err)
+	assert.Equal(t, "INSTANCE  CRASHED AT           PID  SIGNAL   CORE\n"+
+		"app:i1    2026-11-24 10:00:00  42   SIGKILL  none dumped\n"+
+		"app:i1    2026-11-24 09:00:00  41   SIGABRT  none dumped\n", got.Stdout)
+	require.NotEmpty(t, got.Records)
+	assert.Equal(t, "No crash is recorded of app:i2.", got.Records[0].Message)
+
+	calls := services.LocalInstancesCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, []string{"app:*"}, calls[0].Targets)
+	assert.Equal(t, sdk.AppLookup{Scope: "user", Template: ""}, calls[0].Lookup)
+
+	got = sdktest.New(t, instances).Run(coredump.New, "coredump", "list", "-o", "json", "app:i1")
+	require.NoError(t, got.Err)
+
+	var listed []map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(got.Stdout), &listed))
+	require.Len(t, listed, 1)
+	assert.Equal(t, "app:i1", listed[0]["instance"])
+
+	crashes, ok := listed[0]["crashes"].([]any)
+	require.True(t, ok)
+	require.Len(t, crashes, 2)
+
+	last, ok := crashes[0].(map[string]any)
+	require.True(t, ok)
+	assert.InDelta(t, 42, last["pid"], 0)
+	assert.InDelta(t, 9, last["signal"], 0)
+	assert.Equal(t, "SIGKILL", last["signal_name"])
+	assert.Equal(t, false, last["core_dumped"])
+	assert.NotContains(t, last, "core")
+	assert.Contains(t, last["missing"], "no core was dumped")
+
+	got = sdktest.New(t, instances).Run(coredump.New, "coredump", "list", "app:none")
+	require.ErrorIs(t, got.Err, sdk.ErrNotFound)
+
+	// Crashes that cannot be read are warned of, with why, and are no lack
+	// of crashes; -o json gives why.
+	unreadable := sdktest.WithLocalInstances(
+		sdk.LocalInstance{Name: "app:i3", WorkDir: t.TempDir(),
+			CrashesErr: errors.New("cannot read the crashes: open /run/app/i3/crashes.json: " +
+				"permission denied")},
+		sdk.LocalInstance{Name: "app:i2", WorkDir: t.TempDir()},
+	)
+
+	got = sdktest.New(t, unreadable).Run(coredump.New, "coredump", "list")
+	require.NoError(t, got.Err)
+	assert.Empty(t, got.Stdout)
+	require.Len(t, got.Records, 2)
+	assert.Equal(t, slog.LevelWarn, got.Records[0].Level)
+	assert.Equal(t, "The crashes of app:i3 cannot be read: cannot read the crashes: open "+
+		"/run/app/i3/crashes.json: permission denied.", got.Records[0].Message)
+	assert.Equal(t, "No crash is recorded of app:i2.", got.Records[1].Message)
+
+	got = sdktest.New(t, unreadable).Run(coredump.New, "coredump", "list", "-o", "json")
+	require.NoError(t, got.Err)
+	require.NoError(t, json.Unmarshal([]byte(got.Stdout), &listed))
+	assert.Equal(t, "cannot read the crashes: open /run/app/i3/crashes.json: permission denied",
+		listed[0]["crashes_error"])
+	assert.NotContains(t, listed[1], "crashes_error")
+}
+
+// TestPackInstance packs by an instance target, which is no file: the
+// instance is resolved as tt instance status resolves it, with --scope, and
+// a crash with no core, an instance with none, a target of two instances
+// and one not found fail, saying why and where to look.
+func TestPackInstance(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)
+	instances := sdktest.WithLocalInstances(
+		sdk.LocalInstance{Name: "app:i1", WorkDir: t.TempDir(), Crashes: []sdk.Crash{
+			{At: at, PID: 42, Signal: syscall.SIGKILL, CoreDumped: false},
+		}},
+		sdk.LocalInstance{Name: "app:i2", WorkDir: t.TempDir()},
+	)
+	services := sdktest.New(t, instances)
+
+	got := services.Run(coredump.New, "coredump", "pack", "--scope", "user", "app:i1")
+	require.ErrorContains(t, got.Err, "app:i1: no core was dumped by any of its 1 crashes: the "+
+		"last, PID 42, SIGKILL, at 2026-11-24 10:00:00")
+	require.ErrorContains(t, got.Err, "; tt coredump list app:i1 lists the crashes of the "+
+		"instance and where their cores are")
+
+	calls := services.LocalInstancesCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, []string{"app:i1"}, calls[0].Targets)
+	assert.Equal(t, sdk.AppLookup{Scope: "user", Template: ""}, calls[0].Lookup)
+
+	got = sdktest.New(t, instances).Run(coredump.New, "coredump", "pack", "app:i2")
+	require.ErrorContains(t, got.Err, "app:i2: no crash is recorded")
+	require.ErrorContains(t, got.Err, "tt coredump list app:i2")
+
+	got = sdktest.New(t, instances).Run(coredump.New, "coredump", "pack", "app:*")
+	require.ErrorContains(t, got.Err, "app:* selects 2 instances: pack takes the core of one "+
+		"instance, <APP>:<INSTANCE>")
+	assert.Equal(t, sdk.ExitFailure, got.ExitCode())
+
+	got = sdktest.New(t, instances).Run(coredump.New, "coredump", "pack", "app:none")
+	require.ErrorIs(t, got.Err, sdk.ErrNotFound)
+}
+
+// TestPackInstanceFileOfTheName packs a file of the working directory named
+// as an instance, app:i1, given by that name: it is a core, whatever its
+// name, and no instance target. The name is relative: an absolute path has
+// a slash, which no instance target has.
+//
+//nolint:paralleltest // Changes the working directory.
+func TestPackInstanceFileOfTheName(t *testing.T) {
+	instances := sdktest.WithLocalInstances(sdk.LocalInstance{Name: "app:i1", WorkDir: t.TempDir()})
+
+	t.Chdir(t.TempDir())
+	require.NoError(t, os.WriteFile("app:i1", []byte("not a core"), 0o600))
+
+	services := sdktest.New(t, instances)
+
+	got := services.Run(coredump.New, "coredump", "pack", "-e", "/bin/true", "app:i1")
+	require.ErrorContains(t, got.Err, "not a core dump: app:i1")
+	assert.Empty(t, services.LocalInstancesCalls())
 }
 
 func TestArguments(t *testing.T) {

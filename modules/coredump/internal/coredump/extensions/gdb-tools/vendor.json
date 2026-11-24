@@ -4,56 +4,56 @@
       "file": "extensions.json",
       "repo": "buyemune-sys/tarantool-gdb-tools",
       "path": "extensions.json",
-      "ref": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "commit": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
+      "ref": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "commit": "d6510d757fbb104e5bbc7e36f5820438e225127a",
       "sha256": "6a27196250581d125c6cd3d45abadb1c838180d0cd2c97833b788e8a37283cb6"
     },
     {
       "file": "luajit_gdb.py",
       "repo": "buyemune-sys/tarantool-gdb-tools",
       "path": "luajit_gdb.py",
-      "ref": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "commit": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
+      "ref": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "commit": "d6510d757fbb104e5bbc7e36f5820438e225127a",
       "sha256": "5451691e90325a557f3d0baae1111a475cda3d236978141b63556765e7067f85"
     },
     {
       "file": "tarantool_gdb.py",
       "repo": "buyemune-sys/tarantool-gdb-tools",
       "path": "tarantool_gdb.py",
-      "ref": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "commit": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "sha256": "64eebab35c335fcda1778ff459696a0c1e47b2e64021e9fcfd5a7ff1ab2ccafe"
+      "ref": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "commit": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "sha256": "3068741dd0a085768de6d14ab1a45b0f666e88f08b55e6ec50449ccff8d57754"
     },
     {
       "file": "luajit_backtrace_gdb.py",
       "repo": "buyemune-sys/tarantool-gdb-tools",
       "path": "luajit_backtrace_gdb.py",
-      "ref": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "commit": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
+      "ref": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "commit": "d6510d757fbb104e5bbc7e36f5820438e225127a",
       "sha256": "b108091c0090ac018fcf3e993000e0c29d40381bf746cbaf3b04d6c9ccb2d551"
     },
     {
       "file": "gcore_pages_gdb.py",
       "repo": "buyemune-sys/tarantool-gdb-tools",
       "path": "gcore_pages_gdb.py",
-      "ref": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "commit": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
+      "ref": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "commit": "d6510d757fbb104e5bbc7e36f5820438e225127a",
       "sha256": "712d4a46aa7a2dfb85c2de0141afa8d008f8c8c53791952ce0334eb97686b4c4"
     },
     {
       "file": "LICENSE",
       "repo": "buyemune-sys/tarantool-gdb-tools",
       "path": "LICENSE",
-      "ref": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "commit": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
+      "ref": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "commit": "d6510d757fbb104e5bbc7e36f5820438e225127a",
       "sha256": "13c21668efc647af57593193529bb31bc76ce37a11455b85e63752dc5a11ab24"
     },
     {
       "file": "NOTICE",
       "repo": "buyemune-sys/tarantool-gdb-tools",
       "path": "NOTICE",
-      "ref": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
-      "commit": "dba4b9be8be9c9a35c0d318fd2f9a244f40fff92",
+      "ref": "d6510d757fbb104e5bbc7e36f5820438e225127a",
+      "commit": "d6510d757fbb104e5bbc7e36f5820438e225127a",
       "sha256": "527e2d8c0b968a3a098f055820ba0c444b528eba3a769153ee194c8c35a0bb60"
     }
   ]

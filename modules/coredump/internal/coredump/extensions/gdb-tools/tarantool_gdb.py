@@ -3320,6 +3320,11 @@ if support_unwinders:
             self.__unwind_mode = True
             self.__arch = None
             self.__set_fiber_internal(None)
+            # The registers of the thread change when it runs, or when the
+            # user writes one: the innermost frame is learned again.
+            gdb.events.stop.connect(self.__on_new_registers)
+            if hasattr(gdb.events, 'register_changed'):
+                gdb.events.register_changed.connect(self.__on_new_registers)
 
         def fiber(self):
             """The fiber whose stack is explored: the one picked with
@@ -3343,7 +3348,7 @@ if support_unwinders:
 
         def __set_fiber_internal(self, f):
             self.__fiber = f
-            self.__is_running_fiber_frame_unwound = False
+            self.__forget_innermost()
             # The selection belongs to this thread.  The unwinder tells a
             # thread by its ptid: reading cord_ptr there may need a thread
             # switch (a core with no libthread_db), which gdb does not
@@ -3354,6 +3359,21 @@ if support_unwinders:
         def __in_fiber_thread(self):
             thread = gdb.selected_thread()
             return thread is not None and thread.ptid == self.__ptid
+
+        def __forget_innermost(self):
+            # (sp, pc) of the innermost frame of the fiber's thread, the
+            # first frame the unwinder is asked about; see __call__.
+            self.__innermost = None
+
+        def __on_new_registers(self, event):
+            # gdb has unwound frames at the new registers already (the stop
+            # line), and at the old ones after the thread was resumed (a
+            # step over a breakpoint), the innermost frame told by the old
+            # registers.  Unwound again, the frames start from the innermost
+            # one.
+            self.__forget_innermost()
+            if self.__fiber is not None:
+                gdb.invalidate_cached_frames()
 
         def get_arch(self):
             if hasattr(gdb.selected_inferior(), "architecture"):
@@ -3372,17 +3392,6 @@ if support_unwinders:
             # filter frames
             if self.__fiber is None or not self.__in_fiber_thread():
                 self.__frame_filter.skip_frame_sp = None
-                return None
-
-            # Only the innermost frame (of the running fiber) gets the saved
-            # context of the selected fiber as its caller; then proceed with
-            # the default unwinder.  gdb 12+ tells the level of the frame:
-            # the frames can be unwound again after the cache is flushed (a
-            # thread switch and back, flushregs, another extension).
-            if hasattr(pending_frame, 'level'):
-                if pending_frame.level() != 0:
-                    return None
-            elif self.__is_running_fiber_frame_unwound:
                 return None
 
             # Architecture specific parameters of coro context
@@ -3424,6 +3433,25 @@ if support_unwinders:
             orig_sp = pending_frame.read_register(reg_sp)
             orig_pc = pending_frame.read_register(reg_pc)
 
+            # Only the innermost frame (of the running fiber) gets the saved
+            # context of the selected fiber as its caller; then proceed with
+            # the default unwinder.  That frame is the first one the
+            # unwinder is asked about: gdb unwinds from the newest frame
+            # (set_fiber() and a stop flush the frame cache), and inline
+            # frames above it are gdb's inline unwinder's, never asked about
+            # here (abort() in a glibc with debug info:
+            # __pthread_kill_implementation and __pthread_kill_internal are
+            # inline frames 0 and 1).  It is told by its registers, the
+            # thread's own: the frames can be unwound again after the cache
+            # is flushed (a thread switch and back, flushregs, another
+            # extension), and the same frame comes back with the same sp and
+            # pc.
+            here = (int(orig_sp), int(orig_pc))
+            if self.__innermost is None:
+                self.__innermost = here
+            elif here != self.__innermost:
+                return None
+
             # Frame matching actual stack pointer should be skipped as it refers to
             # the running fiber
             self.__frame_filter.skip_frame_sp = (reg_sp, orig_sp)
@@ -3443,8 +3471,6 @@ if support_unwinders:
                 sp += 1
             unwind_info.add_saved_register(reg_pc, pc)
             unwind_info.add_saved_register(reg_sp, sp)
-
-            self.__is_running_fiber_frame_unwound = True
 
             # Return the result:
             return unwind_info
@@ -3501,11 +3527,14 @@ class Fiber(gdb.Command):
 Use this command to select fiber which stack need to be explored.
 FIBER_ID must be currently known, if omitted displays current fiber info.
 
-Please, be aware that the outermost frame (level #0) is filtered out for
-any fiber other than the one that is currently running, so backtrace in
-this case starts with level #1 frame. It's because GDB always starts frame
-sequence with a frame that matches actual value of the stack pointer register,
-but this frame only makes sense for the currently running fiber.
+Please, be aware that the innermost frame (level #0, and the inline frames
+up to the first one that is not, as at a crash in glibc with its debug
+info) is filtered out for any fiber other than the one that is currently
+running, so backtrace in this case starts with level #1 frame, or the one
+after those inline frames; this command selects it. It's because GDB always
+starts frame sequence with a frame that matches actual value of the stack
+pointer register, but this frame only makes sense for the currently running
+fiber.
 
 Please, note that this command does NOT change currently running fiber,
 it just selects stack to explore w/o changing any register/data."""
@@ -3539,7 +3568,7 @@ it just selects stack to explore w/o changing any register/data."""
         if f is None:
             raise gdb.GdbError("Unknown fiber {}.".format(argv[0]))
 
-        fiber_to_unwind, frame_to_select = (None, 0) if f == cord.fiber() else (f, 1)
+        fiber_to_unwind = None if f == cord.fiber() else f
         FiberUnwinder.instance().set_fiber(fiber_to_unwind)
         gdb.write("Switching stack unwinder to fiber {} ({:#x} ({}))\n".format(
             f["fid"],
@@ -3547,6 +3576,22 @@ it just selects stack to explore w/o changing any register/data."""
             f["name"].string(),
         ))
 
+        frame_to_select = 0
+        if fiber_to_unwind is not None:
+            frame_to_select = self.fiber_frame_level()
         gdb.execute("frame {}".format(frame_to_select), False, True)
+
+    @staticmethod
+    def fiber_frame_level():
+        """The level of the newest frame of the selected fiber.  The frames
+        above it are of the running fiber, all with the stack pointer of the
+        thread: the innermost one and the inline frames over it."""
+        frame = gdb.newest_frame()
+        sp = frame.read_register('sp')
+        level = 0
+        while frame is not None and frame.read_register('sp') == sp:
+            frame = frame.older()
+            level += 1
+        return level if frame is not None else 1
 
 Fiber()

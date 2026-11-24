@@ -53,6 +53,62 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   so in `tt.log` and in `last_exit.json`, `it was killed by signal 11
   (segmentation fault), core dumped`, and `last_exit.json` has the `pid`
   of the process and `core_dumped` as well.
+- `tt coredump list [TARGET...]` lists the crashes of the instances `tt
+  instance status` would show, the newest first, with when, the PID, the
+  signal and where the core is now, with its size, or why it is not found:
+  no core was dumped, the file is gone, coredumpctl has none, or
+  `kernel.core_pattern` pipes the cores to a program tt does not know.
+  The core is looked for where the pattern puts it now: a file of the
+  pattern, its `%p`, `%P`, `%s` and `%h` filled in, the other specifiers
+  matching anything, `.PID` of `core_uses_pid` appended, relative to the
+  working directory of the process, and written last before the crash;
+  the cores of `systemd-coredump`, by what `coredumpctl --json=short list
+  PID` says of the PID nearest the time of the crash; the core and the
+  archive `tt coredump pack`, the pipe of the pattern, made in its `-d`
+  directory; and the core `apport` keeps in `/var/lib/apport/coredump`,
+  `core.<executable>.<UID>.<boot ID>.<PID>.<start time>`, or, of an older
+  `apport`, in the working directory of the process, or else its report in
+  `/var/crash`. A core file of another process, by the PID its
+  `NT_PRPSINFO` records, as that of another instance of the application
+  that crashed then with a pattern without `%p`, is not the core of the
+  crash, and the list says so. Crashes that cannot be read, as those of an
+  instance of another user, or written by a newer tt, are warned of, with
+  why. `-o json` and `-o yaml` give each crash with `pid`, `signal`,
+  `signal_name`, `core_dumped` and `core` (`source`, `path`, `size`) or
+  `missing`, and an instance with `crashes_error`. `tt instance status
+  --details` points at it for a crash with a core.
+- `tt coredump pack <APP>:<INSTANCE>`, of a target that is no file, packs
+  the core of the last crash of the instance that dumped one, found as
+  `tt coredump list` finds it, with `--scope` and `--template`, and names
+  the archive by the PID and the time of the crash:
+  `Packing the core of the crash of app:inst, PID 123, SIGABRT, at
+  2026-11-24 10:00:00, from the file of kernel.core_pattern, /…/core.123.`
+  A core `systemd-coredump` keeps is dumped by `coredumpctl dump` into a
+  file of `--dir`, which goes once it is packed: the core of the entry of
+  the crash, pinned by its `COREDUMP_PID` and `COREDUMP_TIMESTAMP`, as
+  `dump` takes the last entry of its matches, through the standard output
+  with the holes of the core, so the file takes the space of its data
+  alone. A core file of another process than the crash, by the PID it
+  records, is refused. SIGINT or SIGTERM stops `tt coredump pack`, which
+  removes the dumped core, its temporary directory and the archive begun,
+  and tt exits 130 or 143; they stayed. A later crash that dumped
+  no core is warned of; an instance with no crash, crashes with no core
+  and a core that is not found are errors that say why and point at `tt
+  coredump list`, and a target of several instances is refused. The core
+  the `kernel.core_pattern` pipe packed already, whose own file is gone,
+  is not packed again: pack says where its archive is. `tt coredump pack
+  COREDUMP` and the pipe are as they were.
+- `tt coredump pack <APP>:<INSTANCE>` puts the tails of the logs of the
+  instance into `logs/` of the archive, the last MiB of each from the
+  start of a line: `logs/tt.log`, which has what tarantool wrote to its
+  standard error as it crashed, and `logs/tarantool.log`, the file of an
+  instance whose config logs with `log.to: file`. Pack says what it packed
+  of each, `Packing the lines of the last 1.0 MiB of the log /…/tt.log as
+  logs/tt.log of the archive.`, and a log that is not there is left out.
+  `--no-logs` packs none. The config of the instance, which may hold
+  passwords, is not packed. `tt coredump
+  unpack` keeps the logs, and `tt coredump inspect` says where they are,
+  in the directory it is given or in the archive.
 - The SDK connects a module to an instance and runs Lua on it, where only
   the core could: `Services.Connect(ctx, target, opts)` returns a
   `sdk.Conn` as `tt connect` reaches the target without `--binary`, an
@@ -1516,6 +1572,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the exclusive lock of an owner and waited out: only probes that keep the
   file locked for 5 s more get it refused, with "the pid file is kept
   locked by readers".
+- `tt coredump pack` no longer runs the tarantool of a core for its
+  version, which it ran as root: as the pipe of `kernel.core_pattern`,
+  where the tarantool is the executable of the process that crashed, and
+  of `tt coredump pack` of root on the core of another user, with the
+  executable the core names. Any user can make such a file: pack takes
+  for a tarantool an ELF file that defines the symbol `tarantool_version`.
+  pack reads the version from the file instead: the code of
+  `tarantool_version()`, of x86-64 and AArch64, says where the string it
+  returns is, and of another code the version is the only string of the
+  read-only data of the form of `git describe`, `3.9.0-0-g8b9a0f59a95b`.
+  The edition is the string `tarantool_package()` returns, else Tarantool
+  Enterprise of a file with that string. The version of the archive is
+  the first line of `tarantool --version`, as gdb.sh and `tt coredump
+  inspect` read it, the line alone; a version that cannot be read is
+  packed as "Tarantool of an unknown version", with a warning of what
+  inspect cannot do then.
+- The archive of `tt coredump pack` is its user's alone, 0600, and so is
+  the core the pack script stores as the pipe of `kernel.core_pattern`:
+  they hold the memory of a process, and were created under the umask,
+  0644 for any user to read, where the pipe of root writes them into a
+  directory every user may read. `tt coredump unpack` and `inspect`
+  extract the files of an archive with the permissions of their owner
+  alone, the directories 0700: the entries carry the modes of the files
+  packed, a core 0644 of gcore among them, and a file there already gets
+  the mode of the entry too.
 - `tt coredump pack` no longer reads and compresses the holes of a core
   dump. A core is mostly holes, the pages of the mappings the process
   never touched: that of a bare `tarantool` is 1.1 GB long and takes 11 MB

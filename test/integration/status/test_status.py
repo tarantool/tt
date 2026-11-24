@@ -693,6 +693,7 @@ def test_status_details_last_crash(tt_cmd, tmp_path):
         out = status("--details")
         assert re.search(rf"Last exit of {inst}: stopped, it exited with code 0, at ", out), out
         assert re.search(last_crash, out), out
+        assert "tt coredump list" not in out, "no core was dumped"
 
         info = extract_status_from_json(status("-o", "json"))[inst]
         assert info["last_exit"]["pid"] == restarted
