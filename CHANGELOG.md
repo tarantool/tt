@@ -1716,6 +1716,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt rocks` took a Mac on Apple Silicon for an x86_64 one: `tt rocks
+  install` refused a rock built there with `Incompatible architecture
+  macosx-aarch64`, took the `macosx-x86_64` rocks of a server and packed
+  arm64 modules as `macosx-x86_64`. Its LuaRocks took the platform from the
+  first architecture of `/bin/sh`, a universal binary that lists x86_64
+  first; it names the host from the Go runtime of tt now, as the rest of tt
+  does (#1501).
 - `tt connect` and `tt aeon connect` failed with `cannot get the current
   user: user: unknown userid 1001` when run as a user the user database
   does not know, as in a container started with an arbitrary uid: they
