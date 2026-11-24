@@ -60,6 +60,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref || github.sha }}
+          # The tags: the tt the integration tests run is built here, and
+          # git describe gives its version, which the package tests check
+          # against [platform].tt.
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/prepare-ce-test-env # zizmor: ignore[self-repository] -- Test the selected repository revision.
         id: prepare
