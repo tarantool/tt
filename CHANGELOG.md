@@ -1332,6 +1332,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   looked the home directory, where the history of the console is kept, up
   there. They take it from `HOME` now, and from the user database only when
   `HOME` is not set.
+- `tt binary install tarantool --use-docker` failed with `failed to get
+  current user` for a user the user database does not know. The build
+  container runs as the uid and gid of the process now, which need no entry
+  there.
 - `tt connect` to an `app:inst`, and every command that asks an instance
   over its console socket, reads the answer in a time linear in its size:
   a statement whose result is a megabyte, such as the `select` of a big

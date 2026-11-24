@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"os/user"
 	"strings"
 
 	"github.com/moby/go-archive"
@@ -132,11 +131,6 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 		}
 	}
 
-	currentUser, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current user: %w", err)
-	}
-
 	log.Debug("Creating docker container.")
 
 	ctx := context.Background()
@@ -144,9 +138,11 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 	createResponse, err := dockerClient.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Image: runOptions.ImageTag,
 		Config: &container.Config{
-			Cmd:  runOptions.Command,
-			Tty:  false,
-			User: fmt.Sprintf("%s:%s", currentUser.Uid, currentUser.Gid),
+			Cmd: runOptions.Command,
+			Tty: false,
+			// The container runs as the process does, whose files it writes
+			// in the binds; the user database need not know its uid.
+			User: fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		},
 		HostConfig: &container.HostConfig{Binds: runOptions.Binds},
 	})
