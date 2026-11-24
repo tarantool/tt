@@ -12,7 +12,7 @@ env:
 
 jobs:
   validate-tag:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +26,9 @@ jobs:
 
   create-packages-linux:
     needs: validate-tag
-    runs-on: ubuntu-latest
+    # tt links the glibc and the OpenSSL of the runner statically, and on
+    # ubuntu-26.04 they are the amd64v3 packages that need AVX2 (#1475).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -202,7 +204,7 @@ jobs:
 
   draft-release:
     needs: [create-packages-linux, create-packages-linux-arm64, create-packages-macos]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -287,7 +289,7 @@ jobs:
 
   publish-s3:
     needs: [validate-tag, create-packages-linux, create-packages-linux-arm64]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags')
     steps:
       - uses: actions/checkout@v4
