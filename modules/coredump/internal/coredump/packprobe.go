@@ -2,7 +2,6 @@ package coredump
 
 import (
 	"bytes"
-	"context"
 	"debug/elf"
 	"errors"
 	"fmt"
@@ -10,11 +9,9 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 )
 
 // tarantoolSignature is the symbol a Tarantool executable defines in its
@@ -90,7 +87,7 @@ var (
 )
 
 // packArtefacts are what pack collects of the host for a core besides the
-// version and the scripts: the tarantool, and the files gdb needs for the
+// scripts: the tarantool and its version, and the files gdb needs for the
 // core.
 type packArtefacts struct {
 	// executable is the tarantool that dumped the core.
@@ -122,6 +119,11 @@ type packArtefacts struct {
 	// of a core given with no PID; 0 when the core has none (see
 	// coreDump.pid).
 	pid uint
+	// version is the version of the tarantool, as the first line of
+	// tarantool --version prints it, read from its file (see
+	// readBinaryVersion); empty when it cannot be, and versionErr says why.
+	version    string
+	versionErr error
 }
 
 // scriptArgs returns the options of the pack script that pass the files.
@@ -206,10 +208,13 @@ func probeArtefacts(notices io.Writer, opts PackOptions, debugDirs []string) (
 
 	pid, _ := core.pid()
 
+	version, versionErr := readBinaryVersion(binary)
+
 	return packArtefacts{
 		executable: executable, files: files, stacks: core.threadStacks(),
 		executableType: binary.Type, buildID: build, debugFile: debugFile,
 		debugInfo: hasDWARF(binary) || fileHasDWARF(debugFile), choice: choice, pid: pid,
+		version: version, versionErr: versionErr,
 	}, nil
 }
 
@@ -287,18 +292,11 @@ func warnPackDebugInfo(log *slog.Logger, artefacts packArtefacts, debugDirs []st
 	hint := "install the debug file of the tarantool, of the debuginfo or dbgsym package of " +
 		"its package, and pack the core again"
 
-	// Only an executable that may be a static build is run for its version.
-	if artefacts.executableType == elf.ET_EXEC && artefacts.buildID != "" {
-		line, err := readTarantoolVersion(artefacts.executable)
-		if err != nil {
-			log.Debug("cannot tell whether the tarantool is a static build: " + err.Error())
-		}
-
-		release, ok := staticDebRelease(line, artefacts.executableType, artefacts.buildID)
-		if ok {
-			hint = staticDebHint(release, artefacts.buildID,
-				"pack the core with it, `tt coredump pack -e <its path>`")
-		}
+	release, ok := staticDebRelease(artefacts.version, artefacts.executableType,
+		artefacts.buildID)
+	if ok {
+		hint = staticDebHint(release, artefacts.buildID,
+			"pack the core with it, `tt coredump pack -e <its path>`")
 	}
 
 	warnWithHint(log, fmt.Sprintf("the tarantool %s has no debugging information, and %s: the "+
@@ -307,28 +305,47 @@ func warnPackDebugInfo(log *slog.Logger, artefacts packArtefacts, debugDirs []st
 		missing), hint)
 }
 
-// tarantoolVersionTimeout bounds tarantool --version, which pack runs for
-// the version of a tarantool before the pack script runs it for its own.
-const tarantoolVersionTimeout = 10 * time.Second
-
-// executableVersion returns the first line of executable --version, the
-// version of a tarantool.
-func executableVersion(executable string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), tarantoolVersionTimeout)
-	defer cancel()
-
-	out, err := exec.CommandContext(ctx, executable, "--version").Output()
-	if err != nil {
-		return "", fmt.Errorf("%s --version: %w", executable, err)
+// warnPackVersion warns, before the archive is made, when the version of
+// the tarantool of artefacts cannot be read from its file: the archive
+// says it is unknown, and inspect can do nothing of what it does by it.
+func warnPackVersion(log *slog.Logger, artefacts packArtefacts) {
+	if artefacts.versionErr == nil {
+		return
 	}
 
-	line, _, _ := strings.Cut(string(out), "\n")
-
-	return line, nil
+	log.Warn(fmt.Sprintf("cannot read the version of the tarantool %s from its file: %v: the "+
+		"archive will say it is unknown, and tt coredump inspect will load the gdb extensions "+
+		"of tt, which may not match the core, rather than those of its version, and will not "+
+		"say which commit of the sources of Tarantool to check out", artefacts.executable,
+		artefacts.versionErr))
 }
 
-// readTarantoolVersion tells the version of a tarantool; tests replace it.
-var readTarantoolVersion = executableVersion
+// versionMember is the member of the archive with the version of the
+// tarantool.
+const versionMember = "version"
+
+// versionFileMode is the mode of the version file pack writes for the pack
+// script.
+const versionFileMode = 0o600
+
+// stageVersion writes the version of artefacts into dir and returns the -f
+// arguments of the pack script that put it into the archive as its
+// version. A version that cannot be read, empty, is no file: the script
+// writes a version that says it is unknown then.
+func stageVersion(dir string, artefacts packArtefacts) ([]string, error) {
+	if artefacts.version == "" {
+		return nil, nil
+	}
+
+	path := filepath.Join(dir, versionMember)
+
+	err := os.WriteFile(path, []byte(artefacts.version+"\n"), versionFileMode)
+	if err != nil {
+		return nil, fmt.Errorf("cannot stage the version of the tarantool: %w", err)
+	}
+
+	return []string{"-f", versionMember + "=" + path}, nil
+}
 
 // loadedObjects returns the link map of core, the objects its dynamic
 // loader loaded, through the image of its program in the core, as
@@ -734,25 +751,9 @@ func openExecutable(path string) (*elf.File, error) {
 // `info symbol tarantool_version` of gdb tells. Tarantool exports the
 // symbol, so a stripped tarantool keeps it in the dynamic table.
 func hasSignature(file *elf.File) bool {
-	for _, table := range []func() ([]elf.Symbol, error){file.Symbols, file.DynamicSymbols} {
-		symbols, err := table()
-		if err != nil {
-			continue
-		}
+	_, ok := textSymbol(file, tarantoolSignature)
 
-		for _, symbol := range symbols {
-			if symbol.Name != tarantoolSignature || symbol.Section == elf.SHN_UNDEF ||
-				int(symbol.Section) >= len(file.Sections) {
-				continue
-			}
-
-			if file.Sections[symbol.Section].Name == ".text" {
-				return true
-			}
-		}
-	}
-
-	return false
+	return ok
 }
 
 // coreMismatch returns why the executable of core is not binary, or ""

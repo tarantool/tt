@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Every file the script creates is its user's alone, whatever the umask
+# it is run with: the archive and the core of the pipe hold the memory of
+# a process, which Linux dumps for its owner alone, and as the pipe of
+# kernel.core_pattern the script runs as root and writes them into a
+# directory others may read.
+umask 077
+
 TOOL=$(basename "$0")
 HELP=$(cat <<HELP
 $0 - Tarantool Automatic Bug Reporting Tool
@@ -8,7 +15,12 @@ $0 - Tarantool Automatic Bug Reporting Tool
 This tool collects all required artefacts (listed below) and packs them into
 a single archive with unified format:
   - /checklist      - the plain text file with the list of tarball contents
-  - /version        - the plain text file with \`tarantool --version' output
+  - /version        - the plain text file with the version of the
+                      executable, as the first line of \`tarantool
+                      --version' prints it, given with -f version=FILE:
+                      tt reads it from the executable file, which neither
+                      tt nor the script runs; without it the version is
+                      unknown
   - /tarantool      - the executable binary file produced the core dump
   - /coredump       - the core dump file produced by the executable
   - /etc/os-release - the plain text file with OS identification data
@@ -18,6 +30,9 @@ a single archive with unified format:
   - /usr/lib/debug/.build-id/XX/YYYY.debug - the separate debugging
     information of the executable, when the host has it, given with -f
     from any debug directory of the host
+  - /logs/tt.log, /logs/tarantool.log - the tails of the logs of the
+    instance of the core, given with -f by tt coredump pack of an
+    instance
 
 tt finds those files in the core dump and passes them with -f: the script
 asks no debugger.
@@ -224,10 +239,16 @@ TMPDIR=$(mktemp -d -p "${COREDIR}")
 # neither TMPDIR nor its archive, which PARTIAL names from the moment
 # the archive is created to the end of tar. An archive packed before is
 # never touched: the pack takes another name (see below). One that
-# succeeds removes TMPDIR at the end.
+# succeeds removes TMPDIR at the end. tar, which TAR names while it runs,
+# is stopped first: a signal stops it too.
+TAR=
 cleanup() {
 	STATUS=$?
 	if [ "${STATUS}" -ne 0 ]; then
+		if [ -n "${TAR}" ]; then
+			kill "${TAR}" 2>/dev/null || true
+			wait "${TAR}" 2>/dev/null || true
+		fi
 		rm -rf "${TMPDIR}"
 		if [ -n "${PARTIAL}" ]; then
 			rm -f "${PARTIAL}"
@@ -284,7 +305,6 @@ PARTIAL=${ARCHIVE}
 # the expression of a relative core path, `core', matched inside
 # every path with "core" in it, as /var/lib/systemd/coredump.
 STAGE=${TMPDIR}/${ARCHIVENAME}
-VERSION=${STAGE}/version
 
 mkdir "${STAGE}"
 
@@ -299,10 +319,6 @@ stage() {
 	ln -s "$2" "${STAGE}/$1"
 	echo "${ARCHIVENAME}/$1" >>"${TARLIST}"
 }
-
-# Dump the version to checkout the right commit later.
-"${BINARY}" --version >"${VERSION}"
-echo "${ARCHIVENAME}/version" >>"${TARLIST}"
 
 # Collect the most important artefacts.
 stage "${OSRELEASE#/}" "${OSRELEASE}"
@@ -328,6 +344,19 @@ done
 IFS=${OLDIFS}
 set +f
 
+# The version of the executable, by which the commit of its sources is
+# checked out and the gdb extensions are chosen, is given as
+# -f version=FILE: tt reads it from the executable file. Neither tt nor
+# the script runs the executable for it: as the pipe of
+# kernel.core_pattern the script runs as root, and the executable is
+# that of the process that crashed, which any user may have made.
+# Without it the version is unknown, as gdb.sh and tt coredump inspect
+# take it.
+if [ ! -e "${STAGE}/version" ] && [ ! -L "${STAGE}/version" ]; then
+	echo 'Tarantool of an unknown version' >"${STAGE}/version"
+	echo "${ARCHIVENAME}/version" >>"${TARLIST}"
+fi
+
 # Include GDB-wrapper script
 if [ -n "${GDB}" ] && [ -f "${GDB}" ]; then
 	stage "$(basename "${GDB}")" "${GDB}"
@@ -349,7 +378,8 @@ done
 
 # Pack everything listed in TARLIST file into a tarball: the names
 # there are those of the archive, relative to TMPDIR, the directory of
-# STAGE, and each but the version a symbolic link that tar follows.
+# STAGE, and each but an unknown version a symbolic link that tar
+# follows.
 # A core dump is mostly holes: the pages of the mappings the process
 # never touched. --sparse stores the data of a file and a map of its
 # holes, so tar neither reads nor compresses the zeros of the holes. The
@@ -357,9 +387,17 @@ done
 # in its extended header, which GNU tar, bsdtar and the archive/tar of Go
 # read; tt coredump unpack refuses the old GNU sparse entries of the gnu
 # format. tar writes the archive created empty above, by its private
-# path, the file linked into COREDIR.
+# path, the file linked into COREDIR. It runs in the background, waited
+# for: the shell runs a trap of a signal that comes as it waits at once,
+# and the trap of one that comes as a command runs once the command ends,
+# as tar of a core of gigabytes does a long time after SIGTERM to the
+# script alone, which tt sends it when it gets one. A command of the
+# background ignores SIGINT, and the cleanup stops it.
 tar -czhf "${PRIVATE}" -C "${TMPDIR}" -T "${TARLIST}" \
-	--format=posix --sparse
+	--format=posix --sparse &
+TAR=$!
+wait "${TAR}"
+TAR=
 
 # The caller of -r learns where the archive is whatever the standard
 # output is, as the lines below tell it to a terminal alone: tt says it.

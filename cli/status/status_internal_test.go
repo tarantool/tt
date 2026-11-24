@@ -1052,7 +1052,8 @@ func TestStatusDetailsLastExit(t *testing.T) {
 }
 
 // TestStatusDetailsLastCrash pins the last crash of an instance, running or
-// not: the details tell it, and JSON gives it as last_crash.
+// not: the details tell it, with tt coredump list for one with a core, and
+// JSON gives it as last_crash.
 func TestStatusDetailsLastCrash(t *testing.T) {
 	crashedAt := time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)
 	watchdog := 41
@@ -1078,9 +1079,11 @@ func TestStatusDetailsLastCrash(t *testing.T) {
 		return NewTablePrinter(WithDetails(true)).Print(instances)
 	})
 	assert.Contains(t, out, "Last crash of app:crashed: PID 42, it was killed by signal 11 "+
-		"(segmentation fault), core dumped, at 2026-11-24 10:00:00\n")
+		"(segmentation fault), core dumped, at 2026-11-24 10:00:00\n"+
+		"  tt coredump list app:crashed tells where its core is.\n")
 	assert.Contains(t, out, "Last crash of app:killed: PID 43, it was killed by signal 9 "+
 		"(killed), at 2026-11-24 10:00:00\n")
+	assert.NotContains(t, out, "tt coredump list app:killed")
 	assert.NotContains(t, out, "Last crash of app:never")
 
 	out = captureStdout(t, func() error {

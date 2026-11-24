@@ -16,8 +16,18 @@ import (
 	"github.com/tarantool/tt/sdk/execfile"
 )
 
-// dirMode is the mode of the directories the extraction creates.
-const dirMode = 0o755
+// dirMode is the mode of the directories the extraction and the pack
+// create: their user's alone, as the files of an archive are.
+const dirMode = 0o700
+
+// extractedPerm is what of the permissions of an entry the file extracted
+// from it keeps: the bits of its owner alone. An archive of pack holds the
+// memory of a process, its core and the tails of the logs of its instance,
+// which are for the owner of the process alone, and the user who unpacks
+// it owns the files; the entries carry the modes of the files tar packed,
+// 0644 of a core gcore wrote or of an archive of a tt before, which
+// unpacked as they were for every user to read.
+const extractedPerm fs.FileMode = 0o700
 
 const (
 	// sparseBlock is the size of the blocks writeSparse writes a file in: a
@@ -59,15 +69,16 @@ func copyEmbedded(fsys fs.FS, src, dst string, perms fs.FileMode) error {
 }
 
 // extractTarGz extracts the tar.gz archive at archivePath into dir, which is
-// created if it does not exist, with the modes of its entries and its
-// symbolic links. An entry whose name is absolute or leaves the directory
-// once cleaned is an error, and so is a symbolic link whose target is
-// absolute or, resolved from the directory of the link, leaves the
-// directory. The files are written through an [os.Root] of the directory,
-// so no write follows a symbolic link out of it. Directory entries are
-// skipped: the directory of every file is created, with 0755, before the
-// file. A file that exists is overwritten. The blocks of zeros of a file,
-// the holes of a core, are left as holes (see writeSparse).
+// created if it does not exist, with the modes of its entries, of their
+// owner alone (see extractedPerm), and its symbolic links. An entry whose
+// name is absolute or leaves the directory once cleaned is an error, and so
+// is a symbolic link whose target is absolute or, resolved from the
+// directory of the link, leaves the directory. The files are written
+// through an [os.Root] of the directory, so no write follows a symbolic
+// link out of it. Directory entries are skipped: the directory of every
+// file is created, with 0700, before the file. A file that exists is
+// overwritten, and gets the mode of the entry. The blocks of zeros of a
+// file, the holes of a core, are left as holes (see writeSparse).
 func extractTarGz(archivePath, dir string) error {
 	archive, err := os.Open(archivePath)
 	if err != nil {
@@ -171,13 +182,20 @@ func (e *extractor) file(header *tar.Header, name string, content io.Reader) err
 		return fmt.Errorf("cannot create an extracted directory: %w", err)
 	}
 
-	output, err := e.root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC,
-		header.FileInfo().Mode().Perm())
+	perm := header.FileInfo().Mode().Perm() & extractedPerm
+
+	output, err := e.root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
 	if err != nil {
 		return fmt.Errorf("cannot create an extracted file: %w", err)
 	}
 
-	err = writeSparse(output, content)
+	// The mode of OpenFile is that of a file it creates: a file there
+	// already kept its own.
+	err = output.Chmod(perm)
+	if err == nil {
+		err = writeSparse(output, content)
+	}
+
 	if err != nil {
 		_ = output.Close()
 

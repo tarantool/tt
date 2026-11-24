@@ -155,6 +155,7 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 	}
 
 	warnDebugInfo(res.log, dir, opts.Path, unpacked)
+	noteLogs(res.log, dir, opts.Path, unpacked)
 
 	stacks := readThreadStacks(filepath.Join(dir, "coredump"))
 	warnThreadStacks(res.log, stacks)

@@ -357,8 +357,9 @@ func printLastExit(name string, instStatus *instanceStatus) bool {
 
 // printLastCrash prints the last crash of the process of the instance name,
 // running or not, if its watchdog recorded one: its PID, the signal and
-// whether the kernel dumped a core, and when, in red. It reports whether it
-// printed anything.
+// whether the kernel dumped a core, and when, in red, with tt coredump list,
+// which tells where the core went, for a crash with a core. It reports
+// whether it printed anything.
 func printLastCrash(name string, instStatus *instanceStatus) bool {
 	crash := instStatus.LastCrash
 	if crash == nil {
@@ -366,6 +367,10 @@ func printLastCrash(name string, instStatus *instanceStatus) bool {
 	}
 
 	_, _ = fmt.Fprintf(os.Stdout, "Last crash of %s: %s\n", name, printRed(crash.Describe()))
+
+	if crash.CoreDumped {
+		_, _ = fmt.Fprintf(os.Stdout, "  tt coredump list %s tells where its core is.\n", name)
+	}
 
 	return true
 }

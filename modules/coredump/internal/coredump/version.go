@@ -9,8 +9,10 @@ import (
 	"strings"
 )
 
-// tarantoolVersion is what the version file of an archive, the output of
-// tarantool --version, tells of the Tarantool that dumped the core.
+// tarantoolVersion is what the version file of an archive tells of the
+// Tarantool that dumped the core: its first line, that of tarantool
+// --version, which pack reads from the file of the tarantool (see
+// readBinaryVersion), and the output of the command of older archives.
 type tarantoolVersion struct {
 	// Line is the first line of the file, the version as Tarantool prints
 	// it: "Tarantool 3.9.0-0-g8b9a0f59a95b".
