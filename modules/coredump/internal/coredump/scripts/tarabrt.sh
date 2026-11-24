@@ -66,7 +66,10 @@ Supported options are:
                                 into FILE once it is packed, for a caller
                                 that is no terminal: the path and the
                                 listing of the archive are printed to a
-                                terminal alone.
+                                terminal alone. An archive of its name
+                                there already is kept, and the archive is
+                                NAME-2.tar.gz, or the next free one: the
+                                path of the one kept is the second line.
 
   -t DATETIME                   Time of dump, expressed as seconds since the
                                 epoch, 1970-01-01 00:00:00 +0000 (UTC).
@@ -218,9 +221,10 @@ PARTIAL=
 TMPDIR=$(mktemp -d -p "${COREDIR}")
 
 # A pack that fails, or is interrupted, leaves nothing behind in COREDIR:
-# neither TMPDIR nor the archive tar was writing, which PARTIAL names
-# meanwhile. An archive of the name packed before stays when the pack
-# fails before tar starts. One that succeeds removes TMPDIR at the end.
+# neither TMPDIR nor its archive, which PARTIAL names from the moment
+# the archive is created to the end of tar. An archive packed before is
+# never touched: the pack takes another name (see below). One that
+# succeeds removes TMPDIR at the end.
 cleanup() {
 	STATUS=$?
 	if [ "${STATUS}" -ne 0 ]; then
@@ -238,8 +242,41 @@ trap 'exit 143' TERM
 
 TARLIST=${TMPDIR}/tarlist
 OSRELEASE=/etc/os-release
-ARCHIVENAME=tarantool-core-${PID:-N}-$(date +%Y%m%d%H%M -d @"${TIME}")-${HOSTNAME%%.*}
+BASENAME=tarantool-core-${PID:-N}-$(date +%Y%m%d%H%M -d @"${TIME}")-${HOSTNAME%%.*}
+ARCHIVENAME=${BASENAME}
 ARCHIVE=${COREDIR}/${ARCHIVENAME}.tar.gz
+
+# The name has the minute of the time alone: the same core packed again
+# in that minute, or with the same -t, has the name of an archive there
+# already, which the pack replaced. A core of the pipe is not to be lost,
+# so the pack does not fail either: it takes the first name of BASENAME-2,
+# BASENAME-3 and so on that is free, for the archive and its directory
+# alike, and TAKEN is the archive of the first name. The archive is
+# created empty in TMPDIR, the directory of the script alone, as PRIVATE,
+# and linked into COREDIR under the name before anything is packed, so
+# that a pack alongside takes another name; tar writes PRIVATE. A link,
+# link(2), is made only where nothing is, whatever it is, and opens
+# nothing: the archive is always the regular file the script created.
+# The noclobber of the shell, set -C, refused a regular file alone: it
+# opened a symbolic link to /dev/null, which tar wrote the archive to, or
+# a FIFO, where the pack waited for a reader. A name that cannot be linked
+# for another reason than a file there fails with the error of ln.
+PRIVATE=${TMPDIR}/archive.tar.gz
+: >"${PRIVATE}"
+TAKEN=
+SUFFIX=1
+while ! ln -T "${PRIVATE}" "${ARCHIVE}" 2>/dev/null; do
+	if [ ! -e "${ARCHIVE}" ] && [ ! -L "${ARCHIVE}" ]; then
+		ln -T "${PRIVATE}" "${ARCHIVE}"
+		exit 1
+	fi
+	TAKEN=${TAKEN:-${ARCHIVE}}
+	SUFFIX=$((SUFFIX + 1))
+	ARCHIVENAME=${BASENAME}-${SUFFIX}
+	ARCHIVE=${COREDIR}/${ARCHIVENAME}.tar.gz
+done
+PARTIAL=${ARCHIVE}
+
 # The archive is packed from STAGE, its root: every artefact is a
 # symbolic link there, under the name it has in the archive, which tar
 # follows (-h). The names are made here rather than by --transform of
@@ -319,16 +356,21 @@ done
 # posix format keeps the entry of such a file a regular one with the map
 # in its extended header, which GNU tar, bsdtar and the archive/tar of Go
 # read; tt coredump unpack refuses the old GNU sparse entries of the gnu
-# format.
-PARTIAL=${ARCHIVE}
-tar -czhf "${ARCHIVE}" -C "${TMPDIR}" -T "${TARLIST}" \
+# format. tar writes the archive created empty above, by its private
+# path, the file linked into COREDIR.
+tar -czhf "${PRIVATE}" -C "${TMPDIR}" -T "${TARLIST}" \
 	--format=posix --sparse
 
 # The caller of -r learns where the archive is whatever the standard
 # output is, as the lines below tell it to a terminal alone: tt says it.
-# An archive the caller is not told of is removed with the rest.
+# The second line is the archive of the first name, there already, when
+# the archive took another one. An archive the caller is not told of is
+# removed with the rest.
 if [ -n "${REPORT}" ]; then
 	printf '%s\n' "${ARCHIVE}" >"${REPORT}"
+	if [ -n "${TAKEN}" ]; then
+		printf '%s\n' "${TAKEN}" >>"${REPORT}"
+	fi
 fi
 PARTIAL=
 

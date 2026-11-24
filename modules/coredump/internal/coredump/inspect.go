@@ -38,6 +38,13 @@ type InspectOptions struct {
 // the gdb extensions tt selects explicitly once the core is loaded: those
 // that match the Tarantool of the core (see resolver.resolve), or the
 // universal ones of tarantool-gdb-tools with opts.GDBTools.
+//
+// The files the core maps are given their paths in the artefacts before gdb
+// starts, the unpacked archive of a temporary directory or the directory
+// opts.Path names (see linkMappedFiles): a directory given is the artefacts
+// as tt coredump unpack or tar unpacked them, and the links, relative ones
+// to its files, make it more of the sysroot of the core it is to gdb. One
+// that cannot be written to is opened as it is.
 func Inspect(ctx context.Context, streams output.Streams, log *slog.Logger,
 	opts InspectOptions,
 ) error {
@@ -154,6 +161,17 @@ func inspectWith(ctx context.Context, streams output.Streams, res *resolver, bac
 
 	if backend.Name() == debuggerGDB {
 		warnThreadLocalLua(res.log, readThreadDBFacts(dir, probe.Version, stacks), opts.GDBTools)
+	}
+
+	// The files the core maps get their paths in the artefacts, those the
+	// archive holds; gdb warns of the others, and tt says what they are.
+	mapped, err := linkMappedFiles(dir)
+	if err != nil {
+		res.log.Debug("cannot read the files the core maps: " + err.Error())
+	}
+
+	if backend.Name() == debuggerGDB {
+		logMappedFiles(res.log, mapped, probe.Version)
 	}
 
 	return runDebugger(cmd, streams)

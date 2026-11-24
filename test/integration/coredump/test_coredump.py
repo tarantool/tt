@@ -902,6 +902,38 @@ def test_coredump_pack_archive_name(tt_cmd, tmp_path):
         assert f"Core was successfully packed: {archives[0]}" in output, output
 
 
+def test_coredump_pack_taken_name(tt_cmd, tmp_path, gcore):
+    """pack of a core into the name of an archive there already, as of the
+    same core packed again in the minute of the name, keeps that archive and
+    names the new one with -2, then -3, before .tar.gz, its directory alike,
+    and says so. The pack replaced the archive without a word."""
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-d", out, "-p", "42", "-t", "1763869440", gcore]
+    archives = []
+    for suffix in ("", "-2", "-3"):
+        rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+        assert rc == 0, output
+        packed = sorted(set(out.glob("*.tar.gz")) - set(archives))
+        assert len(packed) == 1, (list(out.iterdir()), output)
+        archive = packed[0]
+        archives.append(archive)
+        if suffix:
+            first = archives[0]
+            assert archive.name == first.name.removesuffix(".tar.gz") + suffix + ".tar.gz"
+            assert (
+                f"Core was successfully packed: {archive}, since {first.name} is there already"
+                in output
+            ), output
+        else:
+            assert re.search(rf"Core was successfully packed: {re.escape(str(archive))}\s", output)
+            first_content = archive.read_bytes()
+        check_archive_members(archive)
+
+    assert archives[0].read_bytes() == first_content
+    assert set(out.iterdir()) == set(archives)
+
+
 def test_coredump_pack_pipe_not_tarantool(tt_cmd, tmp_path):
     """tt coredump pack -p PID of a process whose comm is not tarantool, as
     the kernel.core_pattern pipe gets the core of every process of the host,
@@ -1310,6 +1342,72 @@ def test_coredump_inspect_renamed_archive(tt_cmd, tmp_path, gcore):
     assert "cannot tell whether the tarantool has debugging information" not in output, output
     assert re.search(r"read the stacks of \d+ of the \d+ threads of the core", output), output
     check_extensions(output, has_debug_info(tarantool))
+
+
+# What gdb says of a file the core maps that it cannot open under its sysroot,
+# the artefacts.
+CANNOT_OPEN = re.compile(r"Can't open file (.+) during file-backed mapping note processing")
+
+# What inspect says before gdb starts of the files the core maps that are not
+# in the archive and hold no code: how many, but for one, and the first two.
+MAPPED_NOTE = re.compile(
+    r"gdb will warn of (?:a file|(\d+) files) the core maps that (?:is|are) not in the "
+    r"archive, (.+?)(?: and \d+ more)?: (?:it holds|they hold) no code gdb needs",
+)
+
+
+def check_mapped_files(output, tarantool):
+    """Check that gdb opened the files the core maps of the archive, the
+    tarantool, at the path it ran from, and the dynamic loader, at its real
+    path, among them, and that inspect said before gdb started how many it
+    would not open, naming some of them. gdb opens them in no given order."""
+    missing = CANNOT_OPEN.findall(output)
+    assert tarantool not in missing, output
+    assert not [path for path in missing if "/ld-linux" in path], output
+
+    note = MAPPED_NOTE.search(output)
+    if not missing:
+        assert note is None, output
+        return
+
+    assert note is not None, output
+    assert int(note.group(1) or 1) == len(missing), output
+    named = re.split(r", | and ", note.group(2))
+    assert named and set(named) <= set(missing), (named, missing)
+
+
+def test_coredump_inspect_mapped_files(tt_cmd, tmp_path, gcore):
+    """gdb opens under its sysroot, the artefacts, each file the core maps, for
+    the pages of it the core does not hold, and warned "Can't open file ...
+    during file-backed mapping note processing" of the tarantool at the path it
+    ran from and of the dynamic loader at its real path, which the archive
+    holds by other names, as of the locale archive, which it does not hold.
+    inspect gives the files of the archive those paths, and says of the others
+    before gdb starts: of an archive, and of the directory tt coredump unpack
+    unpacks it into, where the links stay for the next inspect."""
+    tarantool = os.path.realpath(shutil.which("tarantool"))
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-d", out, gcore]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    (archive,) = out.glob("*.tar.gz")
+
+    rc, output = inspect(tt_cmd, tmp_path, archive.as_posix(), ["bt 1"])
+    assert rc == 0, output
+    check_mapped_files(output, tarantool)
+
+    cmd = [tt_cmd, "coredump", "unpack", archive]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    unpacked = tmp_path / archive.name.removesuffix(".tar.gz")
+
+    for _ in range(2):
+        rc, output = inspect(tt_cmd, tmp_path, unpacked.as_posix(), ["bt 1"])
+        assert rc == 0, output
+        check_mapped_files(output, tarantool)
+
+    assert os.path.samefile(unpacked / tarantool.lstrip("/"), unpacked / "tarantool")
 
 
 # What gdb prints when its output runs past a screen of the terminal, and

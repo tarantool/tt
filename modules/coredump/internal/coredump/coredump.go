@@ -141,11 +141,14 @@ const archiveReport = "archive"
 // core will not work in gdb, while another core may still be taken. The
 // archive is named by the PID of opts, or else by that of the process of the
 // core, which the pack script takes with the core of a file, -c, for the
-// name alone.
-func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, error) {
+// name alone. An archive of that name there already, as of the same core
+// packed in the same minute, is kept, and its path is returned second: the
+// archive is named with -2 before .tar.gz, or the next number that is free.
+// The second is empty when the name was free.
+func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, string, error) {
 	artefacts, err := probeArtefacts(streams.Err, opts, defaultDebugDirs)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	logTarantoolChoice(log, artefacts.choice)
@@ -160,14 +163,14 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, e
 
 	scriptArgs, err := packArgs(opts)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	scriptArgs = append(scriptArgs, artefacts.scriptArgs()...)
 
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
-		return "", fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
+		return "", "", fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
 	}
 
 	defer func() {
@@ -179,7 +182,7 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, e
 
 	err = copyEmbedded(coreScripts, inspectEmbedPath, inspectPath, scriptFileMode)
 	if err != nil {
-		return "", fmt.Errorf("failed to put the inspecting script into the archive: %w", err)
+		return "", "", fmt.Errorf("failed to put the inspecting script into the archive: %w", err)
 	}
 
 	scriptArgs = append(scriptArgs, "-g", inspectPath)
@@ -187,7 +190,7 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, e
 	// Prepare gdb extensions for packing.
 	exts, err := writeExtensions(tmpDir)
 	if err != nil {
-		return "", fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
+		return "", "", fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
 	}
 
 	for _, ext := range exts {
@@ -195,20 +198,24 @@ func Pack(streams output.Streams, log *slog.Logger, opts PackOptions) (string, e
 	}
 
 	// The script names the archive and tells its path to a terminal alone:
-	// it writes the path into the report for tt to tell it.
+	// it writes the path into the report for tt to tell it, and that of the
+	// archive of the name it did not take.
 	report := filepath.Join(tmpDir, archiveReport)
 
 	err = runPackScript(streams, tmpDir, append(scriptArgs, "-r", report))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	archive, err := os.ReadFile(report)
+	paths, err := os.ReadFile(report)
 	if err != nil {
-		return "", fmt.Errorf("cannot read the path of the archive the pack script made: %w", err)
+		return "", "", fmt.Errorf("cannot read the path of the archive the pack script made: %w",
+			err)
 	}
 
-	return strings.TrimSuffix(string(archive), "\n"), nil
+	archive, taken, _ := strings.Cut(strings.TrimSuffix(string(paths), "\n"), "\n")
+
+	return archive, taken, nil
 }
 
 // runPackScript writes the pack script into dir and runs it with args. bash
