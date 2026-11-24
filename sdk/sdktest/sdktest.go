@@ -15,6 +15,9 @@
 // files or storages. Connect connects to nothing: the Conn of a target
 // [WithInstance] names answers with the function it gives, and the calls
 // are recorded ([Services.Connects], [Services.Evals], [Services.Conns]).
+// LocalInstances reads no file: it selects among the instances
+// [WithLocalInstances] gives, and the calls are recorded
+// ([Services.LocalInstancesCalls]).
 // The project reads, edits, builds and installs no file:
 // its manifest is the one [WithManifest] and [WithDeclared] give, which
 // AddDependency, RemoveDependency, AddComponent, UpdateComponent and
@@ -105,6 +108,8 @@ type options struct {
 	instances map[string]EvalFunc
 	// connectErrs are the errors Connect fails with, by target.
 	connectErrs map[string]error
+	// local are the instances LocalInstances selects among.
+	local []sdk.LocalInstance
 }
 
 // Option configures the Services New returns.
@@ -333,6 +338,8 @@ type Services struct {
 	evals []EvalCall
 	// conns counts the Conns Connect opened, and open those not closed.
 	conns, open int
+	// localCalls are the calls of LocalInstances, in order.
+	localCalls []LocalInstancesCall
 }
 
 // Index is a call of Rocks().Index ([Services.Indexed]).
@@ -376,6 +383,7 @@ func New(tb testing.TB, opts ...Option) *Services {
 		buildContext: nil,
 		instances:    map[string]EvalFunc{},
 		connectErrs:  map[string]error{},
+		local:        nil,
 	}
 
 	for _, opt := range opts {
@@ -454,6 +462,7 @@ func New(tb testing.TB, opts ...Option) *Services {
 		evals:        nil,
 		conns:        0,
 		open:         0,
+		localCalls:   nil,
 	}
 }
 

@@ -246,6 +246,7 @@ func demoModule(services sdk.Services) []sdk.Mount {
 		printCmd,
 		newDemoClusterCmd(services),
 		newDemoEvalCmd(services),
+		newDemoInstancesCmd(services),
 		&cobra.Command{
 			Use:  "cluster-dir",
 			Args: cobra.ExactArgs(1),
@@ -395,6 +396,52 @@ func newDemoEvalCmd(services sdk.Services) *cobra.Command {
 	sdk.AddConnectFlags(eval, &opts)
 
 	return eval
+}
+
+// newDemoInstancesCmd returns "demo instances [<target>...]": it prints the
+// instances of this host the targets select, a line each, with their files
+// and their crashes. A target that is not found is printed as "not found:
+// <error>" and is no failure. --scope and --template find the applications.
+func newDemoInstancesCmd(services sdk.Services) *cobra.Command {
+	var lookup sdk.AppLookup
+
+	instances := &cobra.Command{
+		Use: "instances",
+		RunE: func(command *cobra.Command, args []string) error {
+			out := services.Streams().IO().Out
+
+			found, err := services.LocalInstances(command.Context(), args, lookup)
+			if errors.Is(err, sdk.ErrNotFound) {
+				_, err = fmt.Fprintf(out, "not found: %v\n", err)
+
+				return err
+			}
+
+			if err != nil {
+				return err
+			}
+
+			for _, inst := range found {
+				line := fmt.Sprintf("%s work=%s run=%s log=%s tarantool=%s crashes=%v",
+					inst.Name, inst.WorkDir, inst.RunDir, inst.Log, inst.TarantoolLog,
+					inst.Crashes)
+				if inst.CrashesErr != nil {
+					line += " crashes-error=" + inst.CrashesErr.Error()
+				}
+
+				_, err = fmt.Fprintln(out, line)
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+	}
+
+	sdk.AddAppFlags(instances, &lookup)
+
+	return instances
 }
 
 // result is how a tt process ended.

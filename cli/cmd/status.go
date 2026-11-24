@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
@@ -138,15 +140,37 @@ incomplete.`,
 func resolveStatusTargets(cmdCtx *cmdcontext.CmdCtx,
 	args []string,
 ) ([]running.InstanceCtx, error) {
-	opts, err := instanceTargetOptions(cmdCtx)
+	return lookupStatusTargets(context.Background(), cmdCtx, instanceFlags, args)
+}
+
+// StatusInstances resolves targets, as the command line of tt instance
+// status gives them, to the instances the status would show, with the scope
+// and the template of lookup, as --scope and --template give them: for
+// Services.LocalInstances of the core. ctx bounds the reads of the config
+// storages.
+func StatusInstances(ctx context.Context, lookup sdk.AppLookup, targets []string) (
+	[]running.InstanceCtx, error,
+) {
+	return lookupStatusTargets(ctx, &cmdCtx, lookup, targets)
+}
+
+// lookupStatusTargets is resolveStatusTargets with the scope and the
+// template lookup gives rather than those of the flags of the instance
+// commands.
+func lookupStatusTargets(ctx context.Context, cmdCtx *cmdcontext.CmdCtx,
+	lookup sdk.AppLookup, args []string,
+) ([]running.InstanceCtx, error) {
+	//nolint:contextcheck // The scope roots ask uname and take no context.
+	opts, err := lookupOptions(cmdCtx, lookup)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(args) != 0 || (opts.Scope != app.ScopeUser && opts.Scope != app.ScopeSystem) {
-		return resolveProcesses(cmdCtx, args)
+		return lookupProcesses(ctx, cmdCtx, lookup, args)
 	}
 
+	//nolint:contextcheck // As above.
 	names := app.Names(opts)
 	if len(names) == 0 {
 		log.Infof("No applications are installed in the %s scope.", opts.Scope)
@@ -162,7 +186,7 @@ func resolveStatusTargets(cmdCtx *cmdcontext.CmdCtx,
 	for _, name := range names {
 		target := name + string(running.InstanceDelimiter) + app.AllInstances
 
-		found, err := resolveProcesses(cmdCtx, []string{target})
+		found, err := lookupProcesses(ctx, cmdCtx, lookup, []string{target})
 		if err != nil {
 			// The error names the application.
 			failures = append(failures, err)

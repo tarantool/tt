@@ -26,8 +26,12 @@
 //     instance, by its <app>:<instance> target or a URI, on which Lua runs
 //     the same over the console and over iproto ([Services.Connect],
 //     [Conn.Eval], whose Lua errors wrap [ErrEval]), with the flags of tt
-//     connect ([AddConnectFlags], [ConnectOptions]), and the core's way to
-//     end the process for code that cannot return an error ([Services.Exit]);
+//     connect ([AddConnectFlags], [ConnectOptions]), the instances of this
+//     host the targets of tt instance status select, with where their
+//     processes run, their run directories, their logs and their crashes
+//     ([Services.LocalInstances], [LocalInstance], [Crash]), and the core's
+//     way to end the process for code that cannot return an error
+//     ([Services.Exit]);
 //   - [ExitError] and [ExitCode] carry the exit code a command's error should
 //     end tt with, [UsageError] marks an error in how a command was invoked,
 //     which tt follows with the command's usage, and [Reported] one the user

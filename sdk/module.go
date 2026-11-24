@@ -72,6 +72,8 @@ var ErrNotFound = errors.New("not found")
 // SDK. Log is valid at any time. Every other method is valid only once tt is
 // configured - in a command's hooks - and panics before that with a message
 // naming the module and the method. Services are safe for concurrent use.
+//
+//nolint:interfacebloat // What the core offers a module, one service as the core is one.
 type Services interface {
 	// Log returns the module's logger: the process logger with a
 	// module=<name> attribute. Whether debug records are shown is the
@@ -147,6 +149,27 @@ type Services interface {
 	// host, such as localhost:3301, is the URI. ctx bounds the setup of the
 	// connection, as opts.ConnectTimeout bounds it over iproto.
 	Connect(ctx context.Context, target string, opts ConnectOptions) (Conn, error)
+	// LocalInstances returns the instances of applications of this host
+	// that targets select, as tt instance status selects them: each target
+	// is <app>:<instance>, <app>:* or a comma-separated list of them, found
+	// as lookup says, as --scope and --template find them ([AddAppFlags]),
+	// and no target is every instance of the project the command runs in,
+	// or, with the user or the system scope, every instance of every
+	// application installed there, an application that cannot be read
+	// logged and left out unless it is the only one; with none installed,
+	// the result is empty. A bare application name is refused with a hint
+	// to name an instance, as the instance commands refuse it. The config
+	// of an application is read as far as it can be: a config storage out
+	// of reach does not keep its instances from being listed. An
+	// application or an instance that is not found is an error that wraps
+	// ErrNotFound. ctx bounds the reads of the config storages.
+	//
+	// The instances are described whether they run or not, by their files
+	// and their records alone: nothing connects to them. Crashes that
+	// cannot be read fail nothing: the instance has none, and its
+	// [LocalInstance.CrashesErr] says why.
+	LocalInstances(ctx context.Context, targets []string, lookup AppLookup) (
+		[]LocalInstance, error)
 	// Rocks returns the rock servers tt writes.
 	Rocks() Rocks
 	// Exit ends the process as the core ends it for a command that returned

@@ -82,7 +82,7 @@ func lookupInstances(cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup, args []str
 		return nil, err
 	}
 
-	return resolveInstancesWith(args, opts)
+	return resolveInstancesWith(context.Background(), args, opts)
 }
 
 // resolveProcesses resolves the targets of a command that acts on the
@@ -99,26 +99,38 @@ func lookupInstances(cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup, args []str
 // over. The price is the wait for a config storage that is down, as long as
 // the timeout of the connection to it.
 func resolveProcesses(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.InstanceCtx, error) {
-	opts, err := instanceTargetOptions(cmdCtx)
+	return lookupProcesses(context.Background(), cmdCtx, instanceFlags, args)
+}
+
+// lookupProcesses resolves args as resolveProcesses does, with the scope and
+// the template lookup gives rather than those of the flags of the instance
+// commands. ctx bounds the reads of the config storages.
+func lookupProcesses(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup,
+	args []string,
+) ([]running.InstanceCtx, error) {
+	//nolint:contextcheck // The scope roots ask uname and take no context.
+	opts, err := lookupOptions(cmdCtx, lookup)
 	if err != nil {
 		return nil, err
 	}
 
 	opts.BestEffortConfig = true
 
-	return resolveInstancesWith(args, opts)
+	return resolveInstancesWith(ctx, args, opts)
 }
 
 // resolveInstancesWith resolves args, as resolveInstances does, with opts.
 // The contexts name the systemd units that manage the instances, if any
 // (running.AttachUnits).
-func resolveInstancesWith(args []string, opts app.Options) ([]running.InstanceCtx, error) {
+func resolveInstancesWith(ctx context.Context, args []string, opts app.Options) (
+	[]running.InstanceCtx, error,
+) {
 	targets, err := app.ParseTargets(args)
 	if err != nil {
 		return nil, err
 	}
 
-	insts, err := running.Collect(context.Background(), targets, opts)
+	insts, err := running.Collect(ctx, targets, opts)
 	if err != nil {
 		return nil, err
 	}
