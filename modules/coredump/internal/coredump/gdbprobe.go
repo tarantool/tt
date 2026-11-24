@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
@@ -113,18 +112,13 @@ type debuggerProbe struct {
 }
 
 // Probe implements debugger: it runs gdb once, with no init file, to show
-// its version and to print it from Python. A gdb PATH does not find is
+// its version and to print it from Python. A gdb PATH does not find, or a
+// PATH of the system when that of tt is empty (see command), is
 // errNoDebugger, which inspect fails with rather than have gdb.sh fail; one
 // whose output tells nothing, or that is stopped at the timeout before its
 // Python answers, is errProbeFailed.
 func (gdbDebugger) Probe(ctx context.Context) (debuggerProbe, error) {
 	none := debuggerProbe{Path: "", Version: debuggerVersion{}, Python: false}
-
-	path, err := exec.LookPath(debuggerGDB)
-	if err != nil {
-		return none, fmt.Errorf("gdb is %w: install gdb, or put the directory of the gdb to "+
-			"use first in PATH: %w", errNoDebugger, err)
-	}
 
 	ctx, cancel := context.WithTimeout(ctx, gdbProbeTimeout)
 	defer cancel()
@@ -132,8 +126,14 @@ func (gdbDebugger) Probe(ctx context.Context) (debuggerProbe, error) {
 	// show version prints the version of any gdb. The python command prints
 	// it again where gdb has Python, and fails where it has none, gdb going
 	// on to exit with 1: what gdb printed tells either way.
-	cmd := exec.CommandContext(ctx, path, "-batch", "-nx", "-ex", "show version",
+	cmd := command(ctx, debuggerGDB, "-batch", "-nx", "-ex", "show version",
 		"-ex", "python print('"+gdbPythonMark+"' + gdb.VERSION)")
+	if cmd.Err != nil {
+		return none, fmt.Errorf("gdb is %w: install gdb, or put the directory of the gdb to "+
+			"use first in PATH: %w", errNoDebugger, cmd.Err)
+	}
+
+	path := cmd.Path
 
 	cmd.WaitDelay = gdbProbeWaitDelay
 

@@ -840,16 +840,30 @@ def gcore_of_running(process, core):
 # The Lua of a tarantool that says it is up and sleeps.
 SLEEP = 'io.stdout:write("ready\\n") io.stdout:flush() require("fiber").sleep(100)'
 
+# The PATH tt looks programs up in, and gives them, when its own is empty or
+# unset, as that of the pipe of kernel.core_pattern is.
+SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-@pytest.mark.parametrize("arg", [[], ["-"]], ids=["omitted", "stdin"])
-def test_coredump_pack_pipe(tt_cmd, tmp_path, arg):
+
+@pytest.mark.parametrize(
+    "arg, kernel",
+    [([], False), (["-"], False), ([], True)],
+    ids=["omitted", "stdin", "empty environment"],
+)
+def test_coredump_pack_pipe(tt_cmd, tmp_path, arg, kernel):
     """tt coredump pack -p PID is a kernel.core_pattern pipe: with COREDUMP
     omitted or -, it reads the core from its standard input, stores it as
     <dir>/tarantool-core.PID.TIME and packs it, with the /proc/PID/exe of the
     process, into an archive named by the PID. The core is a gcore of a
     running tarantool. tt fed the pack script to bash on its standard input,
     and the script read the rest of its own text for the core, and pack
-    required COREDUMP."""
+    required COREDUMP.
+
+    The kernel runs the pipe with no environment at all, as env -i does,
+    from /: tt found no bash for the pack script without PATH, `exec:
+    "bash": executable file not found in $PATH`, and stored the core and did
+    not pack it. The kernel runs it as root, which a pipe of a process of
+    the user it runs as does not need."""
     if sys.platform != "linux" or shutil.which("gdb") is None:
         pytest.skip("needs gdb on Linux to make a core of a running tarantool")
     tarantool = shutil.which("tarantool")
@@ -866,8 +880,11 @@ def test_coredump_pack_pipe(tt_cmd, tmp_path, arg):
         exe = Path(f"/proc/{process.pid}/exe")
 
         cmd = [tt_cmd, "coredump", "pack", "-p", str(process.pid), "-d", out, *arg]
+        cwd = tmp_path
+        if kernel:
+            cmd, cwd = ["env", "-i", *cmd], "/"
         with core.open("rb") as stdin:
-            pack = subprocess.run(cmd, cwd=tmp_path, stdin=stdin, capture_output=True, text=True)
+            pack = subprocess.run(cmd, cwd=cwd, stdin=stdin, capture_output=True, text=True)
         output = pack.stdout + pack.stderr
         assert pack.returncode == 0, output
 
@@ -1216,6 +1233,62 @@ def test_coredump_inspect_without_gdb(tt_cmd, tmp_path):
         "PATH" in output
     ), output
     assert "gdb is not installed" not in output, output
+
+
+@pytest.mark.parametrize("name", [".", "version", "coredump"])
+def test_coredump_inspect_unreadable(tt_cmd, tmp_path, name):
+    """inspect of artefacts it cannot read, the directory or a file of it,
+    fails with permission denied, before gdb starts: of the directory, as of
+    another user, gdb.sh said the version file is missing, and gdb opened the
+    core of a file it could not read."""
+    if sys.platform != "linux" or shutil.which("gdb") is None:
+        pytest.skip("needs gdb on Linux")
+    if os.geteuid() == 0:
+        pytest.skip("root reads any file")
+    artefacts = tmp_path / "artefacts"
+    artefacts.mkdir()
+    (artefacts / "version").write_text("Tarantool 3.9.0-0-g8b9a0f59a95b\n")
+    (artefacts / "tarantool").write_text("ELF")
+    (artefacts / "coredump").write_text("ELF")
+    path = artefacts / name
+    mode = path.stat().st_mode
+    path.chmod(0)
+    try:
+        rc, output = inspect(tt_cmd, tmp_path, artefacts, [])
+    finally:
+        path.chmod(mode)
+    assert rc != 0, output
+    expected = f"cannot read the artefacts in {artefacts}: open {path}: permission denied"
+    assert expected in output, output
+    assert "file is missing" not in output, output
+    assert "GNU gdb" not in output, output
+
+
+def test_coredump_inspect_empty_environment(tt_cmd, tmp_path, gcore):
+    """inspect with no environment at all, as env -i runs it, finds gdb, and
+    sh for gdb.sh, in the PATH of the system, SYSTEM_PATH, and shows the
+    backtrace of the core: it failed, gdb not found in PATH. The extensions
+    are those of --experimental, which tt embeds, and nothing is looked up
+    on GitHub."""
+    if shutil.which("gdb", path=SYSTEM_PATH) is None:
+        pytest.skip(f"no gdb in {SYSTEM_PATH}")
+    out = tmp_path / "out"
+    out.mkdir()
+    cmd = [tt_cmd, "coredump", "pack", "-e", shutil.which("tarantool"), "-d", out, gcore]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert rc == 0, output
+    (archive,) = out.glob("*.tar.gz")
+
+    process = subprocess.run(
+        ["env", "-i", tt_cmd, "coredump", "inspect", "--experimental", archive],
+        cwd=tmp_path,
+        input="bt 1\nq\n",
+        capture_output=True,
+        text=True,
+    )
+    output = process.stdout + process.stderr
+    assert process.returncode == 0, output
+    assert re.search(r"#0 ", output), output
 
 
 def inspect(tt_cmd, tmp_path, target, commands, *args, tt_args=()):

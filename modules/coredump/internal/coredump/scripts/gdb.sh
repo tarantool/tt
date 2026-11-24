@@ -74,7 +74,7 @@ if [ ! -f "${VERSION}" ]; then
 	cat <<NOARTEFACTS
 ${VERSION} file is missing.
 
-If the coredump artefacts are collected via \`tararbrt.sh' tool
+If the coredump artefacts are collected via \`tarabrt.sh' tool
 there should be /version file in the root of the unpacked tarball
 (i.e. ${PWD}).
 If version file is missing, there is no guarantee the coredump

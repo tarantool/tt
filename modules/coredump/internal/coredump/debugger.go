@@ -48,7 +48,9 @@ func (gdbDebugger) Name() string {
 }
 
 // Command implements debugger: sh runs the wrapper, written into work, so
-// that a temporary directory mounted noexec runs it too.
+// that a temporary directory mounted noexec runs it too. sh, gdb and the
+// programs of the wrapper are looked up in a PATH of the system when that
+// of tt is empty (see command).
 func (gdbDebugger) Command(ctx context.Context, work, dir, sourceDir string, exts []string,
 ) (*exec.Cmd, error) {
 	script := filepath.Join(work, filepath.Base(inspectEmbedPath))
@@ -63,7 +65,7 @@ func (gdbDebugger) Command(ctx context.Context, work, dir, sourceDir string, ext
 		return nil, err
 	}
 
-	return exec.CommandContext(ctx, "sh", args...), nil
+	return command(ctx, "sh", args...), nil
 }
 
 // inspectArgs returns the arguments of sh that run the gdb wrapper script

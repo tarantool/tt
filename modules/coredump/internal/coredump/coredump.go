@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -252,7 +251,9 @@ func Pack(ctx context.Context, streams output.Streams, log *slog.Logger, opts Pa
 // core, and with the script fed to `bash -s` it read the rest of its own
 // text for the core. A ctx that ends sends the script SIGTERM, on which it
 // stops tar and removes what it made, and the script is waited for: a kill
-// left the temporary directory of the script and the archive begun.
+// left the temporary directory of the script and the archive begun. bash and
+// the programs of the script are looked up in a PATH of the system when
+// that of tt is empty, as the kernel runs the pipe (see command).
 func runPackScript(ctx context.Context, streams output.Streams, dir string, args []string,
 ) error {
 	script := filepath.Join(dir, filepath.Base(packEmbedPath))
@@ -262,7 +263,7 @@ func runPackScript(ctx context.Context, streams output.Streams, dir string, args
 		return fmt.Errorf("failed to write the pack script: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "bash", append([]string{script}, args...)...)
+	cmd := command(ctx, "bash", append([]string{script}, args...)...)
 
 	cmd.Stdout = streams.Out
 	cmd.Stderr = streams.Err

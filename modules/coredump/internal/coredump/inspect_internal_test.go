@@ -726,6 +726,76 @@ func TestWrapperWithoutVersion(t *testing.T) {
 	}, res, InspectOptions{Path: t.TempDir()})
 	require.ErrorContains(t, err, "inspect script execution failed")
 	assert.Contains(t, stdout.String(), "version file is missing")
+	assert.Contains(t, stdout.String(), "If the coredump artefacts are collected via "+
+		"`tarabrt.sh' tool")
 	assert.Empty(t, github.Requests())
 	assert.Empty(t, warnings(recorder))
+}
+
+// TestInspectUnreadable checks that inspect of artefacts it cannot read, the
+// directory or one of its version, tarantool and coredump, fails with the
+// error of the permission before gdb.sh runs, nothing looked up on GitHub:
+// of the directory, gdb.sh said the version file is missing, and gdb was
+// run on a tarantool or a core it could not open.
+//
+//nolint:paralleltest // Sets PATH.
+func TestInspectUnreadable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads any file")
+	}
+
+	withFakeGDB(t)
+
+	for _, name := range []string{".", "version", "tarantool", "coredump"} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeArtefacts(t, dir)
+
+			path := filepath.Join(dir, name)
+
+			info, err := os.Stat(path)
+			require.NoError(t, err)
+			require.NoError(t, os.Chmod(path, 0))
+			t.Cleanup(func() { _ = os.Chmod(path, info.Mode().Perm()) })
+
+			github, server := newFakeGitHub(t)
+			res, _ := testResolver(t, server, t.TempDir())
+
+			var stdout bytes.Buffer
+
+			err = inspect(t.Context(), output.Streams{
+				In: strings.NewReader(""), Out: &stdout, Err: &stdout,
+			}, res, InspectOptions{Path: dir})
+			require.ErrorIs(t, err, errUnreadable)
+			require.ErrorIs(t, err, fs.ErrPermission)
+			require.EqualError(t, err, "cannot read the artefacts in "+dir+": open "+path+
+				": permission denied")
+			assert.Empty(t, stdout.String(), "gdb.sh is not run")
+			assert.Empty(t, github.Requests())
+		})
+	}
+}
+
+// TestUnreadableError checks the error of artefacts that cannot be read: to
+// a tt of another user than their owner it names both and says to run tt as
+// the owner, as docker run --user does in a container.
+func TestUnreadableError(t *testing.T) {
+	t.Parallel()
+
+	denied := &fs.PathError{Op: "open", Path: "/work/core/version", Err: fs.ErrPermission}
+
+	err := unreadableError("/work/core", denied, 1234, 1000)
+	require.ErrorIs(t, err, errUnreadable)
+	require.ErrorIs(t, err, fs.ErrPermission)
+	require.EqualError(t, err, "cannot read the artefacts in /work/core: open "+
+		"/work/core/version: permission denied; they are of the uid 1234 and tt runs as the "+
+		`uid 1000: run tt as their owner, as docker run --user "$(id -u):$(id -g)" runs a `+
+		"container as you")
+
+	for _, owner := range []int64{1000, unknownOwner} {
+		err = unreadableError("/work/core", denied, owner, 1000)
+		require.ErrorIs(t, err, fs.ErrPermission)
+		require.EqualError(t, err, "cannot read the artefacts in /work/core: open "+
+			"/work/core/version: permission denied", owner)
+	}
 }

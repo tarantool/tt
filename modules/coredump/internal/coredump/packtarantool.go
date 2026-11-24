@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -291,9 +290,9 @@ func namedTarantool(recorded string) []Candidate {
 }
 
 // pathTarantool returns the tarantool of PATH as a candidate, none when
-// PATH has none.
+// PATH has none. An empty PATH is that of the system (see lookPath).
 func pathTarantool() []Candidate {
-	path, err := exec.LookPath(tarantoolName)
+	path, err := lookPath(tarantoolName)
 	if err != nil {
 		return nil
 	}
