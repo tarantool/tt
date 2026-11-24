@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The linux amd64 binaries and packages run on CPUs without AVX2 again.
+  2.15.2 was built against glibc and OpenSSL compiled for x86-64-v3, so
+  it required a Haswell or newer CPU and crashed with SIGILL at start on
+  older CPUs and on virtual machines with a conservative CPU model
+  (#1475).
+
 ## [2.15.2] - 2026-10-22
 
 This release fixes `tt pack --cartridge-compat`, whose `VERSION` file had
