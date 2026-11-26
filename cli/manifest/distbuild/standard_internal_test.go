@@ -67,6 +67,7 @@ func TestReadStandardOfThisCore(t *testing.T) {
 		{Name: "build", Package: "github.com/tarantool/tt/modules/build", Symbol: "New"},
 		{Name: "coredump", Package: "github.com/tarantool/tt/modules/coredump", Symbol: "New"},
 		{Name: "emmylua", Package: "github.com/tarantool/tt/modules/emmylua", Symbol: "New"},
+		{Name: "perf", Package: "github.com/tarantool/tt/modules/perf", Symbol: "New"},
 		{Name: "wasm", Package: "github.com/tarantool/tt/modules/wasm", Symbol: "New"},
 	}, modules)
 }

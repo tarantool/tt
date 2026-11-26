@@ -27,6 +27,7 @@ import (
 	"github.com/tarantool/tt/modules/build"
 	"github.com/tarantool/tt/modules/coredump"
 	"github.com/tarantool/tt/modules/emmylua"
+	"github.com/tarantool/tt/modules/perf"
 	"github.com/tarantool/tt/modules/wasm"
 )
 
@@ -43,6 +44,7 @@ func Modules() map[string]any {
 		"build":    build.New,
 		"coredump": coredump.New,
 		"emmylua":  emmylua.New,
+		"perf":     perf.New,
 		"wasm":     wasm.New,
 	}
 }
