@@ -156,8 +156,8 @@ hello = "./plugins/hello"
 	require.NoError(t, err)
 	assert.Contains(t, string(lock), `path = './plugins/hello'`)
 	assert.Regexp(t, `(?m)^\[core\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`, string(lock))
-	assert.Regexp(t, `(?m)^\[core\][^\[]*\nstandard = \['aeon', 'build', 'coredump', 'wasm'\]\n`,
-		string(lock))
+	assert.Regexp(t, `(?m)^\[core\][^\[]*\n`+
+		`standard = \['aeon', 'build', 'coredump', 'perf', 'wasm'\]\n`, string(lock))
 	assert.Regexp(t, `(?m)^\[modules\.hello\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`,
 		string(lock))
 

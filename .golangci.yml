@@ -415,6 +415,7 @@ linters:
             - "github.com/tarantool/tt/modules/build"
             - "github.com/tarantool/tt/modules/coredump"
             - "github.com/tarantool/tt/modules/emmylua"
+            - "github.com/tarantool/tt/modules/perf"
             - "github.com/tarantool/tt/modules/wasm"
             - "github.com/tarantool/tt/v3/standard"
         # The build backends of tt, each a package of the module build, are
