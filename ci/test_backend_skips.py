@@ -4,12 +4,24 @@ import contextlib
 import io
 import json
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from ci import backend_skips
+
+ROOT = Path(__file__).resolve().parent.parent
+
+# The directories of the packages of backend_skips.BACKENDS.
+BACKEND_DIRS = ["modules/build", "sdk/build", "cli/manifest/build"]
+
+# The reason of a test that skips for the platform it runs on names one.
+PLATFORM_WORDS = re.compile(r"linux|macos|darwin|\belf\b|mach-o", re.IGNORECASE)
+
+# The reason of t.Skip and t.Skipf when it is a literal.
+SKIP_LITERAL = re.compile(r'\.Skipf?\(\s*"((?:[^"\\]|\\.)*)"')
 
 PACKAGE = "github.com/tarantool/tt/modules/build/cargo"
 
@@ -145,6 +157,27 @@ class BackendSkipsTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("No test of github.com/tarantool/tt/v3/cli/manifest/build ran", out)
         self.assertIn("No test of github.com/tarantool/tt/v3/cli/manifest/build ran", summary)
+
+
+class PlatformReasonsTest(unittest.TestCase):
+    def test_each_platform_skip_of_the_backends_is_listed(self):
+        """A test of a build backend that skips for its platform says so with
+        a reason listed for some OS: else the job of that OS alone fails."""
+        allowed = [
+            re.compile(r)
+            for reasons in (backend_skips.HOST_REASONS, *backend_skips.PLATFORM_REASONS.values())
+            for r in reasons
+        ]
+        found = [
+            (str(path.relative_to(ROOT)), match.group(1))
+            for directory in BACKEND_DIRS
+            for path in sorted((ROOT / directory).rglob("*_test.go"))
+            for match in SKIP_LITERAL.finditer(path.read_text(encoding="utf-8"))
+            if PLATFORM_WORDS.search(match.group(1))
+        ]
+
+        self.assertTrue(found, "no test of a build backend skips for its platform")
+        self.assertEqual([f for f in found if not any(r.search(f[1]) for r in allowed)], [])
 
 
 if __name__ == "__main__":

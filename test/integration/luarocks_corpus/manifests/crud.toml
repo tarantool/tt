@@ -1,0 +1,26 @@
+# crud as a tt 3 package. The upstream rockspec builds with cmake, which
+# installs crud.lua and the directories crud/, cartridge/ and roles/ into
+# the top level of LUADIR: one component of the root, namespace "".
+manifest_version = "0.1"
+
+[package]
+name = "crud"
+description = "Tarantool data manipulation library"
+license = "BSD"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/crud"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+checks = ">=3.3.0"
+errors = ">=2.2.1"
+vshard = ">=1.0.0"
+
+[components.crud]
+path = "."
+namespace = ""
+include = ["/crud.lua", "/crud/", "/cartridge/", "/roles/"]

@@ -80,10 +80,13 @@ func inspectBefore(ctx context.Context, root string) treeBefore {
 // root, those it holds now and not before, that are source rocks of tt
 // packages with nothing built (emptySrcRock), removes them and fails with
 // ErrEmptySrcRock naming them. LuaRocks installs such a rock as any other: it
-// unpacks it and runs its build, which is done, its build type none, since the
-// rockspec is that of the binary rocks; only tt builds the package it holds.
-// Left in the tree, the rock would satisfy the dependencies on it with no
-// module to require.
+// unpacks it and runs its build, which, in the rockspec an older tt packed,
+// is of type none and installs nothing; only tt built the package it holds.
+// The rockspec tt packs now installs the files of a package with no build
+// block, builds one with build blocks by the script of sh it carries, and
+// fails the build of one with a build that is made with tt alone
+// (rocktree.ReleaseBuild). Left in the tree, the rock an older tt packed
+// would satisfy the dependencies on it with no module to require.
 //
 // A tree the command made, which holds no rock once they are removed, is
 // removed as a whole: its manifest and its lock file are all LuaRocks left of

@@ -860,6 +860,48 @@ root of the project does as well, which clangd finds above every source:
 `ln -s _build/component/memcached/compile_commands.json .`, with
 `/compile_commands.json` in `.gitignore`.
 
+LuaRocks builds the source rock of a package of `c` and `lua-c` too, by
+the script its rockspec carries (see
+[Packing a rock](../concepts/packages.md#packing-a-rock)). The script
+compiles each source and links the module as tt does, by the same flags in
+the same order and into the same file, with the toolchain of LuaRocks:
+
+- a C or assembler source compiles with `$CC` and `$CFLAGS` of LuaRocks,
+  `-O2 -fPIC` by default, which take the place of tt's `-O2 -g` as
+  `CFLAGS` of the environment does under tt; a C++ one with `CXX` of the
+  environment, `c++` by default, and `CXXFLAGS`, `-O2` by default;
+- the module is linked with `$LIBFLAG` of LuaRocks, `-shared`, or
+  `-bundle -undefined dynamic_lookup -all_load` on macOS, then
+  `-Wl,-Bsymbolic-functions` on Linux, and ends with `LDFLAGS` of the
+  environment;
+- the headers of Tarantool are `LUA_INCDIR` of LuaRocks, and a build
+  where it has no `module.h` fails, saying so;
+- the lists of `platforms.<os>` are those of the OS the rock is built on,
+  as `uname` names it; pkg-config, `PKG_CONFIG` of the environment, runs
+  where the rock is built; the libraries of `link` are those the components
+  made, looked for when the build runs; `$ORIGIN` of `rpath` is
+  `@loader_path` on macOS;
+- `CC`, `CXX`, `PKG_CONFIG`, the flags of the environment and what
+  pkg-config prints are split on blanks, a quote being a character of a
+  word, and the first word of each compiler and of pkg-config is looked for
+  in `PATH` before anything of the component is compiled; tt's handling of
+  `zig cc` and `zig c++` is not done.
+
+The script prints each compile and the link before it runs it. It lacks
+the cache of the objects and `compile_commands.json`, the checks of the
+module once it is linked - the entry point of `lua-c`, the symbols
+Tarantool exports too and the load into Tarantool - the debug information
+of `-g`, and the flags that keep the paths of the project out of the
+objects: its comments say so, and the pack of the source rock warns of it.
+A build of `static = true`, whose libraries tt takes from their static
+libraries and whose module it checks, and one of `bundle`, whose libraries
+tt copies beside the module, are made with tt alone: the source rock of
+their package fails under LuaRocks, saying why, and the pack says so:
+
+```text
+⚠ the source rock builds with tt only, which builds it from its manifest: the component "hashkit" is built by the tt backend "lua-c" with tt alone, for components.hashkit.build.static: tt links a module of static = true of the static library it finds of each library, and checks that it needs no library of the machine, which a build without tt does not; LuaRocks, tt rocks included, fails to build it, saying so
+```
+
 `cmake` builds the CMake project of `cwd`, where its `CMakeLists.txt` is,
 out of the source, in `TT_BUILD_DIR`:
 
@@ -886,6 +928,8 @@ must be on `PATH`. The component is configured with the policy version its
 `cmake_minimum_required` asks for: CMake 4 refuses one older than 3.5, and
 the `CMAKE_POLICY_VERSION_MINIMUM` tt sets for the rocks it builds is not
 passed on, while one set in `env`, or in the environment tt runs in, is.
+LuaRocks builds the source rock of the package by the same commands (see
+[Without tt](#without-tt)).
 
 ```toml
 [components.memcached]
@@ -913,7 +957,9 @@ cargo as every build does, and cargo rebuilds what changed, a new compiler
 included. A `target/` of a component cargo builds is not laid out. cargo
 builds with `--locked`, from the versions the `Cargo.lock` of the workspace
 pins: a package without one fails the build before anything is built,
-naming `cargo generate-lockfile`. See
+naming `cargo generate-lockfile`. LuaRocks builds the source rock of the
+package by the same commands, into a target directory of its own (see
+[Without tt](#without-tt)). See
 [Build a module in Rust](../how-to/rust-modules.md).
 
 `zig` runs `zig build` of the `build.zig` of `cwd`, installing into
@@ -946,7 +992,9 @@ did not install, which names what it installed. `--rebuild` empties the
 prefix, the cache and the packages. A `zig-out/` and a `zig-pkg/` of a
 component zig builds are not laid out. The inputs of an `incremental` build are also the version of zig and
 `build.zig` and `build.zig.zon` of `cwd`. zig fetches the dependencies of
-`build.zig.zon` itself as it builds. See
+`build.zig.zon` itself as it builds, under LuaRocks too, which builds the
+source rock of the package by the same commands (see
+[Without tt](#without-tt)). See
 [Build a module in Zig](../how-to/zig-modules.md).
 
 `static = true` asks what the build makes to need nothing of the machine
@@ -1093,6 +1141,41 @@ what the build made (see [Packing](../concepts/packages.md#packing)).
 made of the component, and the trees of the platforms; `tt package clean`
 removes all of `_build/`. `tt package fetch` and `tt test` build for the
 machine alone.
+
+#### Without tt
+
+LuaRocks builds the source rock of a package, `tt package pack --format
+rock-src`, by `tt-rock.sh`, a script of sh its rockspec carries (see
+[Packing a rock](../concepts/packages.md#packing-a-rock)), when every build
+of the product and of its `pre_build` and `post_build` hooks is made
+without tt too. The script runs each build by the commands tt runs, for the
+machine it runs on: there is no `--target` and no `-j`, `TT_BUILD_JOBS`
+being one a CPU, `.tarantool/bin` is not on `PATH`, and `TT_BUILD_DIR` is
+empty when the build begins. The Tarantool of the build is that of
+`LUA_INCDIR` of LuaRocks, `TT_TARANTOOL_INCLUDE_DIR`, and
+`TT_TARANTOOL_PREFIX` is its prefix when it ends with `/include/tarantool`.
+
+| Backend | The script | What it lacks against tt, and refuses |
+| --- | --- | --- |
+| `make`, `shell` | the command of the build, that of `shell` by `env -- <command> <args...>`, which runs the program of `PATH` as tt does, even one named as a word of sh such as `test`; then a copy of each file of `output` | nothing; a `command` with `=` in it, which `env` takes for a variable, is made with tt alone |
+| `c`, `lua-c` | the compiles and the link of the build, by the flags of tt in their order, with `$CC`, `$CFLAGS` and `$LIBFLAG` of LuaRocks and `CXX`, `CXXFLAGS` and `LDFLAGS` of the environment (see [`c` and `lua-c`](#componentsnamebuild) above) | the cache, `compile_commands.json`, the checks of the module, `-g` and the flags that keep the paths of the project out of the objects; `static = true` and `bundle` are made with tt alone |
+| `cmake` | `cmake -S . -B "$TT_BUILD_DIR"` with the `-D` of the build and the prefix of Tarantool on `CMAKE_PREFIX_PATH`, and `cmake --build` with `--parallel "$TT_BUILD_JOBS"`, or none when `CMAKE_BUILD_PARALLEL_LEVEL` is set; then a copy of each file of `output` from the build tree, a `.so` module as `.dylib` on macOS | nothing; cmake takes `CC` and `CFLAGS` of LuaRocks from the environment, as it takes those of the environment of tt |
+| `go` | `go build` of the build, for the `GOOS` and `GOARCH` of `go env GOHOSTOS` and `GOHOSTARCH` | nothing; `static = true` fails on macOS, as with tt |
+| `cargo` | `cargo rustc --lib --crate-type cdylib` and `cargo build --bin` of the build, with `CARGO_TARGET_DIR` set to `TT_BUILD_DIR` whatever `env` and the environment say, a static program for `<arch>-unknown-linux-musl`; then a copy of the library and of the binary cargo built there | the crates of a mirror of `tt package download`: cargo downloads those `Cargo.lock` pins; a workspace without `Cargo.lock`, a static program on macOS and a musl target that is not installed fail, as with tt |
+| `zig` | `zig build` of the build, its prefix, cache and packages in `TT_BUILD_DIR`, `--pkg-dir` for zig 0.17 and later, a static program alone for `<arch>-linux-musl` when the `build.zig` takes `-Dtarget`; then a copy of the module and of the program | nothing; a static program fails on macOS, as with tt |
+
+A build of another backend is made with tt alone: the build of the
+rockspec fails, saying which component needs tt, and the pack of the source
+rock warns of it. So is a build whose `env` sets a variable of a name sh
+has no variable of, one the script keeps a value of its own in, of a name
+beginning with `tt_` or `cc_`, or one that changes how sh runs the script:
+`IFS`, `CDPATH`, `PWD`, `OLDPWD`, `ENV`, `PS1`, `PS2`, `PS4`, `OPTIND`,
+`OPTARG`, `LINENO`, `PPID`, `SHELLOPTS`, `BASHOPTS` and `BASH_ENV`. What the script of a backend lacks is in the comments of
+`tt-rock.sh`, and the pack warns of it once:
+
+```text
+   ⚠ LuaRocks builds the source rock by tt-rock.sh of its rockspec, which lacks what a build of tt has: the component "fastrs": the crates of a mirror of tt package download, which a build of tt takes offline: cargo downloads those Cargo.lock pins
+```
 
 ## `[products.NAME]`
 

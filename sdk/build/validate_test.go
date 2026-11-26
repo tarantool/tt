@@ -64,6 +64,80 @@ type wrongPrograms struct{ plainBuild }
 
 func (wrongPrograms) Programs() []string { return nil }
 
+// exportBuild is a Build made without tt too.
+type exportBuild struct{ plainBuild }
+
+var _ build.Exporter = exportBuild{}
+
+func (exportBuild) Export(*build.ExportContext) (build.Export, error) {
+	return build.Export{Script: "true", Tools: nil, Lost: nil}, nil
+}
+
+// exportWithoutContext is a Build whose Export is told nothing.
+type exportWithoutContext struct{ plainBuild }
+
+func (exportWithoutContext) Export() (build.Export, error) {
+	return build.Export{Script: "true", Tools: nil, Lost: nil}, nil
+}
+
+// pointerExport is a Build whose Export, of another signature, has a pointer
+// receiver.
+type pointerExport struct{ plainBuild }
+
+func (*pointerExport) Export(string) error { return nil }
+
+// TestValidateBuildExports checks that a Build is an Exporter when its
+// backend says its builds are made without tt, and only then, that an Export
+// of another signature is refused when the backend says so, and that one of
+// a backend that does not, a method of its own, is let through.
+func TestValidateBuildExports(t *testing.T) {
+	t.Parallel()
+
+	//nolint:exhaustruct // Only the name and Exports are told.
+	exports, plain := build.Backend{Name: "demo", Exports: true}, build.Backend{Name: "demo"}
+
+	require.NoError(t, exports.ValidateBuild(exportBuild{}))
+	require.NoError(t, exports.ValidateBuild(&exportBuild{}))
+	require.NoError(t, plain.ValidateBuild(plainBuild{}))
+
+	// A backend written before Exports may have a method Export of its own.
+	require.NoError(t, plain.ValidateBuild(exportWithoutContext{}))
+	require.NoError(t, plain.ValidateBuild(&exportWithoutContext{}))
+	require.NoError(t, plain.ValidateBuild(pointerExport{}))
+
+	for _, test := range []struct {
+		name    string
+		backend build.Backend
+		bld     build.Build
+		msg     string
+	}{
+		{"no Export of a backend that exports", exports, plainBuild{}, `invalid build ` +
+			`backend "demo": the backend says its builds are made without tt (Exports), and ` +
+			`its build build_test.plainBuild has no Export of build.Exporter`},
+		{"an Export of a backend that does not export", plain, exportBuild{}, `invalid ` +
+			`build backend "demo": its build build_test.exportBuild has Export of ` +
+			`build.Exporter, and the backend does not say its builds are made without tt: ` +
+			`set Exports`},
+		{"an Export of another signature", exports, exportWithoutContext{}, `Export of its ` +
+			`build build_test.exportWithoutContext is func() (build.Export, error), not ` +
+			`func(*build.ExportContext) (build.Export, error) of build.Exporter`},
+		{"an Export of a pointer of another signature", exports, pointerExport{}, `Export ` +
+			`of its build is a method of *build_test.pointerExport, but New returns a ` +
+			`build_test.pointerExport: the core would never call it`},
+		{"no Export of a backend that exports, but one of its own", exports,
+			&exportWithoutContext{}, `Export of its build *build_test.exportWithoutContext ` +
+				`is func() (build.Export, error)`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := test.backend.ValidateBuild(test.bld)
+			require.ErrorIs(t, err, build.ErrBackend)
+			assert.Contains(t, err.Error(), test.msg)
+		})
+	}
+}
+
 // TestValidateBuild checks that a method of a Build named as the method of
 // an optional interface of another signature is refused, since the core
 // would never call it.

@@ -278,11 +278,18 @@ that publishes nothing but the index is left out of those servers, and of
 `tt-rocks-index.json` succeeds and one of each manifest answers 403, 404 or
 410. A server that does not answer is kept, for LuaRocks to report on.
 
-LuaRocks builds nothing of the source rock of a tt package, `--format
-rock-src`: its rockspec is that of the binary rocks, of build type `none`,
-so LuaRocks installs it with no module in it, only the rockspec and the
-license files in `doc/`; of a package with no `[package].repository`, it
-fails to unpack the rock instead. `tt rocks` fails a command that installed such a
+LuaRocks builds the source rock of a tt package, `--format rock-src`, by
+its rockspec, as it knows no manifest: the rockspec of a package with no
+build block installs the files of its binary rock, that of a package whose
+builds are made without tt too, those of `make`, `shell`, `c`, `lua-c`,
+`cmake`, `go`, `cargo` and `zig`, builds them by a script of sh it carries
+into the same files, and that of a package with a
+build of tt alone fails the build, saying which component needs tt and why
+(see [Packing a rock](packages.md#packing-a-rock)); of a package with no
+`[package].repository`, LuaRocks fails to unpack the rock instead. The
+rockspec of a source rock an older tt packed builds nothing, so LuaRocks
+installs such a rock with no module in it, only the rockspec and the
+license files in `doc/`. `tt rocks` fails a command that installed such a
 rock, `install` and `build` say, and removes the rock from the tree again,
 so that it satisfies no dependency on it; install the binary rock of the
 platform instead, or depend on the rock in `app.manifest.toml` and run
@@ -292,7 +299,7 @@ follows, says it is not. A tree the command made, which holds no rock once
 the source rock is gone, is removed whole, its manifest and lock file with
 it. The check covers the tree of the working directory or the one `--tree`
 names.
-Plain `luarocks` does the same install with no such check: it says the rock
-is installed, and `require` of its module fails. What LuaRocks installs of
-each rock `tt package pack` makes is in
+Plain `luarocks` does the same install of such a rock with no check: it
+says the rock is installed, and `require` of its module fails. What
+LuaRocks installs of each rock `tt package pack` makes is in
 [For LuaRocks users](../how-to/rocks.md#for-luarocks-users).

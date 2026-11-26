@@ -144,8 +144,8 @@ github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4 h1:NOFzpC
 github.com/tarantool/go-config/v2 v2.0.2-0.20261116202956-580e0b6621b4/go.mod h1:dbOf1sxV2csrNP+UxSFqDN7dqMNyUkMB8L+n5BAHYL4=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
-github.com/tarantool/go-luarocks v0.1.1-0.20261117141140-0ccca9142639 h1:/tOxqC0jqrpi9HPDxExmLsxlthqnIhaFydOAXBnRwv0=
-github.com/tarantool/go-luarocks v0.1.1-0.20261117141140-0ccca9142639/go.mod h1:IeR8xhQY1CBxp0+4NC/wHfYifB4kTfW2zm5STLVUEwI=
+github.com/tarantool/go-luarocks v0.1.1-0.20261124153630-7e296308cb34 h1:7Fz+bh4JBR2xkEKCMGaC6WXXDiPSOFQWOLFGo6IZSr0=
+github.com/tarantool/go-luarocks v0.1.1-0.20261124153630-7e296308cb34/go.mod h1:IeR8xhQY1CBxp0+4NC/wHfYifB4kTfW2zm5STLVUEwI=
 github.com/tarantool/go-option v1.1.0 h1:ShoOhNsdL41sRpm4hXCRDjV8H0WzPkd4UnKhLKbW//w=
 github.com/tarantool/go-option v1.1.0/go.mod h1:hMr9z2JXOWlgdCBpCPSL2nwp8718GKYvNBJ+ZuzJbCo=
 github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c h1:usYsqlXWcBq3PUfW24hyRcSN7egVl2+Uk9t/DUurlm8=

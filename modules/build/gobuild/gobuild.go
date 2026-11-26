@@ -15,6 +15,10 @@
 // proxy, and a build given the mirror (build.Context.Vendored) takes them
 // from there as its GOPROXY, offline.
 //
+// A build is made without tt too (build.Backend.Exports): the script of its
+// export runs the go build Run runs, for the machine it runs on, so that
+// LuaRocks builds the source rock of a package of go as tt does.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package gobuild
@@ -132,6 +136,8 @@ func Backend() build.Backend {
 		// go builds for another platform with GOOS and GOARCH, but with cgo
 		// (Preflight).
 		Cross: true,
+		// The script of a build runs the go build Run runs (Export).
+		Exports: true,
 	}
 }
 
@@ -682,12 +688,19 @@ func explainVendored(err error, c *build.Context) error {
 // for another platform than the one the build checks the program against;
 // CC and the rest of it still reach the compiler.
 func targetEnv(config Config, target build.Target) []string {
-	cgo := "0"
+	return []string{
+		"GOOS=" + target.OS, "GOARCH=" + target.Arch, "CGO_ENABLED=" + cgoEnabled(config),
+	}
+}
+
+// cgoEnabled is CGO_ENABLED of a build of config: 1 with cgo = true, 0
+// otherwise.
+func cgoEnabled(config Config) string {
 	if config.Cgo {
-		cgo = "1"
+		return "1"
 	}
 
-	return []string{"GOOS=" + target.OS, "GOARCH=" + target.Arch, "CGO_ENABLED=" + cgo}
+	return "0"
 }
 
 // goArgs builds the go build argv of the program output.

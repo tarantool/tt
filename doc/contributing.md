@@ -58,6 +58,52 @@ cache directory of the user, `~/.cache` on Linux and `~/Library/Caches` on
 macOS, or `TT_TEST_CACHE`. A version stays there, `master` too: delete its
 directory to install it again.
 
+### LuaRocks of tt 2
+
+`test/integration/rocks/test_luarocks_compat.py` builds the source rocks of
+tt packages with `tt rocks` of tt 2, a plain LuaRocks 3.9.2, and is skipped
+unless `TT_TEST_TT2` names a tt 2 executable: that of a
+[release](https://github.com/tarantool/tt/releases/tag/v2.15.2) on Linux,
+the `tt` of Homebrew on macOS, where tt 2 has no release for arm64. It
+builds against the headers of the `tarantool` on `PATH` as tt 2 finds them,
+those of `TT_CLI_TARANTOOL_PREFIX` or of the prefix `tarantool --version`
+names, and is skipped without them.
+
+### The LuaRocks corpus
+
+`test/integration/luarocks_corpus` checks the same on real rocks, those of
+`test/luarocks-corpus.yaml`: rocks of GitHub, each at a pinned commit with an
+`app.manifest.toml` of `test/integration/luarocks_corpus/manifests/`, and
+rocks in Go, Rust and Zig of `test/integration/luarocks_corpus/fixtures/`.
+tt packs each into its binary rock and its source rock; `tt rocks` of tt 2
+installs the source rock and builds the bare rockspec from git, tt installs
+the binary rock, and the three trees must have the same files, the main
+module loading from the first. tt 2 and tt build against the same headers,
+those of `TT_CLI_TARANTOOL_PREFIX` or `include/tarantool` beside the `bin/`
+of the `tarantool` on `PATH`. Besides `TT_TEST_TT2` and the headers, the
+corpus needs the network and what the rocks build with: cmake, a C++
+compiler, Go, Rust and zig 0.17.1. A rock is skipped where a tool it needs
+is not on `PATH`, or when it needs a newer Tarantool than the `tarantool` on
+`PATH`. The rocks are slow tests, which `mage integration` leaves out:
+
+```console
+$ export TT_TEST_TT2=~/tt-2.15.2/tt
+$ python3 -m pytest test/integration/luarocks_corpus -m luarocks_corpus --tt-cmd ./tt -n 4
+$ python3 -m pytest test/integration/luarocks_corpus -m luarocks_corpus --tt-cmd ./tt -k mqtt
+```
+
+`TT_TEST_CORPUS_GIT_SSH=1` fetches from `git@github.com:` instead of
+`https://github.com/`, the submodules that tt 2 fetches included, and
+`TT_TEST_CORPUS_LOGS` names a directory for the log of each rock.
+
+CI checks the corpus on a pull request labelled `ci-rocks`, in
+`.github/workflows/rocks.yml`: in the jobs of the project level, on Ubuntu
+24.04 of amd64 and arm64 and on macOS of arm64, and of the user level, in the
+containers of the other distributions. `ci/luarocks-corpus-tools.sh`
+installs tt 2, zig, and Go and Rust where there are none. An entry of
+`test/luarocks-corpus.yaml` says where its rock comes from and what it
+needs, and why it is skipped on a system; the file says how.
+
 ### In a container
 
 `mage docker` runs targets in a container that has what CI installs: Go,

@@ -1,0 +1,41 @@
+# mqtt as a tt 3 package. The upstream rockspec builds with cmake,
+# STATIC_BUILD=ON: the CMake project of the root builds the module
+# mqtt/driver.so with libmosquitto of the submodule third_party/mosquitto
+# and OpenSSL linked in statically, installed into LIBDIR/mqtt/, and
+# installs mqtt/init.lua into LUADIR/mqtt/.
+manifest_version = "0.1"
+
+[package]
+name = "mqtt"
+description = "Mqtt connector for Tarantool"
+license = "BSD"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/mqtt"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.mqtt]
+path = "mqtt"
+include = ["init.lua"]
+
+[components.mqtt.build]
+backend = "cmake"
+cwd = "."
+targets = ["driver"]
+# A workaround of the system, not of the upstream: an OpenSSL built with
+# zlib, as that of Ubuntu 26.04 is, brings zlib to the static link, which
+# FindOpenSSL looks for as a static library too, and the libz.a of Debian
+# and Ubuntu is built without -fPIC, so the link of the module fails.
+# ZLIB_LIBRARY = "z" links -lz, the shared zlib, of any directory: FindZLIB
+# looks for no library once it is set. Where OpenSSL has no zlib, as on
+# Ubuntu 24.04 and 22.04 and Debian 12, CMake leaves the variable unused.
+# The upstream rockspec fails the same (see mqtt in test/rocks-catalog.yaml).
+variables = { STATIC_BUILD = "ON", ZLIB_LIBRARY = "z" }
+output = ["mqtt/driver.so"]
+# cmake_minimum_required(VERSION 2.8), which CMake 4 refuses.
+env = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }

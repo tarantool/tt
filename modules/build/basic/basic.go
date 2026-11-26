@@ -7,14 +7,23 @@
 // working directory of the build (build.OutputCwd). A target or a command
 // writes what else it makes into TT_OUTPUT_DIR itself.
 //
+// Either is built without tt too (build.Backend.Exports): the script of its
+// export runs the command Run runs, with the variables a build of tt has -
+// that of shell by env, which execs it as Run does - so the source rock of a
+// package of make and shell builds under LuaRocks as under tt.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package basic
 
 import (
 	"context"
+	_ "embed"
+	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
+	"text/template"
 
 	"github.com/tarantool/tt/sdk/build"
 )
@@ -53,6 +62,8 @@ func Make() build.Backend {
 		// The Makefile is told the platform in TT_PLATFORM_OS and
 		// TT_PLATFORM_ARCH, and the core checks what it made against it.
 		Cross: true,
+		// The script of a build runs the make Run runs.
+		Exports: true,
 	}
 }
 
@@ -72,6 +83,8 @@ func Shell() build.Backend {
 		// The command is told the platform in TT_PLATFORM_OS and
 		// TT_PLATFORM_ARCH, and the core checks what it made against it.
 		Cross: true,
+		// The script of a build runs the command Run runs.
+		Exports: true,
 	}
 }
 
@@ -157,6 +170,19 @@ func (b makeBuild) Run(ctx context.Context, c *build.Context) error {
 	return c.Run(c.Command(ctx, makeTool, makeArgs(b.config, c.Dirs.Cwd)...))
 }
 
+// Export runs make as Run does, in the working directory of the build the
+// script runs in: make -C . -f <entrypoint> <make_target> <flags...>.
+func (b makeBuild) Export(*build.ExportContext) (build.Export, error) {
+	script, err := renderScript("command", commandView{
+		Name: makeTool, Args: makeArgs(b.config, "."),
+	})
+	if err != nil {
+		return build.Export{}, err
+	}
+
+	return build.Export{Script: script, Tools: []string{makeTool}, Lost: nil}, nil
+}
+
 // makeArgs is the argv of make in cwd: -C <cwd> -f <entrypoint>
 // <make_target> <flags...>.
 func makeArgs(config MakeConfig, cwd string) []string {
@@ -178,6 +204,73 @@ type shellBuild struct {
 // Run runs the command in the working directory of the build.
 func (b shellBuild) Run(ctx context.Context, c *build.Context) error {
 	return c.Run(c.Command(ctx, b.config.Command, b.config.Args...))
+}
+
+// Export runs the command as Run does, each argument the word it is in the
+// block: by env -- <command> <args...>, which execs it from PATH as Run
+// does, so that a command named as a word sh reads itself - a reserved word,
+// if, a builtin, test or ., a function of the script - runs the program of
+// the name all the same. A command with a = is made with tt alone
+// (build.ErrNoExport): env takes it for a variable to set. A command of a
+// bare name is looked for in PATH before the build, as a command with a
+// slash, a path from the working directory, is not.
+func (b shellBuild) Export(*build.ExportContext) (build.Export, error) {
+	if strings.Contains(b.config.Command, "=") {
+		return build.Export{}, build.NoExportf("command", "%q has a =, and the script runs "+
+			"the command by env, as Run execs it, which takes a word with a = for a variable "+
+			"to set", b.config.Command)
+	}
+
+	var tools []string
+
+	if !strings.Contains(b.config.Command, "/") {
+		tools = []string{b.config.Command}
+	}
+
+	script, err := renderScript("env", commandView{
+		Name: b.config.Command, Args: b.config.Args,
+	})
+	if err != nil {
+		return build.Export{}, err
+	}
+
+	return build.Export{Script: script, Tools: tools, Lost: nil}, nil
+}
+
+// commandView is a command of sh of the templates of export.sh.tmpl: Name
+// with Args, each a word of its own (build.ShellQuote).
+type commandView struct {
+	Name string
+	Args []string
+}
+
+// exportText is export.sh.tmpl, the templates of the scripts of the exports
+// of make and shell.
+//
+//go:embed export.sh.tmpl
+var exportText string
+
+// exportFuncs are the functions of the templates: q is a string as one word
+// of sh (build.ShellQuote).
+var exportFuncs = template.FuncMap{"q": build.ShellQuote}
+
+// exportTemplate is exportText parsed once, a key the data has not failing
+// it.
+var exportTemplate = template.Must(template.New("export.sh.tmpl").Funcs(exportFuncs).
+	Option("missingkey=error").Parse(exportText))
+
+// renderScript is the template name of export.sh.tmpl executed on data, the
+// view the template is written for: it fails on a mistake of the template
+// alone.
+func renderScript(name string, data any) (string, error) {
+	var out strings.Builder
+
+	err := exportTemplate.ExecuteTemplate(&out, name, data)
+	if err != nil {
+		return "", fmt.Errorf("render the script of the export: %w", err)
+	}
+
+	return out.String(), nil
 }
 
 // outputNames returns the base names of the files of output, each once, in

@@ -214,6 +214,7 @@ A `build.Backend` is a value. Its fields tell the core what the backend is:
 | `NoSourceLayout` | switches off the default `include` of the component, the Lua sources and the prebuilt modules: for a backend whose sources are no files of the package, as `go` |
 | `Hook` | lets a lifecycle hook, `[hooks.pre_build]`, `[hooks.post_build]` or `[hooks.clean]`, name the backend |
 | `Cross` | lets its builds be for another platform than the machine tt runs on, `tt package build --target` (see [Other platforms](#other-platforms)) |
+| `Exports` | says that its builds are made without tt too, by a script of sh, so that LuaRocks builds the source rock of a package of it (see [Build without tt](#build-without-tt)) |
 
 The core calls `Config` and `New` whenever it checks a manifest: every
 command that reads the manifest does, `tt package add` included, and it may
@@ -611,8 +612,10 @@ of the manifest reference has where every `to` is installed.
 A build may implement more interfaces. The core asks for each with a type
 assertion, so a method of another signature would never be called: the
 core refuses a build whose `Preflight`, `Produces`, `Programs`, `Links`,
-`Inputs`, `Clean` or `Vendor` is not the method of the interface, or is a method of a pointer while
-`New` returns a value, when it checks the manifest, with exit code 1:
+`Inputs`, `Clean` or `Vendor` is not the method of the interface, or is a
+method of a pointer while `New` returns a value, when it checks the
+manifest, with exit code 1. So it does with `Export` of a backend that says
+`Exports`; one of another backend is a method of its own:
 
 ```text
 ⨯ invalid manifest: components.config.build: invalid build backend "template": Preflight of its build template.templateBuild is func(*build.Context) error, not func(context.Context, *build.Context) error of build.Preflighter: the core would never call it
@@ -662,6 +665,7 @@ too. The other interfaces:
 - `build.InputHasher`: see the next section.
 - `build.Cleaner`: see [Clean](#clean).
 - `build.Vendorer`: see [Offline builds](#offline-builds).
+- `build.Exporter`: see [Build without tt](#build-without-tt).
 
 ## Other platforms
 
@@ -900,6 +904,214 @@ the zero `Component`. The build runs in a Context whose `Hook` is set. It
 has no component, and `Dirs` has no `Component`, `Work`, `Modules`, `Share`
 and `Programs`. `Env` has no `TT_OUTPUT_DIR`, `TT_COMPONENT_NAME` and
 `TT_BUILD_DIR`, and the files `output` lists are not copied.
+
+## Build without tt
+
+tt builds the source rock of a package, `tt package pack --format
+rock-src`, from its manifest. LuaRocks - `tt rocks`, that of tt 2 among
+them - knows no manifest and no backend: it builds the source rock by the
+rockspec, which runs `tt-rock.sh`, a script of POSIX sh the rockspec carries
+(see [Packing a rock](../concepts/packages.md#packing-a-rock)). The script
+is the frame of a build of tt - the variables, the order of the components,
+the hooks, the copy of `output`, the layout - and the builds are the
+backends': a backend whose builds are made by a script of sh too says so
+with `Exports: true`, and each of its builds is a `build.Exporter`, whose
+`Export` returns the script. A package builds without tt when every build of
+its product and of its `pre_build` and `post_build` hooks exports; otherwise
+the rockspec fails under LuaRocks, saying which builds need tt and why, and
+the pack warns so. `make` and `shell` export, the command each runs, and
+`c` and `lua-c` the compiles and the link of their `Run`, with the compiler
+of LuaRocks, but for `static = true` and `bundle`, which are made with tt
+alone, and `cmake`, `go`, `cargo` and `zig` the commands of their tool `Run`
+runs (see [Without tt](../reference/app-manifest.md#without-tt)).
+
+`template` runs `envsubst`, which a script runs as well. Add
+`Exports: true` to `Backend()`, and to `backend.go`, with `maps`, `regexp`
+and `slices` imported:
+
+```go
+// The core finds these interfaces of a build by type assertions.
+var _ build.Exporter = templateBuild{}
+
+// shellName is the shape of the name of a variable of sh.
+var shellName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// Export renders the template as Run does, by a line of sh: envsubst with
+// the variables of the block before it, each value a word of sh. A variable
+// whose name sh cannot set makes the build one of tt alone.
+func (b templateBuild) Export(*build.ExportContext) (build.Export, error) {
+	var line []string
+
+	for _, name := range slices.Sorted(maps.Keys(b.config.Vars)) {
+		if !shellName.MatchString(name) {
+			return build.Export{}, build.NoExportf("vars."+name,
+				"sh sets no variable of the name %q", name)
+		}
+
+		line = append(line, name+"="+build.ShellQuote(b.config.Vars[name]))
+	}
+
+	name := strings.TrimSuffix(filepath.Base(b.config.Template), ".in")
+	line = append(line, tool, "<", build.ShellQuote(b.config.Template), ">",
+		`"$TT_SHARE_DIR"/`+build.ShellQuote(name))
+
+	return build.Export{Script: strings.Join(line, " "), Tools: []string{tool}, Lost: nil}, nil
+}
+```
+
+- `Export(e)` is given what is known when the package is packed, a
+  `build.ExportContext`: the `Component`, the zero one for a hook, `Hook`,
+  and `LockedVersion`, which answers from the lock the package is packed
+  with, for a script that pins a tool to the version of a rock. What only
+  the machine that builds knows - its directories, its platform, its
+  Tarantool, its compiler - the script reads from its variables.
+- `Script` is run with `set -eu`, in a subshell whose working directory is
+  that of the build, after `pre_build` and the builds of the components
+  before it in the product. It puts what it makes where `Run` does:
+  modules into `"$TT_OUTPUT_DIR"`, data files into `"$TT_SHARE_DIR"`,
+  programs into `"$TT_PROGRAMS_DIR"`, libraries for linking into
+  `"$TT_LINK_DIR"`. For a backend of `OutputCwd` the script of the rock
+  copies the files `output` lists after it, as the core does after `Run`;
+  one of `OutputBackend` copies them in its own script. A literal of the
+  block goes in through `build.ShellQuote`, which quotes it as one word of
+  sh whatever it holds: `it's $HOME` is `'it'\''s $HOME'`. The script is
+  written into the rockspec as it is, its lines not indented, so a
+  here-document in it ends as it would alone.
+- `Tools` are the programs the script runs: the script of the rock looks for
+  each in `PATH` with `command -v` before the first build, as `Preflight`
+  does, and fails naming the tool and the component. A program the machine
+  names, `CC` of the environment say, is none of them: its value may be the
+  words of a wrapper, `ccache cc`, which `command -v` does not take, so the
+  script looks for its first word itself, as that of `c` and `lua-c` does.
+- `Lost` says what a build by the script lacks against `Run`, a sentence
+  each: the cache of a compiler, a check of what it made. The pack warns of
+  them once, and the script has them in its comments.
+- A build whose field has no counterpart in a script - a value sh cannot
+  take, a check only tt can make - returns `build.NoExportf(field, ...)`, an
+  error wrapping `build.ErrNoExport` and the `build.FieldError` of the
+  field. The package then builds with tt alone, and the pack names the
+  field from the manifest. Any other error of `Export` fails the pack.
+
+The core refuses a build of a backend that says `Exports` and has no
+`Export` of `build.Exporter`, or one of another signature, and a
+`build.Exporter` of a backend that does not say it: what `Exports` says is
+what the builds do. A method `Export` of another signature of a backend
+that does not say `Exports` is left alone, as the core never calls it.
+
+The script sees the variables of a build of tt, by the same names and of the
+same meaning, and some of its own:
+
+| Variable | |
+| --- | --- |
+| `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_VERSION` | as in tt |
+| `TT_PLATFORM_OS`, `TT_PLATFORM_ARCH` | the machine that builds, by `uname`, as tt names a platform: `linux`, `darwin`; `amd64`, `arm64` |
+| `TT_BUILD_JOBS` | one a CPU |
+| `TT_OUTPUT_DIR`, `TT_COMPONENT_NAME`, `TT_BUILD_DIR` | as in tt, of a component, not of a hook; `TT_BUILD_DIR` is empty when the build begins |
+| `TT_TARANTOOL_INCLUDE_DIR` | `LUA_INCDIR` of LuaRocks, the headers of Tarantool, when `module.h` is there |
+| `TT_TARANTOOL_PREFIX` | the prefix of `LUA_INCDIR` when it ends with `/include/tarantool`; unset otherwise |
+| `TT_SHARE_DIR`, `TT_PROGRAMS_DIR`, `TT_LINK_DIR` | of the script alone, of a component: `Dirs.Share`, `Dirs.Programs`, `Dirs.Link`, created before it runs |
+| `TT_STATE_DIR`, `TT_LINK_ROOT` | of the script alone: `Dirs.State`, and the directory of the `TT_LINK_DIR` of every component, so that `"$TT_LINK_ROOT/<component>"` is `Dirs.LinkOf` |
+| `TT_MODULE_EXT`, `TT_MODULE_LDFLAGS` | of the script alone: `.so`, `.dylib` on macOS, as `Target.ModuleExt` says, and what tt links a module with besides `LIBFLAG`, `-Wl,-Bsymbolic-functions` on Linux |
+| `CC`, `CFLAGS`, `LIBFLAG` | the toolchain of LuaRocks; `LIBFLAG` links a module, `-shared`, or `-bundle -undefined dynamic_lookup -all_load` on macOS |
+| `CXX`, `CXXFLAGS`, `LDFLAGS` | when the environment has them |
+
+The `env` of the block is there too, and the variables above win over it, as
+those of tt do. Under `set -u` a script reads a variable that may be unset
+as `"${CXX-}"`. A variable the script keeps a value of its own in is named
+`tt_<backend>_<name>`: `tt-rock.sh` keeps its own in variables of `tt_`, and
+a package whose `env` sets one of `tt_` or `cc_`, or a variable that
+changes how sh runs the script, such as `IFS` or `CDPATH`, builds with tt
+alone.
+
+`buildtest.CheckExport` checks that the script makes what `Run` makes: it
+runs the build on two harnesses of one project, `Run` on one and the script
+on the other, copies what `output` lists after either for a backend of
+`OutputCwd`, and compares what each made in `Modules`, `Share`, `Programs`
+and `Link`: by path, by whether it is executable, and by its bytes but for
+a native file, which two compiles make of other bytes. `setup` prepares
+each harness alike. A tool of the export that is not in `PATH` skips the
+check. Add to `backend_test.go`:
+
+```go
+func TestExport(t *testing.T) {
+	block := buildtest.Block{Fields: map[string]any{
+		"template": "defaults.lua.in", "vars": map[string]any{"GREETING": "it's $HOME"},
+	}}
+
+	export := buildtest.CheckExport(t, template.Backend(), component, block,
+		func(h *buildtest.Harness) {
+			require.NoError(t, os.WriteFile(filepath.Join(h.Context.Dirs.Cwd, "defaults.lua.in"),
+				[]byte("return { greeting = [[${GREETING}]], package = '${TT_PACKAGE}' }\n"),
+				0o600))
+		})
+	assert.Equal(t, `GREETING='it'\''s $HOME' envsubst < defaults.lua.in > `+
+		`"$TT_SHARE_DIR"/defaults.lua`, export.Script)
+	assert.Equal(t, []string{"envsubst"}, export.Tools)
+}
+
+func TestExportOfTtAlone(t *testing.T) {
+	bld, err := buildtest.Validate(template.Backend(), component, buildtest.Block{
+		Fields: map[string]any{"template": "a.in", "vars": map[string]any{"NOT-SH": "x"}},
+	})
+	require.NoError(t, err)
+
+	_, err = buildtest.New(t, template.Backend(), component).Export(bld)
+	require.ErrorIs(t, err, build.ErrNoExport)
+	assert.EqualError(t, err, `the build is made with tt alone: vars.NOT-SH: sh sets no `+
+		`variable of the name "NOT-SH"`)
+}
+```
+
+`harness.Export(bld)` asks a build for its export as the pack does, and
+`harness.RunExport(ctx, export)` runs its script as the script of a rock
+runs it; `buildtest.CheckExportHook` checks the export of a hook, by the
+files of the project.
+
+`myapp` of [Use it in a package](#use-it-in-a-package), with
+`repository = "https://github.com/example/myapp"` in its `[package]`, a
+`.gitignore` of `.rocks/` and `_build/`, and its files committed at the tag
+`v1.0.0`, packs a source rock LuaRocks builds with no tt and no manifest:
+
+```console
+$ ../dist/tt package pack --format rock-src --out ../dist-src
+.../dist-src/myapp-1.0.0-1.src.rock
+.../dist-src/myapp-1.0.0-1.rockspec
+$ sed -n '/^# The script of the export/,/^}/p' ../dist-src/myapp-1.0.0-1.rockspec
+# The script of the export of the tt backend "template" for the component "config".
+tt_export_1() {
+PORT=3301 envsubst < defaults.lua.in > "$TT_SHARE_DIR"/defaults.lua
+}
+$ cd .. && mkdir lr && cd lr
+$ ../dist/tt rocks install myapp --only-server ../dist-src
+Installing ../dist-src/myapp-1.0.0-1.src.rock
+
+myapp 1.0.0-1 depends on tarantool >= 3.0.0 (3.9.0-1 provided by VM)
+sh ./tt-rock.sh build - <<'TT_ROCK_VARIABLES'
+CC=gcc
+CFLAGS=-O2 -fPIC
+LIBFLAG=-shared
+LUA_INCDIR=.../include/tarantool
+TT_ROCK_VARIABLES
+
+sh ./tt-rock.sh install - <<'TT_ROCK_VARIABLES'
+LUADIR=.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/lua
+LIBDIR=.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/lib
+BINDIR=.../lr/.rocks/share/tarantool/rocks/myapp/1.0.0-1/bin
+TT_ROCK_VARIABLES
+
+No existing manifest. Attempting to rebuild...
+myapp 1.0.0-1 is now installed in .../lr/.rocks
+
+$ cat .rocks/share/tarantool/myapp/defaults.lua
+return { port = 3301, package = 'myapp', version = '1.0.0' }
+```
+
+With `vars = { PORT = "3301", "NOT-SH" = "x" }`, which tt builds and sh
+cannot, the source rock builds with tt only, and the pack says why:
+
+```text
+⚠ the source rock builds with tt only, which builds it from its manifest: the component "config" is built by the tt backend "template" with tt alone, for components.config.build.vars.NOT-SH: sh sets no variable of the name "NOT-SH"; LuaRocks, tt rocks included, fails to build it, saying so
+```
 
 ## Check the files of a package
 
@@ -1235,8 +1447,10 @@ Here the module `bad` provides a backend named `make`. It comes before
 
 In a manifest, with exit code 1, before anything is built: a field of
 another backend, a field no backend has, a value of a wrong type, an error
-of `New`, a build of an optional method the core would never call,
-`output` or `incremental` of a backend that does not allow them, an
+of `New`, a build of an optional method the core would never call, a build
+that is no `build.Exporter` of a backend that says `Exports` and one that is
+of a backend that does not, `output` or `incremental` of a backend that
+does not allow them, an
 `output` entry or a `Producer` type the backend does not produce, and a
 hook that names a backend without `Hook`. Before anything is built, with
 exit code 1: a build for another platform of a backend without `Cross`, and
@@ -1252,12 +1466,12 @@ The backends of the standard module `build` show the rest of the contract:
 
 | Package | Backends | Shows |
 | --- | --- | --- |
-| `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output`, `Cross` left to the script |
-| `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes |
-| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored`, `Cross` with a linker of the target |
-| `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh` |
-| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo`, a `Vendorer` and a build from `Vendored` |
-| `modules/build/zig` | `zig` | `Incremental` with an `InputHasher`, `Cross` with `-Dtarget`, a `Vendorer` and a build from `Vendored` |
+| `modules/build/basic` | `make`, `shell` | `OutputCwd`, `Hook`, a `Producer` and a `ProgramNamer` from `output`, `Cross` left to the script, `Exports` of the command it runs, checked by `CheckExport` in `modules/build/export_test.go` |
+| `modules/build/cc` | `c`, `lua-c` | C and C++ compilers driven against the `Tarantool` of the Context, `platforms.<os>` fields, commands run at once, a cache of its own in `Work` that honours `Fresh`, a `Linker` reading `Dirs.LinkOf`, modules beside the module it makes, `Exports` of the compiles and the link of `Run` with the toolchain of LuaRocks, with `NoExportf` for `static` and `bundle` |
+| `modules/build/cargo` | `cargo` | `Exclude`, `Component.Wants`, a module, a program or both, a `Vendorer` and a build from `Vendored`, `Cross` with a linker of the target, `Exports` that finds what cargo built by its place in a target directory of its own, and says what it lacks in `Lost` |
+| `modules/build/cmake` | `cmake` | `OutputBackend`, a build tree in `Work`, `Fresh`, `Exports` that copies `output` itself |
+| `modules/build/gobuild` | `go` | `NoSourceLayout`, `static`, `Cross` with a `Preflight` that refuses `cgo`, a `Vendorer` and a build from `Vendored`, `Exports` for the machine |
+| `modules/build/zig` | `zig` | `Incremental` with an `InputHasher`, `Cross` with `-Dtarget`, a `Vendorer` and a build from `Vendored`, `Exports` that asks the tool its version as `Run` does |
 
 Their fields are in
 [the reference of the application manifest](../reference/app-manifest.md#componentsnamebuild).

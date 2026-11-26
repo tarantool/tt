@@ -1,0 +1,221 @@
+{{- /*
+The template of tt-rock.sh, which Render executes on the view of a Script.
+q quotes a word of sh (sdkbuild.ShellQuote), comment puts a text on one
+line of a comment, capitalize puts its first letter in upper case. A line
+that repeats begins with its newline, after an action that trims the one
+before it. A path the script gives a utility follows --, as a path of the
+manifest may begin with -.
+*/ -}}
+#!/bin/sh
+# tt-rock.sh builds the tt package {{comment .Package}} {{comment .Version}} without tt: the rockspec of the
+# package runs it, so that LuaRocks builds the package from its sources. tt
+# package pack generated it from app.manifest.toml; tt builds the package
+# from that manifest, and does not run it.
+#
+#   sh ./tt-rock.sh build    builds the package into .tt-rock/stage/
+#   sh ./tt-rock.sh install  copies the stage into LUADIR, LIBDIR and BINDIR
+#
+# LuaRocks gives the build CC, CFLAGS, LIBFLAG and LUA_INCDIR, the directory
+# of the headers of Tarantool, and the install LUADIR, LIBDIR and BINDIR:
+# the rockspec runs either with the argument - and writes them to its
+# stdin, a line NAME=value each, in that order; without -, they are those
+# of the environment. A build of the script has no cache and no
+# incremental build, and none of the checks tt makes of what a build made;
+# the rocks it builds with are those LuaRocks resolved by the rockspec, not
+# those of the lock of the package.
+{{- range .Steps}}{{if .Lost}}
+#
+# Without tt, {{.What}}, of the tt backend {{printf "%q" .Backend}}, lacks:
+{{- range .Lost}}
+#   - {{comment .}}
+{{- end}}
+{{- end}}{{end}}
+set -eu
+
+tt_root=`pwd`
+tt_state=$tt_root/.tt-rock
+tt_stage=$tt_state/stage
+
+# tt_die message: fails the build, saying why.
+tt_die() {
+	printf 'tt-rock.sh: %s\n' "$*" >&2
+	exit 1
+}
+
+# tt_need tool what: fails the build unless tool, which what runs, is in
+# PATH.
+tt_need() {
+	command -v "$1" >/dev/null 2>&1 || tt_die "$2 runs $1, which is not in PATH"
+}
+
+# tt_output path dest: copies path, a file the output of a build lists, to
+# dest, as tt copies the output of a backend that does not copy it itself.
+tt_output() {
+	[ -f "$1" ] || tt_die "the build made no $1, which its output lists"
+	mkdir -p -- "${2%/*}"
+	cp -- "$1" "$2"
+}
+
+# tt_lay path dest: copies path, a file of the project the layout of tt
+# takes, to dest in the stage, as tt lays it out after the builds; a file
+# no build made is not there, and is left out.
+tt_lay() {
+	[ -f "$tt_root/$1" ] || return 0
+	mkdir -p -- "$tt_stage/${2%/*}"
+	cp -- "$tt_root/$1" "$tt_stage/$2"
+}
+
+# tt_read name: reads the line name=value of stdin, the next variable of
+# LuaRocks the rockspec gives the script, into tt_value.
+tt_read() {
+	IFS= read -r tt_line ||
+		tt_die "stdin ends before $1=<value>, a variable of LuaRocks"
+	case $tt_line in
+	"$1"=*) tt_value=${tt_line#*=} ;;
+	*) tt_die "stdin has \"$tt_line\" for $1=<value>, a variable of LuaRocks" ;;
+	esac
+}
+
+# tt_read_end: fails unless stdin ends after the variables of LuaRocks, as
+# it does unless a value of one of them has a newline.
+tt_read_end() {
+	! IFS= read -r tt_line ||
+		tt_die "stdin has \"$tt_line\" after the variables of LuaRocks"
+}
+
+# tt_env sets the variables every build of the package has: those of a
+# build of tt, of the machine the script runs on, and the toolchain of
+# LuaRocks.
+tt_env() {
+	case `uname -s` in
+	Linux)
+		TT_PLATFORM_OS=linux TT_MODULE_EXT=.so
+		TT_MODULE_LDFLAGS=-Wl,-Bsymbolic-functions tt_libflag=-shared
+		;;
+	Darwin)
+		TT_PLATFORM_OS=darwin TT_MODULE_EXT=.dylib TT_MODULE_LDFLAGS=
+		tt_libflag='-bundle -undefined dynamic_lookup -all_load'
+		;;
+	*)
+		tt_die "a tt package builds on Linux and macOS, not on `uname -s`"
+		;;
+	esac
+	case `uname -m` in
+	x86_64 | amd64) TT_PLATFORM_ARCH=amd64 ;;
+	aarch64 | arm64) TT_PLATFORM_ARCH=arm64 ;;
+	*) TT_PLATFORM_ARCH=`uname -m` ;;
+	esac
+	TT_BUILD_JOBS=`getconf _NPROCESSORS_ONLN 2>/dev/null || :`
+	[ -n "$TT_BUILD_JOBS" ] || TT_BUILD_JOBS=1
+	TT_PROJECT_ROOT=$tt_root TT_PACKAGE={{q .Package}} TT_VERSION={{q .Version}}
+	TT_STATE_DIR=$tt_state TT_LINK_ROOT=$tt_state/link
+	export TT_PROJECT_ROOT TT_PACKAGE TT_VERSION TT_PLATFORM_OS TT_PLATFORM_ARCH \
+		TT_BUILD_JOBS TT_STATE_DIR TT_LINK_ROOT TT_MODULE_EXT TT_MODULE_LDFLAGS
+	CC=${CC:-cc} CFLAGS=${CFLAGS-'-O2 -fPIC'} LIBFLAG=${LIBFLAG:-$tt_libflag}
+	export CC CFLAGS LIBFLAG
+	if [ -f "${LUA_INCDIR-}/module.h" ]; then
+		TT_TARANTOOL_INCLUDE_DIR=$LUA_INCDIR
+		export TT_TARANTOOL_INCLUDE_DIR
+	fi
+	case ${LUA_INCDIR-} in
+	*/include/tarantool) TT_TARANTOOL_PREFIX=${LUA_INCDIR%/include/tarantool} ;;
+	*/include/tarantool/) TT_TARANTOOL_PREFIX=${LUA_INCDIR%/include/tarantool/} ;;
+	esac
+	[ -z "${TT_TARANTOOL_PREFIX-}" ] || export TT_TARANTOOL_PREFIX
+}
+{{- /*
+tt_step_<n> sets the variables of the step, goes into its working
+directory, runs tt_export_<n> in a subshell and copies its output;
+tt_export_<n> is the script of its export as it is.
+*/}}
+{{- range .Steps}}
+
+# {{capitalize .What}}, built by the tt backend {{printf "%q" .Backend}}.
+tt_step_{{.Number}}() {
+{{- range .Env}}
+	export {{.Name}}={{q .Value}}
+{{- end}}
+{{- if .Component}}
+	TT_COMPONENT_NAME={{q .Component}}
+	TT_OUTPUT_DIR={{.OutputDir}}
+	TT_SHARE_DIR={{.ShareDir}}
+	TT_PROGRAMS_DIR=$tt_stage/bin
+	TT_BUILD_DIR=$tt_state/build/{{q .Component}}
+	TT_LINK_DIR=$TT_LINK_ROOT/{{q .Component}}
+	export TT_COMPONENT_NAME TT_OUTPUT_DIR TT_SHARE_DIR TT_PROGRAMS_DIR TT_BUILD_DIR TT_LINK_DIR
+	mkdir -p -- "$TT_OUTPUT_DIR" "$TT_SHARE_DIR" "$TT_PROGRAMS_DIR" "$TT_BUILD_DIR" "$TT_LINK_DIR"
+{{- end}}
+	cd {{.Cwd}}
+	(tt_export_{{.Number}})
+{{- range .Outputs}}
+	tt_output {{q .Path}} {{.Dest}}
+{{- end}}
+}
+
+# The script of the export of the tt backend {{printf "%q" .Backend}} for {{.What}}.
+tt_export_{{.Number}}() {
+{{.Script -}}
+}
+{{- end}}
+
+# tt_build builds the package into the stage.
+tt_build() {
+	tt_env
+	rm -rf -- "$tt_state"
+	mkdir -p -- "$tt_stage/lua" "$tt_stage/lib" "$tt_stage/bin" "$TT_LINK_ROOT"
+{{- range $step := .Steps}}{{range .Tools}}
+{{- if $step.HasPath}}
+	(PATH={{q $step.Path}}; tt_need {{q .}} {{q $step.What}})
+{{- else}}
+	tt_need {{q .}} {{q $step.What}}
+{{- end}}
+{{- end}}{{end}}
+{{- range slice .Steps 0 .LayAt}}
+	(tt_step_{{.Number}})
+{{- end}}
+{{- range .Lay}}
+	tt_lay {{q .Source}} {{q .Dest}}
+{{- end}}
+{{- range slice .Steps .LayAt}}
+	(tt_step_{{.Number}})
+{{- end}}
+}
+
+# tt_copy dir dest: copies what dir of the stage holds into dest, when it
+# holds anything.
+tt_copy() {
+	tt_files=`ls -A -- "$tt_stage/$1"`
+	[ -n "$tt_files" ] || return 0
+	mkdir -p -- "$2"
+	cp -R -- "$tt_stage/$1/." "$2"
+}
+
+# tt_install copies the stage into the directories of the rock LuaRocks
+# installs: lua/ into LUADIR, lib/ into LIBDIR, bin/ into BINDIR.
+tt_install() {
+	[ -d "$tt_stage" ] || tt_die "the package is not built: run sh ./tt-rock.sh build"
+	tt_copy lua "${LUADIR:?names no directory of the Lua files of the rock}"
+	tt_copy lib "${LIBDIR:?names no directory of the modules of the rock}"
+	tt_copy bin "${BINDIR:?names no directory of the programs of the rock}"
+}
+{{- /*
+The entry point: the phase, the variables of LuaRocks read from stdin
+first when the argument after it is -.
+*/}}
+
+case ${1-} in
+{{- range .Phases}}
+{{.Name}})
+	if [ "${2-}" = - ]; then
+{{- range .Variables}}
+		tt_read {{.}}
+		{{.}}=$tt_value
+{{- end}}
+		tt_read_end
+		export{{range .Variables}} {{.}}{{end}}
+	fi
+	tt_{{.Name}}
+	;;
+{{- end}}
+*) tt_die "usage: sh ./tt-rock.sh build [-] | install [-]" ;;
+esac

@@ -1,0 +1,125 @@
+{{/*
+The script of the export of a cargo build (export.go): the cargo of Run for
+the machine the script runs on, into TT_BUILD_DIR, and the copies of what it
+built. The lines of the script are joined by newlines, with none after the
+last: the dash of an action trims the newline on its side, so that a line of
+control leaves none in the script.
+*/}}
+
+{{define "script" -}}
+# cargo builds into TT_BUILD_DIR, which is empty: what it built for the
+# block is the one library and the one binary there.
+CARGO_TARGET_DIR=$TT_BUILD_DIR
+export CARGO_TARGET_DIR
+{{- if .Static}}
+{{template "musl" .}}
+{{- end}}
+{{template "lockfile" .}}
+{{- if .Module}}
+{{template "module" .}}
+{{- end}}
+{{- if .Bin}}
+{{template "binary" .}}
+{{- end}}
+{{- end}}
+
+{{/*
+musl sets tt_cargo_triple to the musl target of the machine of a static
+program, as target does, and checks that the toolchain has it, as
+checkRustTarget does: with the rustc of RUSTC, else of PATH, when there is
+one. macOS, which has no static program, and a machine of no target fail.
+*/}}
+{{define "musl" -}}
+case $TT_PLATFORM_OS/$TT_PLATFORM_ARCH in
+{{- range .Triples}}
+linux/{{.Arch}}) tt_cargo_triple={{.Triple}}-unknown-linux-musl ;;
+{{- end}}
+darwin/*)
+	printf '%s\n' {{q (print .ErrStaticDarwin ": static = true needs a linux build")}} >&2
+	exit 1
+	;;
+*)
+	printf '%s\n' "{{.ErrUnsupportedTarget}} $TT_PLATFORM_OS-$TT_PLATFORM_ARCH" >&2
+	exit 1
+	;;
+esac
+tt_cargo_rustc=${RUSTC:-rustc}
+if command -v "$tt_cargo_rustc" >/dev/null 2>&1; then
+	tt_cargo_libdir=`"$tt_cargo_rustc" --print target-libdir --target "$tt_cargo_triple"`
+	if [ ! -d "$tt_cargo_libdir" ]; then
+		printf '%s\n' "{{.ErrNoRustTarget}}: $tt_cargo_triple, no $tt_cargo_libdir; rustup target add $tt_cargo_triple installs it" >&2
+		exit 1
+	fi
+fi
+{{- end}}
+
+{{/*
+lockfile checks that the workspace of the package has a Cargo.lock, beside
+the Cargo.toml cargo locate-project names, as findLockfile does.
+*/}}
+{{define "lockfile" -}}
+tt_cargo_manifest=`cargo locate-project --workspace --message-format plain`
+tt_cargo_root=${tt_cargo_manifest%/*}
+if [ ! -f "$tt_cargo_root/Cargo.lock" ]; then
+	printf '%s\n' "{{.ErrNoLockfile}} in $tt_cargo_root: the build is made with --locked, from the versions Cargo.lock pins; run cargo generate-lockfile there, and keep Cargo.lock with the sources" >&2
+	exit 1
+fi
+{{- end}}
+
+{{/*
+module builds the library of the package as a cdylib, as runModule does with
+the options of moduleArgs of the machine - the jobs of a build of no -j, no
+target, and the link arguments of macOS on macOS - and copies it as the
+module: <module><TT_MODULE_EXT>, the module being the name of the library,
+of lib<name>.so or .dylib, unless the block names another.
+*/}}
+{{define "module" -}}
+if [ "$TT_PLATFORM_OS" = darwin ]; then
+	cargo{{range .DarwinArgs}} {{q .}}{{end}}
+else
+	cargo{{range .ModuleArgs}} {{q .}}{{end}}
+fi
+tt_cargo_lib=
+for tt_cargo_file in "$CARGO_TARGET_DIR"/{{.ProfileDir}}/lib*.so "$CARGO_TARGET_DIR"/{{.ProfileDir}}/lib*.dylib "$CARGO_TARGET_DIR"/*/{{.ProfileDir}}/lib*.so "$CARGO_TARGET_DIR"/*/{{.ProfileDir}}/lib*.dylib; do
+	[ -f "$tt_cargo_file" ] || continue
+	if [ -n "$tt_cargo_lib" ]; then
+		printf '%s\n' "cargo built two libraries, $tt_cargo_lib and $tt_cargo_file" >&2
+		exit 1
+	fi
+	tt_cargo_lib=$tt_cargo_file
+done
+if [ -z "$tt_cargo_lib" ]; then
+	printf '%s\n' "cargo built no library of the package in $CARGO_TARGET_DIR" >&2
+	exit 1
+fi
+{{- if .ModuleName}}
+cp "$tt_cargo_lib" "$TT_OUTPUT_DIR"/{{q .ModuleName}}"$TT_MODULE_EXT"
+{{- else}}
+tt_cargo_name=${tt_cargo_lib##*/}
+tt_cargo_name=${tt_cargo_name#lib}
+tt_cargo_name=${tt_cargo_name%.*}
+cp "$tt_cargo_lib" "$TT_OUTPUT_DIR/$tt_cargo_name$TT_MODULE_EXT"
+{{- end}}
+{{- end}}
+
+{{/*
+binary builds the binary, as runBinary does with the options of args - the
+jobs of a build of no -j, and the musl target of tt_cargo_triple for a
+static program alone, which args puts last - and copies it into the
+programs.
+*/}}
+{{define "binary" -}}
+cargo{{range .BinArgs}} {{q .}}{{end}}{{if .Static}} --target "$tt_cargo_triple"{{end}}
+tt_cargo_bin=
+for tt_cargo_file in "$CARGO_TARGET_DIR"/{{.ProfileDir}}/{{q .Bin}} "$CARGO_TARGET_DIR"/*/{{.ProfileDir}}/{{q .Bin}}; do
+	if [ -f "$tt_cargo_file" ]; then
+		tt_cargo_bin=$tt_cargo_file
+		break
+	fi
+done
+if [ -z "$tt_cargo_bin" ]; then
+	printf '%s\n' {{q (print "cargo built no binary " .Bin " in ")}}"$CARGO_TARGET_DIR" >&2
+	exit 1
+fi
+cp "$tt_cargo_bin" "$TT_PROGRAMS_DIR"/{{q .Bin}}
+{{- end}}

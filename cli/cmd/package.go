@@ -1315,7 +1315,14 @@ func newPackagePackCmd() *cobra.Command {
 			"the lock are checked as a build checks them. A project that depends " +
 			"on the rock builds it " +
 			"from the source rock, with its manifest, where the server has no " +
-			"rock of the platform.\n\n" +
+			"rock of the platform. LuaRocks, which knows no manifest, builds it " +
+			"by the rockspec: that of a package with no build block installs the " +
+			"files of its layout and the _version.lua the rockspec carries, and " +
+			"that of a package with build blocks runs tt-rock.sh, a script of sh " +
+			"the rockspec carries, which runs the builds as tt does. A package " +
+			"with a build that is made with tt alone has a rockspec that fails, " +
+			"saying which component or hook needs tt and why, and the pack warns " +
+			"of it.\n\n" +
 			targetHelp + " The rock is then the binary rock of that platform, " +
 			"<rock>-<version>.linux-aarch64.rock for linux/arm64, and the .tt archive, " +
 			"labeled with it, <package>-<version>-linux-arm64.tt, is packed " +

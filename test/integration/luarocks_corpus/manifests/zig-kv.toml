@@ -1,0 +1,32 @@
+# zigkv: a package of a Lua module and a module of zig, the example kv of
+# zig-tarantool. zig-tarantool is pinned in kv/build.zig.zon by the .url of
+# the archive of a commit on GitHub and its .hash, as zig fetch --save pins
+# it.
+manifest_version = "0.1"
+
+[package]
+name = "zigkv"
+description = "A key-value store of C functions in Zig (zig-tarantool examples/kv)"
+license = "MIT"
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "git+file:///fixtures/zig-kv"
+
+[platform]
+# zig-tarantool modules need the box_* of Tarantool 3.5 and later.
+tarantool = ">=3.5.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+# require('zigkv'), share/tarantool/zigkv/init.lua.
+[components.zigkv]
+path = "lua"
+
+# lib/tarantool/kv.so, the module box.schema.func loads for kv.kv_set.
+[components.kv]
+path = "kv"
+namespace = ""
+
+[components.kv.build]
+backend = "zig"
+module = "kv"

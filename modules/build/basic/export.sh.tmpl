@@ -1,0 +1,15 @@
+{{/*
+The scripts of the exports of make and shell (basic.go): the command Run
+runs, on a line of sh.
+*/}}
+
+{{/* command is the command Name with its Args, each a word of sh of its own. */}}
+{{define "command"}}{{q .Name}}{{range .Args}} {{q .}}{{end}}{{end}}
+
+{{/*
+env is the command run by env, which execs it from PATH as Run does: a
+command named as a word sh reads itself - a reserved word, if, a builtin,
+test or ., a function of the script - is the program of the name all the
+same.
+*/}}
+{{define "env"}}env -- {{template "command" .}}{{end}}

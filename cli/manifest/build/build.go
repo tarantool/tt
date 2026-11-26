@@ -229,6 +229,17 @@ type Result struct {
 	// rock tt package pack releases leaves it out: a project installing the
 	// rock resolves rocks of its own.
 	RocksLua string
+	// Layout are the files of the project the layouts of the components the
+	// run built took into Stage, in the order of the components and of
+	// their walk: where each is in the project, and where in the stage. A
+	// fetch run reports none, and Prepare those a build would take, which tt
+	// package pack writes the rockspec of the source rock from.
+	Layout []LaidOut
+	// VersionLua is the _version.lua the build generated into Stage, as the
+	// rock of the package has it; the zero file when the package generates
+	// none (generate_version_lua = false). Prepare reports the one a build at
+	// Options.Now would generate.
+	VersionLua GeneratedFile
 	// Programs maps every component of the manifest whose build made
 	// programs to those it put into the bin directory of Tree, by file name:
 	// the package's own files there, as against the console scripts of its
@@ -346,7 +357,9 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 // hook and no backend, so it needs no compiler and no headers of Tarantool:
 // tt package pack --format rock-src, whose source rock holds the files of the
 // project and no build output, packs from it. The result has no Tree, Stage
-// or Programs. It holds the lock of the project as RunResult does.
+// or Programs; its Layout and VersionLua are those a build of every
+// component of the product would make, of the files as they are now. It
+// holds the lock of the project as RunResult does.
 func Prepare(ctx context.Context, opts Options) (*Result, error) {
 	ctx, release, err := lockProject(ctx, opts.ProjectDir)
 	if err != nil {
@@ -360,7 +373,7 @@ func Prepare(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	productName, _, err := selectProduct(man, opts.Product)
+	productName, product, err := selectProduct(man, opts.Product)
 	if err != nil {
 		return nil, err
 	}
@@ -400,9 +413,17 @@ func Prepare(ctx context.Context, opts Options) (*Result, error) {
 
 	opts.emit(warnings)
 
+	proj := packageProject(opts.ProjectDir, man, productName)
+
+	layout, err := planLayout(proj, product.Components, opts.backends())
+	if err != nil {
+		return nil, err
+	}
+
 	return &Result{
 		Manifest: man, Lock: lock, Version: ver, Product: productName, Target: native.Host(),
-		Tree: "", Stage: "", RocksLua: "", Programs: nil,
+		Tree: "", Stage: "", RocksLua: "", Layout: layout,
+		VersionLua: plannedVersionLua(proj, ver, opts.builtAt()), Programs: nil,
 	}, nil
 }
 
@@ -625,6 +646,18 @@ func runBuild(
 		rocksLua = rocksLuaPath(stage, proj.versionLuaNamespace())
 	}
 
+	// Nothing runs between the layout and its plan, so the plan lists what
+	// the layout copied.
+	layout, err := planLayout(proj, components, opts.backends())
+	if err != nil {
+		return nil, err
+	}
+
+	versionLua, err := stagedVersionLua(proj, stage)
+	if err != nil {
+		return nil, err
+	}
+
 	// The modules and the programs of a build for another platform do not
 	// run on the machine, whose tree .rocks/ is: its rock goes into the tree
 	// of its target.
@@ -645,16 +678,18 @@ func runBuild(
 	}
 
 	return &Result{
-		Manifest: man,
-		Lock:     lock,
-		Version:  ver,
-		Product:  productName,
-		Target:   opts.target(),
-		Tree:     tree,
-		Stage:    stage,
-		RocksLua: rocksLua,
-		Programs: built.programs,
-		Built:    built.installed(proj, tree),
+		Manifest:   man,
+		Lock:       lock,
+		Version:    ver,
+		Product:    productName,
+		Target:     opts.target(),
+		Tree:       tree,
+		Stage:      stage,
+		RocksLua:   rocksLua,
+		Layout:     layout,
+		VersionLua: versionLua,
+		Programs:   built.programs,
+		Built:      built.installed(proj, tree),
 	}, nil
 }
 

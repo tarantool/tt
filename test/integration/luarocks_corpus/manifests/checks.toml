@@ -1,0 +1,29 @@
+# checks as a tt 3 package. The upstream rockspec builds with cmake, which
+# only installs checks.lua and checks/ twice: into the top level of LUADIR
+# and into LUADIR/override/. Here that is two components of the same
+# directory, one per namespace.
+manifest_version = "0.1"
+
+[package]
+name = "checks"
+description = "Easy, terse, readable and fast function arguments type checking"
+license = "MIT"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/checks"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.checks]
+path = "."
+namespace = ""
+include = ["/checks.lua", "/checks/"]
+
+[components.override]
+path = "."
+namespace = "override"
+include = ["/checks.lua", "/checks/"]

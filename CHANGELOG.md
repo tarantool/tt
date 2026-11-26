@@ -499,6 +499,65 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt package pack --format rock-src`: pack the source rock of the package,
   the same rockspec with the files git tracks, submodules included, and a
   `VERSION` file of the version, reproducibly.
+- LuaRocks with no tt, `tt rocks` of tt 2 included, builds the source rock
+  of a tt package, `tt package pack --format rock-src`, and its bare
+  rockspec from the repository, into the files of the binary rock of the
+  same pack: `lua/`, `lib/` and `bin/` alike, `doc/` with more. LuaRocks
+  installed such a source rock with no module in it. The rockspec installs,
+  by `build.install`, the files of the layout the source rock holds where
+  the binary rock has them, and its `_version.lua` from `build.extra_files`,
+  the bytes of the binary rock, so neither the source rock nor the
+  repository holds a generated file. A package with build blocks builds by
+  `tt-rock.sh`, a script of sh the rockspec carries in `build.extra_files`,
+  which a build table of type `command` runs with `CC`, `CFLAGS`, `LIBFLAG`
+  and `LUA_INCDIR` of LuaRocks, given on its stdin, so that the shell runs
+  nothing of the name of a tree, one with a quote say: the script sets the
+  `TT_*` variables of a build of tt, for the machine `uname` names, a
+  module `.so` or `.dylib`, looks for the tools of every build with
+  `command -v`, runs `pre_build`, each component in the order of the
+  product, in its working directory with the `env` of its block, by the
+  commands tt runs, copies what `output` lists, and runs `post_build`, all
+  into `.tt-rock/stage/`, which its install copies into `LUADIR`, `LIBDIR`
+  and `BINDIR`, given so too. The builds of
+  `make`, `shell`, `cmake`, `go`, `cargo` and `zig` are made so, and those
+  of `c` and `lua-c` but for `static = true` and `bundle`; the pack warns
+  once of what a script lacks against a build of tt, such as the cache of
+  the objects of `c`, and writes it into the comments of `tt-rock.sh`. The
+  script lays out the files of `output` and of the source rock that
+  `build.install` cannot install, and no other file a build makes, so the
+  rockspec is the same whether the project was built or not; the pack that
+  built the package warns of a file its layout took that neither is. A
+  package with a build that is made with tt alone - of another backend, of
+  `static = true` or `bundle`, built out of the project, or with an `env` sh
+  cannot set - has a rockspec that fails under LuaRocks, naming the
+  components and hooks that need tt, their backends and the field, and the
+  pack of its source rock warns so. tt builds a source rock from its
+  manifest as ever. A file at a path of the layout `build.install` cannot
+  say, a directory with a dot in its name or a Lua file with one before
+  `.lua`, is laid out by `tt-rock.sh`, which runs no build for a package
+  with no build block, and a file of the source
+  rock at `tt-rock-version.lua`, `tt-rock.sh`, `.tt-rock/` or
+  `.luarocks.patches.applied` of the root fails the pack of either rock. A
+  file of the layout git ignores is left out of the source rock with a
+  warning, as one it does not track is.
+- A build backend of the SDK says whether its builds are made without tt
+  too, `build.Backend.Exports`: each build of such a backend is a
+  `build.Exporter`, whose `Export`, given a `build.ExportContext`, returns
+  a `build.Export`, the script of sh that makes what `Run` makes, the tools
+  it runs and what it lacks against `Run`; the doc of `build.Export` is the
+  contract of the variables the script sees. `build.Backend.ValidateBuild`
+  refuses a build of a backend that says so and is no `Exporter`, or has an
+  `Export` of another signature, and an `Exporter` of a backend that does
+  not, whose own `Export` of another signature it leaves alone. A build
+  whose field has no counterpart in a script fails its
+  `Export` with `build.ErrNoExport` and the `FieldError` of the field,
+  `build.NoExportf`, and `build.ShellQuote` quotes a literal as one word of
+  sh. `buildtest.CheckExport` and `buildtest.CheckExportHook` run `Run` and
+  the script on two copies of one project and compare what they made, by
+  path, by mode and by bytes but for a native file, and
+  `buildtest.Harness.Export` and `buildtest.Harness.RunExport` run an
+  export in a test. Each backend of the module `build` that exports is
+  checked so.
 - A registry dependency whose servers have no rock of the platform, but the
   source rock of a tt package, is built from it with its manifest, in
   `_build/src/` of the project, and installed at the version and revision
@@ -1657,6 +1716,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt rocks` took a Mac on Apple Silicon for an x86_64 one: `tt rocks
+  install` refused a rock built there with `Incompatible architecture
+  macosx-aarch64`, took the `macosx-x86_64` rocks of a server and packed
+  arm64 modules as `macosx-x86_64`. Its LuaRocks took the platform from the
+  first architecture of `/bin/sh`, a universal binary that lists x86_64
+  first; it names the host from the Go runtime of tt now, as the rest of tt
+  does (#1501).
 - `tt connect` and `tt aeon connect` failed with `cannot get the current
   user: user: unknown userid 1001` when run as a user the user database
   does not know, as in a container started with an arbitrary uid: they

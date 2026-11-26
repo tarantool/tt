@@ -18,6 +18,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -33,7 +34,8 @@ const (
 	FormatRock = "rock"
 	// FormatRockSrc is the source rock of the package, for a platform with
 	// no binary rock: the rockspec of the rock and the files of the project,
-	// which tt builds with its manifest.
+	// which tt builds with its manifest, and LuaRocks by the build table of
+	// the rockspec (releaseBuild).
 	FormatRockSrc = "rock-src"
 )
 
@@ -222,11 +224,32 @@ type rockResult struct {
 //
 // The source rock holds the same rockspec and the files of the project
 // (writeSrcRock): the rockspec is one per version, whatever rocks of it a
-// server has.
+// server has. Its build table says how LuaRocks builds the source rock, of
+// the files the source rock holds (releaseBuild), so it is the same whether
+// the pack makes the source rock or not.
 func packRocks(
 	ctx context.Context, opts Options, built *build.Result, rock rockDecl,
 ) (rockResult, error) {
+	carried, err := sourceFiles(ctx, opts.ProjectDir, built.Manifest.Package.LicenseFiles)
+	if err != nil {
+		return rockResult{}, err
+	}
+
 	rel := releaseRock(built, rock, opts.Revision)
+
+	backends := opts.Build.Backends
+	if backends == nil {
+		backends = buildreg.Process()
+	}
+
+	plan, err := releaseBuild(built, rel, rockSources{
+		dir: opts.ProjectDir, carried: carried, backends: backends, built: !opts.srcRockOnly(),
+	})
+	if err != nil {
+		return rockResult{}, err
+	}
+
+	rel.Build = plan.build
 
 	spec, err := rocktree.ReleaseRockspec(rel)
 	if err != nil {
@@ -253,15 +276,23 @@ func packRocks(
 	if opts.makes(FormatRockSrc) {
 		result.SrcRock = filepath.Join(dir, base+"."+srcRockArch+rockExt)
 
-		warning := untrackedWarning(untrackedSources(ctx, opts.ProjectDir,
-			componentPaths(built.Manifest, built.Product)))
-		if warning != "" && opts.Warn != nil {
-			opts.Warn(warning)
+		untracked := untrackedSources(ctx, opts.ProjectDir,
+			componentPaths(built.Manifest, built.Product))
+
+		warnings := plan.warnings(untracked)
+		if warning := untrackedWarning(untracked); warning != "" {
+			warnings = append(warnings, warning)
 		}
 
-		err = writeSrcRock(ctx, result.SrcRock, opts.ProjectDir,
+		if opts.Warn != nil {
+			for _, warning := range warnings {
+				opts.Warn(warning)
+			}
+		}
+
+		err = writeSrcRock(result.SrcRock, opts.ProjectDir,
 			srcDirName(rel.SourceURL, rel.Name), base+rockspecExt, spec.RawSource,
-			built.Version.SemVer, built.Manifest.Package.LicenseFiles)
+			built.Version.SemVer, carried)
 		if err != nil {
 			return rockResult{}, err
 		}

@@ -788,11 +788,13 @@ path = 'lualib'
 """
 
 
-def test_rocks_refuses_the_source_rock_of_a_tt_package(tt_cmd, tmp_path):
-    """LuaRocks builds nothing of the source rock of a tt package, whose
-    rockspec has build type none: tt rocks removes what it installed and
-    fails, rather than say a rock with no module is installed. The binary rock
-    of the same version installs."""
+def test_rocks_builds_the_source_rock_of_a_tt_package(tt_cmd, tmp_path):
+    """LuaRocks builds the source rock of a tt package of Lua alone by its
+    rockspec, which installs the files of the binary rock of the same version,
+    _version.lua among them. The source rock of a package with a build block
+    builds with tt only: its build fails, saying so, and installs nothing. A
+    source rock an older tt packed, which builds nothing, is refused by the
+    unit tests of tt rocks (checkSrcRocks)."""
     package = tmp_path / "lualib"
     (package / "lualib").mkdir(parents=True)
     (package / "app.manifest.toml").write_text(LUA_PACKAGE_MANIFEST)
@@ -800,44 +802,65 @@ def test_rocks_refuses_the_source_rock_of_a_tt_package(tt_cmd, tmp_path):
     (package / "LICENSE").write_text("license\n")
     (package / "VERSION").write_text("1.0.0\n")
 
-    env = dict(os.environ, PWD=str(package))
-    for fmt, out in (("rock-src", "src"), ("rock", "bin")):
+    def pack(fmt, out):
         rc, output = run_command_and_get_output(
             [tt_cmd, "package", "pack", "--format", fmt, "--out", str(tmp_path / out)],
             cwd=package,
-            env=env,
+            env=dict(os.environ, PWD=str(package)),
         )
         assert rc == 0, output
+        return output
 
-    consumer = tmp_path / "consumer"
-    consumer.mkdir()
-    env = dict(os.environ, PWD=str(consumer))
-    installed = consumer / ".rocks" / "share" / "tarantool" / "rocks" / "lualib"
+    def install(name, *args):
+        consumer = tmp_path / f"consumer-{name}"
+        consumer.mkdir()
+        rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "install", *args],
+            cwd=consumer,
+            env=dict(os.environ, PWD=str(consumer)),
+        )
+        return consumer / ".rocks" / "share" / "tarantool" / "lualib", rc, output
 
+    def install_from(server):
+        return install(server, "lualib", "--only-server", str(tmp_path / server))
+
+    def files(share):
+        return {
+            path.relative_to(share).as_posix(): path.read_bytes()
+            for path in share.rglob("*")
+            if path.is_file()
+        }
+
+    # One pack makes both rocks: _version.lua, which says when the package was
+    # built, is the same in the rockspec of the source rock and in the binary
+    # rock of one pack alone. The server prefers the binary rock, so the
+    # source rock is installed from its file.
+    formats = ["--format", "rock", "--format", "rock-src"]
     rc, output = run_command_and_get_output(
-        [tt_cmd, "rocks", "install", "lualib", "--only-server", str(tmp_path / "src")],
-        cwd=consumer,
-        env=env,
-    )
-    assert rc == 1, output
-    # LuaRocks says the rock is installed before tt looks; tt's error, the
-    # last word, says it is not.
-    said = output.find("lualib 1.0.0-1 is now installed")
-    refused = output.find("LuaRocks built nothing of the source rock of a tt package")
-    assert 0 <= said < refused, output
-    assert (
-        "lualib 1.0.0-1 is not installed, whatever LuaRocks printed above; "
-        "tt removed it from the tree again" in output
-    )
-    assert "tt package build" in output
-    assert not installed.exists()
-    # The tree the install made goes with the rock, its manifest and lock too.
-    assert not (consumer / ".rocks").exists()
-
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "rocks", "install", "lualib", "--only-server", str(tmp_path / "bin")],
-        cwd=consumer,
-        env=env,
+        [tt_cmd, "package", "pack", *formats, "--out", str(tmp_path / "bin")],
+        cwd=package,
+        env=dict(os.environ, PWD=str(package)),
     )
     assert rc == 0, output
-    assert (consumer / ".rocks" / "share" / "tarantool" / "lualib" / "init.lua").is_file()
+
+    from_source, rc, output = install("src", str(tmp_path / "bin" / "lualib-1.0.0-1.src.rock"))
+    assert rc == 0, output
+    from_binary, rc, output = install_from("bin")
+    assert rc == 0, output
+    assert set(files(from_source)) == {"init.lua", "_version.lua"}
+    assert files(from_source) == files(from_binary)
+
+    # A variable of env that sh cannot set leaves the build to tt alone, as
+    # the build of a backend that is not built without tt does.
+    build_block = (
+        "\n[components.lualib.build]\nbackend = 'shell'\ncommand = 'true'\n"
+        "env = { 'NOT-A-NAME' = '1' }\n"
+    )
+    (package / "app.manifest.toml").write_text(LUA_PACKAGE_MANIFEST + build_block)
+    output = pack("rock-src", "src-build")
+    assert "the source rock builds with tt only" in output
+
+    installed, rc, output = install_from("src-build")
+    assert rc == 1, output
+    assert 'lualib 1.0.0 builds with tt only: the component "lualib"' in output
+    assert not installed.exists()

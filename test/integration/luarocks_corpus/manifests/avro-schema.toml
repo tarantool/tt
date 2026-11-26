@@ -1,0 +1,57 @@
+# avro-schema as a tt 3 package. The upstream rockspec builds with cmake:
+# the CMake project of the root builds avro_schema_rt_c.so, installed into
+# the top level of LIBDIR, and post-processes avro_schema/il.lua and
+# avro_schema/backend.lua with il_filt.sh into the build tree, installed
+# into LUADIR/avro_schema/ with the other Lua files there, listed one by
+# one. A component has one namespace, so the one cmake project is two
+# components, each with its own build tree: the module at the top level, and
+# the Lua files with the two generated ones in avro_schema/.
+manifest_version = "0.1"
+
+[package]
+name = "avro-schema"
+description = "Apache Avro schema tools for Tarantool"
+license = "BSD"
+# The repository has no license file.
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/avro-schema"
+# avro_schema/version.lua is the upstream's own; the generated one is
+# avro-schema/_version.lua, after the package name, another namespace.
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.rt]
+path = "."
+namespace = ""
+# include = [] is the default include, *.lua and *.so, which lays out
+# benchmark.lua and web/avro_online.lua of the root: a component that lays
+# out nothing excludes everything.
+exclude = ["*"]
+
+[components.rt.build]
+backend = "cmake"
+cwd = "."
+targets = ["avro_schema_rt_c"]
+output = ["avro_schema_rt_c.so"]
+# cmake_minimum_required(VERSION 2.8), which CMake 4 refuses.
+env = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
+
+[components.lua]
+path = "avro_schema"
+include = ["/init.lua", "/compiler.lua", "/frontend.lua", "/runtime.lua",
+    "/fingerprint.lua", "/utils.lua", "/version.lua"]
+namespace = "avro_schema"
+
+[components.lua.build]
+backend = "cmake"
+cwd = "."
+targets = ["postprocess_lua"]
+output = [
+    { path = "il.lua", to = "share" },
+    { path = "backend.lua", to = "share" },
+]
+env = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }

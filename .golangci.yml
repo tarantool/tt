@@ -354,6 +354,10 @@ linters:
             # state and version tests before this was understood.
             - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/go-luarocks"
+            # cli/manifest/pack tests build the source rock of a module of
+            # c and lua-c under LuaRocks, by the export of the backends of
+            # tt, which no double of buildregtest could stand for.
+            - "github.com/tarantool/tt/modules/build"
             # cli/manifest/pack tests decompress the archive they just wrote.
             - "github.com/klauspost/compress/zstd"
             # deps, inventory and registry tests round-trip the YAML they

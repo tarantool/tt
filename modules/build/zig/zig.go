@@ -21,6 +21,11 @@
 // directory of its hash, and a build given the mirror
 // (build.Context.Vendored) takes them from there, offline.
 //
+// A build is made without tt too (build.Backend.Exports): the script of its
+// export runs the zig build Run runs, for the machine it runs on, and copies
+// the module and the program as Run does, so that LuaRocks builds the
+// source rock of a package of zig as tt does.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package zig
@@ -158,6 +163,8 @@ func Backend() build.Backend {
 		Hook:           false,
 		// zig builds for the platform its -Dtarget names (targetArg).
 		Cross: true,
+		// The script of a build runs the zig build Run runs (Export).
+		Exports: true,
 	}
 }
 

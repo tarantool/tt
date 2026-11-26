@@ -1,10 +1,12 @@
 package build
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -134,4 +136,94 @@ func TestLayoutComponent_subdirComponentPath(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		"lib/my-app/fast_hash.so",
 	}, relSet(t, stage))
+}
+
+// TestLayoutOf: the layout of a file that is not there is what the layout
+// of each component would take of it were it there - by its include and
+// exclude, the default ones among them, under its namespace - as the layout
+// of the files that are takes them.
+func TestLayoutOf(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, manifestHead+`
+[components.native]
+path = 'native'
+namespace = 'fast'
+exclude = ['skip/']
+
+[components.data]
+path = 'data'
+include = ['*.json']
+`, map[string]string{"init.lua": "return 1"})
+
+	man, err := readManifest(dir, dryOptions(dir))
+	require.NoError(t, err)
+
+	got := LayoutOf(dir, man, "default", dryOptions(dir).backends(), []string{
+		"native/out/hash.so", "native/hash.lua", "native/skip/x.so", "native/test/y.so",
+		"native/hash.c", "data/a.json", "data/a.lua", "other/z.so", "init.lua",
+	})
+
+	// The components are in the order of the product. The one at the root
+	// takes the Lua of the others too, and its own init.lua, which is there,
+	// as Result.Layout has it.
+	assert.Equal(t, []LaidOut{
+		{Component: "data", Source: "data/a.json", Dest: "lua/my-app/a.json"},
+		{Component: "lua", Source: "native/hash.lua", Dest: "lua/my-app/native/hash.lua"},
+		{Component: "lua", Source: "data/a.lua", Dest: "lua/my-app/data/a.lua"},
+		{Component: "lua", Source: "init.lua", Dest: "lua/my-app/init.lua"},
+		{Component: "native", Source: "native/out/hash.so", Dest: "lib/fast/out/hash.so"},
+		{Component: "native", Source: "native/hash.lua", Dest: "lua/fast/hash.lua"},
+	}, got)
+}
+
+// TestResultLayout: a build reports what the layout of each component took,
+// from where in the project to where in the stage, and the _version.lua it
+// generated, as the stage has them; Prepare, which builds nothing, reports
+// the same of a build at the same time.
+func TestResultLayout(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, manifestHead+`
+[components.native]
+path = 'native'
+namespace = 'fast'
+`, map[string]string{
+		"init.lua":         "return 1",
+		"native/hash.so":   "so",
+		"native/hash.lua":  "return 2",
+		"native/README.md": "not laid out",
+	})
+
+	opts := dryOptions(dir)
+
+	opts.Now = time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC)
+
+	built, err := RunResult(context.Background(), opts)
+	require.NoError(t, err)
+
+	// The include of the component at the root, *.lua, takes the Lua of the
+	// other one too.
+	assert.Equal(t, []LaidOut{
+		{Component: "lua", Source: "init.lua", Dest: "lua/my-app/init.lua"},
+		{Component: "lua", Source: "native/hash.lua", Dest: "lua/my-app/native/hash.lua"},
+		{Component: "native", Source: "native/hash.lua", Dest: "lua/fast/hash.lua"},
+		{Component: "native", Source: "native/hash.so", Dest: "lib/fast/hash.so"},
+	}, built.Layout)
+
+	for _, file := range built.Layout {
+		assert.FileExists(t, filepath.Join(built.Stage, filepath.FromSlash(file.Dest)))
+	}
+
+	assert.Equal(t, "lua/my-app/_version.lua", built.VersionLua.Dest)
+
+	staged, err := os.ReadFile(filepath.Join(built.Stage, "lua", "my-app", "_version.lua"))
+	require.NoError(t, err)
+	assert.Equal(t, string(staged), built.VersionLua.Content)
+	assert.Contains(t, built.VersionLua.Content, `built_at = "2026-11-22T10:00:00Z",`)
+
+	prepared, err := Prepare(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Equal(t, built.Layout, prepared.Layout)
+	assert.Equal(t, built.VersionLua, prepared.VersionLua)
 }

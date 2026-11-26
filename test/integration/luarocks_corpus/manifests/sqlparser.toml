@@ -1,0 +1,36 @@
+# sqlparser as a tt 3 package. The upstream rockspec is of type make: make
+# (its default target, all, is library) builds libsqlparser.so of the C++
+# of the submodule hyrise/ and of LuaSQLParser.cpp, and make install copies
+# it into LIBDIR, and sqlgen.lua, sqlparser.lua, sqlparserConst.lua and
+# LuaDataTypes.h, which sqlparser.lua reads beside itself, into LUADIR.
+manifest_version = "0.1"
+
+[package]
+name = "sqlparser"
+description = "SQL parser for LuaJIT"
+license = "MIT"
+license_files = ["LICENSE"]
+# The test sets git+file:// of its clone, which the bare rockspec builds from.
+repository = "https://github.com/tarantool/sqlparser"
+
+[platform]
+tarantool = ">=2.11.0"
+tt = ">=3.0.0"
+
+[dependencies]
+
+[components.sqlparser]
+path = "."
+namespace = ""
+include = ["/sqlgen.lua", "/sqlparser.lua", "/sqlparserConst.lua", "/LuaDataTypes.h"]
+
+[components.sqlparser.build]
+backend = "make"
+make_target = "library"
+# A workaround of GCC 15, not of the manifest: hyrise/ uses uintmax_t
+# without <cstdint>, which GCC 15 no longer includes with the other headers,
+# and builds with -Werror, which fails on the warnings of a new GCC. The
+# Makefile reads no CXXFLAGS, so its own flags are given whole, without
+# -Werror; -include cstdint is C++11, which every GCC of C++17 has.
+flags = ["LIB_CFLAGS=-std=c++1z -Wall -O3 -fPIC -include cstdint"]
+output = ["libsqlparser.so"]

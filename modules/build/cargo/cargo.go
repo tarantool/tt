@@ -15,6 +15,11 @@
 // lock pins: a package without a Cargo.lock is refused before anything is
 // built.
 //
+// A build is made without tt too (build.Backend.Exports): the script of its
+// export runs the cargo Run runs, for the machine it runs on, and takes
+// what it built from the target directory of its own, so that LuaRocks
+// builds the source rock of a package of cargo as tt does.
+//
 // The package depends on the standard library and the contract of a build
 // backend (github.com/tarantool/tt/sdk/build) only.
 package cargo
@@ -127,6 +132,8 @@ func Backend() build.Backend {
 		// rustc builds for the Rust target of another platform, and zig cc
 		// links for another Linux one (cross.go).
 		Cross: true,
+		// The script of a build runs the cargo Run runs (Export).
+		Exports: true,
 	}
 }
 
@@ -609,14 +616,17 @@ func command(ctx context.Context, c *build.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
+// messageFormat is the option of cargo that has it print what it built as
+// JSON messages, which the backend reads (scanMessages).
+const messageFormat = "--message-format=json-render-diagnostics"
+
 // args builds the cargo build argv, with the number of jobs of jobsArgs,
 // from the versions Cargo.lock pins (--locked), with the options of cargo
 // options last. Diagnostics are rendered by cargo to stderr as usual, and
 // only the JSON messages go to stdout.
 func (b cargoBuild) args(target string, jobs int, options []string) []string {
 	args := append([]string{
-		"build", "--profile", b.profile(), "--bin", b.bin, "--locked",
-		"--message-format=json-render-diagnostics",
+		"build", "--profile", b.profile(), "--bin", b.bin, "--locked", messageFormat,
 	}, b.selection(target)...)
 
 	args = append(args, jobsArgs(jobs)...)
@@ -631,7 +641,7 @@ func (b cargoBuild) args(target string, jobs int, options []string) []string {
 func (b cargoBuild) moduleArgs(target, goos string, jobs int, options []string) []string {
 	args := []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", b.profile(), "--locked",
-		"--message-format=json-render-diagnostics",
+		messageFormat,
 	}
 
 	args = append(args, b.selection(target)...)

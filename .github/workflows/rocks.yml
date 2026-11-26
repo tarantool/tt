@@ -9,6 +9,13 @@ name: Rocks
 # test/integration/rocks_catalog; the exceptions and the system libraries the
 # rocks need are in test/rocks-catalog.yaml.
 #
+# The jobs of the project level on the runners and of the user level in the
+# containers check the LuaRocks corpus after the catalogue: real rocks given
+# a manifest of tt 3, whose source rocks tt rocks of tt 2 builds into the
+# files of their binary rocks. See test/integration/luarocks_corpus and
+# test/luarocks-corpus.yaml; ci/luarocks-corpus-tools.sh installs tt 2, zig,
+# and Go and Rust where the machine has none.
+#
 # A pull request runs it when it has the label ci-rocks; it is not a required
 # check. workflow_dispatch runs it on a branch, for another Tarantool too; a
 # run on v3 fills the cache of the macOS builds of Tarantool for every pull
@@ -70,8 +77,10 @@ jobs:
             jobs: 8
     runs-on: ${{ matrix.runner }}
     # tt binary install builds Tarantool from source on macOS when the cache
-    # has no build of it.
-    timeout-minutes: ${{ matrix.platform == 'darwin-arm64' && 60 || 30 }}
+    # has no build of it. The project level checks the LuaRocks corpus too.
+    timeout-minutes: >-
+      ${{ matrix.platform == 'darwin-arm64' && (matrix.level == 'project' && 80 || 60) ||
+      (matrix.level == 'project' && 50 || 30) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -278,6 +287,29 @@ jobs:
           python3 test/ci.py run --shard rocks --marker rocks_catalog --test-dir rocks_catalog \
             --jobs "$JOBS" --tt-cmd "$PWD/tt" --report-dir reports
 
+      # The project level, whose root has no space on macOS: the corpus is
+      # built against its Tarantool, put on PATH, whatever the catalogue
+      # made of the rocks. Go, cmake and Rust are those of the runner.
+      - name: Set up the tools of the LuaRocks corpus
+        id: corpus-tools
+        if: ${{ !cancelled() && matrix.level == 'project' && steps.tt-tarantool.outcome == 'success' }}
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: bash ci/luarocks-corpus-tools.sh "$RUNNER_TEMP/corpus-tools"
+
+      - name: Check the LuaRocks corpus
+        if: ${{ !cancelled() && steps.corpus-tools.outcome == 'success' }}
+        env:
+          ROOT: ${{ steps.tt-tarantool.outputs.root }}
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            export TMPDIR="$RUNNER_TEMP"
+          fi
+          export PATH="$ROOT/bin:$PATH" TT_TEST_CORPUS_LOGS="$PWD/reports/corpus/rocks"
+          tarantool --version
+          python3 test/ci.py run --shard rocks --marker luarocks_corpus --test-dir luarocks_corpus \
+            --jobs 4 --tt-cmd "$PWD/tt" --report-dir reports/corpus
+
       - name: Upload the reports and the logs of the rocks
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -333,7 +365,8 @@ jobs:
             level: os
     runs-on: ubuntu-24.04
     container: ${{ matrix.image }}
-    timeout-minutes: 30
+    # The user level checks the LuaRocks corpus too.
+    timeout-minutes: ${{ matrix.level == 'user' && 50 || 30 }}
     defaults:
       run:
         shell: bash
@@ -406,6 +439,25 @@ jobs:
           "$TARANTOOL" --version
           "$PYTHON" test/ci.py run --shard rocks --marker rocks_catalog --test-dir rocks_catalog \
             --jobs 16 --tt-cmd "$PWD/tt" --report-dir reports
+
+      # The user level, which every distribution has: the corpus is built
+      # against the Tarantool of tt binary install with the toolchain of the
+      # distribution, whatever the catalogue made of the rocks.
+      - name: Set up the tools of the LuaRocks corpus
+        id: corpus-tools
+        if: ${{ !cancelled() && matrix.level == 'user' && steps.setup.outcome == 'success' }}
+        run: bash ci/luarocks-corpus-tools.sh /opt/corpus-tools
+
+      - name: Check the LuaRocks corpus
+        if: ${{ !cancelled() && steps.corpus-tools.outcome == 'success' }}
+        env:
+          PYTHON: ${{ steps.setup.outputs.python }}
+          ROOT: ${{ steps.setup.outputs.root }}
+        run: |
+          export PATH="$ROOT/bin:$PATH" TT_TEST_CORPUS_LOGS="$PWD/reports/corpus/rocks"
+          tarantool --version
+          "$PYTHON" test/ci.py run --shard rocks --marker luarocks_corpus --test-dir luarocks_corpus \
+            --jobs 4 --tt-cmd "$PWD/tt" --report-dir reports/corpus
 
       - name: Upload the reports and the logs of the rocks
         if: always()
