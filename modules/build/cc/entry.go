@@ -29,14 +29,15 @@ func luaEntry(name string) string {
 }
 
 // requireName is the name a module of the component of namespace is
-// required by: <namespace>.<module>, the module alone in no namespace, as
+// required by: <namespace>.<module>, the "/" of a nested namespace made
+// ".", the module alone in no namespace, as
 // lib/tarantool/<namespace>/<module>.so is found.
 func requireName(namespace, module string) string {
 	if namespace == "" {
 		return module
 	}
 
-	return namespace + "." + module
+	return strings.ReplaceAll(namespace, "/", ".") + "." + module
 }
 
 // luaAPIPrefixes are the prefixes of the names of the functions of the Lua

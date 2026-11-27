@@ -1726,6 +1726,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   fails the manifest check before anything is built, at
   `components.<name>.namespace`; a dot tells to nest with `/`. The
   manifest of a path dependency is checked the same.
+- `lua-c` checked a module of a nested namespace, `namespace =
+  "myapp/native"`, for the entry point `luaopen_myapp/native_<module>`,
+  which no module can define, and failed its build. It looks for
+  `luaopen_myapp_native_<module>`, the function
+  `require('myapp.native.<module>')` calls, now.
 - `tt rocks` took a Mac on Apple Silicon for an x86_64 one: `tt rocks
   install` refused a rock built there with `Incompatible architecture
   macosx-aarch64`, took the `macosx-x86_64` rocks of a server and packed

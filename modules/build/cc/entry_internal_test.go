@@ -28,6 +28,10 @@ func TestLuaEntry(t *testing.T) {
 	assert.Equal(t, "fast", requireName("", "fast"))
 	assert.Equal(t, "demo.fast", requireName("demo", "fast"))
 	assert.Equal(t, "demo.a.b", requireName("demo", "a.b"))
+	// A nested namespace is a directory of lib/tarantool/ each segment, which
+	// require names by dots.
+	assert.Equal(t, "myapp.native.fast", requireName("myapp/native", "fast"))
+	assert.Equal(t, "luaopen_myapp_native_fast", luaEntry(requireName("myapp/native", "fast")))
 }
 
 // TestCxxLuaAPI pins which undefined symbols are the Lua API by C++ names.
