@@ -1731,6 +1731,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   which no module can define, and failed its build. It looks for
   `luaopen_myapp_native_<module>`, the function
   `require('myapp.native.<module>')` calls, now.
+- A `cargo` component at the root of a workspace with no package of its
+  own, and no `package`, failed in cargo, `is a virtual manifest, but this
+  command requires running against an actual package`; a `package` that
+  names no member failed with `did not match any packages`. Both fail
+  before anything is built now, at `components.<name>.build.package`,
+  naming the members of the workspace. A field a build backend finds wrong
+  before the build is an error of the manifest, exit code 1, at its full
+  path.
+- `tt package pack --format rock-src` packed a source rock that nothing
+  could build, with a warning that tt builds it, of a component out of the
+  project, by its `path` or its `cwd`, and of a `cargo` crate whose
+  workspace has its root above the project: the rock held neither the
+  sources nor the `Cargo.toml` and `Cargo.lock` of the workspace. The pack
+  fails now, naming the components; `--format rock` and the `.tt` archive
+  pack them as before. A tt that builds such a source rock, packed before,
+  says that the rock does not hold the directory of the component, rather
+  than `cannot reach rock server`.
 - `tt rocks` took a Mac on Apple Silicon for an x86_64 one: `tt rocks
   install` refused a rock built there with `Incompatible architecture
   macosx-aarch64`, took the `macosx-x86_64` rocks of a server and packed

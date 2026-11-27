@@ -368,16 +368,18 @@ backend = "cargo"
 package = "mod1"
 ```
 
-Without `package` the build of such a component fails: the root of the
-workspace names no package to build.
+Without `package` the build of such a component fails before anything is
+built, naming the members of the workspace (see
+[Declare the component](#declare-the-component)).
 
 The source rock of `tt package pack --format rock-src` holds the files of
 the project only, and its build has the workspace when the root of the
 workspace is inside the project, as `rs/` is here: the rock carries
 `rs/Cargo.toml` and `rs/Cargo.lock` with the members. A project inside a
 workspace, whose root is above the project, builds with `tt package
-build`, but its source rock has neither the `Cargo.toml` nor the
-`Cargo.lock` of the workspace, and does not build.
+build`, but the pack of its source rock fails (see
+[Build offline](#build-offline)): put `app.manifest.toml` at the root of
+the workspace, or above it.
 
 ## Build offline
 
