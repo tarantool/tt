@@ -313,6 +313,71 @@ default = true
 	assert.False(t, exists(t, filepath.Join(tree, "lib/tarantool/my-app/fast_hash.so")))
 }
 
+// TestRun_badNamespace pins that a namespace of a component that is no
+// directory under .rocks/lib/tarantool/ require can name fails the build at
+// the field of the namespace before anything is built, in the project and in
+// a path dependency holding a manifest.
+func TestRun_badNamespace(t *testing.T) {
+	t.Parallel()
+
+	const rule = `a namespace is "" or segments of letters, digits, "_" and "-" joined by "/"`
+
+	t.Run("project", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			namespace, msg string
+		}{
+			{"../evil", `"../evil" has the segment "..": ` + rule},
+			{"/abs", `"/abs" starts with "/": ` + rule},
+			{
+				"myapp.native", `"myapp.native" has a dot, which require reads as a directory: ` +
+					`nest with "/", "myapp/native", for require('myapp.native.<module>')`,
+			},
+		} {
+			t.Run(test.namespace, func(t *testing.T) {
+				t.Parallel()
+
+				dir := setupProject(t, manifestHead+`
+[components.native]
+path = 'native/'
+namespace = '`+test.namespace+`'
+
+[components.native.build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'touch ../built && echo built > "$TT_OUTPUT_DIR/fast_hash.so"']
+`, map[string]string{"init.lua": "-- init", "native/x.txt": "x"})
+
+				err := Run(context.Background(), dryOptions(dir))
+				require.EqualError(t, err,
+					"invalid manifest: components.native.namespace: "+test.msg)
+				assert.False(t, exists(t, filepath.Join(dir, "built")))
+				assert.False(t, exists(t, filepath.Join(dir, rocksDirName)))
+				assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
+			})
+		}
+	})
+
+	t.Run("path dependency", func(t *testing.T) {
+		t.Parallel()
+
+		app, contrib := setupNeighbours(t)
+
+		writeFile(t, filepath.Join(contrib, manifestFileName), strings.Replace(contribManifest,
+			"[components.native]\npath = 'native/'\n",
+			"[components.native]\npath = 'native/'\nnamespace = '../evil'\n", 1))
+
+		err := Run(context.Background(), dryOptions(app))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `path dependency "contrib": invalid manifest `+
+			filepath.Join(contrib, manifestFileName)+": components.native.namespace: "+
+			`"../evil" has the segment "..": `+rule)
+		assert.False(t, exists(t, filepath.Join(app, rocksDirName)))
+		assert.False(t, exists(t, filepath.Join(app, buildDirName, "path")))
+	})
+}
+
 func TestRun_lockedGate(t *testing.T) {
 	t.Parallel()
 

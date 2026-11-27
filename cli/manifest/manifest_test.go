@@ -3,6 +3,7 @@ package manifest_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -305,6 +306,81 @@ namespace = "custom"
 	// Explicit string.
 	require.NotNil(t, mfst.Components["named"].Namespace)
 	assert.Equal(t, "custom", mfst.Components["named"].EffectiveNamespace("pkg"))
+}
+
+// TestValidateNamespace covers the namespaces of a component validation
+// lets through: the top level, or segments of letters, digits, "_" and "-"
+// joined by "/".
+func TestValidateNamespace(t *testing.T) {
+	t.Parallel()
+
+	for _, namespace := range []string{
+		"", "native", "my-app", "my_app", "Native2", "myapp/native", "a/b/c", "my-app/x_y",
+	} {
+		t.Run(namespace, func(t *testing.T) {
+			t.Parallel()
+
+			mfst := parseBody(t, "[components.a]\npath = \"a\"\nnamespace = "+
+				strconv.Quote(namespace)+"\n")
+
+			_, err := mfst.Validate(backends())
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestValidateNamespaceErrors covers the namespaces of a component
+// validation refuses, at the field of the namespace.
+func TestValidateNamespaceErrors(t *testing.T) {
+	t.Parallel()
+
+	const rule = `a namespace is "" or segments of letters, digits, "_" and "-" joined by "/"`
+
+	for _, test := range []struct {
+		namespace, msg string
+	}{
+		{"/abs", `"/abs" starts with "/": ` + rule},
+		{"abs/", `"abs/" ends with "/": ` + rule},
+		{"/", `"/" starts with "/": ` + rule},
+		{"a//b", `"a//b" has an empty segment: ` + rule},
+		{".", `"." has the segment ".": ` + rule},
+		{"..", `".." has the segment "..": ` + rule},
+		{"../evil", `"../evil" has the segment "..": ` + rule},
+		{"a/./b", `"a/./b" has the segment ".": ` + rule},
+		{"a/../b", `"a/../b" has the segment "..": ` + rule},
+		{
+			"myapp.native",
+			`"myapp.native" has a dot, which require reads as a directory: ` +
+				`nest with "/", "myapp/native", for require('myapp.native.<module>')`,
+		},
+		{
+			"a/b.c",
+			`"a/b.c" has a dot, which require reads as a directory: ` +
+				`nest with "/", "a/b/c", for require('a.b.c.<module>')`,
+		},
+		{"a..b", `"a..b" has a dot, which require reads as a directory: ` + rule},
+		{".hidden", `".hidden" has a dot, which require reads as a directory: ` + rule},
+		{"my app", `"my app" has the segment "my app": ` + rule},
+		{`a\b`, `"a\\b" has the segment "a\\b": ` + rule},
+		{"a/b:c", `"a/b:c" has the segment "b:c": ` + rule},
+		{"имя", `"имя" has the segment "имя": ` + rule},
+	} {
+		t.Run(test.namespace, func(t *testing.T) {
+			t.Parallel()
+
+			mfst := parseBody(t, "[components.a]\npath = \"a\"\nnamespace = "+
+				strconv.Quote(test.namespace)+"\n")
+
+			_, err := mfst.Validate(backends())
+			require.Error(t, err)
+
+			var verr *manifest.ValidationError
+
+			require.ErrorAs(t, err, &verr)
+			assert.Equal(t, "components.a.namespace", verr.Field)
+			assert.Equal(t, test.msg, verr.Msg)
+		})
+	}
 }
 
 const versionedBody = `

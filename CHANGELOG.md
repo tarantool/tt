@@ -1716,6 +1716,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The `namespace` of a component was not checked: `"myapp.native"` was
+  built into a directory `myapp.native/` that `require` cannot name, the
+  `/` of `"/abs"` was dropped, and `"../evil"` laid the Lua files of the
+  component out into the metadata of the rock,
+  `.rocks/share/tarantool/rocks/<package>/<version>/evil/`, or failed the
+  build with an error of its backend. A namespace is `""` or
+  segments of letters, digits, `_` and `-` joined by `/` now, and another
+  fails the manifest check before anything is built, at
+  `components.<name>.namespace`; a dot tells to nest with `/`. The
+  manifest of a path dependency is checked the same.
 - `tt rocks` took a Mac on Apple Silicon for an x86_64 one: `tt rocks
   install` refused a rock built there with `Incompatible architecture
   macosx-aarch64`, took the `macosx-x86_64` rocks of a server and packed
