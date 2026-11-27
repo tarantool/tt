@@ -657,7 +657,19 @@ as it fails the binary rock; a
 file of a component git neither tracks nor ignores is left out, with a
 warning, since the binary rock has it and a build of the source rock would
 not. Out of a git repository, every file of the project is
-packed, but `_build/`, `.rocks/` and `_runtime/`. The rock is reproducible:
+packed, but `_build/`, `.rocks/` and `_runtime/`. The project is the
+directory of `app.manifest.toml`, so a component of the product in a
+directory out of it, a `path` such as `../crates/alpha`, or built in one,
+by the `cwd` of its block, fails the pack of the source rock before
+anything is built, naming each, since no build of the source rock, by tt
+or by LuaRocks, would have its sources:
+
+```text
+   ⨯ the sources of a component are out of the project, and the source rock holds the files of the project only: the component "alpha" is in ../crates/alpha; app.manifest.toml is to be in a directory that holds the sources of each of its components, its own directory being the project; the binary rock, --format rock, and the .tt archive, which hold what the build made, pack such a component
+```
+
+The binary rock and the `.tt` archive pack such a component, and the
+source rock of a product without one packs too. The rock is reproducible:
 its entries carry no mode but the executable bit, and no time of their own:
 every entry of either rock is dated 1980-01-01 00:00, the earliest time a
 zip says, which `unzip -l` shows as it is in any time zone. A pack of the

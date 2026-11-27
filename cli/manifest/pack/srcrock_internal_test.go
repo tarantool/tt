@@ -18,6 +18,8 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/manif"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -365,6 +367,110 @@ func TestSrcRockChecksTheLicenseFiles(t *testing.T) {
 		require.ErrorIs(t, err, want, entry)
 		assert.Contains(t, err.Error(), fmt.Sprintf("license_files entry %q", entry))
 	}
+}
+
+// outsideManifest is a package in app/ of its repository whose components
+// lib and gen, its default product, are out of the project: lib in ../lib, a
+// component of Lua, and gen built in ../tools, whose build writes the file of
+// the env OUT. The product inside, of the component inside, is not.
+const outsideManifest = `manifest_version = '0.1'
+
+[package]
+name = 'outapp'
+license = 'MIT'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[components.inside]
+path = 'inside'
+
+[components.lib]
+path = '../lib'
+
+[components.gen]
+path = 'gen'
+
+[components.gen.build]
+backend = 'shell'
+cwd = '../tools'
+command = 'sh'
+args = ['-c', 'cat made.txt > "$OUT"']
+env = { OUT = '%s' }
+
+[products.default]
+components = ['lib', 'gen']
+default = true
+
+[products.inside]
+components = ['inside']
+rock = 'outapp-inside'
+`
+
+// TestPackSrcRockOfAComponentOutOfTheProject: the source rock of a product
+// with a component out of the project, in a directory out of it or built in
+// one, is refused before anything is built, naming each, as no build of it,
+// by tt or by LuaRocks, has the sources of the component; a product without
+// such a component is packed. The binary rock and the .tt archive of the
+// product are packed from the build, which has them.
+func TestPackSrcRockOfAComponentOutOfTheProject(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	made := filepath.Join(t.TempDir(), "made")
+
+	writeTree(t, repo, map[string]string{
+		"app/" + manifestFileName: fmt.Sprintf(outsideManifest, made),
+		"app/.gitignore":          "/_build/\n/.rocks/\n/_out/\n/app.manifest.lock\n",
+		"app/inside/init.lua":     "return 'inside'\n",
+		"app/gen/init.lua":        "return 'gen'\n",
+		"lib/outside.lua":         "return 'outside'\n",
+		"tools/made.txt":          "made in tools\n",
+	})
+	git(t, repo, "init", "-q")
+	git(t, repo, "add", "-A")
+	git(t, repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+	git(t, repo, "tag", "v1.2.0")
+
+	src := filepath.Join(repo, "app")
+	out := filepath.Join(src, "_out")
+
+	for _, formats := range [][]string{{FormatRockSrc}, {FormatRock, FormatRockSrc}} {
+		_, err := Run(context.Background(), packOptions(src, out, formats...))
+		require.ErrorIs(t, err, errSrcRockOutside, formats)
+		require.EqualError(t, err, `the sources of a component are out of the project, and `+
+			`the source rock holds the files of the project only: the component "lib" is in `+
+			`../lib; the component "gen" is built in ../tools; app.manifest.toml is to be in `+
+			`a directory that holds the sources of each of its components, its own directory `+
+			`being the project; the binary rock, --format rock, and the .tt archive, which `+
+			`hold what the build made, pack such a component`)
+		assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+		assert.NoFileExists(t, made, "nothing was built")
+		assert.NoDirExists(t, out, "nothing was packed")
+		assert.NoFileExists(t, filepath.Join(src, lockFileName), "nothing was resolved")
+	}
+
+	opts := packOptions(src, out, FormatRockSrc)
+
+	opts.Product = "inside"
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Contains(t, zipEntries(t, result.SrcRock), "outapp-inside/inside/init.lua")
+
+	opts = packOptions(src, out, FormatTt, FormatRock)
+	opts.WithoutDeps = true
+
+	result, err = Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	built, err := os.ReadFile(made)
+	require.NoError(t, err)
+	assert.Equal(t, "made in tools\n", string(built))
+	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/outside.lua")
+	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/init.lua")
+	assert.Contains(t, readArchive(t, result.Path), ".rocks/share/tarantool/outapp/outside.lua")
 }
 
 // assertInstalledAlike asserts that the consumers want and got hold mylib at
