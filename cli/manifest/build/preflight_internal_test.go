@@ -213,6 +213,54 @@ func TestRun_preflightOfAModuleBackend(t *testing.T) {
 	assert.NotContains(t, err.Error(), "looked nowhere")
 }
 
+// fieldBuild is the build of a backend whose preflight finds a field of the
+// block wrong, which it could only tell from the files of the component.
+type fieldBuild struct{}
+
+func (fieldBuild) Preflight(context.Context, *sdkbuild.Context) error {
+	return sdkbuild.FieldErrorf("steps", "names no step of build.zig")
+}
+
+func (fieldBuild) Run(context.Context, *sdkbuild.Context) error { return nil }
+
+// TestRun_preflightOfAWrongField checks that a field of the block its
+// preflight finds wrong is an error of the manifest, as one New finds is:
+// the path of the field in the manifest, and exit code 1, the fix being on
+// the side of the caller.
+func TestRun_preflightOfAWrongField(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, zigManifest, map[string]string{"fast/build.zig": ""})
+
+	type zigConfig struct {
+		Steps []string `toml:"steps"`
+	}
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("zig", []sdkbuild.Backend{{
+		Name:     "zig",
+		Produces: []sdkbuild.Result{sdkbuild.Module},
+		Config:   func() any { return new(zigConfig) },
+		New: func(any, sdkbuild.Component, sdkbuild.Common) (sdkbuild.Build, error) {
+			return fieldBuild{}, nil
+		},
+	}}, nil))
+
+	opts := dryOptions(dir)
+
+	opts.Backends = backends
+
+	err := Run(context.Background(), opts)
+	require.EqualError(t, err, `building component "fast": components.fast.build.steps: `+
+		`names no step of build.zig`)
+
+	validation, ok := errors.AsType[*manifest.ValidationError](err)
+	require.True(t, ok)
+	assert.Equal(t, "components.fast.build.steps", validation.Field)
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
+}
+
 // headersBuild is the build of a backend that compiles against the headers
 // of Tarantool, as c and lua-c do.
 type headersBuild struct{}

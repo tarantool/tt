@@ -2,6 +2,7 @@ package pack
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -18,7 +19,12 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/manif"
 
+	"github.com/tarantool/tt/sdk"
+	sdkbuild "github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
+	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
@@ -365,6 +371,296 @@ func TestSrcRockChecksTheLicenseFiles(t *testing.T) {
 		require.ErrorIs(t, err, want, entry)
 		assert.Contains(t, err.Error(), fmt.Sprintf("license_files entry %q", entry))
 	}
+}
+
+// outsideManifest is a package in app/ of its repository whose components
+// lib and gen, its default product, are out of the project: lib in ../lib, a
+// component of Lua, and gen built in ../tools, whose build writes the file of
+// the env OUT. The product inside, of the component inside, is not.
+const outsideManifest = `manifest_version = '0.1'
+
+[package]
+name = 'outapp'
+license = 'MIT'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[components.inside]
+path = 'inside'
+
+[components.lib]
+path = '../lib'
+
+[components.gen]
+path = 'gen'
+
+[components.gen.build]
+backend = 'shell'
+cwd = '../tools'
+command = 'sh'
+args = ['-c', 'cat made.txt > "$OUT"']
+env = { OUT = '%s' }
+
+[products.default]
+components = ['lib', 'gen']
+default = true
+
+[products.inside]
+components = ['inside']
+rock = 'outapp-inside'
+`
+
+// TestPackSrcRockOfAComponentOutOfTheProject: the source rock of a product
+// with a component out of the project, in a directory out of it or built in
+// one, is refused before anything is built, naming each, as no build of it,
+// by tt or by LuaRocks, has the sources of the component; a product without
+// such a component is packed. The binary rock and the .tt archive of the
+// product are packed from the build, which has them.
+func TestPackSrcRockOfAComponentOutOfTheProject(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	made := filepath.Join(t.TempDir(), "made")
+
+	writeTree(t, repo, map[string]string{
+		"app/" + manifestFileName: fmt.Sprintf(outsideManifest, made),
+		"app/.gitignore":          "/_build/\n/.rocks/\n/_out/\n/app.manifest.lock\n",
+		"app/inside/init.lua":     "return 'inside'\n",
+		"app/gen/init.lua":        "return 'gen'\n",
+		"lib/outside.lua":         "return 'outside'\n",
+		"tools/made.txt":          "made in tools\n",
+	})
+	git(t, repo, "init", "-q")
+	git(t, repo, "add", "-A")
+	git(t, repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+	git(t, repo, "tag", "v1.2.0")
+
+	src := filepath.Join(repo, "app")
+	out := filepath.Join(src, "_out")
+
+	for _, formats := range [][]string{{FormatRockSrc}, {FormatRock, FormatRockSrc}} {
+		_, err := Run(context.Background(), packOptions(src, out, formats...))
+		require.ErrorIs(t, err, errSrcRockOutside, formats)
+		require.EqualError(t, err, `the sources of a component are out of the project, and `+
+			`the source rock holds the files of the project only: the component "lib" is in `+
+			`../lib; the component "gen" is built in ../tools; app.manifest.toml is to be in `+
+			`a directory that holds the sources of each of its components, its own directory `+
+			`being the project; the binary rock, --format rock, and the .tt archive, which `+
+			`hold what the build made, pack such a component`)
+		assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+		assert.NoFileExists(t, made, "nothing was built")
+		assert.NoDirExists(t, out, "nothing was packed")
+		assert.NoFileExists(t, filepath.Join(src, lockFileName), "nothing was resolved")
+	}
+
+	opts := packOptions(src, out, FormatRockSrc)
+
+	opts.Product = "inside"
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Contains(t, zipEntries(t, result.SrcRock), "outapp-inside/inside/init.lua")
+
+	opts = packOptions(src, out, FormatTt, FormatRock)
+	opts.WithoutDeps = true
+
+	result, err = Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	built, err := os.ReadFile(made)
+	require.NoError(t, err)
+	assert.Equal(t, "made in tools\n", string(built))
+	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/outside.lua")
+	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/init.lua")
+	assert.Contains(t, readArchive(t, result.Path), ".rocks/share/tarantool/outapp/outside.lua")
+}
+
+// outsideBuild is the build of the backend outside, whose Export says that it
+// reads files out of the project, as that of cargo says of a package of a
+// workspace above the project, and records the directories it was given.
+type outsideBuild struct {
+	dirs *[]string
+}
+
+func (outsideBuild) Run(context.Context, *sdkbuild.Context) error { return nil }
+
+func (b outsideBuild) Export(e *sdkbuild.ExportContext) (sdkbuild.Export, error) {
+	*b.dirs = append(*b.dirs, e.Project, e.Cwd)
+
+	return sdkbuild.Export{}, fmt.Errorf("%w: it builds with the files of ..",
+		sdkbuild.ErrOutside)
+}
+
+// TestPackSrcRockOfABuildOutOfTheProject: a component in the project whose
+// build reads files out of it, as its Export says (sdkbuild.ErrOutside),
+// given the directories of the project as it is packed, is no more of a
+// source rock than one out of the project: the pack of the source rock
+// fails, naming it, while the binary rock is packed, its rockspec building
+// with tt alone.
+func TestPackSrcRockOfABuildOutOfTheProject(t *testing.T) {
+	t.Parallel()
+
+	var dirs []string
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("outside", []sdkbuild.Backend{{
+		Name:     "outside",
+		Produces: []sdkbuild.Result{sdkbuild.Module},
+		Config:   func() any { return new(struct{}) },
+		New: func(any, sdkbuild.Component, sdkbuild.Common) (sdkbuild.Build, error) {
+			return outsideBuild{dirs: &dirs}, nil
+		},
+		Exports: true,
+	}}, nil))
+
+	src := writeGitPackage(t, map[string]string{
+		manifestFileName: libraryManifest + "\n[components.native]\npath = 'native'\n\n" +
+			"[components.native.build]\nbackend = 'outside'\n",
+		"native/README": "built of the files of ..\n",
+	})
+	out := filepath.Join(src, "_out")
+
+	opts := packOptions(src, out, FormatRockSrc)
+
+	opts.Build.Backends = backends
+
+	_, err := Run(context.Background(), opts)
+	require.ErrorIs(t, err, errSrcRockOutside)
+	require.EqualError(t, err, `the sources of a component are out of the project, and the `+
+		`source rock holds the files of the project only: the component "native": the build `+
+		`reads files out of the project: it builds with the files of ..; app.manifest.toml is `+
+		`to be in a directory that holds the sources of each of its components, its own `+
+		`directory being the project; the binary rock, --format rock, and the .tt archive, `+
+		`which hold what the build made, pack such a component`)
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Equal(t, []string{src, filepath.Join(src, "native")}, dirs)
+	assert.NoDirExists(t, out, "nothing was packed")
+
+	opts = packOptions(src, out, FormatRock)
+
+	opts.Build.Backends = backends
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	assert.FileExists(t, result.Rock)
+
+	rockspec, err := os.ReadFile(result.Rockspec)
+	require.NoError(t, err)
+	assert.Contains(t, string(rockspec), "builds with tt only")
+	assert.Contains(t, string(rockspec), "the build reads files out of the project")
+}
+
+// TestSrcRockOfAComponentItDoesNotHold: a source rock whose manifest names a
+// component in a directory the rock does not hold, out of its project, as an
+// older tt packed one, or in it, fails the build of a project that depends
+// on it, naming the component and its directory, before anything of it is
+// built: it is no rock server that could not be reached, and no more is a
+// file its build does not find.
+func TestSrcRockOfAComponentItDoesNotHold(t *testing.T) {
+	t.Parallel()
+
+	const lacks = ", which the source rock does not hold: it holds the files of the project " +
+		"of the package only; install a binary rock of mylib, or one packed from a manifest " +
+		"in a directory that holds the sources of each of its components"
+
+	shell := "namespace = 'roles'\n\n[components.roles.build]\nbackend = 'shell'\n"
+
+	for _, test := range []struct {
+		name, from, to, want string
+		code                 int
+	}{
+		{
+			name: "out of the project", from: "path = 'mylib'", to: "path = '../mylib'",
+			want: `the component "mylib" is in ../mylib, out of the package` + lacks,
+			code: sdk.ExitFailure,
+		},
+		{
+			name: "in the project", from: "path = 'roles'", to: "path = 'gone'",
+			want: `the component "roles" is in gone` + lacks, code: sdk.ExitFailure,
+		},
+		{
+			name: "built out of the project", from: "namespace = 'roles'\n",
+			to:   shell + "cwd = '../tools'\ncommand = 'true'\n",
+			want: `the component "roles" is built in ../tools, out of the package` + lacks,
+			code: sdk.ExitFailure,
+		},
+		{
+			name: "a tool that is not there", from: "namespace = 'roles'\n",
+			to: shell + "command = '/nonexistent/tool'\n",
+			want: "building component \"roles\": failed to run \n/nonexistent/tool\n\n" +
+				"fork/exec /nonexistent/tool: no such file or directory",
+			code: sdk.ExitSystem,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := writeGitLibrary(t)
+			out := filepath.Join(t.TempDir(), "server")
+
+			result, err := Run(context.Background(), packOptions(src, out, FormatRockSrc))
+			require.NoError(t, err)
+
+			// The source rock as a tt that let such a component in packed it.
+			entries := zipEntries(t, result.SrcRock)
+			manifest := entries["mylib/"+manifestFileName]
+			require.Contains(t, manifest, test.from)
+
+			entries["mylib/"+manifestFileName] = strings.Replace(manifest, test.from, test.to, 1)
+
+			writeZipOf(t, result.SrcRock, entries)
+
+			_, err = rockindex.MakeServer(context.Background(), out, rockindex.ServerOptions{
+				HTML: false, IfIndexed: false, Warn: nil,
+			})
+			require.NoError(t, err)
+
+			consumer := t.TempDir()
+			writeTree(t, consumer, map[string]string{
+				manifestFileName: fmt.Sprintf(`manifest_version = '0.1'
+
+[package]
+name = 'consumer'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[dependencies]
+mylib = { version = '>=1.2.0', registry = '%s' }
+`, out),
+				versionFileName: "0.1.0\n",
+			})
+
+			err = build.Run(context.Background(), consumerOptions(consumer))
+			require.EqualError(t, err, `installing mylib 1.2.0-1: source rock "mylib": `+
+				test.want)
+			assert.Equal(t, test.code, exitcode.Code(err))
+		})
+	}
+}
+
+// writeZipOf writes the zip archive at path of entries, by name.
+func writeZipOf(t *testing.T, path string, entries map[string]string) {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	archive := zip.NewWriter(&buf)
+
+	for _, name := range sortedKeys(entries) {
+		writer, err := archive.Create(name)
+		require.NoError(t, err)
+
+		_, err = writer.Write([]byte(entries[name]))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, archive.Close())
+	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o600))
 }
 
 // assertInstalledAlike asserts that the consumers want and got hold mylib at

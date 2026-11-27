@@ -165,6 +165,13 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 	man := neighbour.Manifest
 	components := neighbour.Components()
 
+	if build.fromServer {
+		err = checkSrcRockComponents(build.dir, man, components)
+		if err != nil {
+			return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
+		}
+	}
+
 	if build.warnHooks && len(man.Hooks) > 0 {
 		p.opts.emit([]string{fmt.Sprintf("%s %q declares the hooks %s; the hooks of a %s "+
 			"are not run", build.what, dep.Name,

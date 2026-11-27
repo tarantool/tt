@@ -64,6 +64,9 @@ type rockBuild struct {
 	// ttOnly are the builds of the product that build with tt alone, why
 	// each, a sentence each; a product with any builds with tt alone.
 	ttOnly []string
+	// outside are those of ttOnly of the components that read files out of
+	// the project (exported.outside): no source rock of them is packed.
+	outside []string
 	// leftOut are the files the layout takes that the sources of the rock do
 	// not hold, by path in the project, but those the output of a build
 	// lists: the rockspec leaves them out. Those of a pack that built the
@@ -143,13 +146,17 @@ func releaseBuild(built *build.Result, rel rocktree.Release, sources rockSources
 	}
 
 	if hasBuildBlocks(built.Manifest, built.Product) {
-		builds, err := exportBuilds(built, sources.backends)
+		builds, err := exportBuilds(built, sources.backends, sources.dir)
 		if err != nil {
 			return rockBuild{}, err
 		}
 
 		if len(builds.ttOnly) > 0 {
-			return ttOnlyBuild(rel, builds.ttOnly), nil
+			plan := ttOnlyBuild(rel, builds.ttOnly)
+
+			plan.outside = builds.outside
+
+			return plan, nil
 		}
 
 		plan := scriptedBuild(built, sources, builds.script)
@@ -167,7 +174,7 @@ func releaseBuild(built *build.Result, rel rocktree.Release, sources rockSources
 
 	plan := rockBuild{
 		build:  rocktree.ReleaseBuild{Install: nil, ExtraFiles: nil, Script: "", TtOnly: ""},
-		ttOnly: nil, leftOut: nil, unlisted: nil, scripted: false, lost: nil,
+		ttOnly: nil, outside: nil, leftOut: nil, unlisted: nil, scripted: false, lost: nil,
 	}
 
 	inSources := sources.holds()
@@ -214,7 +221,7 @@ func ttOnlyBuild(rel rocktree.Release, reasons []string) rockBuild {
 				"depend on it in app.manifest.toml of a project tt 3 builds.", rel.Name,
 				rel.Version, strings.Join(reasons, "; ")),
 		},
-		ttOnly: reasons, leftOut: nil, unlisted: nil, scripted: false, lost: nil,
+		ttOnly: reasons, outside: nil, leftOut: nil, unlisted: nil, scripted: false, lost: nil,
 	}
 }
 
@@ -297,7 +304,7 @@ func scriptedBuild(built *build.Result, sources rockSources, script rockscript.S
 		build: rocktree.ReleaseBuild{
 			Install: nil, ExtraFiles: nil, Script: rockScriptFile, TtOnly: "",
 		},
-		ttOnly: nil, leftOut: nil, unlisted: nil, scripted: builds, lost: nil,
+		ttOnly: nil, outside: nil, leftOut: nil, unlisted: nil, scripted: builds, lost: nil,
 	}
 
 	inSources := sources.holds()

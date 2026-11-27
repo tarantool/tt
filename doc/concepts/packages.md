@@ -89,10 +89,13 @@ optional build.
 
 A component lays its files out under `.rocks/share/tarantool/<namespace>/`,
 `<namespace>` being the package name unless the component says otherwise.
-Its files are the `*.lua` and `*.so` of its `path` unless `include` lists
-others; a `go` component lays out only what `include` lists. A build
-backend makes what its block asks for, before the layout, and one
-component may make all of it:
+A namespace nests with `/`: the files of `namespace = "myapp/native"` are
+in `myapp/native/`, and `require` names them `myapp.native.<name>` (see
+[`[components.NAME]`](../reference/app-manifest.md#componentsname)). The
+files of a component are the `*.lua` and `*.so` of its `path` unless
+`include` lists others; a `go` component lays out only what `include`
+lists. A build backend makes what its block asks for, before the layout,
+and one component may make all of it:
 
 - a **module**, into `.rocks/lib/tarantool/<namespace>/`: a native module
   of `c`, `lua-c`, `cargo` or `zig` with `module`, or of `cmake`, `make` and
@@ -654,7 +657,19 @@ as it fails the binary rock; a
 file of a component git neither tracks nor ignores is left out, with a
 warning, since the binary rock has it and a build of the source rock would
 not. Out of a git repository, every file of the project is
-packed, but `_build/`, `.rocks/` and `_runtime/`. The rock is reproducible:
+packed, but `_build/`, `.rocks/` and `_runtime/`. The project is the
+directory of `app.manifest.toml`, so a component of the product in a
+directory out of it, a `path` such as `../crates/alpha`, or built in one,
+by the `cwd` of its block, fails the pack of the source rock before
+anything is built, naming each, since no build of the source rock, by tt
+or by LuaRocks, would have its sources:
+
+```text
+   ⨯ the sources of a component are out of the project, and the source rock holds the files of the project only: the component "alpha" is in ../crates/alpha; app.manifest.toml is to be in a directory that holds the sources of each of its components, its own directory being the project; the binary rock, --format rock, and the .tt archive, which hold what the build made, pack such a component
+```
+
+The binary rock and the `.tt` archive pack such a component, and the
+source rock of a product without one packs too. The rock is reproducible:
 its entries carry no mode but the executable bit, and no time of their own:
 every entry of either rock is dated 1980-01-01 00:00, the earliest time a
 zip says, which `unzip -l` shows as it is in any time zone. A pack of the

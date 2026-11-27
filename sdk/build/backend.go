@@ -334,7 +334,9 @@ type Build interface {
 // resolves afterwards - under --locked such a lock fails the build, so
 // there the answer is exact. ctx is that of the
 // build: a command Preflight runs is made with it ([Context.Command]), so
-// that it stops when the build is cancelled.
+// that it stops when the build is cancelled. A field of the block found
+// wrong only now, from the files of the component, is told by a
+// [FieldError], which the core reports as an error of the manifest.
 //
 // The core finds a Preflighter by a type assertion; a method Preflight of
 // another signature is refused ([Backend.ValidateBuild]) rather than never

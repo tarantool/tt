@@ -15,6 +15,9 @@ export CARGO_TARGET_DIR
 {{template "musl" .}}
 {{- end}}
 {{template "lockfile" .}}
+{{- if .Virtual}}
+{{template "virtual" .}}
+{{- end}}
 {{- if .Module}}
 {{template "module" .}}
 {{- end}}
@@ -64,6 +67,30 @@ if [ ! -f "$tt_cargo_root/Cargo.lock" ]; then
 	printf '%s\n' "{{.ErrNoLockfile}} in $tt_cargo_root: the build is made with --locked, from the versions Cargo.lock pins; run cargo generate-lockfile there, and keep Cargo.lock with the sources" >&2
 	exit 1
 fi
+{{- end}}
+
+{{/*
+virtual checks, for a library of a block that names no package, that the
+Cargo.toml of the working directory, the nearest one, is that of a package
+of the workspace, as checkVirtual does: cargo metadata names it as the
+manifest_path of one. A path that JSON would escape is not looked for, and
+cargo says what it says of it.
+*/}}
+{{define "virtual" -}}
+tt_cargo_package=`cargo locate-project --message-format plain`
+tt_cargo_metadata=`cargo metadata --no-deps --format-version 1`
+case $tt_cargo_package in
+*'"'* | *'\'*) ;;
+*)
+	case $tt_cargo_metadata in
+	*"\"manifest_path\":\"$tt_cargo_package\""*) ;;
+	*)
+		printf '%s\n' "package: the Cargo.toml of ${tt_cargo_package%/*} "{{q .ErrVirtual}} >&2
+		exit 1
+		;;
+	esac
+	;;
+esac
 {{- end}}
 
 {{/*

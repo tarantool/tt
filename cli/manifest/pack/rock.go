@@ -77,6 +77,12 @@ var (
 	// errNoRock reports a product packed as a rock that has no rock of its
 	// own (manifest.ProductRock).
 	errNoRock = errors.New("the product has no rock of its own")
+	// errSrcRockOutside reports a component of a package packed as a source
+	// rock that is in a directory out of the project, or is built in one:
+	// the source rock holds the files of the project alone, so no build of
+	// it has the sources of the component.
+	errSrcRockOutside = errors.New("the sources of a component are out of the project, and " +
+		"the source rock holds the files of the project only")
 	// errCrossDeps reports a .tt archive with its dependencies of a build
 	// for another platform: the runtime and the dependencies it carries are
 	// those of the machine.
@@ -173,8 +179,9 @@ func declareRock(man *manifest.Manifest, product string) (rockDecl, []string, er
 
 // rockCheck is the check of the build (build.Options.Check) of a pack that
 // makes a rock: it declares the rock of the product into rock, so a product
-// no rock can be made of fails before anything is built. A pack that makes
-// no rock checks nothing.
+// no rock can be made of fails before anything is built, and, for the source
+// rock, checks that the product has no component out of the project
+// (checkSrcRockSources). A pack that makes no rock checks nothing.
 func rockCheck(opts Options, rock *rockDecl) func(*manifest.Manifest, string) error {
 	if !opts.makesRock() {
 		return nil
@@ -184,6 +191,13 @@ func rockCheck(opts Options, rock *rockDecl) func(*manifest.Manifest, string) er
 		decl, warnings, err := declareRock(man, product)
 		if err != nil {
 			return err
+		}
+
+		if opts.makes(FormatRockSrc) {
+			err = checkSrcRockSources(man, product)
+			if err != nil {
+				return err
+			}
 		}
 
 		if opts.Warn != nil {
@@ -196,6 +210,54 @@ func rockCheck(opts Options, rock *rockDecl) func(*manifest.Manifest, string) er
 
 		return nil
 	}
+}
+
+// checkSrcRockSources fails the pack of the source rock of product of man
+// when a component of it is in a directory out of the project, its path, or
+// is built in one, the cwd of its build block: the source rock holds the
+// files of the project alone, the directory of app.manifest.toml, so neither
+// tt nor LuaRocks has the sources of the component where it builds the
+// source rock. The binary rock and the .tt archive, which hold what the
+// build made, are packed of such a component; a product that leaves it out
+// is packed as a source rock as well.
+func checkSrcRockSources(man *manifest.Manifest, product string) error {
+	var outside []string
+
+	for _, name := range man.EffectiveProducts()[product].Components {
+		component := man.Components[name]
+
+		if _, in := projectRel(component.Path); !in {
+			outside = append(outside, fmt.Sprintf("the component %q is in %s", name,
+				component.Path))
+
+			continue
+		}
+
+		if component.Build == nil || component.Build.Cwd == "" {
+			continue
+		}
+
+		if _, in := projectRel(component.Build.Cwd); !in {
+			outside = append(outside, fmt.Sprintf("the component %q is built in %s", name,
+				component.Build.Cwd))
+		}
+	}
+
+	if len(outside) == 0 {
+		return nil
+	}
+
+	return srcRockOutsideError(outside)
+}
+
+// srcRockOutsideError is the failure of the pack of a source rock of a
+// product whose components are out of the project, by outside, a sentence
+// each of what is out of it.
+func srcRockOutsideError(outside []string) error {
+	return stateErrorf("%w: %s; %s is to be in a directory that holds the sources of each of "+
+		"its components, its own directory being the project; the binary rock, --format "+
+		"rock, and the .tt archive, which hold what the build made, pack such a component",
+		errSrcRockOutside, strings.Join(outside, "; "), manifestFileName)
 }
 
 // rockResult is what packRocks made.
@@ -247,6 +309,13 @@ func packRocks(
 	})
 	if err != nil {
 		return rockResult{}, err
+	}
+
+	// A component its path and its cwd leave in the project may read files
+	// out of it still, as its Export says: the source rock is not packed of
+	// it either.
+	if opts.makes(FormatRockSrc) && len(plan.outside) > 0 {
+		return rockResult{}, srcRockOutsideError(plan.outside)
 	}
 
 	rel.Build = plan.build

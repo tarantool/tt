@@ -3,6 +3,7 @@ package cargo
 import (
 	"context"
 	"debug/elf"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -79,12 +80,19 @@ func validate(t *testing.T, component build.Component, rest map[string]any,
 // written aside and copied with no fork in between, so that starting it is
 // not refused while parallel tests start processes. cargo locate-project
 // names the Cargo.toml of its working directory, as cargo does for a package
-// that is the root of its workspace.
+// that is the root of its workspace, and cargo metadata names the package
+// agent-lib of that Cargo.toml and a member agent-crate, the workspace.
 func writeTool(t *testing.T, dir, body string) {
 	t.Helper()
 
 	writeProgram(t, dir, cargoTool, `if [ "$1" = locate-project ]; then
 	echo "$PWD/Cargo.toml"
+	exit 0
+fi
+if [ "$1" = metadata ]; then
+	echo '{"packages":[{"name":"agent-lib","manifest_path":"'"$PWD"'/Cargo.toml"},'\
+'{"name":"agent-crate","manifest_path":"'"$PWD"'/crate/Cargo.toml"}],'\
+'"workspace_root":"'"$PWD"'"}'
 	exit 0
 fi
 `+body)
@@ -384,6 +392,83 @@ func TestPreflight(t *testing.T) {
 		err := validate(t, program(), nil, false).Preflight(t.Context(), harness.Context)
 		require.ErrorIs(t, err, errNoWorkspace)
 	})
+
+	t.Run("the package of a workspace", testPreflightOfAWorkspace)
+}
+
+// testPreflightOfAWorkspace: in a directory whose Cargo.toml is the root of
+// a workspace with no package of its own, a block of the library is to name
+// the package, cargo rustc running against one package only, and a package
+// is to be a member of the workspace or one its Cargo.lock pins; the binary
+// is found by cargo build --bin without one. Nothing is built.
+func testPreflightOfAWorkspace(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.New(t, Backend(), module())
+	log := filepath.Join(harness.Context.Dirs.State, "cargo.runs")
+
+	// The packages alpha and tool are the members, beneath the Cargo.toml
+	// of the working directory, which is none of theirs; Cargo.lock pins
+	// the package outside too.
+	writeProgram(t, harness.Context.Dirs.Tools, cargoTool, `case $1 in
+locate-project) echo "$PWD/Cargo.toml" ;;
+metadata) echo '{"packages":['\
+'{"name":"tool","manifest_path":"'"$PWD"'/crates/tool/Cargo.toml"},'\
+'{"name":"alpha","manifest_path":"'"$PWD"'/crates/alpha/Cargo.toml"}],'\
+'"workspace_root":"'"$PWD"'"}' ;;
+*) echo "$*" >> "`+log+`"; exit 1 ;;
+esac
+`)
+	writeFiles(t, harness.Context.Dirs.Cwd, map[string]string{
+		lockfileName: "version = 4\n\n[[package]]\nname = \"alpha\"\nversion = \"0.1.0\"\n\n" +
+			"[[package]]\nname = \"outside\"\nversion = \"0.1.0\"\n",
+	})
+
+	cwd, err := filepath.EvalSymlinks(harness.Context.Dirs.Cwd)
+	require.NoError(t, err)
+
+	// preflight is what the Preflight of the block of rest of component
+	// says, the working directory written <root>; empty when it passes.
+	preflight := func(component build.Component, rest map[string]any) string {
+		err := validate(t, component, rest, false).Preflight(t.Context(), harness.Context)
+		if err == nil {
+			return ""
+		}
+
+		return strings.NewReplacer(cwd, "<root>", harness.Context.Dirs.Cwd, "<root>").
+			Replace(err.Error())
+	}
+
+	for _, rest := range []map[string]any{nil, {"bin": "wstool", "module": "alpha"}} {
+		assert.Equal(t, "package: the Cargo.toml of <root> is the root of a cargo workspace "+
+			"with no package of its own, and cargo builds the library of a package: name "+
+			"the package to build, package = \"<name>\"; the members of the workspace are "+
+			"alpha, tool", preflight(module(), rest))
+	}
+
+	err = validate(t, module(), nil, false).Preflight(t.Context(), harness.Context)
+
+	fieldErr, ok := errors.AsType[*build.FieldError](err)
+	require.True(t, ok, "%v", err)
+	assert.Equal(t, "package", fieldErr.Field)
+
+	for _, pkg := range []string{"nosuch", "nosuch@0.1.0"} {
+		assert.Equal(t, "package: \""+pkg+"\" is no member of the cargo workspace of <root>, "+
+			"nor a package its Cargo.lock pins: the members of the workspace are alpha, tool",
+			preflight(module(), map[string]any{"package": pkg}))
+	}
+
+	// A member, a package the lock pins, a specification cargo is left to
+	// match, and the binary of a block of no package pass.
+	for _, rest := range []map[string]any{
+		{"package": "alpha"}, {"package": "alpha@0.1.0"}, {"package": "outside"},
+		{"package": "path+file:///elsewhere#nosuch"}, {"package": "nosu*"},
+	} {
+		assert.Empty(t, preflight(module(), rest), "%v", rest)
+	}
+
+	assert.Empty(t, preflight(program(), map[string]any{"bin": "wstool"}))
+	assert.NoFileExists(t, log)
 }
 
 // fakeRustc writes a rustc into the tools directory of harness whose
@@ -1199,6 +1284,75 @@ func TestBuildsFromTheLockOfTheWorkspace(t *testing.T) {
 
 	require.NoError(t, harness.Run(t.Context(), bld))
 	assert.FileExists(t, filepath.Join(dirs.Modules, "member"+harness.Context.Target.ModuleExt()))
+}
+
+// TestBuildsAMemberAtTheRootOfTheWorkspace: a block at the root of a
+// workspace with no package of its own builds the library of the package it
+// names, and is refused before cargo builds anything when it names none or
+// one cargo does not know; the binary is built without a package, cargo
+// build --bin finding it among the members. A package the workspace depends
+// on, no member, is built as cargo builds it.
+func TestBuildsAMemberAtTheRootOfTheWorkspace(t *testing.T) {
+	t.Parallel()
+	requireCargo(t, "")
+
+	component := build.Component{Name: "alpha", Path: ".", Namespace: "demo", Package: "",
+		Wants: nil}
+	harness := buildtest.New(t, Backend(), component)
+	dirs := harness.Context.Dirs
+
+	noTargetDir(harness)
+
+	outside := filepath.Join(t.TempDir(), "outside")
+
+	writeFiles(t, dirs.Component, map[string]string{
+		"Cargo.toml": "[workspace]\nmembers = [\"crates/*\"]\nresolver = \"2\"\n",
+		"crates/alpha/Cargo.toml": "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[dependencies]\noutside = { path = " +
+			tomlString(outside) + " }\n",
+		"crates/alpha/src/lib.rs": "#[no_mangle]\npub extern \"C\" fn alpha() -> i32 { 42 }\n",
+		"crates/tool/Cargo.toml": "[package]\nname = \"tool\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[[bin]]\nname = \"wstool\"\npath = \"src/main.rs\"\n",
+		"crates/tool/src/main.rs": "fn main() { println!(\"wstool\"); }\n",
+	})
+	writeFiles(t, outside, map[string]string{
+		"Cargo.toml": "[package]\nname = \"outside\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n",
+		"src/lib.rs": "#[no_mangle]\npub extern \"C\" fn outside() -> i32 { 43 }\n",
+	})
+	generateLockfile(t, dirs.Component)
+
+	root, err := filepath.EvalSymlinks(dirs.Component)
+	require.NoError(t, err)
+
+	ext := harness.Context.Target.ModuleExt()
+	dev := map[string]any{"profile": "dev"}
+
+	err = harness.Run(t.Context(), validate(t, component, dev, false))
+	require.EqualError(t, err, "preflight: package: the Cargo.toml of "+root+" is the root "+
+		"of a cargo workspace with no package of its own, and cargo builds the library of a "+
+		"package: name the package to build, package = \"<name>\"; the members of the "+
+		"workspace are alpha, tool")
+	assert.NotContains(t, harness.Printed(), "virtual manifest")
+
+	err = harness.Run(t.Context(), validate(t, component,
+		map[string]any{"profile": "dev", "package": "nosuch"}, false))
+	require.EqualError(t, err, "preflight: package: \"nosuch\" is no member of the cargo "+
+		"workspace of "+root+", nor a package its Cargo.lock pins: the members of the "+
+		"workspace are alpha, tool")
+	assert.NoDirExists(t, filepath.Join(dirs.State, targetDirName, "debug"))
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, component,
+		map[string]any{"profile": "dev", "package": "alpha"}, false)))
+	assert.FileExists(t, filepath.Join(dirs.Modules, "alpha"+ext))
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, component,
+		map[string]any{"profile": "dev", "package": "outside"}, false)))
+	assert.FileExists(t, filepath.Join(dirs.Modules, "outside"+ext))
+
+	require.NoError(t, harness.Run(t.Context(), validate(t, component,
+		map[string]any{"profile": "dev", "bin": "wstool"}, false)))
+	assert.Equal(t, "wstool", runProgram(t, filepath.Join(dirs.Programs, "wstool")))
 }
 
 // TestRunOfAStaleLockIsAnError: cargo builds with --locked, so a Cargo.lock

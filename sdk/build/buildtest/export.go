@@ -27,8 +27,9 @@ var errNoExporter = errors.New("the build is no build.Exporter")
 // Export returns the export of bld, a build of the backend of the harness,
 // as tt package pack asks for it ([build.Exporter]): bld is checked
 // ([build.Backend.ValidateBuild]) first, and the [build.ExportContext] is
-// that of the harness - its component, whether it is of a hook, and the
-// versions of Locked. A build that is no Exporter is an error.
+// that of the harness - its component, whether it is of a hook, the
+// versions of Locked, and its project and working directory. A build that
+// is no Exporter is an error.
 func (h *Harness) Export(bld build.Build) (build.Export, error) {
 	err := h.backend.ValidateBuild(bld)
 	if err != nil {
@@ -45,6 +46,8 @@ func (h *Harness) Export(bld build.Build) (build.Export, error) {
 		Component:     h.Context.Component,
 		Hook:          h.Context.Hook,
 		LockedVersion: h.Context.LockedVersion,
+		Project:       h.Context.Dirs.Project,
+		Cwd:           h.Context.Dirs.Cwd,
 	})
 }
 

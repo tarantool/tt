@@ -114,18 +114,20 @@ func TestExportStep(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, reason, err := exportStep(buildregtest.Registry(), `the component "gen"`,
-				"components.gen.build", target, test.block, test.cwd, locked)
+			_, reason, outside, err := exportStep(buildregtest.Registry(), `the component "gen"`,
+				"components.gen.build", target, test.block, test.cwd, "", locked)
 			require.NoError(t, err)
 			assert.Equal(t, test.reason, reason)
+			assert.Equal(t, test.cwd == "../gen", outside, "a build out of the project")
 		})
 	}
 
-	step, reason, err := exportStep(buildregtest.Registry(), `the component "gen"`,
+	step, reason, outside, err := exportStep(buildregtest.Registry(), `the component "gen"`,
 		"components.gen.build", target, shell(map[string]string{"CFLAGS": "-O3"}), "./gen/",
-		locked)
+		"", locked)
 	require.NoError(t, err)
 	assert.Empty(t, reason)
+	assert.False(t, outside)
 	assert.Equal(t, "gen", step.Cwd)
 	assert.Equal(t, "shell", step.Backend)
 	assert.Equal(t, map[string]string{"CFLAGS": "-O3"}, step.Env)
@@ -137,8 +139,8 @@ func TestExportStep(t *testing.T) {
 		Component: "", Kind: "", Path: "", Namespace: "", Package: "demo", Hook: true,
 	}
 
-	step, reason, err = exportStep(buildregtest.Registry(), "the hook pre_build",
-		"hooks.pre_build", hook, shell(nil), "", locked)
+	step, reason, _, err = exportStep(buildregtest.Registry(), "the hook pre_build",
+		"hooks.pre_build", hook, shell(nil), "", "", locked)
 	require.NoError(t, err)
 	assert.Empty(t, reason)
 	assert.Empty(t, step.Cwd)

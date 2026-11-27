@@ -97,7 +97,9 @@ func runExport(t *testing.T, prelude, script string, env map[string]string) scri
 }
 
 // exportFakes are a cargo and a rustc that log their argv. cargo names
-// TT_TEST_WORKSPACE/Cargo.toml as the manifest of the workspace, and builds
+// TT_TEST_WORKSPACE/Cargo.toml as the manifest of the workspace and as the
+// nearest one, and, by cargo metadata, as that of the one package of the
+// workspace, or TT_TEST_MEMBER when it is set, and builds
 // into the directory of the profile of --profile and the target of --target,
 // or of TT_TEST_BUILD_TARGET, as build.target of a configuration of cargo
 // says it, in a CARGO_TARGET_DIR that is TT_BUILD_DIR: rustc makes each of
@@ -124,6 +126,10 @@ const exportFakes = `cargo() {
 	dir=$CARGO_TARGET_DIR/${target:+$target/}$profile
 	case $command in
 	locate-project) echo "$TT_TEST_WORKSPACE/Cargo.toml" ;;
+	metadata)
+		member=${TT_TEST_MEMBER:-$TT_TEST_WORKSPACE/Cargo.toml}
+		echo '{"packages":[{"name":"m","manifest_path":"'"$member"'"}]}'
+		;;
 	rustc)
 		mkdir -p "$dir"
 		for lib in $TT_TEST_LIBS; do echo "$dir/$lib" > "$dir/$lib"; done
@@ -155,6 +161,9 @@ func TestExport(t *testing.T) {
 	t.Parallel()
 
 	locate := []string{cargoTool, "locate-project", "--workspace", "--message-format", "plain"}
+	// A library of a block of no package is checked to be of a package.
+	nearest := []string{cargoTool, "locate-project", "--message-format", "plain"}
+	metadata := []string{cargoTool, "metadata", "--no-deps", "--format-version", "1"}
 
 	for _, test := range []struct {
 		name string
@@ -281,6 +290,10 @@ func TestExport(t *testing.T) {
 
 			want = append(want, locate)
 
+			if test.bld.module && test.bld.config.Package == "" {
+				want = append(want, nearest, metadata)
+			}
+
 			if test.bld.module {
 				want = append(want, cargoCall(test.bld.moduleArgs("", goos, 0, nil)))
 			}
@@ -363,6 +376,17 @@ func TestExportFails(t *testing.T) {
 			lock: true,
 			want: "cargo built two libraries, ",
 		},
+		{
+			name: "a library at the root of a workspace of no package",
+			bld:  cargoBuild{config: Config{}, bin: "agent", module: true, static: false},
+			env: map[string]string{
+				"TT_TEST_LIBS": "libm.so", "TT_TEST_MEMBER": "/elsewhere/crates/m/Cargo.toml",
+			},
+			lock: true,
+			want: "package: the Cargo.toml of <workspace> is the root of a cargo workspace " +
+				"with no package of its own, and cargo builds the library of a package: name " +
+				"the package to build, package = \"<name>\"\n",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -383,7 +407,7 @@ func TestExportFails(t *testing.T) {
 
 			run := runExport(t, exportFakes, export.Script, env)
 			require.Error(t, run.err, export.Script)
-			assert.Contains(t, run.out, test.want)
+			assert.Contains(t, run.out, strings.ReplaceAll(test.want, "<workspace>", workspace))
 		})
 	}
 }

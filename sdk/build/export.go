@@ -49,7 +49,23 @@ type ExportContext struct {
 	// rockspec, not the lock, so the rock it installs may be another version.
 	// The core and buildtest give one always.
 	LockedVersion func(rock string) (string, bool)
+	// Project and Cwd are the root of the project and the working directory
+	// of the build, absolute, as the project is packed: for Export to read
+	// the files of the sources, a manifest of a tool the build runs say, and
+	// to tell one out of the project, which the source rock does not hold
+	// ([ErrOutside]); never to write into the script, which runs where the
+	// source rock is unpacked. Empty when the core does not say them.
+	Project, Cwd string
 }
+
+// ErrOutside reports a build that reads files out of the project, as its
+// sources are packed: the source rock holds the files of the project only,
+// so no build of it, by tt or by LuaRocks, has them - the root of the cargo
+// workspace a package is a member of, above the project, say. Export
+// returns an error wrapping it and saying which ([ExportContext.Project]);
+// the pack of the source rock fails, saying so, and the rockspec of a binary
+// rock builds with tt alone.
+var ErrOutside = errors.New("the build reads files out of the project")
 
 // Export is how a build is made without tt ([Exporter]).
 //

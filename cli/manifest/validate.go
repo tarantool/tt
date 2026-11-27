@@ -15,6 +15,15 @@ import (
 // names: a lowercase letter followed by lowercase letters, digits and dashes.
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
+// namespaceSegmentRe is a segment of the namespace of a component, a
+// directory of it: letters, digits, "_" and "-", the last of which the
+// default namespace, the package name, may have.
+var namespaceSegmentRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// namespaceRule is what a namespace is, which an error of one tells.
+const namespaceRule = `a namespace is "" or segments of letters, digits, "_" and "-" ` +
+	`joined by "/"`
+
 func isReservedPackageName(name string) bool {
 	switch name {
 	case "bin", "manifests":
@@ -286,6 +295,13 @@ func (m *Manifest) validateComponents(
 			return nil, nil, err
 		}
 
+		if comp.Namespace != nil {
+			err = validateNamespace(field+".namespace", *comp.Namespace)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+
 		if comp.Kind != "" {
 			warnings = append(warnings, fmt.Sprintf("%s.kind is deprecated: a component "+
 				"makes what its build makes; remove it", field))
@@ -451,6 +467,56 @@ func validateOutput(field string, output []OutputEntry) error {
 	}
 
 	return nil
+}
+
+// validateNamespace checks namespace, the namespace of a component at field:
+// "" for the top level, or segments joined by "/", each a directory of
+// .rocks/lib/tarantool/ and .rocks/share/tarantool/, which require names
+// joined by dots. A dot of a segment would be a directory require cannot
+// name, and "", "." or ".." one the files of the component cannot be laid
+// out in.
+func validateNamespace(field, namespace string) error {
+	if namespace == "" {
+		return nil
+	}
+
+	if strings.HasPrefix(namespace, "/") {
+		return invalid(field, "%q starts with \"/\": %s", namespace, namespaceRule)
+	}
+
+	if strings.HasSuffix(namespace, "/") {
+		return invalid(field, "%q ends with \"/\": %s", namespace, namespaceRule)
+	}
+
+	for segment := range strings.SplitSeq(namespace, "/") {
+		switch {
+		case segment == "":
+			return invalid(field, "%q has an empty segment: %s", namespace, namespaceRule)
+		case segment == "." || segment == "..":
+			return invalid(field, "%q has the segment %q: %s", namespace, segment, namespaceRule)
+		case strings.Contains(segment, "."):
+			return invalidNamespaceDot(field, namespace)
+		case !namespaceSegmentRe.MatchString(segment):
+			return invalid(field, "%q has the segment %q: %s", namespace, segment, namespaceRule)
+		}
+	}
+
+	return nil
+}
+
+// invalidNamespaceDot is the error of namespace, at field, a segment of
+// which has a dot: require reads a dot of a name as a directory, so it
+// finds no module of the component, and a namespace nests with "/".
+func invalidNamespaceDot(field, namespace string) error {
+	nested := strings.ReplaceAll(namespace, ".", "/")
+	if validateNamespace(field, nested) != nil {
+		return invalid(field, "%q has a dot, which require reads as a directory: %s",
+			namespace, namespaceRule)
+	}
+
+	return invalid(field, "%q has a dot, which require reads as a directory: "+
+		"nest with \"/\", %q, for require('%s.<module>')",
+		namespace, nested, strings.ReplaceAll(nested, "/", "."))
 }
 
 // validateKind checks the deprecated kind of a component and what the kind

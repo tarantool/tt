@@ -909,7 +909,14 @@ LICENSE
 the digests of the source rock and the rockspec alone. tt builds the package from the source rock in `_build/src/`, with its
 manifest and the compiler of this machine, and installs it at the version
 the lock pins, its license included; the build needs the headers of
-Tarantool, as the build of the module itself does.
+Tarantool, as the build of the module itself does. A source rock an older
+tt packed of a component out of its project, which the pack refuses now,
+holds no sources of it, and its build fails before anything is built,
+naming the component and its directory: `source rock "wsapp": the
+component "alpha" is in ../crates/alpha, out of the package, which the
+source rock does not hold: it holds the files of the project of the
+package only; install a binary rock of wsapp, or one packed from a manifest
+in a directory that holds the sources of each of its components`.
 
 ### Work on both side by side
 

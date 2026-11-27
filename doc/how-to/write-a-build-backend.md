@@ -962,7 +962,10 @@ func (b templateBuild) Export(*build.ExportContext) (build.Export, error) {
 - `Export(e)` is given what is known when the package is packed, a
   `build.ExportContext`: the `Component`, the zero one for a hook, `Hook`,
   and `LockedVersion`, which answers from the lock the package is packed
-  with, for a script that pins a tool to the version of a rock. What only
+  with, for a script that pins a tool to the version of a rock, and
+  `Project` and `Cwd`, the root of the project and the working directory of
+  the build, absolute, as the project is packed: for `Export` to read the
+  files of the sources, never to write into the script. What only
   the machine that builds knows - its directories, its platform, its
   Tarantool, its compiler - the script reads from its variables.
 - `Script` is run with `set -eu`, in a subshell whose working directory is
@@ -990,7 +993,12 @@ func (b templateBuild) Export(*build.ExportContext) (build.Export, error) {
   take, a check only tt can make - returns `build.NoExportf(field, ...)`, an
   error wrapping `build.ErrNoExport` and the `build.FieldError` of the
   field. The package then builds with tt alone, and the pack names the
-  field from the manifest. Any other error of `Export` fails the pack.
+  field from the manifest. A build that reads files out of the project,
+  which the source rock does not hold - the root of the cargo workspace of
+  a package above the project, say - returns an error wrapping
+  `build.ErrOutside` that says which: the pack of the source rock fails,
+  naming the component, and the rockspec of the binary rock builds with tt
+  alone. Any other error of `Export` fails the pack.
 
 The core refuses a build of a backend that says `Exports` and has no
 `Export` of `build.Exporter`, or one of another signature, and a

@@ -196,7 +196,7 @@ memcached-contrib = { source = "path", path = "../memcached-contrib" }
 | --- | --- |
 | `path` | the directory of the component, relative to the manifest; required |
 | `include`, `exclude` | the files of the component that are laid out; `*.lua` and `*.so` by default, nothing by default for `go` |
-| `namespace` | where the files and the modules of the component go in `.rocks/share/tarantool/` and `.rocks/lib/tarantool/`: the package name by default, `""` for the top level |
+| `namespace` | where the files and the modules of the component go in `.rocks/share/tarantool/` and `.rocks/lib/tarantool/`: the package name by default, `""` for the top level, `"a/b"` for `a/b/`; see below |
 | `dependencies` | the dependencies of the component |
 | `build` | its build, see below |
 | `kind` | deprecated: `"module"` or `"executable"`, what the component says its build makes; see below |
@@ -209,6 +209,21 @@ may make modules, data files and programs, any of them at once:
 | a module | `TT_OUTPUT_DIR`, `lib/<namespace>/` of the package | `.rocks/lib/tarantool/<namespace>/` |
 | a data file, such as `.wasm` | `share/<namespace>/` of the package | `.rocks/share/tarantool/<namespace>/` |
 | a program | `bin/` of the package | `.rocks/bin/`, where `tt instance` runs it from |
+
+A `namespace` is `""` or segments of letters, digits, `_` and `-` joined
+by `/`, a directory each: `namespace = "a/b"` puts the modules into
+`.rocks/lib/tarantool/a/b/` and the files into
+`.rocks/share/tarantool/a/b/`, and `require('a.b.<module>')` loads a
+module, by the function `luaopen_a_b_<module>` of a native one. Several
+components may have one namespace: their modules and files go into the same
+directory. A namespace of the top level, `native` say, is a directory of
+`.rocks/` that every other package may use too; one under the name of the
+package, `<package>/native`, keeps clear of them. Another value fails the
+manifest check before anything is built, at
+`components.<name>.namespace`: `"myapp.native" has a dot, which require
+reads as a directory: nest with "/", "myapp/native", for
+require('myapp.native.<module>')`, `"../evil" has the segment "..": a
+namespace is "" or segments of letters, digits, "_" and "-" joined by "/"`.
 
 What a build makes is told by the fields of its backend: `module` and `bin`
 of `cargo` and `zig`, or `output` of `make`, `shell` and `cmake`; `go`
@@ -794,9 +809,11 @@ _Z15luaL_checkstackP9lua_StateiPKc`. `module.h` declares its own functions
 
 `lua-c` checks the module once it is linked: the build fails when the
 module exports no `luaopen_<name>`, the function `require('<name>')`
-calls - `<name>` is `<namespace>.<module>`, or `<module>` with
-`namespace = ""`, its dots made `_` and the part up to its first `-`
-dropped, as Lua does: `require('my-app.fast')` calls `luaopen_app_fast` -
+calls - `<name>` is `<namespace>.<module>`, the `/` of the namespace made
+`.`, or `<module>` with `namespace = ""`, its dots made `_` and the part
+up to its first `-` dropped, as Lua does: `require('my-app.fast')` calls
+`luaopen_app_fast`, and `require('myapp.native.fast')`
+`luaopen_myapp_native_fast` -
 and when the module needs functions of the Lua API by their C++ names. Each
 slice of a universal Mach-O file is checked. A module of `c`, whose
 functions Tarantool calls by the names of `box.schema.func`, is not.
@@ -1161,7 +1178,7 @@ empty when the build begins. The Tarantool of the build is that of
 | `c`, `lua-c` | the compiles and the link of the build, by the flags of tt in their order, with `$CC`, `$CFLAGS` and `$LIBFLAG` of LuaRocks and `CXX`, `CXXFLAGS` and `LDFLAGS` of the environment (see [`c` and `lua-c`](#componentsnamebuild) above) | the cache, `compile_commands.json`, the checks of the module, `-g` and the flags that keep the paths of the project out of the objects; `static = true` and `bundle` are made with tt alone |
 | `cmake` | `cmake -S . -B "$TT_BUILD_DIR"` with the `-D` of the build and the prefix of Tarantool on `CMAKE_PREFIX_PATH`, and `cmake --build` with `--parallel "$TT_BUILD_JOBS"`, or none when `CMAKE_BUILD_PARALLEL_LEVEL` is set; then a copy of each file of `output` from the build tree, a `.so` module as `.dylib` on macOS | nothing; cmake takes `CC` and `CFLAGS` of LuaRocks from the environment, as it takes those of the environment of tt |
 | `go` | `go build` of the build, for the `GOOS` and `GOARCH` of `go env GOHOSTOS` and `GOHOSTARCH` | nothing; `static = true` fails on macOS, as with tt |
-| `cargo` | `cargo rustc --lib --crate-type cdylib` and `cargo build --bin` of the build, with `CARGO_TARGET_DIR` set to `TT_BUILD_DIR` whatever `env` and the environment say, a static program for `<arch>-unknown-linux-musl`; then a copy of the library and of the binary cargo built there | the crates of a mirror of `tt package download`: cargo downloads those `Cargo.lock` pins; a workspace without `Cargo.lock`, a static program on macOS and a musl target that is not installed fail, as with tt |
+| `cargo` | `cargo rustc --lib --crate-type cdylib` and `cargo build --bin` of the build, with `CARGO_TARGET_DIR` set to `TT_BUILD_DIR` whatever `env` and the environment say, a static program for `<arch>-unknown-linux-musl`; then a copy of the library and of the binary cargo built there | the crates of a mirror of `tt package download`: cargo downloads those `Cargo.lock` pins; a workspace without `Cargo.lock`, a library of no `package` at the root of a workspace with no package of its own, a static program on macOS and a musl target that is not installed fail, as with tt |
 | `zig` | `zig build` of the build, its prefix, cache and packages in `TT_BUILD_DIR`, `--pkg-dir` for zig 0.17 and later, a static program alone for `<arch>-linux-musl` when the `build.zig` takes `-Dtarget`; then a copy of the module and of the program | nothing; a static program fails on macOS, as with tt |
 
 A build of another backend is made with tt alone: the build of the

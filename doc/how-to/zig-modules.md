@@ -273,10 +273,12 @@ $ .rocks/bin/hello-client
 20 + 22 = 42
 ```
 
-- `require('<namespace>.<module>')` calls the function
-  `luaopen_<namespace>_<module>` of the library, dots made `_`: the module
-  `exportModule` exports as `myapp_hello`. With `namespace = ""` the module
-  is `require('hello')`, exported as `hello`.
+- `require('<namespace>.<module>')`, the `/` of a nested namespace made
+  `.`, calls the function `luaopen_<namespace>_<module>` of the library,
+  dots made `_`: the module `exportModule` exports as `myapp_hello`. With
+  `namespace = "myapp/native"` the module is
+  `require('myapp.native.hello')`, exported as `myapp_native_hello`. With
+  `namespace = ""` the module is `require('hello')`, exported as `hello`.
 - A C function is named `<module>.<function>`: Tarantool takes the module
   from the name up to its last dot, `myapp.hello`, and the function from
   the rest, `add`, which `exportProc` exports.
