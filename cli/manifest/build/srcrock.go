@@ -142,7 +142,7 @@ func (s *srcRocks) install(
 		fromServer: true,
 	})
 	if err != nil {
-		return false, err
+		return false, &srcRockBuildError{err: err}
 	}
 
 	err = os.WriteFile(stamp, nil, srcRockFileMode)
@@ -151,6 +151,77 @@ func (s *srcRocks) install(
 	}
 
 	return true, nil
+}
+
+// srcRockBuildError is the failure of the build of an unpacked source rock,
+// of its files and its tools on this machine, which is no failure of the
+// rock server it was downloaded from, whatever file it did not find: the
+// install of the rock does not take it for one (materializeDep). A server
+// the build could not reach, for the rocks of the package, it says itself.
+type srcRockBuildError struct {
+	err error
+}
+
+func (e *srcRockBuildError) Error() string { return e.err.Error() }
+
+func (e *srcRockBuildError) Unwrap() error { return e.err }
+
+// checkSrcRockComponents checks that the source rock unpacked into dir, of
+// the package of man, holds the directory of each of components, of its
+// product, and the working directory of its build: the source rock holds the
+// files of the project of the package alone, and an older tt packed one of a
+// component out of it, which tt package pack refuses now, or of a directory
+// git does not track a file of. It returns the error that names each such
+// component and its directory, before anything is built of the rock; a
+// directory out of dir, which is not of the rock whatever is there, is never
+// looked at.
+func checkSrcRockComponents(dir string, man *manifest.Manifest, components []string) error {
+	var lacks []string
+
+	for _, name := range components {
+		component := man.Components[name]
+
+		if lacked := srcRockLacks(dir, component.Path); lacked != "" {
+			lacks = append(lacks, fmt.Sprintf("the component %q is in %s", name, lacked))
+
+			continue
+		}
+
+		if component.Build == nil || component.Build.Cwd == "" {
+			continue
+		}
+
+		if lacked := srcRockLacks(dir, component.Build.Cwd); lacked != "" {
+			lacks = append(lacks, fmt.Sprintf("the component %q is built in %s", name, lacked))
+		}
+	}
+
+	if len(lacks) == 0 {
+		return nil
+	}
+
+	return sdk.Errorf(sdk.ExitFailure, "%s, which the source rock does not hold: it holds the "+
+		"files of the project of the package only; install a binary rock of %s, or one "+
+		"packed from a manifest in a directory that holds the sources of each of its "+
+		"components", strings.Join(lacks, ", which the source rock does not hold; "),
+		man.Package.Name)
+}
+
+// srcRockLacks returns rel, a directory of the manifest of the package
+// unpacked into dir, as a message names it - ", out of the package" after
+// one that is - when the source rock does not hold it, and "" when it does.
+func srcRockLacks(dir, rel string) string {
+	clean := filepath.Clean(filepath.FromSlash(rel))
+	if !filepath.IsLocal(clean) {
+		return rel + ", out of the package"
+	}
+
+	info, err := os.Stat(filepath.Join(dir, clean))
+	if err != nil || !info.IsDir() {
+		return rel
+	}
+
+	return ""
 }
 
 // leaveToLuaRocks drops the unpacked source rock of dep, which holds no tt

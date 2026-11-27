@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -178,8 +179,12 @@ func materializeDep(
 		}
 
 		installErr := registryClient.Install(ctx, dep.Name, opts)
+
+		// The build of a source rock fails of its files and its tools, not
+		// of a server, whatever file it did not find.
+		_, built := errors.AsType[*srcRockBuildError](installErr)
 		if serverErr, ok := rocks.AsServerError(
-			fmt.Sprintf("installing %s %s", dep.Name, dep.Version), installErr); ok {
+			fmt.Sprintf("installing %s %s", dep.Name, dep.Version), installErr); ok && !built {
 			return serverErr
 		}
 

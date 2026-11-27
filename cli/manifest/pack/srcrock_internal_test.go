@@ -2,6 +2,7 @@ package pack
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -21,6 +22,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
@@ -471,6 +473,116 @@ func TestPackSrcRockOfAComponentOutOfTheProject(t *testing.T) {
 	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/outside.lua")
 	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/init.lua")
 	assert.Contains(t, readArchive(t, result.Path), ".rocks/share/tarantool/outapp/outside.lua")
+}
+
+// TestSrcRockOfAComponentItDoesNotHold: a source rock whose manifest names a
+// component in a directory the rock does not hold, out of its project, as an
+// older tt packed one, or in it, fails the build of a project that depends
+// on it, naming the component and its directory, before anything of it is
+// built: it is no rock server that could not be reached, and no more is a
+// file its build does not find.
+func TestSrcRockOfAComponentItDoesNotHold(t *testing.T) {
+	t.Parallel()
+
+	const lacks = ", which the source rock does not hold: it holds the files of the project " +
+		"of the package only; install a binary rock of mylib, or one packed from a manifest " +
+		"in a directory that holds the sources of each of its components"
+
+	shell := "namespace = 'roles'\n\n[components.roles.build]\nbackend = 'shell'\n"
+
+	for _, test := range []struct {
+		name, from, to, want string
+		code                 int
+	}{
+		{
+			name: "out of the project", from: "path = 'mylib'", to: "path = '../mylib'",
+			want: `the component "mylib" is in ../mylib, out of the package` + lacks,
+			code: sdk.ExitFailure,
+		},
+		{
+			name: "in the project", from: "path = 'roles'", to: "path = 'gone'",
+			want: `the component "roles" is in gone` + lacks, code: sdk.ExitFailure,
+		},
+		{
+			name: "built out of the project", from: "namespace = 'roles'\n",
+			to:   shell + "cwd = '../tools'\ncommand = 'true'\n",
+			want: `the component "roles" is built in ../tools, out of the package` + lacks,
+			code: sdk.ExitFailure,
+		},
+		{
+			name: "a tool that is not there", from: "namespace = 'roles'\n",
+			to: shell + "command = '/nonexistent/tool'\n",
+			want: "building component \"roles\": failed to run \n/nonexistent/tool\n\n" +
+				"fork/exec /nonexistent/tool: no such file or directory",
+			code: sdk.ExitSystem,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := writeGitLibrary(t)
+			out := filepath.Join(t.TempDir(), "server")
+
+			result, err := Run(context.Background(), packOptions(src, out, FormatRockSrc))
+			require.NoError(t, err)
+
+			// The source rock as a tt that let such a component in packed it.
+			entries := zipEntries(t, result.SrcRock)
+			manifest := entries["mylib/"+manifestFileName]
+			require.Contains(t, manifest, test.from)
+
+			entries["mylib/"+manifestFileName] = strings.Replace(manifest, test.from, test.to, 1)
+
+			writeZipOf(t, result.SrcRock, entries)
+
+			_, err = rockindex.MakeServer(context.Background(), out, rockindex.ServerOptions{
+				HTML: false, IfIndexed: false, Warn: nil,
+			})
+			require.NoError(t, err)
+
+			consumer := t.TempDir()
+			writeTree(t, consumer, map[string]string{
+				manifestFileName: fmt.Sprintf(`manifest_version = '0.1'
+
+[package]
+name = 'consumer'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[dependencies]
+mylib = { version = '>=1.2.0', registry = '%s' }
+`, out),
+				versionFileName: "0.1.0\n",
+			})
+
+			err = build.Run(context.Background(), consumerOptions(consumer))
+			require.EqualError(t, err, `installing mylib 1.2.0-1: source rock "mylib": `+
+				test.want)
+			assert.Equal(t, test.code, exitcode.Code(err))
+		})
+	}
+}
+
+// writeZipOf writes the zip archive at path of entries, by name.
+func writeZipOf(t *testing.T, path string, entries map[string]string) {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	archive := zip.NewWriter(&buf)
+
+	for _, name := range sortedKeys(entries) {
+		writer, err := archive.Create(name)
+		require.NoError(t, err)
+
+		_, err = writer.Write([]byte(entries[name]))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, archive.Close())
+	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o600))
 }
 
 // assertInstalledAlike asserts that the consumers want and got hold mylib at
