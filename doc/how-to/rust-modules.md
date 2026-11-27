@@ -108,6 +108,16 @@ there: its symbols of Tarantool are resolved when Tarantool loads it, as
 those of a C module are. `package` selects the package of a workspace,
 `features` its features, and `profile` another profile than `release`.
 
+A component at the root of a workspace with no package of its own, whose
+`Cargo.toml` has `[workspace]` and no `[package]`, names the package of the
+library: without `package` the build fails before anything is built,
+`package: the Cargo.toml of ... is the root of a cargo workspace with no
+package of its own, and cargo builds the library of a package: name the
+package to build, package = "<name>"; the members of the workspace are
+...`. A `package` that is no member of the workspace and no package of its
+`Cargo.lock` fails so too. A binary, `bin`, needs no `package`: cargo finds
+it among the members.
+
 A `target/` of the component, which cargo run there by hand leaves, is not
 laid out: the library and the proc-macros in it are no files of the
 package. A `*.lua` file of the component is laid out as in any component.

@@ -58,7 +58,12 @@ func renderScript(name string, data any) (string, error) {
 // and the one program there (the templates module and binary): the script
 // reads no messages of cargo, and a target directory of the env of the block
 // or of the environment gives way to it. The workspace is to have a
-// Cargo.lock, as Preflight checks. A static program is built for the musl
+// Cargo.lock, and the library of a block of no package is to be of the
+// Cargo.toml of the working directory, as Preflight checks: tt package pack
+// --format rock-src runs no Preflight, which needs cargo, so a source rock
+// of a block a build of tt refuses fails its script so. The script does not
+// check the package a block names, as cargo says itself that it matches
+// none. A static program is built for the musl
 // target of the machine, which is to be installed, and refused for macOS, as
 // Preflight refuses it.
 func (b cargoBuild) Export(*build.ExportContext) (build.Export, error) {
@@ -70,6 +75,7 @@ func (b cargoBuild) Export(*build.ExportContext) (build.Export, error) {
 
 	script, err := renderScript("script", scriptView{
 		Static: b.static && b.bin != "", Triples: triples, Module: b.module,
+		Virtual: b.module && b.config.Package == "", ErrVirtual: virtualText,
 		ModuleArgs: exportArgs(b.moduleArgs("", "", 0, nil)),
 		DarwinArgs: exportArgs(b.moduleArgs("", darwinOS, 0, nil)),
 		ModuleName: b.config.Module, Bin: b.bin, BinArgs: exportArgs(b.args("", 0, nil)),
@@ -97,6 +103,12 @@ type scriptView struct {
 	Module                 bool
 	ModuleArgs, DarwinArgs []string
 	ModuleName             string
+	// Virtual tells whether the script checks that the Cargo.toml of the
+	// working directory is that of a package, as checkVirtual does, for a
+	// library of a block that names no package: the error ErrVirtual tells
+	// it is not.
+	Virtual    bool
+	ErrVirtual string
 	// Bin is the binary the script builds, of the arguments of cargo
 	// BinArgs; empty for none.
 	Bin     string

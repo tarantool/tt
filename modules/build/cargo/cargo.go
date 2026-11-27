@@ -243,8 +243,9 @@ func (b cargoBuild) Programs() ([]string, bool) {
 // Preflight checks that a static program is not asked for darwin, that the
 // platform has a target, that cargo is in the PATH of the build, that the
 // Rust targets of the build are installed and, for another platform than
-// the machine tt runs on, that it can be linked (checkTargets), and that the
-// workspace of the package has a Cargo.lock (findLockfile).
+// the machine tt runs on, that it can be linked (checkTargets), that the
+// workspace of the package has a Cargo.lock (findLockfile), and that cargo
+// can tell the package the block builds (checkPackage).
 func (b cargoBuild) Preflight(ctx context.Context, c *build.Context) error {
 	if b.static && b.bin != "" && c.Target.OS == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
@@ -266,9 +267,149 @@ func (b cargoBuild) Preflight(ctx context.Context, c *build.Context) error {
 		return err
 	}
 
-	_, err = findLockfile(ctx, c)
+	lockfile, err := findLockfile(ctx, c)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return checkPackage(ctx, c, b.config, b.module, lockfile)
+}
+
+// metadata is the part of what cargo metadata --no-deps prints that the
+// backend reads: the packages of the workspace, its members, and the
+// Cargo.toml of each.
+type metadata struct {
+	Packages      []metadataPackage `json:"packages"`
+	WorkspaceRoot string            `json:"workspace_root"`
+}
+
+// metadataPackage is a package of cargo metadata: its name and its
+// Cargo.toml.
+type metadataPackage struct {
+	Name         string `json:"name"`
+	ManifestPath string `json:"manifest_path"`
+}
+
+// plainSpecRe is the shape of a package specification of cargo that names
+// the package by its name, before an @<version>: one of a URL or a glob is
+// left to cargo.
+var plainSpecRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// checkPackage checks, before anything is built, that cargo can tell the
+// package the block of config builds, as package names it or as the working
+// directory does, with what it would say otherwise left to cargo:
+//
+//   - a block of no package that builds the library, module, in a directory whose
+//     Cargo.toml - the nearest one, which cargo locate-project names - is
+//     the root of a workspace with no package of its own, a virtual
+//     manifest, which cargo rustc refuses: the block is to name the package.
+//     The binary is found by cargo build --bin among the packages of the
+//     workspace, which needs none;
+//   - a package of a plain name that is no member of the workspace and no
+//     package lockfile, its Cargo.lock, pins: cargo would say no more than
+//     that the specification matches no package.
+func checkPackage(ctx context.Context, c *build.Context, config Config, module bool,
+	lockfile string,
+) error {
+	if config.Package == "" && !module {
+		return nil
+	}
+
+	out, err := c.Output(command(ctx, c, "metadata", "--no-deps", "--format-version", "1"))
+	if err != nil {
+		return fmt.Errorf("reading the members of the cargo workspace: %w", err)
+	}
+
+	var meta metadata
+
+	err = json.Unmarshal(out, &meta)
+	if err != nil {
+		return fmt.Errorf("reading what cargo metadata printed: %w", err)
+	}
+
+	members := make([]string, 0, len(meta.Packages))
+	for _, pkg := range meta.Packages {
+		members = append(members, pkg.Name)
+	}
+
+	slices.Sort(members)
+
+	if config.Package == "" {
+		return checkVirtual(ctx, c, meta, members)
+	}
+
+	name, _, _ := strings.Cut(config.Package, "@")
+	if !plainSpecRe.MatchString(name) || slices.Contains(members, name) {
+		return nil
+	}
+
+	lock, err := os.ReadFile(lockfile)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", lockfile, err)
+	}
+
+	if slices.Contains(lockedPackages(lock), name) {
+		return nil
+	}
+
+	return build.FieldErrorf("package", "%q is no member of the cargo workspace of %s, "+
+		"nor a package its %s pins: %s", config.Package, meta.WorkspaceRoot, lockfileName,
+		membersText(members))
+}
+
+// checkVirtual checks that the Cargo.toml of the working directory, the
+// nearest one, is that of a package of meta, the workspace: cargo rustc,
+// which builds the library, runs against one package only.
+func checkVirtual(ctx context.Context, c *build.Context, meta metadata, members []string) error {
+	out, err := c.Output(command(ctx, c, "locate-project", "--message-format", "plain"))
+	if err != nil {
+		return fmt.Errorf("finding the Cargo.toml of the cargo package: %w", err)
+	}
+
+	manifest := strings.TrimSpace(string(out))
+
+	if slices.ContainsFunc(meta.Packages, func(pkg metadataPackage) bool {
+		return pkg.ManifestPath == manifest
+	}) {
+		return nil
+	}
+
+	return build.FieldErrorf("package", "the Cargo.toml of %s %s; %s", filepath.Dir(manifest),
+		virtualText, membersText(members))
+}
+
+// virtualText says, after the directory of a Cargo.toml, that it is a
+// virtual manifest, which builds no library, and what the block is to name.
+const virtualText = "is the root of a cargo workspace with no package of its own, and " +
+	"cargo builds the library of a package: name the package to build, package = \"<name>\""
+
+// membersText says what the members of a workspace are, members sorted.
+func membersText(members []string) string {
+	if len(members) == 0 {
+		return "the workspace has no members"
+	}
+
+	return "the members of the workspace are " + strings.Join(members, ", ")
+}
+
+// lockedPackages returns the names of the packages lock, a Cargo.lock, pins:
+// name = "<name>" of each [[package]].
+func lockedPackages(lock []byte) []string {
+	var names []string
+
+	for line := range strings.Lines(string(lock)) {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), `name = "`)
+		if !ok {
+			continue
+		}
+
+		value, ok = strings.CutSuffix(value, `"`)
+		if ok {
+			names = append(names, value)
+		}
+	}
+
+	return names
 }
 
 // findLockfile returns the Cargo.lock of the workspace of the package in the
