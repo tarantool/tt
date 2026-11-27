@@ -196,7 +196,7 @@ memcached-contrib = { source = "path", path = "../memcached-contrib" }
 | --- | --- |
 | `path` | the directory of the component, relative to the manifest; required |
 | `include`, `exclude` | the files of the component that are laid out; `*.lua` and `*.so` by default, nothing by default for `go` |
-| `namespace` | where the files and the modules of the component go in `.rocks/share/tarantool/` and `.rocks/lib/tarantool/`: the package name by default, `""` for the top level |
+| `namespace` | where the files and the modules of the component go in `.rocks/share/tarantool/` and `.rocks/lib/tarantool/`: the package name by default, `""` for the top level, `"a/b"` for `a/b/`; see below |
 | `dependencies` | the dependencies of the component |
 | `build` | its build, see below |
 | `kind` | deprecated: `"module"` or `"executable"`, what the component says its build makes; see below |
@@ -209,6 +209,21 @@ may make modules, data files and programs, any of them at once:
 | a module | `TT_OUTPUT_DIR`, `lib/<namespace>/` of the package | `.rocks/lib/tarantool/<namespace>/` |
 | a data file, such as `.wasm` | `share/<namespace>/` of the package | `.rocks/share/tarantool/<namespace>/` |
 | a program | `bin/` of the package | `.rocks/bin/`, where `tt instance` runs it from |
+
+A `namespace` is `""` or segments of letters, digits, `_` and `-` joined
+by `/`, a directory each: `namespace = "a/b"` puts the modules into
+`.rocks/lib/tarantool/a/b/` and the files into
+`.rocks/share/tarantool/a/b/`, and `require('a.b.<module>')` loads a
+module, by the function `luaopen_a_b_<module>` of a native one. Several
+components may have one namespace: their modules and files go into the same
+directory. A namespace of the top level, `native` say, is a directory of
+`.rocks/` that every other package may use too; one under the name of the
+package, `<package>/native`, keeps clear of them. Another value fails the
+manifest check before anything is built, at
+`components.<name>.namespace`: `"myapp.native" has a dot, which require
+reads as a directory: nest with "/", "myapp/native", for
+require('myapp.native.<module>')`, `"../evil" has the segment "..": a
+namespace is "" or segments of letters, digits, "_" and "-" joined by "/"`.
 
 What a build makes is told by the fields of its backend: `module` and `bin`
 of `cargo` and `zig`, or `output` of `make`, `shell` and `cmake`; `go`
@@ -794,9 +809,11 @@ _Z15luaL_checkstackP9lua_StateiPKc`. `module.h` declares its own functions
 
 `lua-c` checks the module once it is linked: the build fails when the
 module exports no `luaopen_<name>`, the function `require('<name>')`
-calls - `<name>` is `<namespace>.<module>`, or `<module>` with
-`namespace = ""`, its dots made `_` and the part up to its first `-`
-dropped, as Lua does: `require('my-app.fast')` calls `luaopen_app_fast` -
+calls - `<name>` is `<namespace>.<module>`, the `/` of the namespace made
+`.`, or `<module>` with `namespace = ""`, its dots made `_` and the part
+up to its first `-` dropped, as Lua does: `require('my-app.fast')` calls
+`luaopen_app_fast`, and `require('myapp.native.fast')`
+`luaopen_myapp_native_fast` -
 and when the module needs functions of the Lua API by their C++ names. Each
 slice of a universal Mach-O file is checked. A module of `c`, whose
 functions Tarantool calls by the names of `box.schema.func`, is not.

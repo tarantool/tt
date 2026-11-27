@@ -72,7 +72,9 @@ $ git add Cargo.lock
 ```
 
 A crate that is a member of a workspace has the `Cargo.lock` of the
-workspace, beside the `Cargo.toml` of its root. A build without one fails
+workspace, beside the `Cargo.toml` of its root (see
+[Several modules of one workspace](#several-modules-of-one-workspace)).
+A build without one fails
 before anything is built: `the cargo package has no Cargo.lock in
 .../libs/fastrs: the build is made with --locked, from the versions
 Cargo.lock pins; run cargo generate-lockfile there, and keep Cargo.lock with
@@ -167,11 +169,14 @@ box.schema.func.create('myapp.fastrs.add', {language = 'C', if_not_exists = true
 assert(box.func['myapp.fastrs.add']:call({20, 22}) == 42)
 ```
 
-- `require('<namespace>.<module>')` calls the function
-  `luaopen_<namespace>_<module>` of the library, dots made `_`, and the
-  name up to its first `-` dropped: `require('my-app.fastrs')` of a package
-  named `my-app` calls `luaopen_app_fastrs`. With `namespace = ""` the
-  module is `require('fastrs')`, and the function `luaopen_fastrs`.
+- `require('<namespace>.<module>')`, the `/` of a nested namespace made
+  `.`, calls the function `luaopen_<namespace>_<module>` of the library,
+  dots made `_`, and the name up to its first `-` dropped:
+  `require('my-app.fastrs')` of a package named `my-app` calls
+  `luaopen_app_fastrs`, and with `namespace = "myapp/native"` the module is
+  `require('myapp.native.fastrs')`, and the function
+  `luaopen_myapp_native_fastrs`. With `namespace = ""` the module is
+  `require('fastrs')`, and the function `luaopen_fastrs`.
 - A C function is named `<module>.<function>`: Tarantool takes the module
   from the name up to its last dot, `myapp.fastrs`, and the function from
   the rest, `add`, which `#[proc]` exports.
@@ -179,6 +184,190 @@ assert(box.func['myapp.fastrs.add']:call({20, 22}) == 42)
 The archive of `tt package pack` carries the module, built for the machine
 it is packed on, and the instances of an installed version load it as in
 the project.
+
+## Several modules of one workspace
+
+A Cargo workspace is a component for each of its member crates. Here the
+root of the workspace is `rs/` of the package `myapp`, with two module
+crates and a binary crate, beside the Lua files of the package:
+
+```text
+myapp/
+├── app.manifest.toml
+├── lua-module/
+│   └── init.lua
+└── rs/
+    ├── Cargo.toml
+    ├── Cargo.lock
+    ├── mod1/
+    ├── mod2/
+    └── tool/
+```
+
+`rs/Cargo.toml` is the workspace, which pins the `tarantool` crate of its
+members:
+
+```toml
+[workspace]
+members = ["mod1", "mod2", "tool"]
+resolver = "2"
+
+[workspace.dependencies]
+tarantool = { version = "11", default-features = false }
+```
+
+`rs/mod1/Cargo.toml` is a module crate:
+
+```toml
+[package]
+name = "mod1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tarantool = { workspace = true }
+```
+
+and `rs/mod1/src/lib.rs` its module, `myapp.native.mod1`:
+
+```rust
+use std::os::raw::c_int;
+
+use tarantool::tlua::ffi;
+
+/// require('myapp.native.mod1')
+#[no_mangle]
+pub unsafe extern "C" fn luaopen_myapp_native_mod1(l: *mut ffi::lua_State) -> c_int {
+    ffi::lua_pushinteger(l, 1);
+    1
+}
+```
+
+`rs/mod2/` is the same crate named `mod2`, whose
+`luaopen_myapp_native_mod2` pushes `2`. `rs/tool/` is a binary crate,
+`rs/tool/Cargo.toml`:
+
+```toml
+[package]
+name = "myapp-tool"
+version = "0.1.0"
+edition = "2021"
+```
+
+with `rs/tool/src/main.rs`:
+
+```rust
+fn main() {
+    println!("myapp-tool 0.1.0");
+}
+```
+
+and `lua-module/init.lua` takes both modules:
+
+```lua
+return {
+    mod1 = require('myapp.native.mod1'),
+    mod2 = require('myapp.native.mod2'),
+}
+```
+
+The members have no `Cargo.lock` of their own: the workspace has one,
+beside `rs/Cargo.toml`, for all of them. Write it once, and keep it with
+the sources:
+
+```console
+$ cd rs
+$ cargo generate-lockfile
+$ cd ..
+$ git add rs/Cargo.lock
+```
+
+`app.manifest.toml` has a component for each member, whose `path` is the
+directory of the member, and one of the Lua files:
+
+```toml
+manifest_version = "0.1"
+
+[package]
+name = "myapp"
+
+[platform]
+tarantool = ">=3.0.0"
+tt = ">=3.0.0"
+
+[components.lua]
+path = "lua-module"
+
+[components.mod1]
+path = "rs/mod1"
+namespace = "myapp/native"
+
+[components.mod1.build]
+backend = "cargo"
+
+[components.mod2]
+path = "rs/mod2"
+namespace = "myapp/native"
+
+[components.mod2.build]
+backend = "cargo"
+
+[components.tool]
+path = "rs/tool"
+
+[components.tool.build]
+backend = "cargo"
+bin = "myapp-tool"
+```
+
+```console
+$ tt package build
+$ find .rocks/bin .rocks/lib -type f
+.rocks/bin/myapp-tool
+.rocks/lib/tarantool/myapp/native/mod1.so
+.rocks/lib/tarantool/myapp/native/mod2.so
+$ tt run -e "local myapp = require('myapp') print(myapp.mod1, myapp.mod2) os.exit()"
+1	2
+$ .rocks/bin/myapp-tool
+myapp-tool 0.1.0
+```
+
+`mod1` and `mod2` share the namespace `myapp/native`, so both modules are
+in `.rocks/lib/tarantool/myapp/native/`, and `require('myapp.native.mod1')`
+and `require('myapp.native.mod2')` load them. A namespace of the top level,
+`native`, would do as well, but `.rocks/lib/tarantool/native/` is a
+directory every other package of `.rocks/` may put modules into; one under
+the name of the package keeps clear of them (see
+[`[components.NAME]`](../reference/app-manifest.md#componentsname)). The
+`lua` component has the default namespace, the package name, so
+`init.lua` is `require('myapp')`. The builds of the members share
+`_build/cargo/` as their target directory, as the members of a workspace
+share its `target/`: `tarantool` and the crates it takes are compiled once.
+
+A component may have the root of the workspace itself as its `path`.
+`rs/Cargo.toml` is a virtual manifest, which has no package of its own,
+so `package` names the member the component builds:
+
+```toml
+[components.mod1]
+path = "rs"
+namespace = "myapp/native"
+
+[components.mod1.build]
+backend = "cargo"
+package = "mod1"
+```
+
+Without `package` the build of such a component fails: the root of the
+workspace names no package to build.
+
+The source rock of `tt package pack --format rock-src` holds the files of
+the project only, and its build has the workspace when the root of the
+workspace is inside the project, as `rs/` is here: the rock carries
+`rs/Cargo.toml` and `rs/Cargo.lock` with the members. A project inside a
+workspace, whose root is above the project, builds with `tt package
+build`, but its source rock has neither the `Cargo.toml` nor the
+`Cargo.lock` of the workspace, and does not build.
 
 ## Build offline
 

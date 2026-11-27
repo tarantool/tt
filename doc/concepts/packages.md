@@ -89,10 +89,13 @@ optional build.
 
 A component lays its files out under `.rocks/share/tarantool/<namespace>/`,
 `<namespace>` being the package name unless the component says otherwise.
-Its files are the `*.lua` and `*.so` of its `path` unless `include` lists
-others; a `go` component lays out only what `include` lists. A build
-backend makes what its block asks for, before the layout, and one
-component may make all of it:
+A namespace nests with `/`: the files of `namespace = "myapp/native"` are
+in `myapp/native/`, and `require` names them `myapp.native.<name>` (see
+[`[components.NAME]`](../reference/app-manifest.md#componentsname)). The
+files of a component are the `*.lua` and `*.so` of its `path` unless
+`include` lists others; a `go` component lays out only what `include`
+lists. A build backend makes what its block asks for, before the layout,
+and one component may make all of it:
 
 - a **module**, into `.rocks/lib/tarantool/<namespace>/`: a native module
   of `c`, `lua-c`, `cargo` or `zig` with `module`, or of `cmake`, `make` and
