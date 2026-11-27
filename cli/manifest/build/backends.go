@@ -296,7 +296,10 @@ func (b builder) warn(warning string) {
 // the first component whose backend does not build for another
 // (sdkbuild.Backend.CheckTarget), and for one whose Preflight refuses the
 // platform, with exit code 1: the build can be made for the machine, or
-// another backend can make it.
+// another backend can make it. A field of the block a Preflight finds wrong
+// (sdkbuild.FieldError), which it can only tell from the files of the
+// component, is an error of the manifest, of the path of the field, with
+// exit code 1 too.
 func (b builder) preflight(ctx context.Context, components []string) error {
 	for _, name := range components {
 		if b.proj.man.Components[name].Build == nil {
@@ -319,8 +322,13 @@ func (b builder) preflight(ctx context.Context, components []string) error {
 
 		err = preflighter.Preflight(ctx, run.context)
 
+		fieldErr, isField := errors.AsType[*sdkbuild.FieldError](err)
+
 		switch {
 		case err == nil:
+		case isField:
+			return sdk.Errorf(sdk.ExitFailure, "building component %q: %w", name,
+				fieldError("components."+name+".build", fieldErr))
 		case errors.Is(err, sdkbuild.ErrTarget):
 			return sdk.Errorf(sdk.ExitFailure, "building component %q: %w", name, err)
 		default:
@@ -330,6 +338,18 @@ func (b builder) preflight(ctx context.Context, components []string) error {
 	}
 
 	return nil
+}
+
+// fieldError is err, a field of the build block at block a preflight found
+// wrong, as manifest.Validate reports one: with the path of the field in the
+// manifest.
+func fieldError(block string, err *sdkbuild.FieldError) error {
+	field := block
+	if err.Field != "" {
+		field += "." + err.Field
+	}
+
+	return &manifest.ValidationError{Field: field, Msg: err.Msg}
 }
 
 // explainNoHeaders adds to err, the failure of a build for want of the
