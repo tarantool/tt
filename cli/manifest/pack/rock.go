@@ -311,6 +311,13 @@ func packRocks(
 		return rockResult{}, err
 	}
 
+	// A component its path and its cwd leave in the project may read files
+	// out of it still, as its Export says: the source rock is not packed of
+	// it either.
+	if opts.makes(FormatRockSrc) && len(plan.outside) > 0 {
+		return rockResult{}, srcRockOutsideError(plan.outside)
+	}
+
 	rel.Build = plan.build
 
 	spec, err := rocktree.ReleaseRockspec(rel)

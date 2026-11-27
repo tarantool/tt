@@ -66,7 +66,18 @@ func renderScript(name string, data any) (string, error) {
 // none. A static program is built for the musl
 // target of the machine, which is to be installed, and refused for macOS, as
 // Preflight refuses it.
-func (b cargoBuild) Export(*build.ExportContext) (build.Export, error) {
+//
+// A package whose Cargo.toml, or the root of whose workspace, is out of the
+// project, as the files of the project of e say (checkWorkspace), fails the
+// export with build.ErrOutside: the source rock holds neither.
+func (b cargoBuild) Export(e *build.ExportContext) (build.Export, error) {
+	if e.Project != "" && e.Cwd != "" {
+		err := checkWorkspace(e.Project, e.Cwd)
+		if err != nil {
+			return build.Export{}, err
+		}
+	}
+
 	triples := make([]tripleView, 0, len(cargoArches))
 
 	for _, goarch := range slices.Sorted(maps.Keys(cargoArches)) {

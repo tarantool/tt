@@ -20,8 +20,10 @@ import (
 	"github.com/tarantool/go-luarocks/manif"
 
 	"github.com/tarantool/tt/sdk"
+	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
@@ -473,6 +475,82 @@ func TestPackSrcRockOfAComponentOutOfTheProject(t *testing.T) {
 	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/outside.lua")
 	assert.Contains(t, zipEntries(t, result.Rock), "lua/outapp/init.lua")
 	assert.Contains(t, readArchive(t, result.Path), ".rocks/share/tarantool/outapp/outside.lua")
+}
+
+// outsideBuild is the build of the backend outside, whose Export says that it
+// reads files out of the project, as that of cargo says of a package of a
+// workspace above the project, and records the directories it was given.
+type outsideBuild struct {
+	dirs *[]string
+}
+
+func (outsideBuild) Run(context.Context, *sdkbuild.Context) error { return nil }
+
+func (b outsideBuild) Export(e *sdkbuild.ExportContext) (sdkbuild.Export, error) {
+	*b.dirs = append(*b.dirs, e.Project, e.Cwd)
+
+	return sdkbuild.Export{}, fmt.Errorf("%w: it builds with the files of ..",
+		sdkbuild.ErrOutside)
+}
+
+// TestPackSrcRockOfABuildOutOfTheProject: a component in the project whose
+// build reads files out of it, as its Export says (sdkbuild.ErrOutside),
+// given the directories of the project as it is packed, is no more of a
+// source rock than one out of the project: the pack of the source rock
+// fails, naming it, while the binary rock is packed, its rockspec building
+// with tt alone.
+func TestPackSrcRockOfABuildOutOfTheProject(t *testing.T) {
+	t.Parallel()
+
+	var dirs []string
+
+	backends := buildregtest.Registry()
+	require.NoError(t, backends.Add("outside", []sdkbuild.Backend{{
+		Name:     "outside",
+		Produces: []sdkbuild.Result{sdkbuild.Module},
+		Config:   func() any { return new(struct{}) },
+		New: func(any, sdkbuild.Component, sdkbuild.Common) (sdkbuild.Build, error) {
+			return outsideBuild{dirs: &dirs}, nil
+		},
+		Exports: true,
+	}}, nil))
+
+	src := writeGitPackage(t, map[string]string{
+		manifestFileName: libraryManifest + "\n[components.native]\npath = 'native'\n\n" +
+			"[components.native.build]\nbackend = 'outside'\n",
+		"native/README": "built of the files of ..\n",
+	})
+	out := filepath.Join(src, "_out")
+
+	opts := packOptions(src, out, FormatRockSrc)
+
+	opts.Build.Backends = backends
+
+	_, err := Run(context.Background(), opts)
+	require.ErrorIs(t, err, errSrcRockOutside)
+	require.EqualError(t, err, `the sources of a component are out of the project, and the `+
+		`source rock holds the files of the project only: the component "native": the build `+
+		`reads files out of the project: it builds with the files of ..; app.manifest.toml is `+
+		`to be in a directory that holds the sources of each of its components, its own `+
+		`directory being the project; the binary rock, --format rock, and the .tt archive, `+
+		`which hold what the build made, pack such a component`)
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Equal(t, []string{src, filepath.Join(src, "native")}, dirs)
+	assert.NoDirExists(t, out, "nothing was packed")
+
+	opts = packOptions(src, out, FormatRock)
+
+	opts.Build.Backends = backends
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	assert.FileExists(t, result.Rock)
+
+	rockspec, err := os.ReadFile(result.Rockspec)
+	require.NoError(t, err)
+	assert.Contains(t, string(rockspec), "builds with tt only")
+	assert.Contains(t, string(rockspec), "the build reads files out of the project")
 }
 
 // TestSrcRockOfAComponentItDoesNotHold: a source rock whose manifest names a

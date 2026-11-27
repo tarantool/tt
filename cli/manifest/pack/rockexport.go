@@ -27,6 +27,10 @@ type exported struct {
 	// when there is any, the package builds with tt alone, and script is to
 	// be dropped.
 	ttOnly []string
+	// outside are those of ttOnly of the components that read files out of
+	// the project, which the source rock does not hold, so that tt does not
+	// build it either: a source rock of them is not packed.
+	outside []string
 }
 
 // exportBuilds asks the builds of the product of built - those of its
@@ -39,8 +43,11 @@ type exported struct {
 // files the sources of the rock are, when the script can set the env of its
 // block (rockscript.CheckEnv), and when no value of it the script would hold
 // has a NUL byte (rockscript.CheckStep). Any other failure of an Export
-// fails the pack.
-func exportBuilds(built *build.Result, backends *buildreg.Registry) (exported, error) {
+// fails the pack. project is the root of the project, whose files an
+// Export may read.
+func exportBuilds(built *build.Result, backends *buildreg.Registry, project string) (
+	exported, error,
+) {
 	man := built.Manifest
 	locked := lockedVersions(built.Lock, built.Product)
 
@@ -49,7 +56,7 @@ func exportBuilds(built *build.Result, backends *buildreg.Registry) (exported, e
 			Package: man.Package.Name, Version: built.Version.SemVer, PreBuild: nil,
 			PostBuild: nil, Components: nil, Lay: nil,
 		},
-		ttOnly: nil,
+		ttOnly: nil, outside: nil,
 	}
 
 	for _, name := range man.EffectiveProducts()[built.Product].Components {
@@ -65,14 +72,18 @@ func exportBuilds(built *build.Result, backends *buildreg.Registry) (exported, e
 			cwd = component.Path
 		}
 
-		step, reason, err := exportStep(backends, fmt.Sprintf("the component %q", name),
-			"components."+name+".build", target, *component.Build, cwd, locked)
+		step, reason, outside, err := exportStep(backends, fmt.Sprintf("the component %q", name),
+			"components."+name+".build", target, *component.Build, cwd, project, locked)
 		if err != nil {
 			return exported{}, err
 		}
 
 		if reason != "" {
 			result.ttOnly = append(result.ttOnly, reason)
+
+			if outside {
+				result.outside = append(result.outside, reason)
+			}
 
 			continue
 		}
@@ -90,8 +101,10 @@ func exportBuilds(built *build.Result, backends *buildreg.Registry) (exported, e
 			continue
 		}
 
-		step, reason, err := exportStep(backends, "the hook "+name, "hooks."+name,
-			man.HookTarget(), hook, hook.Cwd, locked)
+		// A hook out of the project is not of the source rock tt builds,
+		// which runs no hook of it, so it is no reason not to pack it.
+		step, reason, _, err := exportStep(backends, "the hook "+name, "hooks."+name,
+			man.HookTarget(), hook, hook.Cwd, project, locked)
 		if err != nil {
 			return exported{}, err
 		}
@@ -119,27 +132,29 @@ const hookPreBuild = "pre_build"
 
 // exportStep asks the build of block, the build block at field of the
 // manifest that builds target, what, in the working directory cwd, relative
-// to the project, for its export, and returns the step of the script of it,
-// but for what names the component or the hook. It returns why the build
-// does not export instead, when it does not.
+// to project, the root of the project, for its export, and returns the step
+// of the script of it, but for what names the component or the hook. It
+// returns why the build does not export instead, when it does not, and
+// whether that is that it reads files out of the project: it is built in a
+// directory out of it, or its Export says so (sdkbuild.ErrOutside).
 func exportStep(
 	backends *buildreg.Registry, what, field string, target manifest.BuildTarget,
-	block manifest.Build, cwd string, locked func(string) (string, bool),
-) (rockscript.Step, string, error) {
+	block manifest.Build, cwd, project string, locked func(string) (string, bool),
+) (rockscript.Step, string, bool, error) {
 	backend, bld, err := backends.Build(field, target, block)
 
 	switch {
 	case errors.Is(err, buildreg.ErrNoBackend):
 		return rockscript.Step{}, fmt.Sprintf("%s is built by the tt backend %q, which no "+
-			"module of this tt provides", what, block.Backend), nil
+			"module of this tt provides", what, block.Backend), false, nil
 	case err != nil:
-		return rockscript.Step{}, "", stateErrorf("%w", err)
+		return rockscript.Step{}, "", false, stateErrorf("%w", err)
 	}
 
 	exporter, ok := bld.(sdkbuild.Exporter)
 	if !backend.Exports || !ok {
 		return rockscript.Step{}, fmt.Sprintf("%s is built by the tt backend %q, which "+
-			"builds with tt alone", what, backend.Name), nil
+			"builds with tt alone", what, backend.Name), false, nil
 	}
 
 	export, err := exporter.Export(&sdkbuild.ExportContext{
@@ -149,25 +164,29 @@ func exportStep(
 		},
 		Hook:          target.Hook,
 		LockedVersion: locked,
+		Project:       project,
+		Cwd:           absCwd(project, cwd),
 	})
-	if errors.Is(err, sdkbuild.ErrNoExport) {
-		return rockscript.Step{}, noExportReason(what, field, backend.Name, err), nil
-	}
 
-	if err != nil {
-		return rockscript.Step{}, "", stateErrorf("%s: the export of the tt backend %q: %w",
-			field, backend.Name, err)
+	switch {
+	case errors.Is(err, sdkbuild.ErrNoExport):
+		return rockscript.Step{}, noExportReason(what, field, backend.Name, err), false, nil
+	case errors.Is(err, sdkbuild.ErrOutside):
+		return rockscript.Step{}, fmt.Sprintf("%s: %v", what, err), true, nil
+	case err != nil:
+		return rockscript.Step{}, "", false, stateErrorf("%s: the export of the tt backend %q: "+
+			"%w", field, backend.Name, err)
 	}
 
 	rel, inProject := projectRel(cwd)
 	if !inProject {
 		return rockscript.Step{}, fmt.Sprintf("%s is built in %s, out of the project, which "+
-			"the sources of the rock do not hold", what, cwd), nil
+			"the sources of the rock do not hold", what, cwd), true, nil
 	}
 
 	err = rockscript.CheckEnv(block.Env)
 	if err != nil {
-		return rockscript.Step{}, fmt.Sprintf("%s: %s.env: %v", what, field, err), nil
+		return rockscript.Step{}, fmt.Sprintf("%s: %s.env: %v", what, field, err), false, nil
 	}
 
 	var outputs []sdkbuild.OutputFile
@@ -184,10 +203,24 @@ func exportStep(
 	err = rockscript.CheckStep(step)
 	if err != nil {
 		return rockscript.Step{}, fmt.Sprintf("%s is built by the tt backend %q with tt "+
-			"alone: %v", what, backend.Name, err), nil
+			"alone: %v", what, backend.Name, err), false, nil
 	}
 
-	return step, "", nil
+	return step, "", false, nil
+}
+
+// absCwd is cwd, a working directory of the manifest, absolute, as the
+// project at project has it; empty for no project.
+func absCwd(project, cwd string) string {
+	if project == "" {
+		return ""
+	}
+
+	if filepath.IsAbs(cwd) {
+		return cwd
+	}
+
+	return filepath.Join(project, filepath.FromSlash(cwd))
 }
 
 // noExportReason says why the build of what, the block at field of the tt

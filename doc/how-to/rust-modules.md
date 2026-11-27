@@ -422,7 +422,13 @@ The source rock of `tt package pack --format rock-src` carries the files
 of the project git tracks, `Cargo.lock` among them, and not the crates: a
 project that depends on the rock builds it from the crates the lock pins,
 which cargo downloads, a mirror of the project or not: its download does
-not download them.
+not download them. A crate whose workspace has its root above the project,
+the `Cargo.toml` and the `Cargo.lock` cargo builds it with, is of no source
+rock, and the pack of one fails, naming the component: `the component
+"mod1": the build reads files out of the project: the cargo package in mod1
+is of the workspace of .., whose Cargo.toml and Cargo.lock cargo builds it
+with`. Put `app.manifest.toml` at the root of the workspace, or above it;
+the binary rock and the `.tt` archive pack such a crate.
 
 ## Rust targets and other platforms
 
